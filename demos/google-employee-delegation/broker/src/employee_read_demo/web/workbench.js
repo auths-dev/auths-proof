@@ -635,15 +635,35 @@ async function loadAgentResult() {
 }
 
 function bind(id, action) {
-  byId(id).addEventListener("click", async () => {
-    byId(id).disabled = true;
+  const button = byId(id);
+  const feedback = document.createElement("p");
+  feedback.className = "button-feedback";
+  feedback.setAttribute("role", "status");
+  feedback.setAttribute("aria-live", "polite");
+  feedback.hidden = true;
+  button.insertAdjacentElement("afterend", feedback);
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    feedback.hidden = false;
+    feedback.textContent = "Working…";
+    const previousMessage = byId("message").textContent;
     let succeeded = false;
-    try { await action(); succeeded = true; }
-    catch (error) { message(error.message || String(error)); }
+    try {
+      await action();
+      succeeded = true;
+      const currentMessage = byId("message").textContent;
+      feedback.textContent = currentMessage !== previousMessage
+        ? currentMessage : "Completed.";
+    }
+    catch (error) {
+      const detail = error.message || String(error);
+      feedback.textContent = detail;
+      message(detail);
+    }
     finally {
       if (!(id === "agent-complete" && !preparedAgent) &&
           !(id === "activate-complete" && !preparedActivation) &&
-          (id !== "write-submit" || !succeeded)) byId(id).disabled = false;
+          (id !== "write-submit" || !succeeded)) button.disabled = false;
     }
   });
 }
@@ -731,6 +751,7 @@ async function start() {
       byId("write-confirm-authorize").hidden = true;
       byId("write-submit").textContent = "Submit the agent's approved choice";
     } else if (session.task_write_paired_available) {
+      byId("write-purpose").value = "Create and populate one Project A handoff Doc from the approved source";
       byId("write-task-description").textContent = "The account, registered agent, Project A folder and limits come from the operator's pinned installation. After the agent drafts, Jules reviews the exact new file and its content in one separate effect-plan signature.";
       byId("write-confirmation-heading").textContent = "Approve the agent's new Project A file";
       byId("write-confirmation-description").textContent = "After the separate agent signs the create action and stages its draft privately, review the exact folder, title, complete content, create request and populate recipe. This signature is recorded before either provider write.";
