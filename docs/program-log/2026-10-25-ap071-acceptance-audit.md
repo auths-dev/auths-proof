@@ -8,7 +8,7 @@ for the exact operation IDs, provider statuses and private evidence pins.
 | --- | --- | --- |
 | Jules delegates to a distinct agent; agent reads Project A | The [single-plan run](2026-10-25-ap071-live-create.md) includes a Jules-signed task, a separate agent-signed read and a 51-byte authenticated gateway release. Both configured Google source-backed connections passed a live refresh and UserInfo [readiness probe](2026-10-25-ap071-google-custody-materializer.md). A [fresh installed task](2026-10-25-ap071-materialized-read.md) used the source-backed post-reservation materializer: one Google provider call, one 51-byte `agent-acknowledged` release to the distinct agent, and a gateway receipt matching the independently pinned source digest. | Carry the local artifact pins into the final evidence manifest. The earlier failed materializer task remains a separate fail-closed result. |
 | Exact Google edit | A [live edit](2026-10-25-ap071-live-edit.md) reached Docs through the gateway and has independent readback. | Qualify the exact installed artifact and complete the required hostile write cases. |
-| One-plan Google create and populate | A [later v2 run](2026-10-25-ap071-live-create.md) completed both effects under one Jules-signed plan. The [v3 response-less run](2026-10-25-ap071-live-response-less-recovery.md) proved the single-candidate recovery path, but its gateway binary changed during the run. The [v4 rerun](2026-10-26-ap071-v4-response-less-create.md) used one fixed build and one Jules-signed task for a source-backed read, response-less create, fresh Jules recovery signature, one child binding, one population write and independent exact final readback. Separate [zero-match](2026-10-26-ap071-zero-match-create-refusal.md) and [multiple-match](2026-10-26-ap071-multiple-match-create-refusal.md) runs refused recovery, retries and population, with strict independent provider joins. | Run the incomplete-search refusal and controlled failed-populate case, then the remaining hostile matrix and production qualification. |
+| One-plan Google create and populate | A [later v2 run](2026-10-25-ap071-live-create.md) completed both effects under one Jules-signed plan. The [v3 response-less run](2026-10-25-ap071-live-response-less-recovery.md) proved the single-candidate recovery path, but its gateway binary changed during the run. The [v4 rerun](2026-10-26-ap071-v4-response-less-create.md) used one fixed build and one Jules-signed task for a source-backed read, response-less create, fresh Jules recovery signature, one child binding, one population write and independent exact final readback. Separate [zero-match](2026-10-26-ap071-zero-match-create-refusal.md), [multiple-match](2026-10-26-ap071-multiple-match-create-refusal.md) and [incomplete-search](2026-10-26-ap071-incomplete-search-create-refusal.md) runs refused recovery, retries and population, with strict independent provider joins. | Run the controlled failed-populate case, then the remaining hostile matrix and production qualification. |
 | Bounded upfront edit | A [clean rerun](2026-10-25-ap071-clean-upfront-rerun.md) matched demo_co's complete precomputed after-state. | Run the off-choice, second-write and exact-confirmation-only policy refusals with provider request counts. |
 | Second HTTPS provider | The [installed Airtable runs](2026-10-25-ap071-airtable-live.md) delivered a field to a separate agent and performed an exact confirmed PATCH with independent readback. Task-excluded resource, wrong recipe digest, changed action after exact confirmation, read and write replay, lost acknowledgement, agent-side wrong recipient, a distinct second upfront write refused by budget, and simultaneous final-write claims against one budget also ran. | Complete the remaining installed cross-provider hostile corpus in §6. The Airtable PAT is not a second human-bound employee account. |
 | Provider and task denials | The [finance run](2026-10-25-ap071-finance-denial.md) admitted the signed read and recorded Google's 404 with zero released bytes; the [Project B task test](2026-10-25-ap071-project-b-task-denial.md) stopped before provider entry. Airtable's installed concurrent final-write case admitted one operation and refused the competing one by budget. | Run remaining Google §8 negative cases under pinned installed artifacts, including changed OAuth subject/generation, revision/content races, concurrent final write, unknown write response, restart and provider access loss. |
@@ -23,8 +23,8 @@ observation, fresh Jules signature, metadata recheck, recovered binding,
 single population write and final provider inspection. The gateway's
 read-only recovery-input command still refuses recorded-response attempts.
 Its loopback tests cover altered evidence, changed human candidate and replay.
-The single-candidate success is complemented by separate zero-match and
-multiple-match refusal runs. The injected incomplete-search case remains open.
+The single-candidate success is complemented by separate zero-match,
+multiple-match and injected incomplete-search refusal runs.
 demo_co's [v4 six-to-seven-child contract](2026-10-26-ap071-v4-producer-contract.md)
 was exercised in the [fixed-build live run](2026-10-26-ap071-v4-response-less-create.md):
 baseline generation 0021, blank child 0022 and exact final observation 0023
@@ -34,8 +34,10 @@ The full spec is **open**. The v4 run demonstrates one live single-candidate
 recovery with one fixed gateway build. The separate zero-match run dropped the
 create before provider entry and proved zero-candidate refusal; the
 multiple-match run suppressed one real Google create response and proved
-ambiguous-candidate refusal. Neither proves incomplete-search refusal or
-production qualification. An earlier
+ambiguous-candidate refusal. The incomplete-search run suppressed another
+real create response, then injected an Auths search-completeness fault and
+refused to bind the independently observed blank child. These runs do not
+prove the controlled failed-populate case or production qualification. An earlier
 source-backed task spent its one read allowance on a
 fail-closed materialization refusal, with zero Google requests and zero
 released bytes. The later installed task completed the materialized Google
