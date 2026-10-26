@@ -32,6 +32,10 @@ nested `manifest.json` file. This host's uv-managed Python 3.12 could not
 seed pip in a standard `venv`; the successful run used the Homebrew interpreter.
 The installed native wheel also passed `bindings/python/tools/check_contract.py`
 against the checked-in ABI manifest.
+The installed workbench and separate agent CLI help both loaded from that
+virtual environment. The custody process intentionally has no `--help`
+command; its installed bytes are pinned above, and the live task must use its
+closed `--describe`/materialization protocol with private pins.
 
 The installed bundle is ready to be configured with the owner-private Google
 grant source and the next fresh demo_co v2 reports. It has not activated a
