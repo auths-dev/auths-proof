@@ -60,7 +60,7 @@ def main() -> None:
                  "exit-after-content-send",
                  "revoke-before-actions",
                  "upfront-second-write", "concurrent-upfront-writes",
-                 "exit-after-write-reservation",
+                 "exit-after-write-reservation", "two-task-swap",
                  "macos-agent-sandbox"):
         parser.add_argument("--" + flag, action="store_true")
     args = parser.parse_args()
@@ -95,7 +95,7 @@ def main() -> None:
         "exit_after_content_send",
         "revoke_before_actions",
         "upfront_second_write", "concurrent_upfront_writes",
-        "exit_after_write_reservation",
+        "exit_after_write_reservation", "two_task_swap",
         "macos_agent_sandbox",
     ) if getattr(args, name)]
     command = [str(python), str(ROOT / "read_reference/installed_conformance.py"),

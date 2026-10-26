@@ -146,3 +146,11 @@ allows only one write. Two separately signed agent operations enter the
 installed gateway together. The tool requires exactly one observed PATCH,
 one pre-entry budget refusal, one durable write operation, and an independent
 Airtable readback matching the admitted choice. Run `cleanup` afterward.
+
+For the shared-connection task-binding case, add `--two-task-swap`. The
+source-free runner activates two human-signed tasks on the same installed
+read/write connection pair, refuses a read and write signed for one task when
+presented under the other task, and refuses a read under the write namespace.
+Each task then performs one valid acknowledged read. The
+[installed run](../../../docs/program-log/2026-10-26-ap071-airtable-two-task-swap.md)
+records the bundle pin, redacted outcomes, separate budgets and cleanup.

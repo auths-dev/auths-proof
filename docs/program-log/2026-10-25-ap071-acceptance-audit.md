@@ -92,3 +92,12 @@ restart, activity reported one spent write at `claimed-no-attempt`; replay was
 refused and an independent provider GET showed no effect. Its disposable
 record was retired. This closes that specific write-journal interleaving;
 other installed hostile cases remain open.
+
+The [source-free two-task Airtable run](2026-10-26-ap071-airtable-two-task-swap.md)
+then activated two independently signed tasks on one installed read/write
+connection pair. Swapping a signed read or write across task IDs and using the
+write namespace for a read all stopped before gateway provider entry. Both
+tasks subsequently delivered their own acknowledged seven-byte read, with
+one charged provider call each and zero writes. The independent record
+remained unchanged and was retired. Plan, child and preflight swaps remain
+unverified in the installed create/populate vertical.

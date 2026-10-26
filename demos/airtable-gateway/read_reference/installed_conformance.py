@@ -313,13 +313,14 @@ def run(env_file: Path, root: Path, binary: Path,
         upfront_second_write: bool = False,
         concurrent_upfront_writes: bool = False,
         exit_after_write_reservation: bool = False,
+        two_task_swap: bool = False,
         macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, exit_after_release_entry,
             exit_after_content_send,
             revoke_before_actions,
             upfront_second_write, concurrent_upfront_writes,
-            exit_after_write_reservation)) > 1:
+            exit_after_write_reservation, two_task_swap)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -507,6 +508,175 @@ def run(env_file: Path, root: Path, binary: Path,
     _write_json(agent_dir / "write-package.json", signed.agent_package)
     common = {"task_id": signed.task_id,
               "task_commitment": task_commitment(prepared.card)}
+    if two_task_swap:
+        second_prepared = browser.prepare(
+            employee=employee, agent=agent,
+            employee_identity_packet=human_packet,
+            agent_identity_packet=agent_packet,
+            resource_handle=record, resource_label="Disposable Airtable record",
+            read_resource_handle=record, read_resource_label="Current DemoStatus",
+            account_label="Operator Airtable PAT",
+            purpose="Second independent task on the same connection",
+        )
+        second = browser.complete(
+            nonce=second_prepared.nonce, employee=employee, agent=agent,
+            grant_signature=human_key.sign(second_prepared.grant_preimage),
+            read_grant_signature=human_key.sign(second_prepared.read_grant_preimage),
+            task_signature=human_key.sign(second_prepared.task_preimage),
+        )
+        _gateway(binary, "task-activate", "--state-dir", state,
+                 "--proof", second.private_task_dir / "task.proof",
+                 "--action", second.private_task_dir / "task.action")
+        second_common = {"task_id": second.task_id,
+                         "task_commitment": task_commitment(second_prepared.card)}
+        _write_json(agent_dir / "swap-read-package.json", signed.read_agent_package)
+        _write_json(agent_dir / "swap-write-package.json", signed.agent_package)
+        _write_json(agent_dir / "swap-read-arguments.json", {
+            **common, "operator_namespace": "airtable-read-demo",
+            "operation_id": "airtable-cross-task-read",
+            "recipe_digest": READ_DIGEST, "resource_id": record,
+            "agent_principal": agent_principal,
+        })
+        swap_read = _private_dir(agent_dir / "swap-read-output", create=True)
+        _agent("sign-read", "--key-file", agent_dir / "agent.seed",
+               "--package-file", agent_dir / "swap-read-package.json",
+               "--arguments-file", agent_dir / "swap-read-arguments.json",
+               "--out-dir", swap_read)
+        cross_task_read = _gateway(
+            binary, "task-read-submit", "--state-dir", state,
+            "--task-id", second.task_id,
+            "--agent-proof", swap_read / "read.proof",
+            "--agent-action", swap_read / "read.action",
+        )
+        _write_json(agent_dir / "swap-write-arguments.json", {
+            **common, "operator_namespace": "airtable-demo",
+            "operation_id": "airtable-cross-task-write",
+            "recipe_digest": WRITE_DIGEST,
+            "record_id": record, "replacement": "Approved",
+        })
+        swap_write = _private_dir(agent_dir / "swap-write-output", create=True)
+        _agent("sign-write", "--key-file", agent_dir / "agent.seed",
+               "--package-file", agent_dir / "swap-write-package.json",
+               "--arguments-file", agent_dir / "swap-write-arguments.json",
+               "--out-dir", swap_write)
+        cross_task_write = _gateway(
+            binary, "task-submit", "--state-dir", state,
+            "--task-id", second.task_id,
+            "--agent-proof", swap_write / "agent.proof",
+            "--agent-action", swap_write / "agent.action",
+        )
+        _write_json(agent_dir / "swap-namespace-arguments.json", {
+            **common, "operator_namespace": "airtable-demo",
+            "operation_id": "airtable-cross-namespace-read",
+            "recipe_digest": READ_DIGEST, "resource_id": record,
+            "agent_principal": agent_principal,
+        })
+        namespace_read = _private_dir(agent_dir / "swap-namespace-output", create=True)
+        _agent("sign-read", "--key-file", agent_dir / "agent.seed",
+               "--package-file", agent_dir / "swap-read-package.json",
+               "--arguments-file", agent_dir / "swap-namespace-arguments.json",
+               "--out-dir", namespace_read)
+        cross_namespace_read = _gateway(
+            binary, "task-read-submit", "--state-dir", state,
+            "--task-id", signed.task_id,
+            "--agent-proof", namespace_read / "read.proof",
+            "--agent-action", namespace_read / "read.action",
+        )
+        statuses_before = [
+            _gateway(binary, "task-status", "--state-dir", state,
+                     "--task-id", task_id)
+            for task_id in (signed.task_id, second.task_id)
+        ]
+        if (any(result.get("outcome") != "not-entered" for result in
+                (cross_task_read, cross_task_write, cross_namespace_read))
+                or any(status.get("provider_calls") != 0 or
+                       status.get("releases") != 0 or
+                       status.get("writes") != 0 for status in statuses_before)
+                or airtable.request("GET", row_path) != before):
+            raise RuntimeError("cross-task or namespace swap reached Airtable")
+
+        def complete_read(task: object, card: dict, label: str) -> dict:
+            package = agent_dir / f"{label}-read-package.json"
+            arguments = agent_dir / f"{label}-read-arguments.json"
+            output = _private_dir(agent_dir / f"{label}-read-output", create=True)
+            operation_id = f"airtable-{label}-valid-read"
+            _write_json(package, task.read_agent_package)
+            _write_json(arguments, {
+                "task_id": task.task_id,
+                "task_commitment": task_commitment(card),
+                "operator_namespace": "airtable-read-demo",
+                "operation_id": operation_id, "recipe_digest": READ_DIGEST,
+                "resource_id": record, "agent_principal": agent_principal,
+            })
+            _agent("sign-read", "--key-file", agent_dir / "agent.seed",
+                   "--package-file", package, "--arguments-file", arguments,
+                   "--out-dir", output)
+            content = agent_dir / f"{label}-released.bin"
+            receiver = _agent(
+                "serve-release", "--key-file", agent_dir / "agent.seed",
+                "--socket", channel, "--output", content,
+                "--task-id", task.task_id,
+                "--task-commitment", task_commitment(card),
+                "--operation-id", operation_id,
+                "--resource-handle", record,
+                "--channel-name", "airtable-agent-local", wait=False,
+            )
+            try:
+                _wait_for(channel, receiver)
+                result = _gateway(
+                    binary, "task-read-submit", "--state-dir", state,
+                    "--task-id", task.task_id,
+                    "--agent-proof", output / "read.proof",
+                    "--agent-action", output / "read.action",
+                )
+                receiver.communicate(timeout=15)
+            finally:
+                if receiver.poll() is None:
+                    receiver.terminate()
+                    receiver.communicate(timeout=5)
+                if channel.is_socket():
+                    channel.unlink()
+            if (receiver.returncode != 0 or
+                    result.get("outcome") != "agent-acknowledged" or
+                    content.read_bytes() != b"Pending"):
+                raise RuntimeError("one of two independent reads did not deliver")
+            return result
+
+        first_read = complete_read(signed, prepared.card, "first-task")
+        second_read = complete_read(second, second_prepared.card, "second-task")
+        statuses_after = [
+            _gateway(binary, "task-status", "--state-dir", state,
+                     "--task-id", task_id)
+            for task_id in (signed.task_id, second.task_id)
+        ]
+        if (any(status.get("provider_calls") != 1 or
+                status.get("releases") != 1 or
+                status.get("released_bytes") != 7 or
+                status.get("writes") != 0 for status in statuses_after)
+                or airtable.request("GET", row_path) != before):
+            raise RuntimeError("two-task read accounting or Airtable baseline changed")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-two-task-swap/1",
+            "task_ids": [signed.task_id, second.task_id],
+            "record_id": record,
+            "cross_task_read": cross_task_read,
+            "cross_task_write": cross_task_write,
+            "cross_namespace_read": cross_namespace_read,
+            "valid_read_outcomes": [first_read.get("outcome"),
+                                    second_read.get("outcome")],
+            "task_statuses": statuses_after,
+            "provider_write_effect": "none",
+            "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-two-task-swap-observed",
+            "task_ids": [signed.task_id, second.task_id],
+            "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     _write_json(agent_dir / "wrong-recipient-read-arguments.json", {
         **common, "operator_namespace": "airtable-read-demo",
         "operation_id": "airtable-read-wrong-recipient",
@@ -1127,6 +1297,8 @@ def main() -> None:
                         help="race two signed bounded choices for one write effect")
     parser.add_argument("--exit-after-write-reservation", action="store_true",
                         help="development gateway exits between durable write and attempt journals")
+    parser.add_argument("--two-task-swap", action="store_true",
+                        help="activate two tasks on one connection and refuse cross-task and namespace actions")
     parser.add_argument("--macos-agent-sandbox", action="store_true",
                         help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
@@ -1142,6 +1314,7 @@ def main() -> None:
             upfront_second_write=args.upfront_second_write,
             concurrent_upfront_writes=args.concurrent_upfront_writes,
             exit_after_write_reservation=args.exit_after_write_reservation,
+            two_task_swap=args.two_task_swap,
             macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)
