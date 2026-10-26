@@ -1,0 +1,139 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "producer_setup_only",
+      "default": "producer_setup_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "case": {
+      "enum": [
+        "zero",
+        "multiple",
+        "incomplete"
+      ],
+      "title": "Case",
+      "type": "string"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "default": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "project_a_folder_id": {
+      "title": "Project A Folder Id",
+      "type": "string"
+    },
+    "run_folder_id": {
+      "title": "Run Folder Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[a-z][a-z0-9-]{1,40}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-create-negative-setup/v1",
+      "default": "demo-co/google-create-negative-setup/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scratch_journal_company": {
+      "const": "atlas-studio-recovery-negative",
+      "default": "atlas-studio-recovery-negative",
+      "title": "Scratch Journal Company",
+      "type": "string"
+    },
+    "scratch_root_id": {
+      "title": "Scratch Root Id",
+      "type": "string"
+    },
+    "seed_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Seed Id"
+    },
+    "source_v4_baseline_generation": {
+      "minimum": 1,
+      "title": "Source V4 Baseline Generation",
+      "type": "integer"
+    },
+    "source_v4_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V4 Baseline Sha256",
+      "type": "string"
+    },
+    "source_v4_final_generation": {
+      "minimum": 1,
+      "title": "Source V4 Final Generation",
+      "type": "integer"
+    },
+    "source_v4_final_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V4 Final Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "source_v4_baseline_generation",
+    "source_v4_baseline_sha256",
+    "source_v4_final_generation",
+    "source_v4_final_sha256",
+    "run_id",
+    "case",
+    "marker",
+    "drive_id",
+    "project_a_folder_id",
+    "scratch_root_id",
+    "run_folder_id",
+    "seed_id",
+    "jules_subject"
+  ],
+  "title": "GoogleNegativeSetup",
+  "type": "object"
+}

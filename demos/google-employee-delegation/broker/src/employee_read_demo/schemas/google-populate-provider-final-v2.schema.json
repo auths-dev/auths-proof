@@ -1,0 +1,267 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "blank_admin_revision_id": {
+      "title": "Blank Admin Revision Id",
+      "type": "string"
+    },
+    "blank_baseline_generation": {
+      "minimum": 1,
+      "title": "Blank Baseline Generation",
+      "type": "integer"
+    },
+    "blank_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Baseline Sha256",
+      "type": "string"
+    },
+    "blank_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Raw Sha256",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "child_created_at": {
+      "format": "date-time",
+      "title": "Child Created At",
+      "type": "string"
+    },
+    "child_id": {
+      "title": "Child Id",
+      "type": "string"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "exact_expected_content": {
+      "title": "Exact Expected Content",
+      "type": "boolean"
+    },
+    "exact_sibling_inventory_unchanged": {
+      "const": true,
+      "title": "Exact Sibling Inventory Unchanged",
+      "type": "boolean"
+    },
+    "expected_raw_byte_count": {
+      "exclusiveMinimum": 3,
+      "maximum": 100000,
+      "title": "Expected Raw Byte Count",
+      "type": "integer"
+    },
+    "expected_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expected Raw Sha256",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "inventory_generation": {
+      "minimum": 1,
+      "title": "Inventory Generation",
+      "type": "integer"
+    },
+    "inventory_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Inventory Sha256",
+      "type": "string"
+    },
+    "marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_admin_revision_id": {
+      "title": "Observed Admin Revision Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "observed_raw_byte_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Observed Raw Byte Count",
+      "type": "integer"
+    },
+    "observed_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Observed Raw Sha256",
+      "type": "string"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_folder_id": {
+      "title": "Project A Folder Id",
+      "type": "string"
+    },
+    "provider_entry_attested": {
+      "const": false,
+      "title": "Provider Entry Attested",
+      "type": "boolean"
+    },
+    "provider_match_count": {
+      "const": 1,
+      "title": "Provider Match Count",
+      "type": "integer"
+    },
+    "retry_authorized": {
+      "const": false,
+      "title": "Retry Authorized",
+      "type": "boolean"
+    },
+    "revision_changed": {
+      "title": "Revision Changed",
+      "type": "boolean"
+    },
+    "run_child_count": {
+      "const": 1,
+      "title": "Run Child Count",
+      "type": "integer"
+    },
+    "run_folder_id": {
+      "title": "Run Folder Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "run_marker_occurrences_in_content": {
+      "minimum": 0,
+      "title": "Run Marker Occurrences In Content",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "demo-co/google-populate-provider-final/v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scratch_root_child_count": {
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Scratch Root Child Count",
+      "type": "integer"
+    },
+    "scratch_root_id": {
+      "title": "Scratch Root Id",
+      "type": "string"
+    },
+    "source_document_id": {
+      "title": "Source Document Id",
+      "type": "string"
+    },
+    "source_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Source Raw Byte Count",
+      "type": "integer"
+    },
+    "source_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Raw Sha256",
+      "type": "string"
+    },
+    "source_unchanged": {
+      "const": true,
+      "title": "Source Unchanged",
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "exact_populated",
+        "still_blank",
+        "unexpected_state"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "still_exactly_blank": {
+      "title": "Still Exactly Blank",
+      "type": "boolean"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "inventory_generation",
+    "inventory_sha256",
+    "blank_baseline_generation",
+    "blank_baseline_sha256",
+    "run_id",
+    "marker",
+    "drive_id",
+    "project_a_folder_id",
+    "scratch_root_id",
+    "run_folder_id",
+    "child_id",
+    "child_created_at",
+    "tab_id",
+    "blank_admin_revision_id",
+    "observed_admin_revision_id",
+    "revision_changed",
+    "blank_raw_sha256",
+    "observed_raw_sha256",
+    "observed_raw_byte_count",
+    "expected_raw_sha256",
+    "expected_raw_byte_count",
+    "exact_expected_content",
+    "still_exactly_blank",
+    "run_marker_occurrences_in_content",
+    "provider_match_count",
+    "run_child_count",
+    "scratch_root_child_count",
+    "exact_sibling_inventory_unchanged",
+    "source_document_id",
+    "source_raw_sha256",
+    "source_raw_byte_count",
+    "source_unchanged",
+    "original_seven_unchanged",
+    "canonical_project_a_unchanged",
+    "canonical_project_b_unchanged",
+    "provider_entry_attested",
+    "retry_authorized",
+    "attribution"
+  ],
+  "title": "GooglePopulateProviderFinalV2",
+  "type": "object"
+}

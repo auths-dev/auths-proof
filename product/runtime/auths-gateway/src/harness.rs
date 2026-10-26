@@ -42,6 +42,7 @@ use auths_registries::OBSERVATION_REQUIREMENT_EXTENSION_V1;
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Map, Value, json};
 use sha2::{Digest as _, Sha256};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -401,12 +402,129 @@ fn context_for(
     composition: CompositionRequirement,
     methods: &[&str],
 ) -> Result<TrustedContext, HarnessError> {
+    context_for_profiles(
+        roots,
+        observer,
+        configuration,
+        now,
+        depth,
+        composition,
+        methods,
+        &[(SERVICE, TOOL)],
+    )
+}
+
+/// One installed context admits the provider action and both fixed human
+/// task actions while keeping the provider audience as its default.
+#[cfg(test)]
+pub(crate) fn context_for_agent_and_task(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+) -> Result<TrustedContext, HarnessError> {
+    context_for_agent_and_task_profile(root, observer, now, SERVICE, TOOL)
+}
+
+#[cfg(test)]
+pub(crate) fn context_for_agent_and_task_profile(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    service: &str,
+    tool: &str,
+) -> Result<TrustedContext, HarnessError> {
+    context_for_agent_and_task_profiles(root, observer, now, &[(service, tool)])
+}
+
+pub(crate) fn context_for_agent_and_task_profiles(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    profiles: &[(&str, &str)],
+) -> Result<TrustedContext, HarnessError> {
+    let mut allowed = profiles.to_vec();
+    allowed.extend([
+        ("auths-agent-task", "approve_agent_task_v1"),
+        ("auths-agent-task", "confirm_agent_write_v1"),
+        ("auths-agent-task", "confirm_agent_effect_plan_v1"),
+        ("auths-agent-task", "confirm_agent_recovered_child_v1"),
+    ]);
+    context_for_profiles(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        &allowed,
+    )
+}
+
+/// Mixed task trust whose default audience is the write service while the
+/// release proof targets a separately approved read service.
+#[cfg(test)]
+pub(crate) fn context_for_read_with_write_default(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+) -> Result<TrustedContext, HarnessError> {
+    context_for_profiles(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        &[("provider-write", "edit"), (SERVICE, TOOL)],
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust includes named MCP profile"
+)]
+fn context_for_profiles(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+    methods: &[&str],
+    profiles: &[(&str, &str)],
+) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
     };
     let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
-    let unbound = call(&Map::new())?;
+    let calls = profiles
+        .iter()
+        .map(|(service, tool)| fixture(McpToolCall::new(*service, *tool, Map::new()), "call"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let first = calls.first().ok_or(HarnessError::Fixture("call"))?;
+    let services = profiles
+        .iter()
+        .map(|(service, _)| *service)
+        .collect::<BTreeSet<_>>();
+    let audiences = services
+        .iter()
+        .map(|service| fixture(Audience::parse(&format!("mcp://{service}")), "audience"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let audience = fixture(
+        Audience::parse(&format!("mcp://{}", profiles[0].0)),
+        "audience",
+    )?;
+    let namespaces = services
+        .iter()
+        .map(|service| fixture(ResourceId::parse(&format!("mcp://{service}/")), "namespace"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let permissions = calls
+        .iter()
+        .map(|call| fixture(call.permission(), "permission"))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut anchors = Vec::with_capacity(roots.len());
     for (index, root) in roots.iter().enumerate() {
         let id = if roots.len() == 1 {
@@ -419,16 +537,10 @@ fn context_for(
                 fixture(TrustAnchorId::parse(&id), "anchor ID")?,
                 root.principal.clone(),
                 vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
-                vec![fixture(unbound.profile_ref(), "profile")?],
-                fixture(
-                    PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
-                    "permissions",
-                )?,
-                vec![fixture(
-                    ResourceId::parse(&format!("mcp://{SERVICE}/")),
-                    "namespace",
-                )?],
-                fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
+                vec![fixture(first.profile_ref(), "profile")?],
+                fixture(PermissionSet::new(permissions.clone()), "permissions")?,
+                namespaces.clone(),
+                fixture(AudienceSet::new(audiences.clone()), "audiences")?,
                 window(now - 86_400, now + 86_400)?,
                 None,
                 depth,
@@ -444,7 +556,7 @@ fn context_for(
             composition,
             anchors,
             accepted_registries_for(methods)?,
-            audience()?,
+            audience,
             Challenge::new([0; 32]),
             Timestamp::new(now),
             fixture(
@@ -524,6 +636,37 @@ pub(crate) fn grant_within(
     requirement: Option<ObservationRequirement>,
     validity: ValidityWindow,
 ) -> Result<SignedGrant, HarnessError> {
+    grant_within_for(root, subject, requirement, validity, SERVICE, TOOL)
+}
+
+/// A synthetic root grant for a named MCP profile. Task tests use their real
+/// approval and confirmation names rather than the gateway demo tool.
+#[cfg(test)]
+pub(crate) fn grant_for(
+    root: &Signer,
+    subject: &PrincipalId,
+    now: u64,
+    service: &str,
+    tool: &str,
+) -> Result<SignedGrant, HarnessError> {
+    grant_within_for(
+        root,
+        subject,
+        None,
+        window(now - 3_600, now + 86_400)?,
+        service,
+        tool,
+    )
+}
+
+fn grant_within_for(
+    root: &Signer,
+    subject: &PrincipalId,
+    requirement: Option<ObservationRequirement>,
+    validity: ValidityWindow,
+    service: &str,
+    tool: &str,
+) -> Result<SignedGrant, HarnessError> {
     let extensions = match requirement {
         None => CriticalExtensions::empty(),
         Some(requirement) => {
@@ -549,7 +692,7 @@ pub(crate) fn grant_within(
             )?
         }
     };
-    let unbound = call(&Map::new())?;
+    let unbound = fixture(McpToolCall::new(service, tool, Map::new()), "call")?;
     let statement = GrantStatement::new(
         root.principal.clone(),
         subject.clone(),
@@ -559,7 +702,13 @@ pub(crate) fn grant_within(
             "permissions",
         )?,
         validity,
-        fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
+        fixture(
+            AudienceSet::new(vec![fixture(
+                Audience::parse(&format!("mcp://{service}")),
+                "audience",
+            )?]),
+            "audiences",
+        )?,
         ActionConstraint::AnyBody,
         None,
         0,

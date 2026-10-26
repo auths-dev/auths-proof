@@ -1,0 +1,33 @@
+[package]
+name = "auths-google-employee-custody"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Development Google employee grant custody sidecar for AP-071"
+
+[[bin]]
+name = "auths-google-employee-custody"
+path = "src/main.rs"
+
+[dependencies]
+async-trait.workspace = true
+auths-connections.workspace = true
+auths-gateway.workspace = true
+base64ct.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+rustix.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

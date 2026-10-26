@@ -621,6 +621,8 @@ dependencies = [
  "auths-did-keri",
  "auths-did-key",
  "auths-gateway-kernel",
+ "auths-identity",
+ "auths-identity-raw-key",
  "auths-lifecycle",
  "auths-model",
  "auths-multikey",
@@ -634,6 +636,7 @@ dependencies = [
  "auths-registries",
  "auths-sdk",
  "auths-signature",
+ "auths-signature-ed25519",
  "auths-stores",
  "auths-verifier",
  "base64ct",
@@ -641,6 +644,7 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",
+ "hmac 0.12.1",
  "minicbor",
  "p256",
  "postgres",
@@ -739,6 +743,26 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "auths-google-employee-custody"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "auths-connections",
+ "auths-gateway",
+ "base64ct",
+ "hex",
+ "reqwest",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "subtle",
+ "tempfile",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]

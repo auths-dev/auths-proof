@@ -17,4 +17,4 @@ textarea { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: .9rem; background: #f0f4f3; border-radius: 6px; max-height: 22rem; overflow: auto; }
 code { font-family: ui-monospace, monospace; font-size: .95em; }
 .hint { color: #4b6060; font-size: .94rem; }
-#message { display: block; position: sticky; bottom: .7rem; background: #163d34; color: white; padding: .75rem 1rem; border-radius: 7px; min-height: 1rem; }
+#message { display: block; background: #163d34; color: white; padding: .75rem 1rem; border-radius: 7px; min-height: 1rem; }

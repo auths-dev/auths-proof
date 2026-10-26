@@ -6,6 +6,7 @@
 //! checks (a probe literal, a method, a count) are parsed loosely here so the
 //! rule, not the parser, reports the stable code.
 
+use crate::task_activation::TaskWriteVerb;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -18,6 +19,8 @@ pub(super) struct RecipeSource {
     pub(super) service: String,
     pub(super) tool: String,
     pub(super) operator_namespace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) task_binding: Option<TaskBindingSource>,
     pub(super) credential: CredentialSource,
     pub(super) origin: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -30,6 +33,10 @@ pub(super) struct RecipeSource {
     pub(super) relative_ceiling: Option<RelativeCeilingSource>,
     pub(super) write: WriteSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) created_child: Option<CreatedChildSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) task_populate: Option<TaskPopulateSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) observation: Option<ObservationSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) echo: Option<EchoSource>,
@@ -37,6 +44,81 @@ pub(super) struct RecipeSource {
     pub(super) pre_entry: Option<PreEntrySource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) preconditions: Option<PreconditionSource>,
+}
+
+/// A reviewed task-write interpretation of one typed profile resource field.
+/// This is recipe data and enters the compiled recipe digest.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct TaskBindingSource {
+    pub(super) resource_field: String,
+    pub(super) verb: TaskWriteVerb,
+}
+
+/// A response-derived candidate child ID for a task-bound create. These
+/// named profile fields must all be consumed by the closed write body.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CreatedChildSource {
+    pub(super) response_id_pointer: String,
+    pub(super) maximum_id_bytes: u64,
+    pub(super) parent_field: String,
+    pub(super) title_field: String,
+    pub(super) marker_field: String,
+    /// Closed comparisons on the credential-bearing child metadata GET.
+    /// Provider paths and literals remain reviewed recipe data.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) metadata_checks: Vec<CreatedChildCheckSource>,
+}
+
+/// The only agent-controlled provider fields permitted in a planned child
+/// population. The content comes from the human plan; the remaining bounded
+/// values come from a fresh credential-bearing provider preflight.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct TaskPopulateSource {
+    #[serde(rename = "text_field")]
+    pub(super) text: String,
+    pub(super) preflight_fields: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "expected", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum CreatedChildCheckSource {
+    CandidateId {
+        json_pointer: String,
+    },
+    /// Provider metadata stores the parent as one scalar ID.
+    Parent {
+        json_pointer: String,
+    },
+    /// Provider metadata stores the sole parent in a one-item array.
+    ParentOnly {
+        json_pointer: String,
+    },
+    Title {
+        json_pointer: String,
+    },
+    Marker {
+        json_pointer: String,
+    },
+    Literal {
+        json_pointer: String,
+        value: Value,
+    },
+}
+
+impl CreatedChildCheckSource {
+    pub(super) fn pointer(&self) -> &str {
+        match self {
+            Self::CandidateId { json_pointer }
+            | Self::Parent { json_pointer }
+            | Self::ParentOnly { json_pointer }
+            | Self::Title { json_pointer }
+            | Self::Marker { json_pointer }
+            | Self::Literal { json_pointer, .. } => json_pointer,
+        }
+    }
 }
 
 /// The credential requirement plus the author's optional credential guard.
@@ -147,6 +229,8 @@ pub(super) struct BindSource {
 pub(super) struct WriteSource {
     pub(super) method: super::WriteMethod,
     pub(super) path: Vec<PathSegment>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) query: BTreeMap<String, String>,
     pub(super) body: BodySource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) idempotency: Option<IdempotencySource>,
@@ -194,6 +278,10 @@ pub(super) enum PathSegment {
     },
     Field {
         name: String,
+    },
+    FieldSuffix {
+        name: String,
+        suffix: String,
     },
     ResponseField {
         pointer: String,
@@ -255,6 +343,8 @@ pub(super) enum ValueExpr {
 #[serde(deny_unknown_fields)]
 pub(super) struct ObservationSource {
     pub(super) path: Vec<PathSegment>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) query: BTreeMap<String, String>,
     pub(super) json_pointer: String,
     pub(super) expected_field: String,
     pub(super) maximum_response_bytes: usize,

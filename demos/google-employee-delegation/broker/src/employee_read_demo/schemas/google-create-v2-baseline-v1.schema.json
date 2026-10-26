@@ -1,0 +1,167 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 3,
+      "default": 3,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "preserved_blank_generation": {
+      "minimum": 2,
+      "title": "Preserved Blank Generation",
+      "type": "integer"
+    },
+    "preserved_blank_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Preserved Blank Sha256",
+      "type": "string"
+    },
+    "preserved_child_created_at": {
+      "format": "date-time",
+      "title": "Preserved Child Created At",
+      "type": "string"
+    },
+    "preserved_child_id": {
+      "title": "Preserved Child Id",
+      "type": "string"
+    },
+    "preserved_child_title": {
+      "title": "Preserved Child Title",
+      "type": "string"
+    },
+    "preserved_content_byte_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Preserved Content Byte Count",
+      "type": "integer"
+    },
+    "preserved_content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Preserved Content Sha256",
+      "type": "string"
+    },
+    "preserved_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Preserved Marker",
+      "type": "string"
+    },
+    "preserved_state": {
+      "enum": [
+        "blank",
+        "populated"
+      ],
+      "title": "Preserved State",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-create-v2-baseline/v1",
+      "default": "demo-co/google-create-v2-baseline/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_verification_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Verification Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "working_content_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Working Content Byte Count",
+      "type": "integer"
+    },
+    "working_content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Working Content Sha256",
+      "type": "string"
+    },
+    "working_document_id": {
+      "title": "Working Document Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "source_verification_sha256",
+    "preserved_blank_generation",
+    "preserved_blank_sha256",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "working_document_id",
+    "working_content_sha256",
+    "working_content_byte_count",
+    "preserved_child_id",
+    "preserved_child_title",
+    "preserved_child_created_at",
+    "preserved_marker",
+    "preserved_content_sha256",
+    "preserved_content_byte_count",
+    "preserved_state"
+  ],
+  "title": "GoogleCreateV2Baseline",
+  "type": "object"
+}

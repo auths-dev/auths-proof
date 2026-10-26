@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 description = "Closed developer-authored request recipes for the Auths gateway"
 publish = false
+autobins = false
 
 [features]
 # Development and CI only: lets `serve --loopback-provider <port>` send
@@ -36,6 +37,7 @@ path = "src/bin/auths-gateway-harness.rs"
 required-features = ["testkit-harness"]
 
 [dependencies]
+async-trait.workspace = true
 auths-approval-quorum.workspace = true
 auths-author.workspace = true
 auths-bounded-policy.workspace = true
@@ -46,6 +48,8 @@ auths-did-keri.workspace = true
 auths-custody.workspace = true
 auths-did-key.workspace = true
 auths-gateway-kernel.workspace = true
+auths-identity.workspace = true
+auths-identity-raw-key.workspace = true
 auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-multikey.workspace = true
@@ -57,12 +61,14 @@ auths-raw-key-core.workspace = true
 auths-recipe-qualification.workspace = true
 auths-registries.workspace = true
 auths-signature.workspace = true
+auths-signature-ed25519.workspace = true
 auths-stores.workspace = true
 auths-verifier.workspace = true
 base64ct.workspace = true
 clap.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
+hmac.workspace = true
 minicbor.workspace = true
 getrandom.workspace = true
 rustix.workspace = true
@@ -74,12 +80,11 @@ sha2.workspace = true
 subtle.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["process"] }
 url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
-async-trait.workspace = true
 auths-recipe-qualification-issuance = { workspace = true, features = ["testkit"] }
 auths-author.workspace = true
 auths-sdk.workspace = true

@@ -1,0 +1,109 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "admin_content_matches_fixture": {
+      "const": true,
+      "default": true,
+      "title": "Admin Content Matches Fixture",
+      "type": "boolean"
+    },
+    "admin_file_observed": {
+      "const": true,
+      "default": true,
+      "title": "Admin File Observed",
+      "type": "boolean"
+    },
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "export_response_leaked_fixture": {
+      "title": "Export Response Leaked Fixture",
+      "type": "boolean"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_export_http_status": {
+      "maximum": 599,
+      "minimum": 100,
+      "title": "Jules Export Http Status",
+      "type": "integer"
+    },
+    "jules_metadata_http_status": {
+      "maximum": 599,
+      "minimum": 100,
+      "title": "Jules Metadata Http Status",
+      "type": "integer"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "metadata_response_leaked_fixture": {
+      "title": "Metadata Response Leaked Fixture",
+      "type": "boolean"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "resource_id": {
+      "const": "doc-finance-budget",
+      "default": "doc-finance-budget",
+      "title": "Resource Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-finance-denial/v1",
+      "default": "demo-co/google-finance-denial/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "customer_id",
+    "jules_subject",
+    "document_id",
+    "jules_metadata_http_status",
+    "jules_export_http_status",
+    "metadata_response_leaked_fixture",
+    "export_response_leaked_fixture"
+  ],
+  "title": "GoogleFinanceDenialObservation",
+  "type": "object"
+}

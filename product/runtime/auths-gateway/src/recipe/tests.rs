@@ -18,8 +18,139 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
             include_bytes!("../../../../../bindings/fixtures/gateway/github/recipe.json"),
             include_bytes!("../../../../../bindings/fixtures/gateway/github/profile.lock.json"),
         ),
+        "google-docs-edit" => (
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/write_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/write_reference/profile.lock.json"
+            ),
+        ),
+        "google-drive-create" => (
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/create_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+            ),
+        ),
+        "google-docs-populate" => (
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/populate_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
+            ),
+        ),
+        "todoist-created-child" => (
+            include_bytes!("../../../../../demos/todoist-gateway/create_reference/recipe.json"),
+            include_bytes!(
+                "../../../../../demos/todoist-gateway/create_reference/profile.lock.json"
+            ),
+        ),
+        "todoist-populate" => (
+            include_bytes!("../../../../../demos/todoist-gateway/populate_reference/recipe.json"),
+            include_bytes!(
+                "../../../../../demos/todoist-gateway/populate_reference/profile.lock.json"
+            ),
+        ),
+        "airtable-task-edit" => (
+            include_bytes!("../../../../../demos/airtable-gateway/write_reference/recipe.json"),
+            include_bytes!(
+                "../../../../../demos/airtable-gateway/write_reference/profile.lock.json"
+            ),
+        ),
         _ => panic!("unknown test-only fixture"),
     }
+}
+
+#[test]
+fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
+    let recipe = compiled("google-docs-populate");
+    assert!(recipe.requires_task_admission());
+    assert_eq!(
+        recipe.task_populate_fields(),
+        Some((
+            "text",
+            &["required_revision_id".to_owned(), "tab_id".to_owned()][..]
+        ))
+    );
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "populate-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "document_id": "child_ABC-123",
+            "tab_id": "t.0",
+            "text": "Project A is on track. Next: confirm handoff.",
+            "required_revision_id": "revision-1"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed populate request");
+    assert_eq!(
+        request.url(),
+        "https://docs.googleapis.com/v1/documents/child_ABC-123:batchUpdate"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("body"),
+        json!({
+            "requests": [{"insertText": {
+                "endOfSegmentLocation": {"tabId": "t.0"},
+                "text": "Project A is on track. Next: confirm handoff."
+            }}],
+            "writeControl": {"requiredRevisionId": "revision-1"}
+        })
+    );
+    let mut wrong = args;
+    wrong.insert("document_id".to_owned(), json!("another-child"));
+    let changed = recipe
+        .closed_request_from_arguments(&wrong, [0x41; 32])
+        .expect("different native action required");
+    assert_ne!(request.url(), changed.url());
+}
+
+#[test]
+fn planned_population_recipe_refuses_unreviewed_provider_fields() {
+    let (source, lock) = fixture("google-docs-populate");
+    let mut recipe: Value = serde_json::from_slice(source).expect("source");
+    recipe["task_populate"]["text_field"] = json!("required_revision_id");
+    assert!(CompiledRecipe::compile(&serde_json::to_vec(&recipe).expect("source"), lock).is_err());
+    let mut recipe: Value = serde_json::from_slice(source).expect("source");
+    recipe["task_populate"]["preflight_fields"] = json!(["operation_id"]);
+    assert!(CompiledRecipe::compile(&serde_json::to_vec(&recipe).expect("source"), lock).is_err());
+}
+
+#[test]
+fn todoist_population_uses_bound_child_and_plan_text_without_google_fields() {
+    let recipe = compiled("todoist-populate");
+    assert!(recipe.requires_task_admission());
+    let (text, preflight_fields) = recipe.task_populate_fields().expect("population");
+    assert_eq!(text, "text");
+    assert!(preflight_fields.is_empty());
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "populate-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "todoist_task_id": "task-ABC-123",
+            "text": "Approved handoff",
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed task population");
+    assert_eq!(
+        request.url(),
+        "https://api.todoist.com/api/v1/tasks/task-ABC-123"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("body"),
+        json!({"description": "Approved handoff"})
+    );
 }
 
 fn compiled(name: &str) -> CompiledRecipe {
@@ -45,6 +176,607 @@ fn three_independent_recipes_compile_without_provider_code() {
         assert_eq!(recipe.digest_hex().len(), 64);
         assert_eq!(recipe.review().maximum_body_bytes(), MAX_BODY_BYTES);
     }
+}
+
+#[test]
+fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
+    let recipe = compiled("google-docs-edit");
+    assert!(recipe.requires_task_admission());
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "edit-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "document_id": "doc-Project-A-working",
+            "tab_id": "tab-1",
+            "marker": "[[AUTHs:PROJECT_A:RUN_1]]",
+            "replacement": "Project A is on track.\nNext: owner confirms handoff.",
+            "required_revision_id": "revision-1"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed request");
+    assert_eq!(request.method(), WriteMethod::Post);
+    assert_eq!(
+        request.url(),
+        "https://docs.googleapis.com/v1/documents/doc-Project-A-working:batchUpdate"
+    );
+    let body: Value = serde_json::from_slice(request.body()).expect("bounded JSON body");
+    assert_eq!(
+        body,
+        json!({
+            "requests": [{
+                "replaceAllText": {
+                    "containsText": {
+                        "text": "[[AUTHs:PROJECT_A:RUN_1]]",
+                        "matchCase": true,
+                        "searchByRegex": false
+                    },
+                    "replaceText": "Project A is on track.\nNext: owner confirms handoff.",
+                    "tabsCriteria": {"tabIds": ["tab-1"]}
+                }
+            }],
+            "writeControl": {"requiredRevisionId": "revision-1"}
+        })
+    );
+    let review = recipe.review_document();
+    assert_eq!(review["task_binding"]["resource_field"], "document_id");
+    assert_eq!(review["task_binding"]["verb"], "edit");
+    assert_eq!(review["task_binding"]["ordinary_submit"], "refused");
+    assert_eq!(review["path"][2], "<document_id>:batchUpdate");
+    assert_eq!(review["recovery"]["unknown_resolution"], "none");
+    assert_eq!(review["write_is_conditional"], false);
+
+    let mut changed = args.clone();
+    changed.insert("recipe_digest".into(), json!("0".repeat(64)));
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(&changed, [0x41; 32])
+            .err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
+
+    let mut encoded = args;
+    encoded.insert("document_id".into(), json!("doc/with?reserved"));
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(&encoded, [0x41; 32])
+            .expect("literal suffix stays outside encoded field")
+            .url(),
+        "https://docs.googleapis.com/v1/documents/doc%2Fwith%3Freserved:batchUpdate"
+    );
+
+    let (source, lock) = fixture("google-docs-edit");
+    let mut without_binding: Value = serde_json::from_slice(source).expect("source");
+    without_binding
+        .as_object_mut()
+        .expect("object")
+        .remove("task_binding");
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&without_binding).expect("bytes"), lock).err(),
+        Some(GatewayRecipeError::InvalidSource),
+    );
+}
+
+#[test]
+fn fixed_write_query_is_reviewed_and_cannot_be_supplied_by_the_agent() {
+    let (source, lock) = fixture("google-docs-edit");
+    let mut source: Value = serde_json::from_slice(source).expect("source");
+    source["write"]["query"] = json!({"supportsAllDrives": "true"});
+    let recipe = CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), lock)
+        .expect("fixed query recipe");
+    assert_eq!(recipe.review_document()["query"], source["write"]["query"]);
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "edit-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "document_id": "doc-Project-A-working",
+            "tab_id": "tab-1",
+            "marker": "marker",
+            "replacement": "replacement",
+            "required_revision_id": "revision-1"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed request");
+    assert_eq!(
+        request.url(),
+        "https://docs.googleapis.com/v1/documents/doc-Project-A-working:batchUpdate?supportsAllDrives=true"
+    );
+    let mut injected = args;
+    injected.insert("supportsAllDrives".into(), json!("false"));
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(&injected, [0x41; 32])
+            .err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
+    for query in [
+        json!({"bad-name": "true"}),
+        json!({"supportsAllDrives": ""}),
+        json!({"supportsAllDrives": "true\nfalse"}),
+    ] {
+        source["write"]["query"] = query;
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), lock)
+                .err(),
+            Some(GatewayRecipeError::UnsafeTemplate)
+        );
+    }
+}
+
+#[test]
+fn google_drive_create_is_a_task_bound_metadata_request() {
+    let recipe = compiled("google-drive-create");
+    assert!(recipe.requires_task_admission());
+    assert_eq!(recipe.review_document()["task_binding"]["verb"], "create");
+    assert_eq!(
+        recipe.review_document()["task_binding"]["resource_field"],
+        "parent_id"
+    );
+    assert_eq!(
+        recipe.review_document()["created_child"]["response_id_pointer"],
+        "/id"
+    );
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "create-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "parent_id": "project-a-folder",
+            "title": "Auths AP-071 Project A handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32))
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed create request");
+    assert_eq!(request.method(), WriteMethod::Post);
+    assert_eq!(
+        request.url(),
+        "https://www.googleapis.com/drive/v3/files?fields=id&supportsAllDrives=true"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("JSON body"),
+        json!({
+            "mimeType": "application/vnd.google-apps.document",
+            "name": "Auths AP-071 Project A handoff",
+            "parents": ["project-a-folder"],
+            "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))}
+        })
+    );
+    let child = request.created_child().expect("reviewed child candidate");
+    assert_eq!(
+        recipe.review_document()["created_child"]["parent_field"],
+        "parent_id"
+    );
+    assert_eq!(
+        recipe.review_document()["created_child"]["title_field"],
+        "title"
+    );
+    assert_eq!(
+        recipe.review_document()["created_child"]["marker_field"],
+        "recovery_marker"
+    );
+    assert_eq!(
+        child.candidate_id(200, true, br#"{"id":"child_ABC-123"}"#),
+        Some("child_ABC-123".to_owned())
+    );
+    let locator =
+        crate::submit::response_locator(&request, 200, true, br#"{"id":"child_ABC-123"}"#)
+            .expect("bounded response locator");
+    let observation = request
+        .observation_template()
+        .expect("reviewed observation")
+        .request(Some(&locator))
+        .expect("closed observation request");
+    assert_eq!(
+        observation.url(),
+        "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true"
+    );
+    let metadata = json!({
+        "id": "child_ABC-123",
+        "name": "Auths AP-071 Project A handoff",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": ["project-a-folder"],
+        "driveId": "0ACsJUU1uex2wUk9PVA",
+        "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))},
+        "trashed": false,
+        "createdTime": "2026-10-25T10:00:00Z"
+    });
+    assert!(child.metadata_matches("child_ABC-123", &serde_json::to_vec(&metadata).unwrap()));
+    let verified = child
+        .verify_metadata("child_ABC-123", &serde_json::to_vec(&metadata).unwrap())
+        .expect("matched metadata yields a bounded child token");
+    assert_eq!(verified.id(), "child_ABC-123");
+    assert_eq!(verified.metadata_digest().len(), 64);
+    for (pointer, replacement) in [
+        ("/id", json!("other-child")),
+        ("/name", json!("Other title")),
+        ("/mimeType", json!("text/plain")),
+        ("/parents", json!(["project-a-folder", "project-b-folder"])),
+        ("/driveId", json!("other-drive")),
+        ("/properties/auths_operation_marker", json!("wrong-marker")),
+        ("/trashed", json!(true)),
+    ] {
+        let mut wrong = metadata.clone();
+        *wrong.pointer_mut(pointer).expect("metadata pointer") = replacement;
+        assert!(!child.metadata_matches("child_ABC-123", &serde_json::to_vec(&wrong).unwrap()));
+    }
+    assert!(!child.metadata_matches("child_ABC-123", br#"{"id":"child_ABC-123"}"#));
+    assert_eq!(
+        recipe.review_document()["observation"]["query"]["supportsAllDrives"],
+        "true"
+    );
+    for (status, version_ok, body) in [
+        (500, true, br#"{"id":"child_ABC-123"}"#.as_slice()),
+        (200, false, br#"{"id":"child_ABC-123"}"#.as_slice()),
+        (200, true, br#"{"id":"child/other"}"#.as_slice()),
+        (200, true, br#"{"id":""}"#.as_slice()),
+        (200, true, br#"{"id":123}"#.as_slice()),
+        (200, true, br#"{"other":"child_ABC-123"}"#.as_slice()),
+    ] {
+        assert_eq!(child.candidate_id(status, version_ok, body), None);
+    }
+    let mut changed = args;
+    changed.insert("parent_id".into(), json!("project-b-folder"));
+    let other = recipe
+        .closed_request_from_arguments(&changed, [0x41; 32])
+        .expect("changed request requires a different native action");
+    assert_ne!(request.body(), other.body());
+}
+
+#[test]
+fn created_child_declaration_requires_a_closed_task_create_and_consumed_fields() {
+    let (source, lock) = fixture("google-drive-create");
+    let source: Value = serde_json::from_slice(source).expect("create source");
+    for changed in [
+        json!({"created_child": {"response_id_pointer": "id", "maximum_id_bytes": 64,
+            "parent_field": "parent_id", "title_field": "title", "marker_field": "recovery_marker"}}),
+        json!({"created_child": {"response_id_pointer": "/id", "maximum_id_bytes": 0,
+            "parent_field": "parent_id", "title_field": "title", "marker_field": "recovery_marker"}}),
+        json!({"created_child": {"response_id_pointer": "/id", "maximum_id_bytes": 64,
+            "parent_field": "title", "title_field": "title", "marker_field": "recovery_marker"}}),
+        json!({"created_child": {"response_id_pointer": "/id", "maximum_id_bytes": 64,
+            "parent_field": "parent_id", "title_field": "operation_id", "marker_field": "recovery_marker"}}),
+    ] {
+        let mut candidate = source.clone();
+        candidate["created_child"] = changed["created_child"].clone();
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&candidate).expect("JSON"), lock).err(),
+            Some(GatewayRecipeError::InvalidCreatedChild)
+        );
+    }
+    for checks in [
+        json!([]),
+        json!([{"expected":"candidate-id","json_pointer":"/id"}]),
+        json!([
+            {"expected":"candidate-id","json_pointer":"/id"},
+            {"expected":"parent","json_pointer":"/project_id"},
+            {"expected":"parent-only","json_pointer":"/parents"},
+            {"expected":"title","json_pointer":"/name"},
+            {"expected":"marker","json_pointer":"/properties/auths_operation_marker"}
+        ]),
+        json!([
+            {"expected":"candidate-id","json_pointer":"/id"},
+            {"expected":"parent-only","json_pointer":"/parents"},
+            {"expected":"title","json_pointer":"/name"},
+            {"expected":"marker","json_pointer":"/name"}
+        ]),
+        json!([
+            {"expected":"candidate-id","json_pointer":"/id"},
+            {"expected":"parent-only","json_pointer":"/parents"},
+            {"expected":"title","json_pointer":"/name"},
+            {"expected":"marker","json_pointer":"/properties/auths_operation_marker"},
+            {"expected":"literal","json_pointer":"/mimeType","value":{}}
+        ]),
+    ] {
+        let mut candidate = source.clone();
+        candidate["created_child"]["metadata_checks"] = checks;
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&candidate).expect("JSON"), lock).err(),
+            Some(GatewayRecipeError::InvalidCreatedChild)
+        );
+    }
+    let mut wrong_verb = source.clone();
+    wrong_verb["task_binding"]["verb"] = json!("edit");
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&wrong_verb).expect("JSON"), lock).err(),
+        Some(GatewayRecipeError::InvalidCreatedChild)
+    );
+    let mut missing_observation = source.clone();
+    missing_observation
+        .as_object_mut()
+        .expect("source object")
+        .remove("observation");
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&missing_observation).expect("JSON"),
+            lock
+        )
+        .err(),
+        Some(GatewayRecipeError::InvalidCreatedChild)
+    );
+    let mut mismatched_locator = source;
+    mismatched_locator["observation"]["path"][3]["pointer"] = json!("/other_id");
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&mismatched_locator).expect("JSON"),
+            lock
+        )
+        .err(),
+        Some(GatewayRecipeError::InvalidCreatedChild)
+    );
+}
+
+#[tokio::test]
+async fn created_child_candidate_survives_restart_without_granting_child_authority() {
+    let recipe = compiled("google-drive-create");
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "create-record-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "parent_id": "project-a-folder",
+            "title": "Auths AP-071 Project A handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32))
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed create request");
+    let complete_response = br#"{"id":"child_ABC-123"}"#;
+    let locator = crate::submit::response_locator(&request, 200, true, complete_response)
+        .expect("bounded candidate");
+    assert_eq!(locator.get("/id"), Some(&"child_ABC-123".to_owned()));
+    for (status, version_ok, body) in [
+        (500, true, complete_response.as_slice()),
+        (200, false, complete_response.as_slice()),
+        (200, true, br#"{"id":"child/other"}"#.as_slice()),
+    ] {
+        assert_eq!(
+            crate::submit::response_locator(&request, status, version_ok, body),
+            None
+        );
+    }
+    let temp = tempfile::tempdir().expect("temp directory");
+    let root = std::fs::canonicalize(temp.path())
+        .expect("canonical temp")
+        .join("attempts");
+    let store = crate::GatewayAttempts::new(Arc::new(
+        FileGatewayAttemptStore::open(&root).expect("private store"),
+    ));
+    let claim = store
+        .claim(&request, *recipe.digest(), 1_790_000_000)
+        .await
+        .expect("claim");
+    let response = claim
+        .record_response(200, [3; 32], Some(locator))
+        .await
+        .expect("record response");
+    assert_eq!(
+        response.snapshot().expect("snapshot").stage(),
+        GatewayAttemptStage::ResponseRecorded
+    );
+    drop(response);
+    drop(store);
+    let reopened = crate::GatewayAttempts::new(Arc::new(
+        FileGatewayAttemptStore::open(&root).expect("reopen private store"),
+    ));
+    let snapshot = reopened
+        .read(request.namespace(), request.operation_id())
+        .await
+        .expect("read")
+        .expect("recorded attempt");
+    assert_eq!(snapshot.stage(), GatewayAttemptStage::ResponseRecorded);
+    assert_eq!(
+        snapshot
+            .response_locator()
+            .and_then(|values| values.get("/id")),
+        Some(&"child_ABC-123".to_owned())
+    );
+    assert_eq!(snapshot.observation_match(), None);
+    let plan = request.observation_template().expect("signed create plan");
+    assert!(
+        reopened
+            .resume_observable_operation(
+                request.namespace(),
+                request.operation_id(),
+                *recipe.digest()
+            )
+            .await
+            .expect("generic resume")
+            .is_none(),
+        "the generic path cannot promote a created child"
+    );
+    assert!(
+        reopened
+            .resume_created_child_observation(
+                request.namespace(),
+                request.operation_id(),
+                [0; 32],
+                plan,
+            )
+            .await
+            .expect("wrong recipe is a refusal")
+            .is_none()
+    );
+    let resumed = reopened
+        .resume_created_child_observation(
+            request.namespace(),
+            request.operation_id(),
+            *recipe.digest(),
+            plan,
+        )
+        .await
+        .expect("reopen recorded create")
+        .expect("metadata read can resume");
+    let observed = resumed
+        .record_observation(true)
+        .await
+        .expect("observed metadata");
+    assert_eq!(observed.stage(), GatewayAttemptStage::Observed);
+    assert!(
+        reopened
+            .resume_created_child_observation(
+                request.namespace(),
+                request.operation_id(),
+                *recipe.digest(),
+                plan,
+            )
+            .await
+            .expect("reopen after observation")
+            .is_some(),
+        "a crash between observation and task binding must remain reconcilable"
+    );
+}
+
+#[test]
+fn second_https_domain_binds_a_scalar_parent_without_provider_code() {
+    let recipe = compiled("todoist-created-child");
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "create-task-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "project_id": "6XGgm6PHrGgMpCFX",
+            "content": "Prepare handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32)),
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed Todoist request");
+    assert_eq!(request.url(), "https://api.todoist.com/api/v1/tasks");
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("JSON body"),
+        json!({
+            "project_id": "6XGgm6PHrGgMpCFX",
+            "content": "Prepare handoff",
+            "description": format!("ap071_{}", "d".repeat(32)),
+        }),
+    );
+    let child = request.created_child().expect("reviewed child declaration");
+    let response = br#"{"id":"6XGgmFVcrG5RRjVr"}"#;
+    let candidate = child
+        .candidate_id(200, true, response)
+        .expect("response-derived candidate");
+    let metadata = json!({
+        "id": candidate,
+        "project_id": "6XGgm6PHrGgMpCFX",
+        "content": "Prepare handoff",
+        "description": format!("ap071_{}", "d".repeat(32)),
+    });
+    let body = serde_json::to_vec(&metadata).expect("metadata JSON");
+    assert!(child.verify_metadata(&candidate, &body).is_some());
+    for changed in [
+        json!({"project_id": "another-project"}),
+        json!({"content": "Different title"}),
+        json!({"description": "other-marker"}),
+        json!({"id": "other-task"}),
+        json!({"project_id": ["6XGgm6PHrGgMpCFX"]}),
+    ] {
+        let mut candidate_metadata = metadata.clone();
+        candidate_metadata
+            .as_object_mut()
+            .expect("object")
+            .extend(changed.as_object().expect("object").clone());
+        assert!(
+            child
+                .verify_metadata(
+                    &candidate,
+                    &serde_json::to_vec(&candidate_metadata).expect("JSON"),
+                )
+                .is_none(),
+            "changed provider metadata must not bind a child",
+        );
+    }
+}
+
+#[test]
+fn airtable_task_edit_uses_the_same_write_admission_contract() {
+    let recipe = compiled("airtable-task-edit");
+    assert!(recipe.requires_task_admission());
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "edit-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed Airtable request");
+    assert_eq!(request.method(), WriteMethod::Patch);
+    assert_eq!(
+        request.url(),
+        "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001"
+    );
+    let body: Value = serde_json::from_slice(request.body()).expect("bounded JSON body");
+    assert_eq!(body["fields"]["DemoStatus"], "Approved");
+    let review = recipe.review_document();
+    assert_eq!(review["task_binding"]["resource_field"], "record_id");
+    assert_eq!(review["task_binding"]["verb"], "edit");
+    assert_eq!(review["task_binding"]["ordinary_submit"], "refused");
+}
+
+#[test]
+fn field_suffix_never_admits_url_control_bytes() {
+    let (source, lock) = fixture("google-docs-edit");
+    let source: Value = serde_json::from_slice(source).expect("source");
+    for suffix in [
+        "",
+        ":",
+        "/batchUpdate",
+        ":batchUpdate?x=1",
+        ".json#fragment",
+        ":../x",
+    ] {
+        let mut changed = source.clone();
+        changed["write"]["path"][2]["suffix"] = json!(suffix);
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&changed).expect("JSON"), lock).err(),
+            Some(GatewayRecipeError::UnsafePath),
+            "suffix: {suffix}"
+        );
+    }
+
+    let mut non_final = source;
+    non_final["write"]["path"]
+        .as_array_mut()
+        .expect("path")
+        .push(json!({
+            "kind": "fixed", "value": "extra"
+        }));
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&non_final).expect("JSON"), lock).err(),
+        Some(GatewayRecipeError::UnsafePath)
+    );
+
+    let (airtable, airtable_lock) = fixture("airtable");
+    let mut observation: Value = serde_json::from_slice(airtable).expect("source");
+    observation["observation"]["path"][3] = json!({
+        "kind": "field-suffix", "name": "record_id", "suffix": ".json"
+    });
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&observation).expect("JSON"),
+            airtable_lock
+        )
+        .err(),
+        Some(GatewayRecipeError::UnsafePath)
+    );
 }
 
 #[test]
@@ -1205,7 +1937,7 @@ mod oracle {
             path.push('/');
             match segment {
                 PathSegment::Fixed { value } => path.push_str(value),
-                PathSegment::Field { name } => {
+                PathSegment::Field { name } | PathSegment::FieldSuffix { name, .. } => {
                     for byte in arguments[name].as_str().expect("text").bytes() {
                         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~')
                         {
@@ -1215,6 +1947,9 @@ mod oracle {
                             path.push(char::from(HEX[usize::from(byte >> 4)]));
                             path.push(char::from(HEX[usize::from(byte & 0x0f)]));
                         }
+                    }
+                    if let PathSegment::FieldSuffix { suffix, .. } = segment {
+                        path.push_str(suffix);
                     }
                 }
                 PathSegment::ResponseField { .. } | PathSegment::Echo => {}

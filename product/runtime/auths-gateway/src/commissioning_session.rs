@@ -70,6 +70,9 @@ impl GatewayEngine {
         &self,
         inputs: &CommissioningSessionInputs<'_>,
     ) -> Result<CommissioningSession<'_>, &'static str> {
+        if self.recipe.requires_task_admission() {
+            return Err("gateway.task.task-submit-required");
+        }
         let (root, tuple) = self
             .qualification
             .commissioning_target()
@@ -190,6 +193,7 @@ impl CommissioningSession<'_> {
             action,
             started: Instant::now(),
             prepared: OnceLock::new(),
+            task_write: None,
             commissioning: Some(self),
             commissioned_action: OnceLock::new(),
             commissioning_refusal: OnceLock::new(),

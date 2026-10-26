@@ -5,16 +5,17 @@
 //! order the checks run in.
 
 use super::source::{
-    AccountReadSource, AccountScopeSource, BodySource, BoundsSource, DeniedReadSource,
-    EchoPlacement, EchoSource, FormExpr, GuardSource, IdempotencyLocation, IdempotencySource,
-    ObservationSource, PathSegment, PreEntrySource, PreconditionSource, ProbeSource, RecipeSource,
-    RelativeCeilingSource, ValueExpr,
+    AccountReadSource, AccountScopeSource, BodySource, BoundsSource, CreatedChildCheckSource,
+    DeniedReadSource, EchoPlacement, EchoSource, FormExpr, GuardSource, IdempotencyLocation,
+    IdempotencySource, ObservationSource, PathSegment, PreEntrySource, PreconditionSource,
+    ProbeSource, RecipeSource, RelativeCeilingSource, ValueExpr,
 };
 use super::{
     FieldSchema, GatewayRecipeError, MAX_FORM_FIELDS, MAX_PATH_SEGMENTS, MAX_POINTER_BYTES,
-    MAX_TEMPLATE_DEPTH, MAX_TEMPLATE_NODES, MAX_VERIFIED_FIELDS, ProviderHeaderClass,
+    MAX_TEMPLATE_DEPTH, MAX_TEMPLATE_NODES, MAX_VERIFIED_FIELDS, ProviderHeaderClass, WriteMethod,
     provider_header, valid_field_name,
 };
+use crate::task_activation::TaskWriteVerb;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -101,13 +102,25 @@ fn pointers_overlap(first: &str, second: &str) -> bool {
             .is_some_and(|rest| rest.starts_with('/'))
 }
 
-fn valid_fixed_segment(value: &str) -> bool {
+pub(super) fn valid_fixed_segment(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && !matches!(value, "." | "..")
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~'))
+}
+
+/// A closed suffix joined to one percent-encoded verified path field. The
+/// leading `:` or `.` is a literal operation/extension separator, never a
+/// URL query, fragment or path separator.
+pub(super) fn valid_field_suffix(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (2..=32).contains(&bytes.len())
+        && matches!(bytes[0], b':' | b'.')
+        && bytes[1..]
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
 fn read_bound_valid(bytes: u64) -> bool {
@@ -150,7 +163,7 @@ impl Rules<'_> {
             return Err(GatewayRecipeError::UnsafePath);
         }
         let mut response_fields = 0;
-        for segment in path {
+        for (index, segment) in path.iter().enumerate() {
             match segment {
                 PathSegment::Fixed { value } => {
                     if !valid_fixed_segment(value) {
@@ -159,6 +172,17 @@ impl Rules<'_> {
                 }
                 PathSegment::Field { name } => {
                     if !self.field(name).is_some_and(FieldSchema::is_path_scalar)
+                        || matches!(name.as_str(), "operator_namespace" | "recipe_digest")
+                    {
+                        return Err(GatewayRecipeError::UnsafePath);
+                    }
+                    self.consume(name);
+                }
+                PathSegment::FieldSuffix { name, suffix } => {
+                    if !valid_field_suffix(suffix)
+                        || !matches!(role, PathRole::Write)
+                        || index + 1 != path.len()
+                        || !self.field(name).is_some_and(FieldSchema::is_path_scalar)
                         || matches!(name.as_str(), "operator_namespace" | "recipe_digest")
                     {
                         return Err(GatewayRecipeError::UnsafePath);
@@ -261,6 +285,7 @@ impl Rules<'_> {
 
     fn observation(&mut self, source: &ObservationSource) -> Result<(), GatewayRecipeError> {
         self.path(&source.path, PathRole::Observation)?;
+        super::release::fixed_query(&source.query)?;
         if source.maximum_response_bytes == 0
             || source.maximum_response_bytes > 65_536
             || !valid_response_pointer(&source.json_pointer)
@@ -785,6 +810,34 @@ pub(super) fn validate_source(
     if let Some(preconditions) = &source.preconditions {
         rules.preconditions(preconditions, source.observation.as_ref())?;
     }
+    if let Some(binding) = &source.task_binding {
+        if !matches!(fields.get("task_id"), Some(FieldSchema::String { minimum, maximum })
+                     if *minimum >= 1 && *maximum <= 128)
+            || !matches!(fields.get("task_commitment"), Some(FieldSchema::String { minimum, maximum })
+                         if *minimum == 64 && *maximum == 64)
+            || !matches!(fields.get(&binding.resource_field), Some(FieldSchema::String { minimum, maximum })
+                         if *minimum >= 1 && *maximum <= 256)
+            || matches!(
+                binding.resource_field.as_str(),
+                "operator_namespace"
+                    | "operation_id"
+                    | "recipe_digest"
+                    | "task_id"
+                    | "task_commitment"
+            )
+            || !rules.consumed.all.contains(&binding.resource_field)
+            || rules.consumed.all.contains("task_id")
+            || rules.consumed.all.contains("task_commitment")
+        {
+            return Err(GatewayRecipeError::InvalidSource);
+        }
+        rules.consume("task_id");
+        rules.consume("task_commitment");
+    } else if fields.contains_key("task_id") || fields.contains_key("task_commitment") {
+        return Err(GatewayRecipeError::InvalidSource);
+    }
+    validate_created_child(source, fields, &rules)?;
+    validate_task_populate(source, fields, &rules)?;
     if let Some(headers) = &source.provider_headers {
         validate_provider_headers(headers)?;
     }
@@ -800,6 +853,122 @@ pub(super) fn validate_source(
     for field in fields.keys() {
         if !is_binding_field(field) && !rules.consumed.all.contains(field) {
             return Err(GatewayRecipeError::UnsafeTemplate);
+        }
+    }
+    Ok(())
+}
+
+fn validate_task_populate(
+    source: &RecipeSource,
+    fields: &BTreeMap<String, FieldSchema>,
+    rules: &Rules<'_>,
+) -> Result<(), GatewayRecipeError> {
+    let Some(populate) = &source.task_populate else {
+        return Ok(());
+    };
+    let Some(binding) = &source.task_binding else {
+        return Err(GatewayRecipeError::InvalidSource);
+    };
+    let provider_fields = std::iter::once(binding.resource_field.as_str())
+        .chain(std::iter::once(populate.text.as_str()))
+        .chain(populate.preflight_fields.iter().map(String::as_str));
+    let mut allowed: BTreeSet<&str> = [
+        "operator_namespace",
+        "operation_id",
+        "recipe_digest",
+        "task_id",
+        "task_commitment",
+    ]
+    .into_iter()
+    .collect();
+    if binding.verb != TaskWriteVerb::Edit
+        || source.created_child.is_some()
+        || populate.preflight_fields.len() > 4
+        || populate
+            .preflight_fields
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || provider_fields.into_iter().any(|name| {
+            !matches!(fields.get(name), Some(FieldSchema::String { minimum, maximum })
+                if *minimum >= 1 && *maximum <= 256)
+                || !rules.consumed.all.contains(name)
+                || !allowed.insert(name)
+        })
+        || fields.keys().any(|name| !allowed.contains(name.as_str()))
+    {
+        return Err(GatewayRecipeError::InvalidSource);
+    }
+    Ok(())
+}
+
+fn validate_created_child(
+    source: &RecipeSource,
+    fields: &BTreeMap<String, FieldSchema>,
+    rules: &Rules<'_>,
+) -> Result<(), GatewayRecipeError> {
+    if let Some(child) = &source.created_child {
+        let Some(binding) = &source.task_binding else {
+            return Err(GatewayRecipeError::InvalidCreatedChild);
+        };
+        let names = [
+            child.parent_field.as_str(),
+            child.title_field.as_str(),
+            child.marker_field.as_str(),
+        ];
+        let locator_matches = source.observation.as_ref().is_some_and(|observation| {
+            let response_fields: Vec<_> = observation
+                .path
+                .iter()
+                .filter_map(|segment| match segment {
+                    PathSegment::ResponseField { pointer, max_bytes } => {
+                        Some((pointer.as_str(), *max_bytes))
+                    }
+                    _ => None,
+                })
+                .collect();
+            response_fields.as_slice()
+                == [(child.response_id_pointer.as_str(), child.maximum_id_bytes)]
+        });
+        let mut check_kinds = BTreeSet::new();
+        let mut check_pointers = BTreeSet::new();
+        let valid_checks = (4..=10).contains(&child.metadata_checks.len())
+            && child.metadata_checks.iter().all(|check| {
+                let kind = match check {
+                    CreatedChildCheckSource::CandidateId { .. } => "candidate-id",
+                    CreatedChildCheckSource::Parent { .. }
+                    | CreatedChildCheckSource::ParentOnly { .. } => "parent",
+                    CreatedChildCheckSource::Title { .. } => "title",
+                    CreatedChildCheckSource::Marker { .. } => "marker",
+                    CreatedChildCheckSource::Literal { value, .. } => {
+                        if !probe_literal_valid(value) {
+                            return false;
+                        }
+                        "literal"
+                    }
+                };
+                valid_response_pointer(check.pointer())
+                    && check_pointers.insert(check.pointer())
+                    && (kind == "literal" || check_kinds.insert(kind))
+            })
+            && ["candidate-id", "parent", "title", "marker"]
+                .iter()
+                .all(|kind| check_kinds.contains(kind));
+        if binding.verb != TaskWriteVerb::Create
+            || source.echo.is_some()
+            || binding.resource_field != child.parent_field
+            || source.write.method != WriteMethod::Post
+            || !valid_response_pointer(&child.response_id_pointer)
+            || !(1..=128).contains(&child.maximum_id_bytes)
+            || !locator_matches
+            || !valid_checks
+            || names.iter().collect::<BTreeSet<_>>().len() != names.len()
+            || names.iter().any(|name| {
+                !matches!(fields.get(*name), Some(FieldSchema::String { minimum, maximum })
+                         if *minimum >= 1 && *maximum <= 256)
+                    || !rules.consumed.body.contains(*name)
+            })
+        {
+            return Err(GatewayRecipeError::InvalidCreatedChild);
         }
     }
     Ok(())

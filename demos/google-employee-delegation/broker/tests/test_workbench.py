@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import base64
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -16,6 +17,7 @@ from employee_read_demo.browser_sessions import BrowserSessionStore
 from employee_read_demo.demo_co_contract import ImportStatus
 from employee_read_demo.enrollment import EnrollmentStore
 from employee_read_demo.google_oauth import OAuthResult
+from employee_read_demo.jules_write_context import JulesWriteContext
 from employee_read_demo.task_proposals import TaskProposalStore
 from employee_read_demo.task_approval import TaskApprovalStore
 from employee_read_demo.task_activation import TaskActivationStore
@@ -105,6 +107,32 @@ class WorkbenchTests(unittest.TestCase):
         self.assertTrue(packet["identity_packet"])
         self.assertTrue(packet["principal"])
 
+    def test_session_reports_existing_jules_employee_key(self) -> None:
+        context = JulesWriteContext(
+            {"company_id": "atlas-studio", "people": []},
+            "c" * 64, "jules-subject",
+        )
+        self.server.workbench = replace(self.server.workbench, company=context)
+        sessions = self.server.workbench.sessions
+        logged_in = sessions.login(
+            sessions.create(), issuer="https://accounts.google.com",
+            subject="jules-subject", company="atlas-studio",
+        )
+        with sqlite3.connect(self.server.workbench.enrollment.path) as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,
+                 identity_packet,bundle_digest) VALUES(?,?,?,?,?,?,?,?)""", (
+                    "jules-binding", "atlas-studio", "jules",
+                    "https://accounts.google.com", "jules-subject",
+                    "key:sha256:existing", b"existing-packet", "c" * 64,
+                ))
+        status, payload, _ = self.request(
+            "GET", "/api/v1/session",
+            cookie=f"ap070_session={logged_in.cookie}",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["employee_principal"], "key:sha256:existing")
+
     def test_workbench_assets_are_served_with_no_store(self) -> None:
         for path, marker in (("/", b"Review and authorize one task"),
                              ("/workbench.js", b"signEmployee"),
@@ -163,6 +191,48 @@ class WorkbenchTests(unittest.TestCase):
             csrf=other.csrf,
         )
         self.assertEqual(status, 403)
+
+    def test_jules_only_login_refuses_other_subject_and_drive_reconsent(self) -> None:
+        context = JulesWriteContext(
+            {"company_id": "atlas-studio", "people": []},
+            "c" * 64, "jules-subject",
+        )
+        self.server.workbench = replace(
+            self.server.workbench, company=context,
+            status=ImportStatus("jules_write_only", "not_imported", "not_imported",
+                                "pinned Jules evidence"),
+            oauth=SimpleNamespace(complete=lambda **kwargs: OAuthResult(
+                "login", "https://accounts.google.com", "other-subject",
+                None, frozenset(), "access-token", None, 3600,
+            )),
+        )
+        status, session, cookie = self.request("GET", "/api/v1/session")
+        self.assertEqual(status, 200)
+        self.assertEqual(session["google_status"], "jules_write_only")
+        self.assertFalse(session["task_write_available"])
+        session_cookie = cookie.split(";", 1)[0]
+        status, denied, _ = self.request(
+            "GET", "/api/v1/google/authorize?kind=connect", cookie=session_cookie,
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("existing checked Drive grant", denied["error"])
+        status, denied, _ = self.request(
+            "GET", "/?state=state-a&code=code-a", cookie=session_cookie,
+        )
+        self.assertEqual(status, 403)
+        self.assertEqual(denied["error"], "Google login is not pinned Jules")
+        self.server.workbench = replace(
+            self.server.workbench,
+            oauth=SimpleNamespace(complete=lambda **kwargs: OAuthResult(
+                "connect", "https://accounts.google.com", "jules-subject",
+                None, frozenset(), "access-token", None, 3600,
+            )),
+        )
+        status, denied, _ = self.request(
+            "GET", "/?state=state-b&code=code-b", cookie=session_cookie,
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("existing checked Drive grant", denied["error"])
 
 
 if __name__ == "__main__":

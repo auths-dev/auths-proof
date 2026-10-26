@@ -12,7 +12,12 @@ fn main() {
 }
 
 #[cfg(unix)]
+#[path = "process_custody.rs"]
+mod process_custody;
+
+#[cfg(unix)]
 mod unix {
+    use super::process_custody::{ProcessCustodyMaterializer, ProcessCustodyPins};
     use auths_connections::{
         ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionProfile,
         ConnectionRecord, ConnectionState, CredentialStoreKind, PersistentCredentialStore,
@@ -27,11 +32,13 @@ mod unix {
         ArgumentCeilingPolicy, AuditPins, ListedValues, UnverifiedEntries, audit_bundle,
     };
     use auths_gateway::{
-        CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
-        GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
-        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
-        OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, check_candidate_credential, check_principal_separation,
+        CompiledRecipe, CompiledReleaseRecipe, FileGatewayAttemptStore, GatewayAttempts,
+        GatewayConnectionDescriptor, GatewayEngine, GatewayObserveRequest, GatewayObserveResult,
+        GatewayObserver, GatewayObserverError, GatewaySubmitResult,
+        GatewayTaskConnectionDescriptor, ObserverCustody, OnboardingAccount, OnboardingFailure,
+        OperatorNamespace, PostgresGatewayAttemptStore, PrincipalSeparationError,
+        ReleaseCommitmentKey, TASK_CONNECTION_DESCRIPTOR_SCHEMA, TaskReadOperatorInputs,
+        TaskWriteProofs, check_candidate_credential, check_principal_separation,
         check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
@@ -64,20 +71,26 @@ mod unix {
         io::{IsTerminal as _, Read as _, Write as _},
         num::NonZeroU64,
         os::unix::{
-            fs::{FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _},
+            fs::{
+                DirBuilderExt as _, FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _,
+                PermissionsExt as _,
+            },
             process::CommandExt as _,
         },
         path::{Component, Path, PathBuf},
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     };
+    use subtle::ConstantTimeEq as _;
     use tokio::{
         net::{UnixListener, UnixStream},
         sync::Semaphore,
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/5";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/6";
+    const TASK_COMPANION_RECIPE_FILE: &str = "task-companion-recipe.json";
+    const TASK_COMPANION_LOCK_FILE: &str = "task-companion-profile.lock.json";
     /// The directory of the state directory that holds the signed
     /// qualification inputs the operator imported.
     const QUALIFICATION_DIRECTORY: &str = "qualification";
@@ -87,6 +100,18 @@ mod unix {
     const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
+    const TASK_WRITE_INSTALLATION_FILE: &str = "task-write-installation.json";
+    const TASK_MATERIALIZERS_FILE: &str = "task-materializers.json";
+    const TASK_WRITE_STATE_DIRECTORY: &str = "agent-task-state";
+    const TASK_READ_INSTALLATION_FILE: &str = "task-read-installation.json";
+    const TASK_READ_RECIPE_FILE: &str = "task-read-recipe.json";
+    const TASK_READ_LOCK_FILE: &str = "task-read-profile.lock.json";
+    const TASK_READ_FLOOR_DIRECTORY: &str = "task-read-floor";
+    const TASK_READ_JOURNAL_DIRECTORY: &str = "task-read-credential-journal";
+    const TASK_READ_RUNTIME_FILE: &str = "task-read-runtime.json";
+    const TASK_READ_AGENT_IDENTITY_FILE: &str = "task-read-agent-identity.cbor";
+    const TASK_READ_COMMITMENT_KEY_FILE: &str = "task-read-commitment.key";
+    const TASK_READ_COMMITMENT_ROTATION_LOCK: &str = "task-read-commitment.lock";
     use auths_gateway::admin::{
         ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
     };
@@ -167,6 +192,14 @@ mod unix {
             recipe: PathBuf,
             #[arg(long)]
             profile_lock: PathBuf,
+            /// Development task installation: a second reviewed write recipe
+            /// sharing this connection and the task journal.
+            #[arg(long, requires_all = ["task_companion_profile_lock", "task_companion_approve_digest"])]
+            task_companion_recipe: Option<PathBuf>,
+            #[arg(long, requires = "task_companion_recipe")]
+            task_companion_profile_lock: Option<PathBuf>,
+            #[arg(long, requires = "task_companion_recipe")]
+            task_companion_approve_digest: Option<String>,
             #[arg(long)]
             trusted_context: PathBuf,
             #[arg(long)]
@@ -189,6 +222,19 @@ mod unix {
             credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// Development only: stdin holds an opaque materializer source,
+            /// not a bearer. Task execution requires a matching adapter.
+            #[arg(
+                long,
+                default_value_t = false,
+                requires = "credential_stdin",
+                conflicts_with = "join"
+            )]
+            credential_source_stdin: bool,
+            /// Print one secret-free JSON result with the generated connection
+            /// ID and credential generation for operator task pinning.
+            #[arg(long, default_value_t = false)]
+            connection_json: bool,
             /// `development` keeps attempts and the connection record in a
             /// single-host file store; `production` requires the
             /// `PostgreSQL` store, an authenticated operator, and no software
@@ -273,6 +319,14 @@ mod unix {
             #[arg(long)]
             profile_lock: PathBuf,
         },
+        /// Offline review of one closed GET release recipe. Prints its exact
+        /// digest and response limits; does not install or contact a provider.
+        ReviewRelease {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+        },
         /// Offline native proof review: derive the exact credential-free
         /// request and actors without installation, custody or provider I/O.
         ReviewSubmission {
@@ -323,6 +377,273 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+        },
+        /// Development operator only: install one canonical task-write pin
+        /// record in private gateway state. The agent cannot supply pins.
+        TaskConfigure {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            from: PathBuf,
+        },
+        /// Development operator only: bind digest-pinned custody processes to
+        /// already installed opaque-source connections. Contains no tokens.
+        TaskMaterializerConfigure {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            from: PathBuf,
+        },
+        /// Development operator only: probe each installed custody process
+        /// without releasing a token or reading provider data.
+        TaskMaterializerProbe {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Development operator only: install a distinct subject-bound read
+        /// connection and reviewed GET recipe beside the write installation.
+        /// A trusted custody shim must verify the provider subject before it
+        /// pipes a short-lived credential; this command makes no such claim.
+        TaskReadConnect {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            approve_digest: String,
+            #[arg(long)]
+            provider: String,
+            #[arg(long)]
+            alias: String,
+            #[arg(long)]
+            account_subject: String,
+            #[arg(long, default_value = "Authorization")]
+            credential_header: String,
+            #[arg(long, default_value_t = false)]
+            credential_stdin: bool,
+            /// Stdin holds an opaque source reference for a later adapter.
+            #[arg(long, default_value_t = false, requires = "credential_stdin")]
+            credential_source_stdin: bool,
+        },
+        /// Development operator only: bind the reviewed read connection to
+        /// one installed task, registered agent and private release channel.
+        TaskReadConfigure {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            agent_identity: PathBuf,
+            #[arg(long)]
+            channel_socket: PathBuf,
+            #[arg(long)]
+            channel_name: String,
+        },
+        /// Development operator only: publish a fresh release audit key.
+        /// Old private keys remain until the associated task journal is retired.
+        TaskReadCommitmentRotate {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Development operator only: execute one agent-signed GET and
+        /// release under the activated task and configured recipient.
+        TaskReadSubmit {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            /// Development fault: charge the release, then stop before any
+            /// content byte enters the authenticated agent channel.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            fail_before_content: bool,
+            /// Development fault: terminate after the durable release entry
+            /// and before any content byte enters the agent channel.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long, conflicts_with = "fail_before_content")]
+            exit_after_release_entry: bool,
+            /// Development fault: terminate after sending complete content
+            /// and before recording the agent's signed acknowledgement.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long, conflicts_with_all = ["fail_before_content", "exit_after_release_entry"])]
+            exit_after_content_send: bool,
+        },
+        /// Development operator only: compare one owner-private source file
+        /// with a durably acknowledged release. The signed draft's SHA-256 is
+        /// supplied on stdin, never in argv or a redacted task status.
+        TaskReleaseCompare {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            operation_id: String,
+            #[arg(long)]
+            resource_handle: String,
+            #[arg(long)]
+            source_file: PathBuf,
+        },
+        /// Development operator only: durably stop new reads and writes
+        /// under one activated task. It cannot retract delivered content or
+        /// an already entered provider request.
+        TaskRevoke {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Development operator only: print redacted durable task budgets,
+        /// read delivery stages and claimed write operation IDs.
+        TaskStatus {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Development operator only: join task-charged writes to their
+        /// durable gateway attempt stages without exposing provider bytes.
+        TaskActivity {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Development operator only: read the task-bound signed population
+        /// preflight's signature digest for independent effect correlation.
+        TaskPopulationLineage {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Development operator only: activate one human-signed task in the
+        /// durable task journal before any agent write can be submitted.
+        TaskActivate {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+        },
+        /// Development operator only: submit an agent write under the
+        /// installed task pins, with exact human confirmation by default.
+        TaskSubmit {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            /// Select a digest from the installed closed task recipe set.
+            /// Omission selects the primary installed recipe.
+            #[arg(long)]
+            recipe_digest: Option<String>,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long, requires = "confirmation_action")]
+            confirmation_proof: Option<PathBuf>,
+            #[arg(long, requires = "confirmation_proof")]
+            confirmation_action: Option<PathBuf>,
+            /// Use the immutable, previously recorded human effect plan for
+            /// its exact create or preflight-bound population operation.
+            #[arg(long, conflicts_with = "confirmation_proof")]
+            recorded_effect_plan: bool,
+            /// Development fault after the task write is durable and before
+            /// the independent gateway attempt is claimed.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            exit_after_write_reservation: bool,
+        },
+        /// Development operator only: verify one native human effect plan
+        /// against the original agent create and persist it before any write.
+        TaskRecordEffectPlan {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long)]
+            plan_proof: PathBuf,
+            #[arg(long)]
+            plan_action: PathBuf,
+        },
+        /// Development operator only: authenticate one signed, fresh,
+        /// credential-bearing child preflight and bind it to the task journal.
+        TaskRecordPopulatePreflight {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            report: PathBuf,
+        },
+        /// Development operator only: read exact plan and child facts from
+        /// the private task journal for a credential-bearing preflight.
+        TaskPopulatePreflightInputs {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Development operator only: inspect the original task, plan and
+        /// unknown create attempt before any recovered-child search. Grants
+        /// no child scope and makes no provider request.
+        TaskCreateRecoveryInputs {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Bind one response-less create after a pinned independent
+        /// attestation, a new human recovery signature and a fresh metadata
+        /// GET. This command never retries the provider create.
+        TaskRecoverChild {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long)]
+            attestation: PathBuf,
+            #[arg(long)]
+            recovery_proof: PathBuf,
+            #[arg(long)]
+            recovery_action: PathBuf,
+        },
+        /// Development operator only: reverify the original signed create
+        /// after a recorded response, read its child metadata once, and bind
+        /// that child in the task journal. Without exact confirmation files,
+        /// a previously recorded effect plan must match. Never repeats create.
+        TaskReconcileChild {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long, requires = "confirmation_action")]
+            confirmation_proof: Option<PathBuf>,
+            #[arg(long, requires = "confirmation_proof")]
+            confirmation_action: Option<PathBuf>,
         },
         /// Ask the private operator socket to disable new writes in every
         /// process sharing the store.
@@ -700,6 +1021,7 @@ mod unix {
         schema: String,
         recipe_digest: String,
         profile_lock_sha256: String,
+        task_companion: Option<TaskCompanionInstallation>,
         trusted_context_sha256: String,
         provider: String,
         alias: String,
@@ -715,6 +1037,14 @@ mod unix {
         credential_store: CredentialStoreSettings,
         /// Whether the recipe must be qualified, and what it is deployed as.
         qualification: QualificationSettings,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskCompanionInstallation {
+        recipe_digest: String,
+        recipe_source_sha256: String,
+        profile_lock_sha256: String,
     }
 
     /// The installation's qualification policy and the two tuple members a
@@ -809,6 +1139,40 @@ mod unix {
         identity: Option<String>,
     }
 
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskReadInstallation {
+        schema: String,
+        recipe_digest: String,
+        recipe_source_sha256: String,
+        profile_lock_sha256: String,
+        provider: String,
+        alias: String,
+        connection_id: String,
+        connection_generation: u64,
+        connection_subject: String,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskReadRuntime {
+        schema: String,
+        recipe_digest: String,
+        connection_id: String,
+        connection_generation: u64,
+        channel_socket: String,
+        channel_name: String,
+        agent_identity_sha256: String,
+        commitment_key_version: u32,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskMaterializers {
+        schema: String,
+        materializers: Vec<ProcessCustodyPins>,
+    }
+
     /// Whether production custody policy applies. It always does for a
     /// production deployment in a shipped build; only a build made for
     /// tests can relax it.
@@ -821,6 +1185,12 @@ mod unix {
     enum CredentialAccess {
         Runtime,
         Operator,
+    }
+
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    enum CredentialInputMode {
+        StaticBearer,
+        MaterializerSource,
     }
 
     fn open_credentials_for(
@@ -1227,6 +1597,7 @@ mod unix {
         state_dir: PathBuf,
         recipe_path: PathBuf,
         lock_path: PathBuf,
+        task_companion: Option<(PathBuf, PathBuf, String)>,
         context_path: PathBuf,
         approved: String,
         provider_text: String,
@@ -1235,6 +1606,8 @@ mod unix {
         join: bool,
         credential_header: String,
         credential_stdin: bool,
+        credential_input_mode: CredentialInputMode,
+        connection_json: bool,
         deployment: Deployment,
         operator_attestation: Option<PathBuf>,
         attempt_store: Option<PathBuf>,
@@ -1252,6 +1625,11 @@ mod unix {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin".into());
         }
+        if credential_input_mode == CredentialInputMode::MaterializerSource
+            && (deployment != Deployment::Development || join)
+        {
+            return Err("gateway.install.source-development-only".into());
+        }
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
         let trust = read_bounded(&context_path, 4 * 1024 * 1024)?;
@@ -1262,10 +1640,37 @@ mod unix {
         if approved != recipe.digest_hex() {
             return Err("gateway.install.approval-digest-mismatch".into());
         }
-        let descriptor = GatewayConnectionDescriptor::approve(&recipe, &credential_header)
-            .map_err(|_| "gateway.install.credential-header-mismatch")?
-            .to_bytes()
-            .map_err(|_| "gateway.install.invalid-descriptor")?;
+        if task_companion.is_some() && (deployment != Deployment::Development || join) {
+            return Err("gateway.install.task-companion-development-only".into());
+        }
+        let companion = match task_companion {
+            Some((recipe_path, lock_path, approved)) => {
+                let source = read_bounded(&recipe_path, 65_536)?;
+                let lock = read_bounded(&lock_path, 65_536)?;
+                let compiled = installable_recipe(&source, &lock)?;
+                if compiled.digest_hex() != approved {
+                    return Err("gateway.install.approval-digest-mismatch".into());
+                }
+                Some((source, lock, compiled))
+            }
+            None => None,
+        };
+        let (descriptor_schema, descriptor) = match &companion {
+            Some((_, _, compiled)) => (
+                TASK_CONNECTION_DESCRIPTOR_SCHEMA,
+                GatewayTaskConnectionDescriptor::approve(&[&recipe, compiled], &credential_header)
+                    .map_err(|_| "gateway.install.invalid-task-recipe-set")?
+                    .to_bytes()
+                    .map_err(|_| "gateway.install.invalid-descriptor")?,
+            ),
+            None => (
+                "auths.gateway-connection-descriptor/1",
+                GatewayConnectionDescriptor::approve(&recipe, &credential_header)
+                    .map_err(|_| "gateway.install.credential-header-mismatch")?
+                    .to_bytes()
+                    .map_err(|_| "gateway.install.invalid-descriptor")?,
+            ),
+        };
         let provider = ProviderKind::parse(provider_text.clone())
             .map_err(|_| "gateway.install.invalid-provider")?;
         let alias = ConnectionAlias::parse(alias_text.clone())
@@ -1281,6 +1686,13 @@ mod unix {
             schema: MANIFEST_SCHEMA.to_owned(),
             recipe_digest: approved,
             profile_lock_sha256: digest(&lock),
+            task_companion: companion.as_ref().map(|(source, lock, compiled)| {
+                TaskCompanionInstallation {
+                    recipe_digest: compiled.digest_hex(),
+                    recipe_source_sha256: digest(source),
+                    profile_lock_sha256: digest(lock),
+                }
+            }),
             trusted_context_sha256: digest(&trust),
             provider: provider_text,
             alias: alias_text,
@@ -1302,7 +1714,12 @@ mod unix {
             }
             (None, Deployment::Development) => None,
         };
-        let candidate = read_install_credential()?;
+        let mut candidate = read_install_credential()?;
+        if (credential_input_mode == CredentialInputMode::MaterializerSource)
+            != candidate.starts_with(auths_gateway::MATERIALIZER_SOURCE_PREFIX)
+        {
+            return Err("gateway.install.invalid-source-reference".into());
+        }
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed".into());
@@ -1329,6 +1746,10 @@ mod unix {
         // Explicit store-only revocation can still make its journal collectible.
         private_file(&state_dir.join("recipe.json"), &source)?;
         private_file(&state_dir.join("profile.lock.json"), &lock)?;
+        if let Some((source, lock, _)) = &companion {
+            private_file(&state_dir.join(TASK_COMPANION_RECIPE_FILE), source)?;
+            private_file(&state_dir.join(TASK_COMPANION_LOCK_FILE), lock)?;
+        }
         private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
         if let Some(bytes) = &attestation {
             private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
@@ -1347,9 +1768,13 @@ mod unix {
             if account_label.is_empty() || account_label.len() > 256 {
                 return Err("gateway.install.invalid-account-label".into());
             }
-            let secret =
+            let secret = if credential_input_mode == CredentialInputMode::MaterializerSource {
+                SecretBytes::new(std::mem::take(&mut *candidate))
+                    .map_err(|_| "gateway.install.invalid-source-reference")?
+            } else {
                 checked_install_credential(&recipe, candidate, &account_label, loopback_provider)
-                    .await?;
+                    .await?
+            };
             let connection_id =
                 ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
             let profile = ConnectionProfile::new(
@@ -1381,7 +1806,7 @@ mod unix {
                         record_id,
                         SemanticId::parse("auths.gateway-operation/1")
                             .map_err(|_| "gateway.install.contract")?,
-                        SemanticId::parse("auths.gateway-connection-descriptor/1")
+                        SemanticId::parse(descriptor_schema)
                             .map_err(|_| "gateway.install.descriptor-schema")?,
                         descriptor,
                         account_commitment,
@@ -1418,14 +1843,31 @@ mod unix {
         }
         let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
         let record = installed.record().clone();
+        let connection_id = record.connection_id().as_str().to_owned();
+        let credential_generation = record.credential_generation().get();
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
-        println!(
-            "{} recipe {} with separate gateway credential custody",
-            if join { "joined" } else { "installed" },
-            manifest.recipe_digest
-        );
+        if connection_json {
+            println!(
+                "{}",
+                serde_json_canonicalizer::to_string(&serde_json::json!({
+                    "schema": "auths.gateway-install-result/1",
+                    "connection_id": connection_id,
+                    "credential_generation": credential_generation,
+                    "recipe_digest": manifest.recipe_digest,
+                    "task_companion_digest": manifest.task_companion.as_ref().map(|recipe| &recipe.recipe_digest),
+                    "joined": join,
+                }))
+                .map_err(|_| "gateway.install.output")?
+            );
+        } else {
+            println!(
+                "{} recipe {} with separate gateway credential custody",
+                if join { "joined" } else { "installed" },
+                manifest.recipe_digest
+            );
+        }
         Ok(())
     }
 
@@ -1849,6 +2291,22 @@ mod unix {
                 .map_err(|_| "gateway.serve.invalid-installation")?
                 != manifest_bytes
             || (manifest.deployment == Deployment::Production) != manifest.attempt_store.is_none()
+            || (manifest.deployment == Deployment::Production && manifest.task_companion.is_some())
+            || manifest.task_companion.as_ref().is_some_and(|companion| {
+                companion.recipe_digest == manifest.recipe_digest
+                    || [
+                        &companion.recipe_digest,
+                        &companion.recipe_source_sha256,
+                        &companion.profile_lock_sha256,
+                    ]
+                    .into_iter()
+                    .any(|value| {
+                        value.len() != 64
+                            || !value
+                                .bytes()
+                                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                    })
+            })
         {
             return Err("gateway.serve.invalid-installation");
         }
@@ -1914,14 +2372,64 @@ mod unix {
         state_dir: &Path,
         access: CredentialAccess,
     ) -> Result<GatewayEngine, Failure> {
+        load_engine_for_task_recipe(state_dir, access, None)
+    }
+
+    fn selected_write_recipe(
+        state_dir: &Path,
+        manifest: &Installation,
+        selected_digest: Option<&str>,
+    ) -> Result<CompiledRecipe, Failure> {
+        let companion = match selected_digest {
+            Some(digest) if digest != manifest.recipe_digest => Some(
+                manifest
+                    .task_companion
+                    .as_ref()
+                    .filter(|installed| installed.recipe_digest == digest)
+                    .ok_or("gateway.task.recipe-not-installed")?,
+            ),
+            _ => None,
+        };
+        let (recipe_path, lock_path, expected_recipe_digest, expected_lock_digest) = match companion
+        {
+            Some(installed) => (
+                TASK_COMPANION_RECIPE_FILE,
+                TASK_COMPANION_LOCK_FILE,
+                installed.recipe_digest.as_str(),
+                installed.profile_lock_sha256.as_str(),
+            ),
+            None => (
+                "recipe.json",
+                "profile.lock.json",
+                manifest.recipe_digest.as_str(),
+                manifest.profile_lock_sha256.as_str(),
+            ),
+        };
+        let source = read_bounded(&state_dir.join(recipe_path), 65_536)?;
+        let lock = read_bounded(&state_dir.join(lock_path), 65_536)?;
+        if digest(&lock) != expected_lock_digest
+            || companion.is_some_and(|installed| digest(&source) != installed.recipe_source_sha256)
+        {
+            return Err("gateway.serve.installation-changed".into());
+        }
+        let recipe =
+            CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
+        if recipe.digest_hex() != expected_recipe_digest {
+            return Err("gateway.serve.recipe-changed".into());
+        }
+        Ok(recipe)
+    }
+
+    fn load_engine_for_task_recipe(
+        state_dir: &Path,
+        access: CredentialAccess,
+        selected_digest: Option<&str>,
+    ) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         let manifest = installation(state_dir)?;
-        let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
-        let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536)?;
+        let recipe = selected_write_recipe(state_dir, &manifest, selected_digest)?;
         let trust = read_bounded(&state_dir.join("trusted.context.cbor"), 4 * 1024 * 1024)?;
-        if digest(&lock) != manifest.profile_lock_sha256
-            || digest(&trust) != manifest.trusted_context_sha256
-        {
+        if digest(&trust) != manifest.trusted_context_sha256 {
             return Err("gateway.serve.installation-changed".into());
         }
         let context = auths_codec::decode_verifier_context(&trust)
@@ -1944,11 +2452,6 @@ mod unix {
             }
             (None, Deployment::Development) => None,
         };
-        let recipe =
-            CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
-        if recipe.digest_hex() != manifest.recipe_digest {
-            return Err("gateway.serve.recipe-changed".into());
-        }
         let approved = *recipe.digest();
         let profile = ConnectionProfile::new(
             SemanticId::parse("auths.mcp").map_err(|_| "gateway.serve.profile")?,
@@ -2499,6 +3002,20 @@ mod unix {
         Ok(())
     }
 
+    fn review_release(recipe_path: &Path, lock_path: &Path) -> Result<(), &'static str> {
+        let recipe = CompiledReleaseRecipe::compile(
+            &read_bounded(recipe_path, 65_536)?,
+            &read_bounded(lock_path, 65_536)?,
+        )
+        .map_err(|_| "gateway.review.invalid-release-recipe")?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&recipe.review_document())
+                .map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
     fn review_submission_files(
         recipe_path: &Path,
         lock_path: &Path,
@@ -2879,6 +3396,984 @@ mod unix {
         println!(
             "{}",
             serde_json::to_string(&result).map_err(|_| "gateway.submit.invalid-response")?
+        );
+        Ok(())
+    }
+
+    async fn task_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
+        task_engine_for(state_dir, None).await
+    }
+
+    async fn task_engine_for(
+        state_dir: &Path,
+        recipe_digest: Option<String>,
+    ) -> Result<GatewayEngine, Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.task.single-host-only".into());
+        }
+        let directory = state_dir.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let engine = load_engine_for_task_recipe(
+                &directory,
+                CredentialAccess::Runtime,
+                recipe_digest.as_deref(),
+            )?;
+            attach_task_materializers(&directory, engine)
+        })
+        .await
+        .map_err(|_| "gateway.task.engine-unavailable")?
+    }
+
+    fn parse_task_materializers(bytes: &[u8]) -> Result<TaskMaterializers, Failure> {
+        let bundle: TaskMaterializers = serde_json::from_slice(bytes)
+            .map_err(|_| "gateway.materializer.invalid-installation")?;
+        if bundle.schema != "auths.gateway-task-materializers/2"
+            || bundle.materializers.is_empty()
+            || bundle.materializers.len() > 4
+            || serde_json_canonicalizer::to_vec(&bundle)
+                .map_err(|_| "gateway.materializer.invalid-installation")?
+                != bytes
+        {
+            return Err("gateway.materializer.invalid-installation".into());
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for pins in &bundle.materializers {
+            pins.validate()?;
+            if !ids.insert(pins.connection_id.as_str()) {
+                return Err("gateway.materializer.duplicate-connection".into());
+            }
+        }
+        Ok(bundle)
+    }
+
+    fn attach_task_materializers(
+        state_dir: &Path,
+        mut engine: GatewayEngine,
+    ) -> Result<GatewayEngine, Failure> {
+        if !state_dir.join(TASK_MATERIALIZERS_FILE).exists() {
+            return Ok(engine);
+        }
+        let bytes = task_private_file(state_dir, TASK_MATERIALIZERS_FILE, 16 * 1024)?;
+        let bundle = parse_task_materializers(&bytes)?;
+        for pins in bundle.materializers {
+            let adapter = Arc::new(ProcessCustodyMaterializer::new(pins)?);
+            let id = ConnectionId::parse(adapter.connection_id().to_owned())
+                .map_err(|_| "gateway.materializer.invalid-connection")?;
+            let authority = adapter.authority_digest()?;
+            engine = engine.with_credential_materializer(
+                &id,
+                Arc::new(auths_gateway::MaterializerInstallation::new(
+                    adapter, authority,
+                )),
+            )?;
+        }
+        Ok(engine)
+    }
+
+    fn task_private_file(state_dir: &Path, name: &str, maximum: usize) -> Result<Vec<u8>, Failure> {
+        let path = state_dir.join(name);
+        let metadata =
+            fs::symlink_metadata(&path).map_err(|_| "gateway.task.installation-unavailable")?;
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("gateway.task.unsafe-installation".into());
+        }
+        read_bounded(&path, maximum).map_err(Into::into)
+    }
+
+    fn task_installation(state_dir: &Path) -> Result<Vec<u8>, Failure> {
+        task_private_file(state_dir, TASK_WRITE_INSTALLATION_FILE, 16 * 1024)
+    }
+
+    fn task_read_installation(state_dir: &Path) -> Result<TaskReadInstallation, Failure> {
+        let bytes = task_private_file(state_dir, TASK_READ_INSTALLATION_FILE, 4 * 1024)?;
+        let installed: TaskReadInstallation =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.release.invalid-installation")?;
+        if installed.schema != "auths.gateway-task-read-installation/1"
+            || serde_json_canonicalizer::to_vec(&installed)
+                .map_err(|_| "gateway.release.invalid-installation")?
+                != bytes
+        {
+            return Err("gateway.release.invalid-installation".into());
+        }
+        Ok(installed)
+    }
+
+    fn task_read_recipe(
+        state_dir: &Path,
+        installed: &TaskReadInstallation,
+    ) -> Result<CompiledReleaseRecipe, Failure> {
+        let source = task_private_file(state_dir, TASK_READ_RECIPE_FILE, 65_536)?;
+        let lock = task_private_file(state_dir, TASK_READ_LOCK_FILE, 65_536)?;
+        if digest(&source) != installed.recipe_source_sha256
+            || digest(&lock) != installed.profile_lock_sha256
+        {
+            return Err("gateway.release.installation-changed".into());
+        }
+        let recipe = CompiledReleaseRecipe::compile(&source, &lock)
+            .map_err(|_| "gateway.release.invalid-recipe")?;
+        if recipe.digest_hex() != installed.recipe_digest {
+            return Err("gateway.release.installation-changed".into());
+        }
+        Ok(recipe)
+    }
+
+    fn task_read_runtime(state_dir: &Path) -> Result<TaskReadRuntime, Failure> {
+        let bytes = task_private_file(state_dir, TASK_READ_RUNTIME_FILE, 4 * 1024)?;
+        let runtime: TaskReadRuntime =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.release.invalid-runtime")?;
+        if runtime.schema != "auths.gateway-task-read-runtime/1"
+            || runtime.commitment_key_version == 0
+            || serde_json_canonicalizer::to_vec(&runtime)
+                .map_err(|_| "gateway.release.invalid-runtime")?
+                != bytes
+        {
+            return Err("gateway.release.invalid-runtime".into());
+        }
+        Ok(runtime)
+    }
+
+    async fn task_configure(state_dir: PathBuf, from: PathBuf) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let bytes = read_bounded(&from, 16 * 1024)?;
+        engine.task_write_session(&bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        private_file(&state_dir.join(TASK_WRITE_INSTALLATION_FILE), &bytes)?;
+        println!("{{\"outcome\":\"task-installation-configured\"}}");
+        Ok(())
+    }
+
+    async fn task_materializer_configure(state_dir: &Path, from: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.materializer.development-only".into());
+        }
+        if state_dir.join(TASK_MATERIALIZERS_FILE).exists() {
+            return Err("gateway.materializer.already-installed".into());
+        }
+        let bytes = read_bounded(from, 16 * 1024)?;
+        let bundle = parse_task_materializers(&bytes)?;
+        for pins in bundle.materializers {
+            ProcessCustodyMaterializer::new(pins)?
+                .validate_source()
+                .await
+                .map_err(|_| "gateway.materializer.source-refused")?;
+        }
+        private_file(&state_dir.join(TASK_MATERIALIZERS_FILE), &bytes)?;
+        println!("{{\"outcome\":\"task-materializers-configured\"}}");
+        Ok(())
+    }
+
+    async fn task_materializer_probe(state_dir: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.materializer.development-only".into());
+        }
+        let bytes = task_private_file(state_dir, TASK_MATERIALIZERS_FILE, 16 * 1024)?;
+        let bundle = parse_task_materializers(&bytes)?;
+        let count = bundle.materializers.len();
+        for pins in bundle.materializers {
+            ProcessCustodyMaterializer::new(pins)?
+                .probe_identity()
+                .await
+                .map_err(|_| "gateway.materializer.identity-probe-refused")?;
+        }
+        println!("{{\"outcome\":\"materializer-probe-ready\",\"count\":{count}}}");
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    async fn task_read_connect(
+        state_dir: PathBuf,
+        recipe_path: PathBuf,
+        lock_path: PathBuf,
+        approved: String,
+        provider_text: String,
+        alias_text: String,
+        account_subject: String,
+        credential_header: String,
+        credential_stdin: bool,
+        credential_source_stdin: bool,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let manifest = installation(&state_dir)?;
+        if manifest.deployment != Deployment::Development {
+            return Err("gateway.release.single-host-only".into());
+        }
+        if !credential_stdin || std::io::stdin().is_terminal() {
+            return Err("gateway.release.credential-must-be-piped-to-stdin".into());
+        }
+        if account_subject.is_empty()
+            || account_subject.len() > 256
+            || account_subject.chars().any(char::is_control)
+        {
+            return Err("gateway.release.invalid-account-subject".into());
+        }
+        for name in [
+            TASK_READ_INSTALLATION_FILE,
+            TASK_READ_RECIPE_FILE,
+            TASK_READ_LOCK_FILE,
+            TASK_READ_FLOOR_DIRECTORY,
+            TASK_READ_JOURNAL_DIRECTORY,
+        ] {
+            if state_dir.join(name).exists() {
+                return Err("gateway.release.already-or-partially-installed".into());
+            }
+        }
+        let source = read_bounded(&recipe_path, 65_536)?;
+        let lock = read_bounded(&lock_path, 65_536)?;
+        let recipe = CompiledReleaseRecipe::compile(&source, &lock)
+            .map_err(|_| "gateway.release.invalid-recipe")?;
+        if recipe.digest_hex() != approved {
+            return Err("gateway.release.approval-digest-mismatch".into());
+        }
+        let descriptor = GatewayConnectionDescriptor::approve_release(&recipe, &credential_header)
+            .map_err(|_| "gateway.release.credential-header-mismatch")?
+            .to_bytes()
+            .map_err(|_| "gateway.release.invalid-descriptor")?;
+        let provider = ProviderKind::parse(provider_text.clone())
+            .map_err(|_| "gateway.release.invalid-provider")?;
+        let alias = ConnectionAlias::parse(alias_text.clone())
+            .map_err(|_| "gateway.release.invalid-alias")?;
+        let mut candidate = read_install_credential()?;
+        if credential_source_stdin
+            != candidate.starts_with(auths_gateway::MATERIALIZER_SOURCE_PREFIX)
+        {
+            return Err("gateway.release.invalid-source-reference".into());
+        }
+        let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+            .map_err(|_| "gateway.release.invalid-credential")?;
+        let attempts = open_attempts(
+            manifest.deployment,
+            manifest.attempt_store.as_ref().map(PathBuf::from),
+        )?;
+        let credentials = open_credentials_for(
+            &state_dir,
+            &manifest.credential_store,
+            manifest.deployment,
+            "gateway.release.credential-store-unavailable",
+            CredentialAccess::Operator,
+        )?;
+        let connection_id =
+            ConnectionId::generate().map_err(|_| "gateway.release.randomness-unavailable")?;
+        let profile = ConnectionProfile::new(
+            SemanticId::parse("auths.mcp").map_err(|_| "gateway.release.profile")?,
+            2,
+        )
+        .map_err(|_| "gateway.release.profile")?;
+        let mut account_hash = Sha256::new();
+        account_hash.update(b"auths.gateway-account/1\0");
+        account_hash.update(account_subject.as_bytes());
+        let account_commitment: [u8; 32] = account_hash.finalize().into();
+        let timestamp = now()?;
+        let floor_root = state_dir.join(TASK_READ_FLOOR_DIRECTORY);
+        let journal_root = state_dir.join(TASK_READ_JOURNAL_DIRECTORY);
+        for directory in [&floor_root, &journal_root] {
+            fs::DirBuilder::new()
+                .mode(0o700)
+                .create(directory)
+                .map_err(|_| "gateway.release.private-state-unavailable")?;
+        }
+        let journal = auths_gateway::CredentialJournal::new(journal_root);
+        let journal_id = connection_id.clone();
+        tokio::task::spawn_blocking(move || {
+            journal.initialize(&journal_id)?;
+            journal.register(&journal_id, NonZeroU64::MIN)
+        })
+        .await
+        .map_err(|_| "gateway.release.credential-journal-unavailable")??;
+        let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
+        let record_id = connection_id.clone();
+        let record = install_connection(
+            &shared,
+            &*credentials,
+            move |reference| {
+                ConnectionRecord::new(
+                    provider,
+                    alias,
+                    record_id,
+                    SemanticId::parse("auths.gateway-operation/1")
+                        .map_err(|_| "gateway.release.contract")?,
+                    SemanticId::parse("auths.gateway-connection-descriptor/1")
+                        .map_err(|_| "gateway.release.descriptor-schema")?,
+                    descriptor,
+                    account_commitment,
+                    reference,
+                    NonZeroU64::MIN,
+                    ConnectionState::Active,
+                    vec!["gateway".to_owned()],
+                    vec![profile],
+                    timestamp,
+                    timestamp,
+                    None,
+                )
+                .map_err(|_| "gateway.release.connection-invalid")
+            },
+            &connection_id,
+            secret,
+        )
+        .await?;
+        auths_gateway::GenerationFloor::new(floor_root)
+            .initialize(&record)
+            .map_err(|_| "gateway.release.floor-unavailable")?;
+        private_file(&state_dir.join(TASK_READ_RECIPE_FILE), &source)?;
+        private_file(&state_dir.join(TASK_READ_LOCK_FILE), &lock)?;
+        let installed = TaskReadInstallation {
+            schema: "auths.gateway-task-read-installation/1".to_owned(),
+            recipe_digest: recipe.digest_hex(),
+            recipe_source_sha256: digest(&source),
+            profile_lock_sha256: digest(&lock),
+            provider: provider_text,
+            alias: alias_text,
+            connection_id: record.connection_id().as_str().to_owned(),
+            connection_generation: record.generation().get(),
+            connection_subject: account_subject,
+        };
+        private_file(
+            &state_dir.join(TASK_READ_INSTALLATION_FILE),
+            &serde_json_canonicalizer::to_vec(&installed)
+                .map_err(|_| "gateway.release.installation-invalid")?,
+        )?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "outcome": "read-connection-installed",
+                "connection_id": installed.connection_id,
+                "connection_generation": installed.connection_generation,
+                "recipe_digest": installed.recipe_digest,
+            })
+        );
+        Ok(())
+    }
+
+    async fn task_read_configure(
+        state_dir: PathBuf,
+        agent_identity: PathBuf,
+        channel_socket: PathBuf,
+        channel_name: String,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        if installation(&state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.release.single-host-only".into());
+        }
+        for name in [
+            TASK_READ_RUNTIME_FILE,
+            TASK_READ_AGENT_IDENTITY_FILE,
+            TASK_READ_COMMITMENT_KEY_FILE,
+        ] {
+            if state_dir.join(name).exists() {
+                return Err("gateway.release.runtime-already-installed".into());
+            }
+        }
+        let installed = task_read_installation(&state_dir)?;
+        let recipe = task_read_recipe(&state_dir, &installed)?;
+        let packet = read_bounded(&agent_identity, 4_096)?;
+        let socket = channel_socket
+            .to_str()
+            .filter(|_| channel_socket.is_absolute())
+            .ok_or("gateway.release.invalid-channel-socket")?
+            .to_owned();
+        check_private_directory(
+            channel_socket
+                .parent()
+                .ok_or("gateway.release.invalid-channel-socket")?,
+        )
+        .map_err(|_| "gateway.release.unsafe-channel-directory")?;
+        let mut key_material = Zeroizing::new([0_u8; 32]);
+        getrandom::fill(&mut *key_material)
+            .map_err(|_| "gateway.release.randomness-unavailable")?;
+        let key = ReleaseCommitmentKey::new(1, Zeroizing::new(*key_material))
+            .map_err(|_| "gateway.release.invalid-commitment-key")?;
+        let engine = task_engine(&state_dir).await?;
+        let task_bytes = task_installation(&state_dir)?;
+        let task =
+            engine.task_write_session(&task_bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        task.read_session(TaskReadOperatorInputs {
+            recipe,
+            provider: ProviderKind::parse(installed.provider.clone())
+                .map_err(|_| "gateway.release.invalid-provider")?,
+            alias: ConnectionAlias::parse(installed.alias.clone())
+                .map_err(|_| "gateway.release.invalid-alias")?,
+            generation_floor: auths_gateway::GenerationFloor::new(
+                state_dir.join(TASK_READ_FLOOR_DIRECTORY),
+            ),
+            qualification: Arc::new(QualificationGate::development()),
+            commitment_key: key,
+            channel_socket,
+            channel_name: channel_name.clone(),
+            agent_identity_packet: packet.clone(),
+        })?;
+        let runtime = TaskReadRuntime {
+            schema: "auths.gateway-task-read-runtime/1".to_owned(),
+            recipe_digest: installed.recipe_digest,
+            connection_id: installed.connection_id,
+            connection_generation: installed.connection_generation,
+            channel_socket: socket,
+            channel_name,
+            agent_identity_sha256: digest(&packet),
+            commitment_key_version: 1,
+        };
+        private_file(&state_dir.join(TASK_READ_AGENT_IDENTITY_FILE), &packet)?;
+        private_file(
+            &state_dir.join(TASK_READ_COMMITMENT_KEY_FILE),
+            &key_material[..],
+        )?;
+        private_file(
+            &state_dir.join(TASK_READ_RUNTIME_FILE),
+            &serde_json_canonicalizer::to_vec(&runtime)
+                .map_err(|_| "gateway.release.invalid-runtime")?,
+        )?;
+        println!("{{\"outcome\":\"read-runtime-configured\"}}");
+        Ok(())
+    }
+
+    fn task_read_commitment_key_file(version: u32) -> Result<String, Failure> {
+        if version == 0 {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        Ok(if version == 1 {
+            TASK_READ_COMMITMENT_KEY_FILE.to_owned()
+        } else {
+            format!("task-read-commitment-v{version}.key")
+        })
+    }
+
+    fn task_read_commitment_key(
+        state_dir: &Path,
+        version: u32,
+    ) -> Result<ReleaseCommitmentKey, Failure> {
+        let name = task_read_commitment_key_file(version)?;
+        let mut key_bytes = Zeroizing::new(task_private_file(state_dir, &name, 32)?);
+        if key_bytes.len() != 32 {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        let mut key_material = Zeroizing::new([0_u8; 32]);
+        key_material.copy_from_slice(&key_bytes);
+        key_bytes.zeroize();
+        ReleaseCommitmentKey::new(version, key_material)
+            .map_err(|_| "gateway.release.invalid-commitment-key".into())
+    }
+
+    /// Publish one new key version after its private file is durable. A
+    /// crashed pre-publication attempt can reuse that file; old keys are kept
+    /// for private comparison until the task journal is retired.
+    fn task_read_commitment_rotate(state_dir: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.release.single-host-only".into());
+        }
+        let installed = task_read_installation(state_dir)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .open(state_dir.join(TASK_READ_COMMITMENT_ROTATION_LOCK))
+            .map_err(|_| "gateway.release.rotation-unavailable")?;
+        let metadata = lock
+            .metadata()
+            .map_err(|_| "gateway.release.rotation-unavailable")?;
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("gateway.release.rotation-unavailable".into());
+        }
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| "gateway.release.rotation-unavailable")?;
+        let mut runtime = task_read_runtime(state_dir)?;
+        if runtime.recipe_digest != installed.recipe_digest
+            || runtime.connection_id != installed.connection_id
+            || runtime.connection_generation != installed.connection_generation
+        {
+            return Err("gateway.release.runtime-changed".into());
+        }
+        task_read_commitment_key(state_dir, runtime.commitment_key_version)?;
+        let next = runtime
+            .commitment_key_version
+            .checked_add(1)
+            .ok_or("gateway.release.rotation-exhausted")?;
+        let name = task_read_commitment_key_file(next)?;
+        let path = state_dir.join(&name);
+        match fs::symlink_metadata(&path) {
+            Ok(_) => {
+                task_read_commitment_key(state_dir, next)?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let mut key_material = Zeroizing::new([0_u8; 32]);
+                getrandom::fill(&mut *key_material)
+                    .map_err(|_| "gateway.release.randomness-unavailable")?;
+                private_file(&path, &key_material[..])?;
+            }
+            Err(_) => return Err("gateway.release.rotation-unavailable".into()),
+        }
+        runtime.commitment_key_version = next;
+        let bytes = serde_json_canonicalizer::to_vec(&runtime)
+            .map_err(|_| "gateway.release.invalid-runtime")?;
+        replace_private_file(&state_dir.join(TASK_READ_RUNTIME_FILE), &bytes)?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "outcome": "read-commitment-key-rotated",
+                "key_version": next,
+            })
+        );
+        Ok(())
+    }
+
+    async fn task_read_submit(
+        state_dir: PathBuf,
+        task_id: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        #[cfg(feature = "loopback-provider")] fail_before_content: bool,
+        #[cfg(feature = "loopback-provider")] exit_after_release_entry: bool,
+        #[cfg(feature = "loopback-provider")] exit_after_content_send: bool,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let installed = task_read_installation(&state_dir)?;
+        let runtime = task_read_runtime(&state_dir)?;
+        if runtime.recipe_digest != installed.recipe_digest
+            || runtime.connection_id != installed.connection_id
+            || runtime.connection_generation != installed.connection_generation
+        {
+            return Err("gateway.release.runtime-changed".into());
+        }
+        let packet = task_private_file(&state_dir, TASK_READ_AGENT_IDENTITY_FILE, 4_096)?;
+        if digest(&packet) != runtime.agent_identity_sha256 {
+            return Err("gateway.release.runtime-changed".into());
+        }
+        let key = task_read_commitment_key(&state_dir, runtime.commitment_key_version)?;
+        let recipe = task_read_recipe(&state_dir, &installed)?;
+        let engine = task_engine(&state_dir).await?;
+        let task_bytes = task_installation(&state_dir)?;
+        let task =
+            engine.task_write_session(&task_bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let read = task.read_session(TaskReadOperatorInputs {
+            recipe,
+            provider: ProviderKind::parse(installed.provider)
+                .map_err(|_| "gateway.release.invalid-provider")?,
+            alias: ConnectionAlias::parse(installed.alias)
+                .map_err(|_| "gateway.release.invalid-alias")?,
+            generation_floor: auths_gateway::GenerationFloor::new(
+                state_dir.join(TASK_READ_FLOOR_DIRECTORY),
+            ),
+            qualification: Arc::new(QualificationGate::development()),
+            commitment_key: key,
+            channel_socket: PathBuf::from(runtime.channel_socket),
+            channel_name: runtime.channel_name,
+            agent_identity_packet: packet,
+        })?;
+        #[cfg(feature = "loopback-provider")]
+        let read = if fail_before_content {
+            read.with_fail_before_content_for_development()
+        } else if exit_after_release_entry {
+            read.with_exit_after_release_entry_for_development()
+        } else if exit_after_content_send {
+            read.with_exit_after_content_send_for_development()
+        } else {
+            read
+        };
+        let proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&agent_action, 64 * 1024)?;
+        let result = read.read(&task_id, &proof, &action).await;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.release.invalid-response")?
+        );
+        Ok(())
+    }
+
+    async fn task_release_compare(
+        state_dir: PathBuf,
+        task_id: String,
+        operation_id: String,
+        resource_handle: String,
+        source_file: PathBuf,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let runtime = task_read_runtime(&state_dir)?;
+        let parent = source_file
+            .parent()
+            .ok_or("gateway.release.source-unavailable")?;
+        check_private_directory(parent).map_err(|_| "gateway.release.source-unavailable")?;
+        let opened = OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .open(&source_file)
+            .map_err(|_| "gateway.release.source-unavailable")?;
+        let metadata = opened
+            .metadata()
+            .map_err(|_| "gateway.release.source-unavailable")?;
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("gateway.release.source-unavailable".into());
+        }
+        let mut source = Zeroizing::new(Vec::new());
+        opened
+            .take(16_385)
+            .read_to_end(&mut source)
+            .map_err(|_| "gateway.release.source-unavailable")?;
+        if source.is_empty() || source.len() > 16_384 {
+            return Err("gateway.release.source-unavailable".into());
+        }
+        let mut expected = Zeroizing::new(Vec::new());
+        std::io::stdin()
+            .take(65)
+            .read_to_end(&mut expected)
+            .map_err(|_| "gateway.release.invalid-source-digest")?;
+        if expected.len() != 64
+            || !expected
+                .iter()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+        {
+            return Err("gateway.release.invalid-source-digest".into());
+        }
+        let claimed =
+            hex::decode(&*expected).map_err(|_| "gateway.release.invalid-source-digest")?;
+        let claimed: [u8; 32] = claimed
+            .try_into()
+            .map_err(|_| "gateway.release.invalid-source-digest")?;
+        let actual: [u8; 32] = Sha256::digest(&*source).into();
+        if !bool::from(actual.ct_eq(&claimed)) {
+            return Err("gateway.release.source-mismatch".into());
+        }
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let version = session
+            .acknowledged_release_key_version(&task_id, &operation_id, &resource_handle)?
+            .ok_or("gateway.release.source-mismatch")?;
+        if version > runtime.commitment_key_version {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        let key = task_read_commitment_key(&state_dir, version)?;
+        if !session.acknowledged_release_matches(
+            &task_id,
+            &operation_id,
+            &resource_handle,
+            &source,
+            &key,
+        )? {
+            return Err("gateway.release.source-mismatch".into());
+        }
+        println!("{{\"outcome\":\"source-matched\"}}");
+        Ok(())
+    }
+
+    async fn task_revoke(state_dir: PathBuf, task_id: String) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        session.revoke(&task_id)?;
+        println!("{{\"outcome\":\"task-revoked\"}}");
+        Ok(())
+    }
+
+    async fn task_status(state_dir: PathBuf, task_id: String) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let status = session.status(&task_id)?;
+        println!(
+            "{}",
+            serde_json::to_string(&status).map_err(|_| "gateway.task.invalid-status")?
+        );
+        Ok(())
+    }
+
+    async fn task_activity(state_dir: PathBuf, task_id: String) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let activity = session.activity(&task_id).await?;
+        println!(
+            "{}",
+            serde_json::to_string(&activity).map_err(|_| "gateway.task.invalid-activity")?
+        );
+        Ok(())
+    }
+
+    async fn task_population_lineage(state_dir: PathBuf, task_id: String) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let lineage = session.population_lineage(&task_id)?;
+        println!(
+            "{}",
+            serde_json::to_string(&lineage)
+                .map_err(|_| "gateway.task.invalid-population-lineage")?
+        );
+        Ok(())
+    }
+
+    async fn task_activate(
+        state_dir: PathBuf,
+        proof: PathBuf,
+        action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&action, 64 * 1024)?;
+        match session.activate(&proof, &action).await {
+            Ok(()) => {
+                println!("{{\"outcome\":\"task-activated\"}}");
+                Ok(())
+            }
+            Err(result) => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&result).map_err(|_| "gateway.task.invalid-response")?
+                );
+                Err("gateway.task.activation-refused".into())
+            }
+        }
+    }
+
+    struct TaskSubmitInputs {
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: Option<String>,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        confirmation_proof: Option<PathBuf>,
+        confirmation_action: Option<PathBuf>,
+        recorded_effect_plan: bool,
+        #[cfg(feature = "loopback-provider")]
+        exit_after_write_reservation: bool,
+    }
+
+    async fn task_submit(inputs: TaskSubmitInputs) -> Result<(), Failure> {
+        let TaskSubmitInputs {
+            state_dir,
+            task_id,
+            recipe_digest,
+            agent_proof,
+            agent_action,
+            confirmation_proof,
+            confirmation_action,
+            recorded_effect_plan,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_write_reservation,
+        } = inputs;
+        let engine = task_engine_for(&state_dir, recipe_digest).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        #[cfg(feature = "loopback-provider")]
+        let session = if exit_after_write_reservation {
+            session.with_exit_after_write_reservation_for_development()
+        } else {
+            session
+        };
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let confirmation = match (confirmation_proof, confirmation_action) {
+            (Some(proof), Some(action)) => Some((
+                read_bounded(&proof, 4 * 1024 * 1024)?,
+                read_bounded(&action, 64 * 1024)?,
+            )),
+            (None, None) => None,
+            _ => return Err("gateway.task.incomplete-confirmation".into()),
+        };
+        let proofs = TaskWriteProofs {
+            task_id: &task_id,
+            agent_proof: &agent_proof,
+            agent_action: &agent_action,
+            confirmation: confirmation
+                .as_ref()
+                .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
+        };
+        let result = if recorded_effect_plan {
+            session.submit_planned_effect(proofs).await
+        } else {
+            session.submit(proofs).await
+        };
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.task.invalid-response")?
+        );
+        Ok(())
+    }
+
+    async fn task_reconcile_child(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        confirmation_proof: Option<PathBuf>,
+        confirmation_action: Option<PathBuf>,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let confirmation = match (confirmation_proof, confirmation_action) {
+            (Some(proof), Some(action)) => Some((
+                read_bounded(&proof, 4 * 1024 * 1024)?,
+                read_bounded(&action, 64 * 1024)?,
+            )),
+            (None, None) => None,
+            _ => return Err("gateway.task.incomplete-confirmation".into()),
+        };
+        let child_id = session
+            .reconcile_created_child(TaskWriteProofs {
+                task_id: &task_id,
+                agent_proof: &agent_proof,
+                agent_action: &agent_action,
+                confirmation: confirmation
+                    .as_ref()
+                    .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
+            })
+            .await?;
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "schema": "auths.gateway-child-reconciliation/1",
+                "outcome": "child-bound",
+                "child_id": child_id,
+            }))
+            .map_err(|_| "gateway.task.invalid-response")?
+        );
+        Ok(())
+    }
+
+    async fn task_record_effect_plan(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        plan_proof: PathBuf,
+        plan_action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let plan_proof = read_bounded(&plan_proof, 4 * 1024 * 1024)?;
+        let plan_action = read_bounded(&plan_action, 64 * 1024)?;
+        session.record_effect_plan(
+            &task_id,
+            &agent_proof,
+            &agent_action,
+            &plan_proof,
+            &plan_action,
+        )?;
+        println!("{{\"outcome\":\"effect-plan-recorded\"}}");
+        Ok(())
+    }
+
+    async fn task_record_populate_preflight(
+        state_dir: PathBuf,
+        task_id: String,
+        report: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let report = read_bounded(&report, 8_192)?;
+        session.record_populate_preflight(&task_id, &report)?;
+        println!("{{\"outcome\":\"populate-preflight-recorded\"}}");
+        Ok(())
+    }
+
+    async fn task_populate_preflight_inputs(
+        state_dir: PathBuf,
+        task_id: String,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let inputs = session.populate_preflight_inputs(&task_id)?;
+        println!(
+            "{}",
+            serde_json::to_string(&inputs).map_err(|_| "gateway.task.preflight-inputs")?
+        );
+        Ok(())
+    }
+
+    async fn task_create_recovery_inputs(
+        state_dir: PathBuf,
+        task_id: String,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let inputs = session.create_recovery_inputs(&task_id).await?;
+        println!(
+            "{}",
+            serde_json::to_string(&inputs).map_err(|_| "gateway.task.recovery-inputs")?
+        );
+        Ok(())
+    }
+
+    async fn task_recover_child(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        attestation: PathBuf,
+        recovery_proof: PathBuf,
+        recovery_action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let attestation = read_bounded(&attestation, 8_192)?;
+        let recovery_proof = read_bounded(&recovery_proof, 4 * 1024 * 1024)?;
+        let recovery_action = read_bounded(&recovery_action, 64 * 1024)?;
+        let child_id = session
+            .recover_created_child(
+                TaskWriteProofs {
+                    task_id: &task_id,
+                    agent_proof: &agent_proof,
+                    agent_action: &agent_action,
+                    confirmation: None,
+                },
+                &attestation,
+                &recovery_proof,
+                &recovery_action,
+            )
+            .await?;
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "schema": "auths.gateway-child-recovery/1",
+                "outcome": "child-bound",
+                "source": "recovered",
+                "child_id": child_id,
+            }))
+            .map_err(|_| "gateway.task.invalid-response")?
         );
         Ok(())
     }
@@ -3534,6 +5029,9 @@ mod unix {
                 state_dir,
                 recipe,
                 profile_lock,
+                task_companion_recipe,
+                task_companion_profile_lock,
+                task_companion_approve_digest,
                 trusted_context,
                 approve_digest,
                 provider,
@@ -3542,6 +5040,8 @@ mod unix {
                 join,
                 credential_header,
                 credential_stdin,
+                credential_source_stdin,
+                connection_json,
                 deployment,
                 operator_attestation,
                 attempt_store,
@@ -3563,10 +5063,20 @@ mod unix {
                     kms_key: aws_kms_key,
                     identity: aws_identity,
                 };
+                let task_companion = match (
+                    task_companion_recipe,
+                    task_companion_profile_lock,
+                    task_companion_approve_digest,
+                ) {
+                    (None, None, None) => None,
+                    (Some(recipe), Some(lock), Some(digest)) => Some((recipe, lock, digest)),
+                    _ => return Err("gateway.install.incomplete-task-companion".into()),
+                };
                 install(
                     state_dir,
                     recipe,
                     profile_lock,
+                    task_companion,
                     trusted_context,
                     approve_digest,
                     provider,
@@ -3575,6 +5085,12 @@ mod unix {
                     join,
                     credential_header,
                     credential_stdin,
+                    if credential_source_stdin {
+                        CredentialInputMode::MaterializerSource
+                    } else {
+                        CredentialInputMode::StaticBearer
+                    },
+                    connection_json,
                     deployment,
                     operator_attestation,
                     attempt_store,
@@ -3696,6 +5212,10 @@ mod unix {
                 recipe,
                 profile_lock,
             } => Ok(review(&recipe, &profile_lock)?),
+            Command::ReviewRelease {
+                recipe,
+                profile_lock,
+            } => Ok(review_release(&recipe, &profile_lock)?),
             Command::ReviewSubmission {
                 recipe,
                 profile_lock,
@@ -3736,6 +5256,200 @@ mod unix {
                 proof,
                 action,
             } => submit(app_socket, proof, action).await,
+            Command::TaskConfigure { state_dir, from } => task_configure(state_dir, from).await,
+            Command::TaskMaterializerConfigure { state_dir, from } => {
+                task_materializer_configure(&state_dir, &from).await
+            }
+            Command::TaskMaterializerProbe { state_dir } => {
+                task_materializer_probe(&state_dir).await
+            }
+            Command::TaskReadConnect {
+                state_dir,
+                recipe,
+                profile_lock,
+                approve_digest,
+                provider,
+                alias,
+                account_subject,
+                credential_header,
+                credential_stdin,
+                credential_source_stdin,
+            } => {
+                task_read_connect(
+                    state_dir,
+                    recipe,
+                    profile_lock,
+                    approve_digest,
+                    provider,
+                    alias,
+                    account_subject,
+                    credential_header,
+                    credential_stdin,
+                    credential_source_stdin,
+                )
+                .await
+            }
+            Command::TaskReadConfigure {
+                state_dir,
+                agent_identity,
+                channel_socket,
+                channel_name,
+            } => task_read_configure(state_dir, agent_identity, channel_socket, channel_name).await,
+            Command::TaskReadCommitmentRotate { state_dir } => {
+                task_read_commitment_rotate(&state_dir)
+            }
+            Command::TaskReadSubmit {
+                state_dir,
+                task_id,
+                agent_proof,
+                agent_action,
+                #[cfg(feature = "loopback-provider")]
+                fail_before_content,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_release_entry,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_content_send,
+            } => {
+                task_read_submit(
+                    state_dir,
+                    task_id,
+                    agent_proof,
+                    agent_action,
+                    #[cfg(feature = "loopback-provider")]
+                    fail_before_content,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_release_entry,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_content_send,
+                )
+                .await
+            }
+            Command::TaskReleaseCompare {
+                state_dir,
+                task_id,
+                operation_id,
+                resource_handle,
+                source_file,
+            } => {
+                task_release_compare(
+                    state_dir,
+                    task_id,
+                    operation_id,
+                    resource_handle,
+                    source_file,
+                )
+                .await
+            }
+            Command::TaskRevoke { state_dir, task_id } => task_revoke(state_dir, task_id).await,
+            Command::TaskStatus { state_dir, task_id } => task_status(state_dir, task_id).await,
+            Command::TaskActivity { state_dir, task_id } => task_activity(state_dir, task_id).await,
+            Command::TaskPopulationLineage { state_dir, task_id } => {
+                task_population_lineage(state_dir, task_id).await
+            }
+            Command::TaskActivate {
+                state_dir,
+                proof,
+                action,
+            } => task_activate(state_dir, proof, action).await,
+            Command::TaskSubmit {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                confirmation_proof,
+                confirmation_action,
+                recorded_effect_plan,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation,
+            } => {
+                task_submit(TaskSubmitInputs {
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    confirmation_proof,
+                    confirmation_action,
+                    recorded_effect_plan,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_write_reservation,
+                })
+                .await
+            }
+            Command::TaskReconcileChild {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                confirmation_proof,
+                confirmation_action,
+            } => {
+                task_reconcile_child(
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    confirmation_proof,
+                    confirmation_action,
+                )
+                .await
+            }
+            Command::TaskRecordEffectPlan {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                plan_proof,
+                plan_action,
+            } => {
+                task_record_effect_plan(
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    plan_proof,
+                    plan_action,
+                )
+                .await
+            }
+            Command::TaskRecordPopulatePreflight {
+                state_dir,
+                task_id,
+                report,
+            } => task_record_populate_preflight(state_dir, task_id, report).await,
+            Command::TaskPopulatePreflightInputs { state_dir, task_id } => {
+                task_populate_preflight_inputs(state_dir, task_id).await
+            }
+            Command::TaskCreateRecoveryInputs { state_dir, task_id } => {
+                task_create_recovery_inputs(state_dir, task_id).await
+            }
+            Command::TaskRecoverChild {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                attestation,
+                recovery_proof,
+                recovery_action,
+            } => {
+                task_recover_child(
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    attestation,
+                    recovery_proof,
+                    recovery_action,
+                )
+                .await
+            }
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -4168,6 +5882,671 @@ mod unix {
                     "{refused}"
                 );
             }
+        }
+
+        #[test]
+        fn task_submit_requires_both_exact_confirmation_artifacts() {
+            let base = [
+                "auths-gateway",
+                "task-submit",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-installed-1",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+            ];
+            assert!(matches!(
+                Cli::try_parse_from(base)
+                    .expect("upfront option parses")
+                    .command,
+                Command::TaskSubmit {
+                    recipe_digest: None,
+                    confirmation_proof: None,
+                    confirmation_action: None,
+                    ..
+                }
+            ));
+            let mut partial = base.to_vec();
+            partial.extend(["--confirmation-proof", "human.proof"]);
+            assert!(Cli::try_parse_from(partial).is_err());
+            let mut exact = base.to_vec();
+            exact.extend(["--recipe-digest", "a"]);
+            exact.extend([
+                "--confirmation-proof",
+                "human.proof",
+                "--confirmation-action",
+                "human.action",
+            ]);
+            assert!(matches!(
+                Cli::try_parse_from(exact)
+                    .expect("exact confirmation parses")
+                    .command,
+                Command::TaskSubmit {
+                    recipe_digest: Some(_),
+                    confirmation_proof: Some(_),
+                    confirmation_action: Some(_),
+                    ..
+                }
+            ));
+            let mut planned = base.to_vec();
+            planned.push("--recorded-effect-plan");
+            assert!(matches!(
+                Cli::try_parse_from(planned)
+                    .expect("recorded plan create parses")
+                    .command,
+                Command::TaskSubmit {
+                    recorded_effect_plan: true,
+                    confirmation_proof: None,
+                    confirmation_action: None,
+                    ..
+                }
+            ));
+        }
+
+        #[test]
+        fn child_reconciliation_requires_original_create_recipe_and_complete_approval() {
+            let base = [
+                "auths-gateway",
+                "task-reconcile-child",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+                "--confirmation-proof",
+                "human.proof",
+                "--confirmation-action",
+                "human.action",
+            ];
+            assert!(
+                Cli::try_parse_from(base).is_err(),
+                "the reviewed recipe is required"
+            );
+            let mut complete = base.to_vec();
+            let digest = "a".repeat(64);
+            complete.extend(["--recipe-digest", digest.as_str()]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("read-only reconciliation parses")
+                    .command,
+                Command::TaskReconcileChild { .. }
+            ));
+            let recorded_plan = [
+                "auths-gateway",
+                "task-reconcile-child",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--recipe-digest",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+            ];
+            assert!(
+                Cli::try_parse_from(recorded_plan).is_ok(),
+                "a previously recorded effect plan supplies the human approval"
+            );
+            let mut partial = recorded_plan.to_vec();
+            partial.extend(["--confirmation-proof", "human.proof"]);
+            assert!(Cli::try_parse_from(partial).is_err());
+        }
+
+        #[test]
+        fn effect_plan_record_requires_original_create_and_human_plan_proofs() {
+            let base = [
+                "auths-gateway",
+                "task-record-effect-plan",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--recipe-digest",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+            ];
+            assert!(Cli::try_parse_from(base).is_err(), "human plan is required");
+            let mut complete = base.to_vec();
+            complete.extend(["--plan-proof", "plan.proof", "--plan-action", "plan.action"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("complete plan record parses")
+                    .command,
+                Command::TaskRecordEffectPlan { .. }
+            ));
+        }
+
+        #[test]
+        fn populate_preflight_record_requires_a_private_report() {
+            let base = [
+                "auths-gateway",
+                "task-record-populate-preflight",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend(["--report", "preflight.json"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("signed preflight report parses")
+                    .command,
+                Command::TaskRecordPopulatePreflight { .. }
+            ));
+        }
+
+        #[test]
+        fn populate_preflight_inputs_require_an_activated_task_id() {
+            let base = [
+                "auths-gateway",
+                "task-populate-preflight-inputs",
+                "--state-dir",
+                "/state",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend(["--task-id", "task-create-1"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("journal preflight input request parses")
+                    .command,
+                Command::TaskPopulatePreflightInputs { .. }
+            ));
+        }
+
+        #[test]
+        fn create_recovery_inputs_require_a_task_id() {
+            let base = [
+                "auths-gateway",
+                "task-create-recovery-inputs",
+                "--state-dir",
+                "/state",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend(["--task-id", "task-create-1"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("read-only recovery input request parses")
+                    .command,
+                Command::TaskCreateRecoveryInputs { .. }
+            ));
+        }
+
+        #[test]
+        fn recovered_child_binding_requires_original_agent_and_new_human_proofs() {
+            let base = [
+                "auths-gateway",
+                "task-recover-child",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--recipe-digest",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+                "--attestation",
+                "recovery.json",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend([
+                "--recovery-proof",
+                "human.proof",
+                "--recovery-action",
+                "human.action",
+            ]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("complete recovered-child evidence parses")
+                    .command,
+                Command::TaskRecoverChild { .. }
+            ));
+        }
+
+        #[test]
+        fn install_connection_json_is_opt_in() {
+            let base = [
+                "auths-gateway",
+                "install",
+                "--state-dir",
+                "/state",
+                "--recipe",
+                "recipe.json",
+                "--profile-lock",
+                "lock.json",
+                "--trusted-context",
+                "trust.cbor",
+                "--approve-digest",
+                "a",
+                "--provider",
+                "google",
+                "--alias",
+                "jules",
+                "--account-label",
+                "jules-subject",
+                "--credential-stdin",
+            ];
+            assert!(matches!(
+                Cli::try_parse_from(base).expect("ordinary install").command,
+                Command::Install {
+                    connection_json: false,
+                    ..
+                }
+            ));
+            let mut structured = base.to_vec();
+            structured.push("--connection-json");
+            assert!(matches!(
+                Cli::try_parse_from(structured)
+                    .expect("operator connection result")
+                    .command,
+                Command::Install {
+                    connection_json: true,
+                    ..
+                }
+            ));
+            let mut incomplete = base.to_vec();
+            incomplete.extend(["--task-companion-recipe", "create.json"]);
+            assert!(Cli::try_parse_from(incomplete).is_err());
+            let mut paired = base.to_vec();
+            paired.extend([
+                "--task-companion-recipe",
+                "create.json",
+                "--task-companion-profile-lock",
+                "create-lock.json",
+                "--task-companion-approve-digest",
+                "b",
+            ]);
+            assert!(matches!(
+                Cli::try_parse_from(paired)
+                    .expect("closed companion inputs")
+                    .command,
+                Command::Install {
+                    task_companion_recipe: Some(_),
+                    task_companion_profile_lock: Some(_),
+                    task_companion_approve_digest: Some(_),
+                    ..
+                }
+            ));
+            let mut opaque = base.to_vec();
+            opaque.push("--credential-source-stdin");
+            assert!(matches!(
+                Cli::try_parse_from(opaque)
+                    .expect("opaque source install")
+                    .command,
+                Command::Install {
+                    credential_source_stdin: true,
+                    ..
+                }
+            ));
+            let without_stdin = base
+                .iter()
+                .copied()
+                .filter(|value| *value != "--credential-stdin")
+                .chain(["--credential-source-stdin"]);
+            assert!(Cli::try_parse_from(without_stdin).is_err());
+            let mut joined = base.to_vec();
+            joined.retain(|value| *value != "--account-label" && *value != "jules-subject");
+            joined.extend(["--join", "--credential-source-stdin"]);
+            assert!(Cli::try_parse_from(joined).is_err());
+        }
+
+        #[test]
+        fn materializer_configuration_requires_private_source_file_argument() {
+            assert!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-materializer-configure",
+                    "--state-dir",
+                    "/state"
+                ])
+                .is_err()
+            );
+            assert!(matches!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-materializer-configure",
+                    "--state-dir",
+                    "/state",
+                    "--from",
+                    "/operator/materializers.json",
+                ])
+                .expect("operator configuration parses")
+                .command,
+                Command::TaskMaterializerConfigure { .. }
+            ));
+            assert!(matches!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-materializer-probe",
+                    "--state-dir",
+                    "/state",
+                ])
+                .expect("operator identity probe parses")
+                .command,
+                Command::TaskMaterializerProbe { .. }
+            ));
+        }
+
+        #[test]
+        fn task_pins_must_be_an_owner_private_regular_file() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            let path = root.join(TASK_WRITE_INSTALLATION_FILE);
+            fs::write(&path, b"pins").expect("pins");
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("shared pins");
+            assert!(task_installation(&root).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private pins");
+            assert_eq!(task_installation(&root).expect("private pins"), b"pins");
+            fs::remove_file(&path).expect("remove pins");
+            std::os::unix::fs::symlink(root.join("other"), &path).expect("linked pins");
+            assert!(task_installation(&root).is_err());
+        }
+
+        #[test]
+        fn task_read_installation_refuses_tampering_and_shared_files() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let source = include_bytes!(
+                "../../../../../demos/google-employee-delegation/read_reference/recipe.json"
+            );
+            let lock = include_bytes!(
+                "../../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+            );
+            let recipe = CompiledReleaseRecipe::compile(source, lock).expect("closed recipe");
+            private_file(&root.join(TASK_READ_RECIPE_FILE), source).expect("recipe");
+            private_file(&root.join(TASK_READ_LOCK_FILE), lock).expect("lock");
+            let installed = TaskReadInstallation {
+                schema: "auths.gateway-task-read-installation/1".to_owned(),
+                recipe_digest: recipe.digest_hex(),
+                recipe_source_sha256: digest(source),
+                profile_lock_sha256: digest(lock),
+                provider: "google".to_owned(),
+                alias: "jules-read".to_owned(),
+                connection_id: "test-connection".to_owned(),
+                connection_generation: 1,
+                connection_subject: "test-subject".to_owned(),
+            };
+            let path = root.join(TASK_READ_INSTALLATION_FILE);
+            private_file(
+                &path,
+                &serde_json_canonicalizer::to_vec(&installed).expect("canonical"),
+            )
+            .expect("manifest");
+            let parsed = task_read_installation(&root).expect("private manifest");
+            assert_eq!(
+                task_read_recipe(&root, &parsed)
+                    .expect("reviewed recipe")
+                    .digest_hex(),
+                recipe.digest_hex()
+            );
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("shared");
+            assert!(task_read_installation(&root).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private");
+            fs::write(root.join(TASK_READ_RECIPE_FILE), b"changed").expect("tamper");
+            assert!(task_read_recipe(&root, &installed).is_err());
+        }
+
+        #[test]
+        fn task_read_operator_commands_keep_credential_off_argv() {
+            let connect = Cli::try_parse_from([
+                "auths-gateway",
+                "task-read-connect",
+                "--state-dir",
+                "/tmp/auths-state",
+                "--recipe",
+                "/tmp/read-recipe.json",
+                "--profile-lock",
+                "/tmp/profile.lock.json",
+                "--approve-digest",
+                "aa",
+                "--provider",
+                "google",
+                "--alias",
+                "jules-read",
+                "--account-subject",
+                "subject",
+                "--credential-stdin",
+            ])
+            .expect("connect command");
+            assert!(matches!(
+                connect.command,
+                Command::TaskReadConnect {
+                    credential_stdin: true,
+                    ..
+                }
+            ));
+            let configure = Cli::try_parse_from([
+                "auths-gateway",
+                "task-read-configure",
+                "--state-dir",
+                "/tmp/auths-state",
+                "--agent-identity",
+                "/tmp/agent.cbor",
+                "--channel-socket",
+                "/tmp/agent.sock",
+                "--channel-name",
+                "agent-channel",
+            ])
+            .expect("configure command");
+            assert!(matches!(
+                configure.command,
+                Command::TaskReadConfigure { .. }
+            ));
+            assert!(matches!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-read-commitment-rotate",
+                    "--state-dir",
+                    "/tmp/auths-state",
+                ])
+                .expect("operator audit-key rotation")
+                .command,
+                Command::TaskReadCommitmentRotate { .. }
+            ));
+            let compare = Cli::try_parse_from([
+                "auths-gateway",
+                "task-release-compare",
+                "--state-dir",
+                "/tmp/auths-state",
+                "--task-id",
+                "task-1",
+                "--operation-id",
+                "read-1",
+                "--resource-handle",
+                "source-1",
+                "--source-file",
+                "/tmp/private/source.bin",
+            ])
+            .expect("private source comparison command");
+            assert!(matches!(
+                compare.command,
+                Command::TaskReleaseCompare { .. }
+            ));
+        }
+
+        #[test]
+        fn task_read_journal_accepts_a_distinct_connection_from_the_write_journal() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let read_root = root.join(TASK_READ_JOURNAL_DIRECTORY);
+            fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&read_root)
+                .expect("read journal directory");
+            let write_id = ConnectionId::generate().expect("write ID");
+            let read_id = ConnectionId::generate().expect("read ID");
+            let write = auths_gateway::CredentialJournal::new(root);
+            let read = auths_gateway::CredentialJournal::new(read_root);
+            write.initialize(&write_id).expect("write journal");
+            write
+                .register(&write_id, NonZeroU64::MIN)
+                .expect("write generation");
+            read.initialize(&read_id).expect("separate read journal");
+            read.register(&read_id, NonZeroU64::MIN)
+                .expect("read generation");
+            assert_eq!(
+                read.generations(&read_id).expect("read generations"),
+                vec![NonZeroU64::MIN]
+            );
+            assert_eq!(
+                write.generations(&write_id).expect("write generations"),
+                vec![NonZeroU64::MIN]
+            );
+        }
+
+        #[test]
+        fn task_read_runtime_requires_canonical_private_state() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let runtime = TaskReadRuntime {
+                schema: "auths.gateway-task-read-runtime/1".to_owned(),
+                recipe_digest: "recipe".to_owned(),
+                connection_id: "connection".to_owned(),
+                connection_generation: 1,
+                channel_socket: root.join("agent.sock").display().to_string(),
+                channel_name: "channel".to_owned(),
+                agent_identity_sha256: "identity".to_owned(),
+                commitment_key_version: 1,
+            };
+            let path = root.join(TASK_READ_RUNTIME_FILE);
+            private_file(
+                &path,
+                &serde_json_canonicalizer::to_vec(&runtime).expect("canonical"),
+            )
+            .expect("runtime");
+            assert_eq!(
+                task_read_runtime(&root)
+                    .expect("private runtime")
+                    .channel_name,
+                "channel"
+            );
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("shared");
+            assert!(task_read_runtime(&root).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private");
+            fs::write(
+                &path,
+                serde_json::to_vec_pretty(&runtime).expect("noncanonical"),
+            )
+            .expect("rewrite");
+            assert!(task_read_runtime(&root).is_err());
+        }
+
+        #[test]
+        fn rotated_release_audit_key_retains_private_comparison() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let manifest = serde_json::json!({
+                "schema": MANIFEST_SCHEMA,
+                "recipe_digest": "write-recipe",
+                "profile_lock_sha256": "write-lock",
+                "task_companion": null,
+                "trusted_context_sha256": "write-trust",
+                "provider": "airtable",
+                "alias": "operator-write",
+                "deployment": "development",
+                "operator_attestation_sha256": null,
+                "attempt_store": root.display().to_string(),
+                "credential_store": {"kind": "local-file-v1"},
+                "qualification": {"policy": "optional"}
+            });
+            private_file(
+                &root.join("installation.json"),
+                &serde_json_canonicalizer::to_vec(&manifest).expect("manifest"),
+            )
+            .expect("private installation");
+            let installed = TaskReadInstallation {
+                schema: "auths.gateway-task-read-installation/1".to_owned(),
+                recipe_digest: "read-recipe".to_owned(),
+                recipe_source_sha256: "read-source".to_owned(),
+                profile_lock_sha256: "read-lock".to_owned(),
+                provider: "airtable".to_owned(),
+                alias: "operator-read".to_owned(),
+                connection_id: "read-connection".to_owned(),
+                connection_generation: 1,
+                connection_subject: "operator-subject".to_owned(),
+            };
+            private_file(
+                &root.join(TASK_READ_INSTALLATION_FILE),
+                &serde_json_canonicalizer::to_vec(&installed).expect("read installation"),
+            )
+            .expect("private read installation");
+            let runtime = TaskReadRuntime {
+                schema: "auths.gateway-task-read-runtime/1".to_owned(),
+                recipe_digest: installed.recipe_digest.clone(),
+                connection_id: installed.connection_id.clone(),
+                connection_generation: installed.connection_generation,
+                channel_socket: root.join("agent.sock").display().to_string(),
+                channel_name: "agent-channel".to_owned(),
+                agent_identity_sha256: "agent-identity".to_owned(),
+                commitment_key_version: 1,
+            };
+            private_file(
+                &root.join(TASK_READ_RUNTIME_FILE),
+                &serde_json_canonicalizer::to_vec(&runtime).expect("runtime"),
+            )
+            .expect("private runtime");
+            private_file(&root.join(TASK_READ_COMMITMENT_KEY_FILE), &[0x91; 32])
+                .expect("first audit key");
+            let scope = auths_gateway::ReleaseCommitmentContext::new(
+                "task-1", "record-1", "read-1", "released",
+            )
+            .expect("receipt scope");
+            let first = task_read_commitment_key(&root, 1).expect("first key");
+            let receipt = first.commit(&scope, b"Pending");
+            task_read_commitment_rotate(&root).expect("rotate key");
+            assert_eq!(
+                task_read_runtime(&root)
+                    .expect("runtime")
+                    .commitment_key_version,
+                2
+            );
+            let retained = task_read_commitment_key(&root, 1).expect("retained key");
+            let current = task_read_commitment_key(&root, 2).expect("current key");
+            assert!(retained.verify(&scope, b"Pending", &receipt));
+            assert!(!current.verify(&scope, b"Pending", &receipt));
+            assert_ne!(receipt.hex(), current.commit(&scope, b"Pending").hex());
+            let pending = root.join("task-read-commitment-v3.key");
+            private_file(&pending, &[0x37; 32]).expect("durable unpublished candidate");
+            task_read_commitment_rotate(&root).expect("resume pre-publication rotation");
+            assert_eq!(
+                task_read_runtime(&root)
+                    .expect("runtime")
+                    .commitment_key_version,
+                3
+            );
+            assert_eq!(fs::read(&pending).expect("retained candidate"), [0x37; 32]);
+            assert!(
+                task_read_commitment_key(&root, 1)
+                    .expect("retained key")
+                    .verify(&scope, b"Pending", &receipt)
+            );
+            fs::set_permissions(
+                root.join(TASK_READ_COMMITMENT_KEY_FILE),
+                fs::Permissions::from_mode(0o644),
+            )
+            .expect("tamper retained key");
+            assert!(task_read_commitment_key(&root, 1).is_err());
         }
 
         #[test]

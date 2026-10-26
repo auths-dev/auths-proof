@@ -1,0 +1,27 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "2ae68988f6099ada5b49df84251d0ba0c07e793860e745ff0b84f95b7dabe791",
+  "service": "todoist-delegation-demo",
+  "tool": "populate_created_task_v1",
+  "operator_namespace": "todoist-populate-demo",
+  "credential": {"kind": "bearer"},
+  "origin": "https://api.todoist.com",
+  "task_binding": {"resource_field": "todoist_task_id", "verb": "edit"},
+  "task_populate": {"text_field": "text", "preflight_fields": []},
+  "write": {
+    "method": "POST",
+    "path": [
+      {"kind": "fixed", "value": "api"},
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "tasks"},
+      {"kind": "field", "name": "todoist_task_id"}
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {"description": {"kind": "field", "name": "text"}}
+      }
+    }
+  }
+}

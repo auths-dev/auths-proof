@@ -17,6 +17,17 @@ auths-google-read-workbench = "employee_read_demo.app:main"
 auths-google-read-operator = "employee_read_demo.operator_cli:main"
 auths-google-read-partial-smoke = "employee_read_demo.partial_smoke_cli:main"
 auths-google-read-partial-delegation-lab = "employee_read_demo.partial_delegation_lab:main"
+auths-google-write-handoff = "employee_read_demo.write_handoff:main"
+auths-google-task-authority = "employee_read_demo.task_write_operator_cli:main"
+auths-google-populate-preflight = "employee_read_demo.task_populate_operator:main"
+auths-google-planned-create = "employee_read_demo.task_create_operator:main"
+auths-google-reconcile-child = "employee_read_demo.task_create_operator:reconcile_main"
+auths-google-recovery-search = "employee_read_demo.task_create_operator:recovery_search_main"
+auths-google-recovery-attest = "employee_read_demo.task_recovery_operator:main"
+auths-google-recovery-setup = "employee_read_demo.task_recovery_setup:main"
+auths-google-planned-populate = "employee_read_demo.task_create_operator:populate_main"
+auths-google-negative-refusal = "employee_read_demo.task_negative_recovery_operator:main"
+auths-google-negative-join = "employee_read_demo.task_negative_recovery_operator:join_main"
 
 [build-system]
 requires = ["setuptools>=75"]

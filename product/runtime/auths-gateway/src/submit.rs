@@ -11,7 +11,9 @@
 
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, replay_refused};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
-use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
+use crate::recipe::{
+    CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack, VerifiedCreatedChild,
+};
 use crate::store::BoundedClaim;
 use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
@@ -29,12 +31,36 @@ use auths_gateway_kernel::order::{
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
+use std::collections::BTreeMap;
 use subtle::ConstantTimeEq as _;
 
 /// No submission takes more steps than this; a longer run halts.
 const MAX_STEPS: usize = 64;
 /// The account-commitment domain `install` hashes the account label under.
 const ACCOUNT_DOMAIN: &[u8] = b"auths.gateway-account/1\0";
+
+/// Retain a reviewed child ID only as response evidence. Task authority for
+/// that child requires a separate metadata check and durable binding.
+pub(crate) fn response_locator(
+    request: &ClosedProviderRequest,
+    status: u16,
+    version_ok: bool,
+    body: &[u8],
+) -> Option<BTreeMap<String, String>> {
+    let mut locator = request
+        .observation_template()
+        .filter(|template| template.has_response_fields())
+        .filter(|_| version_ok && (200..300).contains(&status))
+        .and_then(|template| template.extract_locator(body))
+        .unwrap_or_default();
+    if let Some(child) = request.created_child() {
+        locator.remove(&child.response_id_pointer);
+        if let Some(id) = child.candidate_id(status, version_ok, body) {
+            locator.insert(child.response_id_pointer.clone(), id);
+        }
+    }
+    (!locator.is_empty()).then_some(locator)
+}
 
 /// The I/O one submission may perform, each only when the step machine
 /// names it.
@@ -51,6 +77,27 @@ pub(crate) trait SubmitIo {
     /// Checks that every link's scope lists the verified account-scope
     /// value.
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str>;
+
+    /// Task-bound recipes must durably spend their write allowance before
+    /// the provider attempt claim. Ordinary recipes have no task allowance.
+    fn reserve_task_write(
+        &self,
+        _verified: &VerifiedCommand,
+        _now: u64,
+    ) -> Result<(), &'static str> {
+        Ok(())
+    }
+
+    /// Persist an observed create's child binding in the same task journal as
+    /// its reserved write. The default path has no task authority.
+    fn bind_created_child(
+        &self,
+        _child: &VerifiedCreatedChild,
+        _response_digest: &[u8; 32],
+        _now: u64,
+    ) -> bool {
+        false
+    }
 
     /// Loads the shared connection record, requires this process to hold
     /// its current credential, and prepares the pinned transport.
@@ -300,6 +347,9 @@ pub(crate) async fn reobserve<I: SubmitIo>(
     io: &I,
     attempt: ObservableGatewayAttempt,
 ) -> Option<GatewaySubmitResult> {
+    if cx.recipe.created_child_fields().is_some() {
+        return None;
+    }
     let mut state = Run::new(cx, io);
     state.observable = Some(attempt);
     let resumed = SubmitState {
@@ -503,6 +553,10 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(verified) = &self.verified else {
             return ClaimResult::Unavailable;
         };
+        if let Err(code) = self.io.reserve_task_write(verified, self.evaluated_at) {
+            self.refuse_before_claim(not_entered(code));
+            return ClaimResult::Refused;
+        }
         match self
             .cx
             .attempts
@@ -698,12 +752,7 @@ impl<I: SubmitIo> Run<'_, I> {
         else {
             return ResponseRecord::Failed;
         };
-        let locator = verified
-            .request
-            .observation_template()
-            .filter(|template| template.has_response_fields())
-            .filter(|_| version_ok && (200..300).contains(&status))
-            .and_then(|template| template.extract_locator(&body));
+        let locator = response_locator(&verified.request, status, version_ok, &body);
         match claim.record_response(status, digest, locator).await {
             Ok(observable) => {
                 let can_observe = observable.observation_request().is_some();
@@ -762,12 +811,25 @@ impl<I: SubmitIo> Run<'_, I> {
             return false;
         };
         let token = attempt.echo_token();
-        let Some(reading) = observation.read_back(token.as_deref(), &bytes) else {
+        let Some(mut reading) = observation.read_back(token.as_deref(), &bytes) else {
             return false;
         };
         let Ok(snapshot) = attempt.snapshot() else {
             return false;
         };
+        let child_request = self
+            .verified
+            .as_ref()
+            .and_then(|verified| verified.request.created_child());
+        let verified_child = child_request.and_then(|child| {
+            snapshot
+                .response_locator()
+                .and_then(|locator| locator.get(&child.response_id_pointer))
+                .and_then(|id| child.verify_metadata(id, &bytes))
+        });
+        if child_request.is_some() && verified_child.is_none() {
+            reading = ReadBack::Value { matched: false };
+        }
         let status = snapshot.response_status();
         let result = match reading {
             ReadBack::EchoMatched => {
@@ -788,11 +850,18 @@ impl<I: SubmitIo> Run<'_, I> {
                     })
             }
             ReadBack::Value { matched } => match status {
-                Some(status) => attempt
-                    .record_observation(matched)
-                    .await
-                    .ok()
-                    .map(|_| GatewaySubmitResult::Observed { status, matched }),
+                Some(status) => attempt.record_observation(matched).await.ok().map(|_| {
+                    if matched
+                        && let (Some(child), Some(response_digest), Some(now)) = (
+                            verified_child.as_ref(),
+                            snapshot.response_digest(),
+                            self.io.clock(),
+                        )
+                    {
+                        let _ = self.io.bind_created_child(child, response_digest, now);
+                    }
+                    GatewaySubmitResult::Observed { status, matched }
+                }),
                 None => None,
             },
             ReadBack::EchoMismatch => match status {

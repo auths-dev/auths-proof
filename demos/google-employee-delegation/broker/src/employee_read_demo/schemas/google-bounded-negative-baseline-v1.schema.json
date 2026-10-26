@@ -1,0 +1,194 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "default": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "document_title": {
+      "const": "Demo Co AP-071 Bounded Upfront Negative",
+      "default": "Demo Co AP-071 Bounded Upfront Negative",
+      "title": "Document Title",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "exact_scratch_root_children": {
+      "const": true,
+      "default": true,
+      "title": "Exact Scratch Root Children",
+      "type": "boolean"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_can_edit": {
+      "const": true,
+      "default": true,
+      "title": "Jules Can Edit",
+      "type": "boolean"
+    },
+    "jules_revision_id": {
+      "title": "Jules Revision Id",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "logical_id": {
+      "const": "ap071-bounded-upfront-negative-doc",
+      "default": "ap071-bounded-upfront-negative-doc",
+      "title": "Logical Id",
+      "type": "string"
+    },
+    "marker": {
+      "const": "AP071-NEG-62e394bb6eb62df674bd4035",
+      "default": "AP071-NEG-62e394bb6eb62df674bd4035",
+      "title": "Marker",
+      "type": "string"
+    },
+    "marker_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Marker Count",
+      "type": "integer"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_folder_id": {
+      "title": "Project A Folder Id",
+      "type": "string"
+    },
+    "raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Raw Byte Count",
+      "type": "integer"
+    },
+    "raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Raw Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-bounded-negative-baseline/v1",
+      "default": "demo-co/google-bounded-negative-baseline/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scratch_root_child_count": {
+      "const": 5,
+      "default": 5,
+      "title": "Scratch Root Child Count",
+      "type": "integer"
+    },
+    "scratch_root_id": {
+      "title": "Scratch Root Id",
+      "type": "string"
+    },
+    "source_scratch_plan_generation": {
+      "minimum": 1,
+      "title": "Source Scratch Plan Generation",
+      "type": "integer"
+    },
+    "source_scratch_plan_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Scratch Plan Sha256",
+      "type": "string"
+    },
+    "source_v4_baseline_generation": {
+      "minimum": 1,
+      "title": "Source V4 Baseline Generation",
+      "type": "integer"
+    },
+    "source_v4_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V4 Baseline Sha256",
+      "type": "string"
+    },
+    "source_v4_final_generation": {
+      "minimum": 1,
+      "title": "Source V4 Final Generation",
+      "type": "integer"
+    },
+    "source_v4_final_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V4 Final Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "source_v4_baseline_generation",
+    "source_v4_baseline_sha256",
+    "source_v4_final_generation",
+    "source_v4_final_sha256",
+    "source_scratch_plan_generation",
+    "source_scratch_plan_sha256",
+    "drive_id",
+    "project_a_folder_id",
+    "scratch_root_id",
+    "document_id",
+    "jules_subject",
+    "tab_id",
+    "jules_revision_id",
+    "raw_sha256",
+    "raw_byte_count"
+  ],
+  "title": "GoogleBoundedNegativeBaseline",
+  "type": "object"
+}

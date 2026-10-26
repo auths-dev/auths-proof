@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "demos/offline-verification",
+    "demos/google-employee-delegation/custody",
     "bindings/wasm/auths-proof-wasm",
     "bindings/wasm/auths-openapi-derive-wasm",
     "bindings/python",

@@ -1,0 +1,65 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "cc91b111846b1435d3265f1b85e0ae3873c8d6da72036b95bfcc6ab3cdb2bb0a",
+  "service": "google-docs-delegation-demo",
+  "tool": "replace_project_a_marker_v2",
+  "operator_namespace": "google-docs-demo",
+  "credential": { "kind": "bearer" },
+  "origin": "https://docs.googleapis.com",
+  "task_binding": {"resource_field": "document_id", "verb": "edit"},
+  "write": {
+    "method": "POST",
+    "path": [
+      { "kind": "fixed", "value": "v1" },
+      { "kind": "fixed", "value": "documents" },
+      { "kind": "field-suffix", "name": "document_id", "suffix": ":batchUpdate" }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "requests": {
+            "kind": "array",
+            "items": [
+              {
+                "kind": "object",
+                "fields": {
+                  "replaceAllText": {
+                    "kind": "object",
+                    "fields": {
+                      "containsText": {
+                        "kind": "object",
+                        "fields": {
+                          "text": { "kind": "field", "name": "marker" },
+                          "matchCase": { "kind": "boolean", "value": true },
+                          "searchByRegex": { "kind": "boolean", "value": false }
+                        }
+                      },
+                      "replaceText": { "kind": "field", "name": "replacement" },
+                      "tabsCriteria": {
+                        "kind": "object",
+                        "fields": {
+                          "tabIds": {
+                            "kind": "array",
+                            "items": [{ "kind": "field", "name": "tab_id" }]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "writeControl": {
+            "kind": "object",
+            "fields": {
+              "requiredRevisionId": { "kind": "field", "name": "required_revision_id" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

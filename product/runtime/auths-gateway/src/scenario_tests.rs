@@ -172,6 +172,8 @@ pub(crate) struct TestIo<'a, P> {
     secret: Vec<u8>,
     account: [u8; 32],
     leases: AtomicUsize,
+    task_reservations: AtomicUsize,
+    task_refusal: Option<&'static str>,
 }
 
 impl<'a, P> TestIo<'a, P> {
@@ -192,6 +194,8 @@ impl<'a, P> TestIo<'a, P> {
             secret: b"rk_test_not-a-real-credential".to_vec(),
             account: account_commitment("acct_TESTPLATFORM1"),
             leases: AtomicUsize::new(0),
+            task_reservations: AtomicUsize::new(0),
+            task_refusal: None,
         }
     }
 
@@ -215,6 +219,15 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         self.recipe.map_or(Ok(()), |recipe| {
             crate::bounds::bind_account_scope(recipe, verified.bound.as_ref(), &verified.arguments)
         })
+    }
+
+    fn reserve_task_write(
+        &self,
+        _verified: &VerifiedCommand,
+        _now: u64,
+    ) -> Result<(), &'static str> {
+        self.task_reservations.fetch_add(1, Ordering::SeqCst);
+        self.task_refusal.map_or(Ok(()), Err)
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {
@@ -820,6 +833,37 @@ async fn normal_write_reaches_observed_by_provider_with_secret_free_evidence() {
         }
     );
     assert_eq!((provider.writes(), provider.reads()), (1, 1));
+}
+
+#[tokio::test]
+async fn task_reservation_refusal_precedes_attempt_claim_and_credential_lease() {
+    let record = Record::open("airtable", Backend::File);
+    let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
+    let command = record.airtable(ORIGINAL, "Approved");
+    let mut io = TestIo::new(&provider, command.clone());
+    io.task_refusal = Some("gateway.task.write-budget");
+    assert_eq!(
+        run(
+            record.store.attempts(),
+            &record.recipe,
+            &record.observer,
+            &io
+        )
+        .await,
+        crate::engine::not_entered("gateway.task.write-budget")
+    );
+    assert_eq!(io.task_reservations.load(Ordering::SeqCst), 1);
+    assert_eq!(io.leases(), 0);
+    assert_eq!(provider.writes(), 0);
+    assert!(
+        record
+            .store
+            .attempts()
+            .read(command.request.namespace(), command.request.operation_id())
+            .await
+            .expect("attempt read")
+            .is_none()
+    );
 }
 
 /// While the attempt store is intact, the claim alone stops a fresh

@@ -6,7 +6,7 @@ import json
 import secrets
 import sqlite3
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -25,7 +25,7 @@ from .google_oauth import (
 
 @dataclass(frozen=True)
 class TokenLease:
-    access_token: str
+    access_token: str = field(repr=False)
     expires_at: int
 
 

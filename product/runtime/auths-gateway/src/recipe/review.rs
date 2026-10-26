@@ -8,9 +8,10 @@ use super::recovery::{
     IdempotencyKind, LostClaimReentry, RecoveryCapability, RecoveryClass, StateObservation,
     UnknownResolution,
 };
-use super::source::{EchoPlacement, IdempotencySource, PathSegment};
+use super::source::{EchoPlacement, IdempotencySource, PathSegment, RecipeSource};
 use super::{CompiledRecipe, CredentialRequirement, MAX_BODY_BYTES, WriteMethod, provider_header};
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 
 /// The review schema both review commands print.
 pub const RECIPE_REVIEW_SCHEMA: &str = "auths.gateway-recipe-review/2";
@@ -35,6 +36,7 @@ pub struct RecipeReview {
     origin: String,
     method: WriteMethod,
     path: Vec<String>,
+    query: BTreeMap<String, String>,
     credential: CredentialRequirement,
     maximum_body_bytes: usize,
     has_observation: bool,
@@ -101,6 +103,11 @@ impl RecipeEchoReview {
 }
 
 impl RecipeReview {
+    /// Fixed, operator-reviewed query values sent only on the write.
+    #[must_use]
+    pub const fn query(&self) -> &BTreeMap<String, String> {
+        &self.query
+    }
     /// Returns the exact MCP service.
     #[must_use]
     pub fn service(&self) -> &str {
@@ -169,6 +176,7 @@ fn segment_review(segment: &PathSegment) -> Value {
     match segment {
         PathSegment::Fixed { value } => json!(value),
         PathSegment::Field { name } => json!(format!("<{name}>")),
+        PathSegment::FieldSuffix { name, suffix } => json!(format!("<{name}>{suffix}")),
         PathSegment::ResponseField { pointer, max_bytes } => {
             json!(format!("<response:{pointer}:{max_bytes}>"))
         }
@@ -233,6 +241,47 @@ pub(crate) fn recovery_document(capability: &RecoveryCapability) -> Value {
     })
 }
 
+fn task_binding_document(source: &RecipeSource) -> Option<Value> {
+    source.task_binding.as_ref().map(|binding| json!({
+        "resource_field": binding.resource_field,
+        "verb": binding.verb,
+        "ordinary_submit": "refused",
+        "disclosure": "a separate human-agent task gate must verify the signed task card, exact write confirmation or explicit upfront mode, connection and write budget before the gateway may claim this action",
+    }))
+}
+
+fn provider_headers_document(source: &RecipeSource) -> Value {
+    source
+        .provider_headers
+        .as_ref()
+        .map_or(Value::Null, |headers| {
+            Value::Object(
+                headers
+                    .iter()
+                    .map(|(name, value)| {
+                        let response = provider_header(name)
+                            .map_or("not-checked", |entry| entry.response.as_str());
+                        (name.clone(), json!({"value": value, "response": response}))
+                    })
+                    .collect(),
+            )
+        })
+}
+
+fn created_child_document(source: &RecipeSource) -> Value {
+    source.created_child.as_ref().map_or(Value::Null, |child| {
+        json!({
+            "response_id_pointer": child.response_id_pointer,
+            "maximum_id_bytes": child.maximum_id_bytes,
+            "parent_field": child.parent_field,
+            "title_field": child.title_field,
+            "marker_field": child.marker_field,
+            "metadata_checks": child.metadata_checks,
+            "disclosure": "a complete 2xx response can nominate one child ID; metadata verification and a task-journal binding are required before another write may use it",
+        })
+    })
+}
+
 impl CompiledRecipe {
     /// Returns a bounded, secret-free operator review projection.
     #[must_use]
@@ -252,6 +301,7 @@ impl CompiledRecipe {
                     _ => String::new(),
                 })
                 .collect(),
+            query: source.write.query.clone(),
             credential: super::credential_requirement(&source.credential),
             maximum_body_bytes: MAX_BODY_BYTES,
             has_observation: source.observation.is_some(),
@@ -314,23 +364,15 @@ impl CompiledRecipe {
             "recovery": recovery_document(&review.recovery()),
             "write_is_conditional": false,
         });
-        document["provider_headers"] =
-            source
-                .provider_headers
-                .as_ref()
-                .map_or(Value::Null, |headers| {
-                    Value::Object(
-                        headers
-                            .iter()
-                            .map(|(name, value)| {
-                                let response = provider_header(name)
-                                    .map_or("not-checked", |entry| entry.response.as_str());
-                                (name.clone(), json!({"value": value, "response": response}))
-                            })
-                            .collect(),
-                    )
-                });
+        document["provider_headers"] = provider_headers_document(source);
+        if !review.query().is_empty() {
+            document["query"] = json!(review.query());
+        }
         document["credential_guard"] = self.guard_review();
+        if let Some(binding) = task_binding_document(source) {
+            document["task_binding"] = binding;
+        }
+        document["created_child"] = created_child_document(source);
         document["idempotency"] =
             source
                 .write
@@ -357,6 +399,7 @@ impl CompiledRecipe {
                 json!({
                     "locator": observation_name(review.recovery().state_observation),
                     "path": path_review(&observation.path),
+                    "query": observation.query,
                     "json_pointer": observation.json_pointer,
                     "expected_field": observation.expected_field,
                     "maximum_response_bytes": observation.maximum_response_bytes,

@@ -32,6 +32,25 @@ class ModelContractTests(unittest.TestCase):
         self.assertEqual(model.summarize("Summarize Project A", {"file-A": "approved"}),
                          'Approved claim [file-A]')
 
+    def test_draft_uses_one_source_and_stays_within_the_signed_envelope(self) -> None:
+        model = object.__new__(OpenAIModel)
+        model._response = lambda *_: "Project A is ready. [source-1]"
+        self.assertEqual(
+            model.draft("Prepare a handoff", {"source-1": "Ready for review"}),
+            "Project A is ready. [source-1]",
+        )
+        with self.assertRaises(ValueError):
+            model.draft("Prepare a handoff", {"source-1": "A", "source-2": "B"})
+        model._response = lambda *_: "Uncited change"
+        with self.assertRaises(ValueError):
+            model.draft("Prepare a handoff", {"source-1": "Ready for review"})
+        model._response = lambda *_: "Ready [source-1] [outside]"
+        with self.assertRaises(ValueError):
+            model.draft("Prepare a handoff", {"source-1": "Ready for review"})
+        model._response = lambda *_: "A" * 193 + " [source-1]"
+        with self.assertRaises(ValueError):
+            model.draft("Prepare a handoff", {"source-1": "Ready for review"})
+
 
 if __name__ == "__main__":
     unittest.main()

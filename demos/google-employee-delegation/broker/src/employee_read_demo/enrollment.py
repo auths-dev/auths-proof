@@ -13,6 +13,8 @@ from .admission import AdmissionStore
 from .contracts import canonical_json, commitment
 from .demo_co_contract import CompanyImport
 from .google_oauth import OAuthResult
+from .google_oauth import ISSUERS
+from .jules_write_context import JulesWriteContext
 
 
 class EnrollmentDenied(PermissionError):
@@ -36,7 +38,14 @@ class VerifiedGoogleSubject:
     subject: str
 
 
-def _person(company: CompanyImport, identity: OAuthResult | VerifiedGoogleSubject) -> str:
+def _person(company: CompanyImport | JulesWriteContext,
+            identity: OAuthResult | VerifiedGoogleSubject) -> str:
+    if isinstance(company, JulesWriteContext):
+        if (identity.kind in {"login", "connect"}
+                and identity.issuer in ISSUERS
+                and identity.subject == company.jules_subject):
+            return "jules"
+        raise EnrollmentDenied("Google subject is not pinned Jules")
     if not company.google_ready or not company.adoptable or identity.kind not in {"login", "connect"}:
         raise EnrollmentDenied("Google employee enrollment is unavailable")
     matching = [p for p in company.bundle["people"] if p["provider"] == "google"
@@ -73,7 +82,8 @@ class EnrollmentStore:
         db.execute("PRAGMA busy_timeout=10000")
         return db
 
-    def prepare(self, company: CompanyImport, identity: OAuthResult | VerifiedGoogleSubject,
+    def prepare(self, company: CompanyImport | JulesWriteContext,
+                identity: OAuthResult | VerifiedGoogleSubject,
                 identity_packet: bytes, *, now: int | None = None) -> tuple[str, bytes]:
         person = _person(company, identity)
         if not 1 <= len(identity_packet) <= 4096:
@@ -100,7 +110,8 @@ class EnrollmentStore:
                  identity.subject, digest, company.bundle_sha256, expires))
         return nonce, message
 
-    async def complete(self, company: CompanyImport, identity: OAuthResult | VerifiedGoogleSubject,
+    async def complete(self, company: CompanyImport | JulesWriteContext,
+                       identity: OAuthResult | VerifiedGoogleSubject,
                        nonce: str, identity_packet: bytes, signature: bytes,
                        *, now: int | None = None) -> EmployeeBinding:
         person = _person(company, identity)
@@ -156,7 +167,8 @@ class EnrollmentStore:
         return EmployeeBinding(company.bundle["company_id"], person, identity.issuer,
                                identity.subject, principal, binding_ref)
 
-    def lookup(self, company: CompanyImport, identity: VerifiedGoogleSubject) -> EmployeeBinding:
+    def lookup(self, company: CompanyImport | JulesWriteContext,
+               identity: VerifiedGoogleSubject) -> EmployeeBinding:
         person = _person(company, identity)
         with self._connect() as db:
             row = db.execute("""SELECT principal,binding_ref FROM employee_bindings

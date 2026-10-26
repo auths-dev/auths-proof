@@ -8,8 +8,8 @@
 <main>
   <header>
     <p class="eyebrow">Auths · Atlas Studio</p>
-    <h1>Employee to agent Google read</h1>
-    <p>Approve exact documents for one short task. The agent signs each read; the broker keeps your Google credential.</p>
+    <h1 id="page-title">Employee to agent Google read</h1>
+    <p id="page-description">Approve exact documents for one short task. The agent signs each read; the broker keeps your Google credential.</p>
     <p id="status" role="status">Checking company prerequisites…</p>
   </header>
 
@@ -19,7 +19,7 @@
     <p id="drive">Drive is not connected.</p>
     <div class="actions">
       <a href="/api/v1/google/authorize?kind=login">Sign in with Google</a>
-      <a href="/api/v1/google/authorize?kind=connect">Connect Drive</a>
+      <a id="connect-drive" href="/api/v1/google/authorize?kind=connect">Connect Drive</a>
       <button id="disconnect" type="button" hidden>Disconnect Drive</button>
     </div>
     <p class="hint">Google consent and the Auths employee key are separate steps.</p>
@@ -39,7 +39,7 @@
     <p id="agent-principal"></p>
   </section>
 
-  <section aria-labelledby="task-heading">
+  <section id="general-task" aria-labelledby="task-heading">
     <h2 id="task-heading">3. Review and authorize one task</h2>
     <label>Registered agent principal<input id="task-agent" autocomplete="off"></label>
     <label>Approved logical document IDs, separated by commas<input id="task-resources" autocomplete="off" placeholder="project-a-brief, project-a-status"></label>
@@ -52,7 +52,58 @@
     </div>
   </section>
 
-  <section aria-labelledby="run-heading">
+  <section id="write-task" aria-labelledby="write-heading" hidden>
+    <h2 id="write-heading">Delegate a Project A task</h2>
+    <p id="write-task-description">The account, registered agent, source, destination and limits come from the operator's pinned installation. Review them before signing. The agent's exact proposal requires a later confirmation.</p>
+    <label>Task purpose<input id="write-purpose" maxlength="512" value="Draft an update to the Project A working document"></label>
+    <button id="write-prepare" type="button">Review write task</button>
+    <div id="write-review" hidden>
+      <p id="write-account"></p>
+      <p id="write-source"></p>
+      <p id="write-resource"></p>
+      <div id="write-upfront-review" hidden>
+        <p>One listed marker replacement may run later without another confirmation. Text outside the unique marker remains in the Doc:</p>
+        <ol id="write-upfront-list"></ol>
+      </div>
+      <pre id="write-card"></pre>
+      <button id="write-authorize" type="button">Sign task and delegate selected actions</button>
+    </div>
+    <p id="write-status-label">Most recently signed task</p>
+    <pre id="write-status">No write task signed.</pre>
+  </section>
+
+  <section id="write-confirmation" aria-labelledby="write-confirmation-heading" hidden>
+    <h2 id="write-confirmation-heading">Confirm the agent's exact edit</h2>
+    <p id="write-confirmation-description">After the separate agent signs its proposed action and the operator stages its proof, review the closed request below. Confirming saves Jules's signature; the gateway submission and independent readback are separate steps.</p>
+    <label><span id="write-confirm-task-label">Write task ID</span><input id="write-confirm-task-id" autocomplete="off"></label>
+    <button id="write-confirm-prepare" type="button">Review agent proposal</button>
+    <div id="write-confirm-review" hidden>
+      <pre id="write-confirm-details"></pre>
+      <button id="write-confirm-authorize" type="button">Sign this exact edit</button>
+    </div>
+    <pre id="write-confirm-status">No exact edit confirmed.</pre>
+    <button id="write-submit" type="button" hidden>Submit this confirmed edit through the gateway</button>
+    <button id="write-status-refresh" type="button" hidden>Show task activity and limits</button>
+    <button id="write-revoke" type="button" class="danger" hidden>Revoke this agent task</button>
+    <div id="write-activity">
+      <p id="write-activity-summary">No gateway task activity loaded.</p>
+      <ol id="write-activity-timeline"></ol>
+      <p class="hint">The task ledger records permissions and claimed operations. A provider effect needs separate gateway attempt and independent readback evidence.</p>
+    </div>
+  </section>
+  <section id="recovered-child-confirmation" aria-labelledby="recovered-child-heading" hidden>
+    <h2 id="recovered-child-heading">Review a response-less file creation</h2>
+    <p>The gateway must have recorded one unknown create attempt. The operator must stage a signed report joining Jules’s one-candidate search with demo_co’s independent blank-file observation. This review grants no new create attempt.</p>
+    <button id="recovered-child-prepare" type="button">Review one recovered child</button>
+    <div id="recovered-child-review" hidden>
+      <pre id="recovered-child-details"></pre>
+      <button id="recovered-child-authorize" type="button">Sign this exact recovered child</button>
+    </div>
+    <pre id="recovered-child-status">No recovered child confirmed.</pre>
+    <button id="recovered-child-execute" type="button" hidden>Check candidate metadata and bind child</button>
+  </section>
+
+  <section id="general-run" aria-labelledby="run-heading">
     <h2 id="run-heading">4. Activate and run</h2>
     <label>Task ID<input id="task-id" autocomplete="off"></label>
     <label>Approved call used to prove agent activation
@@ -70,7 +121,7 @@
     <p>Move the downloaded public package into the agent environment and run <code>auths-google-read-agent run</code>. Only approved call descriptors and public proof material are exported.</p>
   </section>
 
-  <section aria-labelledby="evidence-heading">
+  <section id="general-evidence" aria-labelledby="evidence-heading">
     <h2 id="evidence-heading">5. Read evidence</h2>
     <p>Load the JSON printed by the isolated agent. The summary is agent-reported text; each cited read is checked against this employee's broker-signed receipt.</p>
     <label>Agent result JSON<input id="result-file" type="file" accept="application/json,.json"></label>

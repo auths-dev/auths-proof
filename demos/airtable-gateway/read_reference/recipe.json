@@ -1,0 +1,24 @@
+{
+  "schema": "auths.gateway-release-recipe-source/1",
+  "profile_schema_digest": "ce72e3461f7977ec2ba8dd3217588688adac4d0fdd7c8a970df47935bd2ea19a",
+  "service": "airtable-delegation-demo",
+  "tool": "release_demo_status_v2",
+  "operator_namespace": "airtable-read-demo",
+  "credential": {"kind": "bearer"},
+  "origin": "https://api.airtable.com",
+  "path": [
+    {"kind": "fixed", "value": "v0"},
+    {"kind": "fixed", "value": "appQD3Qf0YFBCW9bV"},
+    {"kind": "fixed", "value": "tblBx2jwe0IsPYRKT"},
+    {"kind": "field", "name": "resource_id"}
+  ],
+  "resource_field": "resource_id",
+  "recipient_field": "agent_principal",
+  "response": {
+    "status": 200,
+    "media_type": "application/json",
+    "maximum_provider_bytes": 16384,
+    "maximum_release_bytes": 64,
+    "projection": {"kind": "json-string", "pointer": "/fields/DemoStatus"}
+  }
+}

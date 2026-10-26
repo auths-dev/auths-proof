@@ -21,6 +21,7 @@ use url::{Host, Url};
 pub use auths_gateway_kernel::{construct, recovery};
 
 mod lower;
+mod release;
 mod review;
 mod runtime;
 mod source;
@@ -32,6 +33,10 @@ mod tests;
 pub use recovery::{
     IdempotencyKind, LostClaimReentry, RecoveryCapability, RecoveryClass, RecoveryDeclarations,
     StateObservation, UnknownResolution, recovery_capability,
+};
+pub use release::{
+    ClosedReleaseRequest, CompiledReleaseRecipe, RELEASE_RECIPE_REVIEW_SCHEMA,
+    RELEASE_RECIPE_SOURCE_SCHEMA, ReleaseProjectionError,
 };
 pub(crate) use review::recovery_document;
 pub use review::{
@@ -351,6 +356,9 @@ pub enum GatewayRecipeError {
     /// A response-field segment is misplaced or outside its rules.
     #[error("response locator conflict")]
     ResponseLocatorConflict,
+    /// A task-bound created-child response declaration is outside its rules.
+    #[error("invalid created-child declaration")]
+    InvalidCreatedChild,
     /// The pre-entry re-read is outside its rules.
     #[error("invalid pre-entry re-read")]
     InvalidPreEntry,
@@ -409,6 +417,7 @@ impl GatewayRecipeError {
             Self::InvalidRelativeCeiling => "gateway.recipe.invalid-relative-ceiling",
             Self::InvalidIdempotency => "gateway.recipe.invalid-idempotency",
             Self::ResponseLocatorConflict => "gateway.recipe.response-locator-conflict",
+            Self::InvalidCreatedChild => "gateway.recipe.invalid-created-child",
             Self::InvalidPreEntry => "gateway.recipe.invalid-pre-entry",
             Self::InvalidNamespace => "gateway.recipe.invalid-namespace",
             Self::InvalidOperationId => "gateway.recipe.invalid-operation-id",
@@ -509,9 +518,15 @@ pub struct CompiledRecipe {
     namespace: OperatorNamespace,
     digest: [u8; 32],
     plans: lower::Plans,
+    fixed_write_query: String,
+    fixed_observation_query: String,
 }
 
 impl CompiledRecipe {
+    pub(crate) fn service(&self) -> &str {
+        &self.source.service
+    }
+
     /// Compiles source against the exact generated profile lock. Only
     /// `auths.gateway-recipe-source/2` is accepted.
     ///
@@ -547,6 +562,13 @@ impl CompiledRecipe {
         credential_requirement(&source.credential).validate()?;
         validate_origin(&source.origin)?;
         validate::validate_source(&source, &fields)?;
+        let fixed_write_query = release::fixed_query(&source.write.query)?;
+        let fixed_observation_query = source
+            .observation
+            .as_ref()
+            .map(|observation| release::fixed_query(&observation.query))
+            .transpose()?
+            .unwrap_or_default();
         let canonical = serde_json_canonicalizer::to_vec(&source)
             .map_err(|_| GatewayRecipeError::InvalidSource)?;
         let mut hasher = Sha256::new();
@@ -560,6 +582,8 @@ impl CompiledRecipe {
             namespace,
             digest,
             plans,
+            fixed_write_query,
+            fixed_observation_query,
         })
     }
 
@@ -575,10 +599,49 @@ impl CompiledRecipe {
         hex::encode(self.digest)
     }
 
+    /// Whether this recipe requires the separate human-agent task write gate.
+    /// Ordinary proof/action submission must refuse it before a claim.
+    #[must_use]
+    pub const fn requires_task_admission(&self) -> bool {
+        self.source.task_binding.is_some()
+    }
+
+    pub(crate) fn task_binding(&self) -> Option<(&str, crate::task_activation::TaskWriteVerb)> {
+        self.source
+            .task_binding
+            .as_ref()
+            .map(|binding| (binding.resource_field.as_str(), binding.verb.clone()))
+    }
+
     /// Returns the operator-controlled replay namespace.
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {
         &self.namespace
+    }
+
+    pub(crate) fn fixed_write_query(&self) -> &str {
+        &self.fixed_write_query
+    }
+
+    pub(crate) fn fixed_observation_query(&self) -> &str {
+        &self.fixed_observation_query
+    }
+
+    pub(crate) fn created_child_fields(&self) -> Option<(&str, &str, &str)> {
+        self.source.created_child.as_ref().map(|child| {
+            (
+                child.parent_field.as_str(),
+                child.title_field.as_str(),
+                child.marker_field.as_str(),
+            )
+        })
+    }
+
+    pub(crate) fn task_populate_fields(&self) -> Option<(&str, &[String])> {
+        self.source
+            .task_populate
+            .as_ref()
+            .map(|populate| (populate.text.as_str(), populate.preflight_fields.as_slice()))
     }
 
     /// What this recipe can prove after an ambiguous write.
@@ -742,6 +805,16 @@ impl CompiledRecipe {
             key.as_deref().unwrap_or_default().as_bytes(),
         )
         .map_err(GatewayRecipeError::from_construct)?;
+        let mut url = ascii(built.url)?;
+        if let Some(PathSegment::FieldSuffix { suffix, .. }) = self.source.write.path.last() {
+            if url.len().saturating_sub(self.source.origin.len()) + suffix.len()
+                > construct::MAX_PATH_BYTES
+            {
+                return Err(GatewayRecipeError::UnsafePath);
+            }
+            url.push_str(suffix);
+        }
+        url.push_str(&self.fixed_write_query);
         let content_type = match self.plans.write.body {
             construct::BodyPlan::Json(_) => "application/json",
             construct::BodyPlan::Form(_) => "application/x-www-form-urlencoded",
@@ -758,6 +831,7 @@ impl CompiledRecipe {
             )?,
             None => None,
         };
+        let created_child = self.created_child_request(arguments)?;
         let pre_entry = action_read(self.plans.pre_entry.as_ref(), &values, || {
             self.source
                 .pre_entry
@@ -778,16 +852,50 @@ impl CompiledRecipe {
             echo,
             idempotency_key: key,
             method: self.source.write.method,
-            url: ascii(built.url)?,
+            url,
             content_type,
             body: built.body,
             headers,
             credential_requirement: credential_requirement(&self.source.credential),
             observation,
             observation_template,
+            created_child,
             pre_entry,
             relative_ceiling,
         })
+    }
+
+    fn created_child_request(
+        &self,
+        arguments: &Map<String, Value>,
+    ) -> Result<Option<CreatedChildRequest>, GatewayRecipeError> {
+        self.source
+            .created_child
+            .as_ref()
+            .map(|source| {
+                Ok(CreatedChildRequest {
+                    response_id_pointer: source.response_id_pointer.clone(),
+                    maximum_id_bytes: usize::try_from(source.maximum_id_bytes)
+                        .map_err(|_| GatewayRecipeError::InvalidCreatedChild)?,
+                    parent: arguments
+                        .get(&source.parent_field)
+                        .and_then(Value::as_str)
+                        .ok_or(GatewayRecipeError::InvalidCreatedChild)?
+                        .to_owned(),
+                    title: arguments
+                        .get(&source.title_field)
+                        .and_then(Value::as_str)
+                        .ok_or(GatewayRecipeError::InvalidCreatedChild)?
+                        .to_owned(),
+                    marker: arguments
+                        .get(&source.marker_field)
+                        .and_then(Value::as_str)
+                        .ok_or(GatewayRecipeError::InvalidCreatedChild)?
+                        .to_owned(),
+                    metadata_checks: source.metadata_checks.clone(),
+                })
+            })
+            .transpose()
     }
 
     fn observation_request(
@@ -988,6 +1096,7 @@ pub struct ClosedProviderRequest {
     credential_requirement: CredentialRequirement,
     observation: Option<ClosedObservationRequest>,
     observation_template: Option<ObservationTemplate>,
+    created_child: Option<CreatedChildRequest>,
     pre_entry: Option<ClosedActionRead>,
     relative_ceiling: Option<ClosedActionRead>,
 }
@@ -1064,6 +1173,12 @@ impl ClosedProviderRequest {
     pub(crate) const fn observation_template(&self) -> Option<&ObservationTemplate> {
         self.observation_template.as_ref()
     }
+    /// The exact signed create request fields and its reviewed response ID
+    /// selector. A returned ID is only a candidate until separate metadata
+    /// verification and task-journal binding complete.
+    pub(crate) const fn created_child(&self) -> Option<&CreatedChildRequest> {
+        self.created_child.as_ref()
+    }
     /// Returns the declared pre-entry re-read.
     #[must_use]
     pub const fn pre_entry_read(&self) -> Option<&ClosedActionRead> {
@@ -1073,6 +1188,122 @@ impl ClosedProviderRequest {
     #[must_use]
     pub const fn relative_ceiling_read(&self) -> Option<&ClosedActionRead> {
         self.relative_ceiling.as_ref()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CreatedChildRequest {
+    pub(crate) response_id_pointer: String,
+    maximum_id_bytes: usize,
+    parent: String,
+    title: String,
+    marker: String,
+    metadata_checks: Vec<source::CreatedChildCheckSource>,
+}
+
+/// Produced only by comparing a bounded metadata GET with the recorded
+/// response candidate and the native-verified create fields. The caller is
+/// responsible for obtaining those bytes through the credential-bound
+/// observation transport before asking the task journal to bind the child.
+pub(crate) struct VerifiedCreatedChild {
+    id: String,
+    metadata_digest: String,
+}
+
+impl VerifiedCreatedChild {
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+    pub(crate) fn metadata_digest(&self) -> &str {
+        &self.metadata_digest
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test(id: &str) -> Self {
+        Self {
+            id: id.to_owned(),
+            metadata_digest: "a".repeat(64),
+        }
+    }
+}
+
+impl CreatedChildRequest {
+    /// Build only the response-field substitution for this exact recovered ID.
+    /// It is used for a read-only metadata request and never recorded as a
+    /// provider response locator or response digest.
+    pub(crate) fn recovered_locator(
+        &self,
+        candidate_id: &str,
+    ) -> Option<std::collections::BTreeMap<String, String>> {
+        self.valid_id(candidate_id).then(|| {
+            std::collections::BTreeMap::from([(
+                self.response_id_pointer.clone(),
+                candidate_id.to_owned(),
+            )])
+        })
+    }
+
+    pub(crate) fn verify_metadata(
+        &self,
+        candidate_id: &str,
+        body: &[u8],
+    ) -> Option<VerifiedCreatedChild> {
+        if !self.valid_id(candidate_id) || !self.metadata_matches(candidate_id, body) {
+            return None;
+        }
+        Some(VerifiedCreatedChild {
+            id: candidate_id.to_owned(),
+            metadata_digest: hex::encode(Sha256::digest(body)),
+        })
+    }
+
+    fn valid_id(&self, id: &str) -> bool {
+        !id.is_empty()
+            && id.len() <= self.maximum_id_bytes
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    }
+
+    /// Compare the credential-bearing GET with the response-derived candidate
+    /// and the native-verified create fields. This validates metadata only;
+    /// it does not itself authorize a follow-up write or prove who created it.
+    pub(crate) fn metadata_matches(&self, candidate_id: &str, body: &[u8]) -> bool {
+        use source::CreatedChildCheckSource as Check;
+        let Ok(document) = serde_json::from_slice::<Value>(body) else {
+            return false;
+        };
+        self.metadata_checks.iter().all(|check| {
+            let Some(observed) = document.pointer(check.pointer()) else {
+                return false;
+            };
+            match check {
+                Check::CandidateId { .. } => observed.as_str() == Some(candidate_id),
+                Check::Parent { .. } => observed.as_str() == Some(self.parent.as_str()),
+                Check::ParentOnly { .. } => observed.as_array().is_some_and(|items| {
+                    items.len() == 1 && items[0].as_str() == Some(self.parent.as_str())
+                }),
+                Check::Title { .. } => observed.as_str() == Some(self.title.as_str()),
+                Check::Marker { .. } => observed.as_str() == Some(self.marker.as_str()),
+                Check::Literal { value, .. } => observed == value,
+            }
+        })
+    }
+
+    /// Extract only one bounded path-safe ID from a complete successful
+    /// response. The caller must not treat it as a task-bound resource.
+    pub(crate) fn candidate_id(
+        &self,
+        status: u16,
+        version_ok: bool,
+        body: &[u8],
+    ) -> Option<String> {
+        if !(200..300).contains(&status) || !version_ok {
+            return None;
+        }
+        let document: Value = serde_json::from_slice(body).ok()?;
+        let id = document.pointer(&self.response_id_pointer)?.as_str()?;
+        self.valid_id(id).then(|| id.to_owned())
     }
 }
 

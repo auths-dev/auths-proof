@@ -1719,6 +1719,45 @@ impl GatewayAttempts {
             .await
     }
 
+    /// Reopen only a recorded create response for a proof-driven, read-only
+    /// metadata reconciliation. An already observed match is also eligible
+    /// when the process crashed before the separate task-journal child bind.
+    /// The caller must reverify the original agent action and exact human
+    /// confirmation, compare the stored action commitment, then recheck the
+    /// candidate under the same credential before binding any task scope.
+    pub(crate) async fn resume_created_child_observation(
+        &self,
+        namespace: &OperatorNamespace,
+        operation_id: &LogicalOperationId,
+        recipe_digest: [u8; 32],
+        expected_plan: &ObservationTemplate,
+    ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
+        let Some((stored, record)) = self.load(namespace, operation_id).await? else {
+            return Ok(None);
+        };
+        record.snapshot(false)?;
+        let eligible = matches!(record.stage, GatewayAttemptStage::ResponseRecorded)
+            || (record.stage == GatewayAttemptStage::Observed
+                && record.observation_match == Some(true));
+        let resumable = eligible
+            && record
+                .response_status
+                .is_some_and(|status| (200..300).contains(&status))
+            && record.response_digest.is_some()
+            && record.response_locator.is_some()
+            && record.recipe_digest == hex::encode(recipe_digest)
+            && record.observation_plan.as_ref() == Some(expected_plan)
+            && record.observation_request().is_some();
+        Ok(resumable.then(|| ObservableGatewayAttempt {
+            attempt: Attempt {
+                store: Arc::clone(&self.store),
+                key: GatewayAttemptKey::for_operation(namespace, operation_id),
+                stored,
+                record,
+            },
+        }))
+    }
+
     async fn resume(
         &self,
         namespace: &OperatorNamespace,

@@ -182,6 +182,43 @@ provider file IDs, task commitment, expiry and limits before the employee
 signs. Package export, revocation and receipt verification are employee-scoped
 routes. Agent execution still happens in the separate process.
 
+### AP-071 post-reservation Google credential source (development)
+
+The task gateway can now store an opaque source reference instead of a Google
+access token. Use `install --credential-stdin --credential-source-stdin` for the
+write connection and `task-read-connect` with the same two flags for a distinct
+GET-only read connection. The stdin value is a versioned
+`auths.materializer-source/1:` reference tied to the pinned demo_co producer
+generation; it contains no token. Without a matching materializer, the
+gateway refuses to send that reference as a provider bearer.
+
+After both connection IDs are known, the operator prepares one owner-private
+Google pin document per connection, then installs the canonical
+`auths.gateway-task-materializers/2` process bundle with
+`task-materializer-configure --state-dir STATE --from BUNDLE`. The shared
+gateway pins each custody executable and provider pin document by SHA-256;
+it contains no Google grant parser or OAuth client. The separate
+`auths-google-employee-custody` executable owns the exact source reference,
+demo_co verification file and digest, owner-private Google grant and Desktop
+client files, client ID, subject, verified email, hosted domain, reviewed recipe
+digests and allowed operation kinds. The write connection uses `write-effect`;
+the read connection uses `read-release`. Configure custody before activating a
+new task. The development-only
+[`build_installation.py`](custody/build_installation.py) makes the direct
+cutover from an existing private Google pin bundle to v2 and obtains the
+authority digest from the sidecar itself. It creates a fresh private output
+directory and never copies grant bytes into the bundle.
+
+For an admitted operation, the custody process rechecks those pins, refreshes the
+existing Google grant in memory, verifies live UserInfo, and leases only the
+short-lived bearer to gateway transport. The gateway still checks the returned
+subject, authority digest and deadline. The agent, task card and recipe never
+receive the grant. Synthetic and installed setup checks are recorded in the
+[AP-071 custody log](../../docs/program-log/2026-10-25-ap071-google-custody-materializer.md);
+the earlier live Jules writes used the original preinstalled bearer path, so
+post-claim live renewal still needs a fresh signed task and independent
+provider readback.
+
 ```sh
 auths-google-read-workbench --state-db /path/to/private/broker.sqlite3
 ```
@@ -338,3 +375,162 @@ permitted only inside Docker behind the relays. The agent key and package
 remain in its own read-only mount, and its model key is mounted only into the
 agent. Model selection and summarization send selected synthetic document
 content through the model relay to OpenAI; that data leaves the Mac.
+
+## AP-SPEC-071 write handoff
+
+The development workbench supports `--jules-only-evidence` and
+`--jules-only-pins` alongside a private Desktop OAuth `--oauth-config`.
+These are owner-private snapshots of one pinned demo_co write generation;
+they let Jules sign in, enroll her browser key and register a separate agent
+while the broader six-person company export is unfinished. The workbench
+checks the Google login against the pinned Jules subject and disables the
+general AP-SPEC-070 task and Drive-consent controls in this mode. Its status
+is `jules_write_only`, never full Google company readiness. After enrollment,
+the operator issues the native task authority and restarts the workbench with
+the installed task-write inputs for the exact review. The existing Jules
+`drive.file` grant remains in protected operator custody; this mode does not
+request another Drive consent.
+
+This package's AP-SPEC-070 read export does not authorize a Google write.
+demo_co now has a separate versioned AP-SPEC-071 Project A folder, working Doc,
+Jules `drive.file` consent and independent probe export. The broker's
+`validate_write_handoff` pins that export, and the private Jules credential
+shim checks the OAuth client, scopes and current UserInfo subject. A read-only
+live preflight confirmed that Jules could see the pinned folder and working
+Doc before the first edit; its
+[redacted observation](evidence/2026-10-25-jules-readonly-preflight.json)
+records the exact producer generation and source revision. The checked-in
+`auths-google-write-handoff` command is still a deliberately closed installed
+entry point: it reports `write_not_configured` and exits 2. It must only open
+after the native task authority, agent proof, exact confirmation, gateway
+installation and independent effect observation are joined and qualified.
+The separate development task workbench can prepare a paired create/populate
+review. After an acknowledged managed read, the isolated agent uses
+`auths-google-read-agent author-draft` with its private release file, read
+package, operation ID, source handle and signing key. An operator transfers the
+resulting owner-private `agent-draft.json` and exact release file (as
+`agent-source.bin`) into that task's private review directory. Before Jules
+sees the plan, the workbench verifies the registered agent signature, task and
+acknowledged read, then asks the gateway to compare the staged source with its
+keyed commitment to the exact acknowledged release. The comparison emits no
+content or plain hash. An acknowledged byte count alone does not establish
+this match. The first live Jules edit and independent post-write inspection
+qualified the edit path. A later single-plan create/populate run also passed
+independent inspection; the full installed recovery matrix remains open.
+For a paired create, the operator obtains demo_co's fresh, private
+`google write-inspect` observation after Jules's effect plan is recorded, then
+uses `auths-google-planned-create` with its exact file SHA-256. The command
+checks the producer generation, Project A and Jules pins, and observation age;
+it durably records the baseline in the task's private directory before asking
+the gateway to enter one planned create. A second invocation refuses, including
+after an uncertain gateway result. Inspect the gateway attempt and retain this
+same baseline for child reconciliation and demo_co's `create-inspect`; take no
+automatic second create. The command does not populate the child. The separate
+Jules child preflight and agent-signed population still follow the gateway's
+recorded plan and response-derived child binding.
+For the earlier single-plan run, the earlier Auths child was a preserved third
+Project A child. That run used demo_co's separate `google-create-v2-baseline.json` taken
+within five minutes of entry, plus its historical
+`google-preserved-blank-observation.json`. Pass `--preserved-blank` and
+`--v2-pins` to `auths-google-planned-create`; the latter is an owner-private
+JSON object with the exact `CreateV2BaselinePins` fields. It pins the two
+producer SHA-256 values and generations, original baseline digest, Jules and
+fixture identities, preserved child and marker. The command validates both
+hash-pinned schemas, the current exact three-child inventory, historical blank
+state, preserved current state, working Doc commitment and time ordering before
+durably recording a v2 baseline. It refuses a v2 export without those pins and
+never retries a create after an uncertain outcome. The frozen v1 observation
+continues to describe the completed first-child run; it cannot authorize a
+second create in that three-child folder.
+The current fixture has five direct Project A children. For any later create,
+use demo_co's `google-create-v3-baseline.json` in a private generation folder
+and pass `--v3-pins` to `auths-google-planned-create`. The owner-private pins
+use the exact `CreateV3BaselinePins` fields, including the five ordered
+neighbors and the baseline SHA-256. The command checks the frozen v3 schema,
+source and fixture identity, all five child commitments, marker uniqueness,
+and a baseline captured no more than five minutes before create entry. It
+records that generation and digest before the sole gateway call. The strict
+v3 final consumer separately compares demo_co's six-child observation with
+the pinned baseline; neither the consumer tests nor an old v2 observation
+authorize another live create. No fresh v3 baseline has been captured yet.
+The browser retains the canonical `effect-plan.json` beside its native proof.
+After the gateway binds the returned child and the Jules preflight is recorded,
+the isolated agent runs `auths-google-read-agent sign-planned-populate` with its
+companion write package, that plan, the private signed preflight report, its
+own signed draft and the reviewed populate recipe. The command forms and signs
+the exact child, tab, revision and approved text; the gateway independently
+rechecks all of them at planned population submission. No operator edits an
+agent action JSON or signs with Jules's key.
+
+```sh
+auths-google-planned-create \
+  --gateway-bin "$GATEWAY_BIN" --gateway-sha256 "$GATEWAY_SHA256" \
+  --gateway-state-dir "$GATEWAY_STATE_DIR" \
+  --task-dir "$PRIVATE_TASK_DIR" --task-id "$TASK_ID" \
+  --write-evidence "$PINNED_WRITE_EVIDENCE" \
+  --credential-pins "$PRIVATE_CREDENTIAL_PINS" \
+  --baseline "$PRIVATE_WRITE_OBSERVATION" \
+  --baseline-sha256 "$WRITE_OBSERVATION_SHA256"
+```
+
+If the gateway recorded a create response, bind that same response-derived
+child without issuing another create:
+
+```sh
+auths-google-reconcile-child \
+  --gateway-bin "$GATEWAY_BIN" --gateway-sha256 "$GATEWAY_SHA256" \
+  --gateway-state-dir "$GATEWAY_STATE_DIR" \
+  --task-dir "$PRIVATE_TASK_DIR" --task-id "$TASK_ID"
+```
+
+Then run `auths-google-populate-preflight`, transfer its owner-private report
+and the plan to the isolated agent, and stage the agent's `populate.proof` and
+`populate.action` in the private task directory. The final operator handoff is:
+
+```sh
+auths-google-planned-populate \
+  --gateway-bin "$GATEWAY_BIN" --gateway-sha256 "$GATEWAY_SHA256" \
+  --gateway-state-dir "$GATEWAY_STATE_DIR" \
+  --task-dir "$PRIVATE_TASK_DIR" --task-id "$TASK_ID" \
+  --preflight "$PRIVATE_POPULATE_PREFLIGHT"
+```
+
+Both effect submissions are one-shot handoffs. A recorded population
+`denied` result can be recovered once with `--recover-pre-entry-denial`, after
+a new Jules preflight and agent-signed action are staged. The command requires
+its original result file and a gateway journal showing the create operation
+but no population write claim, then records an exclusive recovery handoff.
+An unknown result, missing result file, or any population claim remains
+closed; inspect the durable gateway attempt and independent producer state.
+These commands remain a development operator path. One later live Jules plan
+created and populated a Project A child after a manually checked pre-entry
+denial and gateway repair; the new recovery flag was added afterward. See the
+[live create record](../../docs/program-log/2026-10-25-ap071-live-create.md).
+
+For a separately reset bounded-upfront edit test, the operator may supply an
+owner-private `--task-upfront-choices` JSON file when starting the Jules
+workbench. It has schema `auths.ap071-upfront-choices/1` and a `choices` array
+of one to four complete profile argument objects. Each Google edit choice
+must fix the same selected `document_id`, tab, revision and marker, and may
+vary the reviewed `replacement`. The workbench shows every choice on the
+human-signed task card and states that no second confirmation will occur.
+After an earlier legitimate edit to the working Doc, pin a fresh private
+`google-write-observation.json` and its SHA-256 with
+`--task-write-current-baseline` and `--task-write-current-baseline-sha256`.
+The original pinned write verification still establishes Jules's capabilities;
+the later observation supplies only the current content baseline. The broker
+checks its fixture identity and digest, then compares that baseline against a
+fresh Jules export before showing or submitting an edit. If either differs,
+the edit is refused before gateway entry.
+The installed task policy must set `allow_bounded_writes=true`; absent this
+file, the workbench defaults to exact confirmation. The agent still signs
+one complete action, and the gateway admits at most one listed choice. This
+development screen has synthetic ceremony coverage. A clean Jules-signed run
+used a separate agent and one listed choice; demo_co independently verified the
+complete exact after-state. See the
+[clean rerun record](../../docs/program-log/2026-10-25-ap071-clean-upfront-rerun.md).
+The off-choice, second-write, and exact-confirmation-only policy refusals
+remain separate acceptance cases.
+
+See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
+for the remaining live acceptance path.

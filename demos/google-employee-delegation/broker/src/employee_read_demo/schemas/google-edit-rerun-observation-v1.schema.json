@@ -1,0 +1,179 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "admin_revision_id": {
+      "title": "Admin Revision Id",
+      "type": "string"
+    },
+    "admin_tab_id": {
+      "title": "Admin Tab Id",
+      "type": "string"
+    },
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "baseline_generation": {
+      "minimum": 1,
+      "title": "Baseline Generation",
+      "type": "integer"
+    },
+    "baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Sha256",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "choices_generation": {
+      "minimum": 1,
+      "title": "Choices Generation",
+      "type": "integer"
+    },
+    "choices_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Choices Sha256",
+      "type": "string"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 5,
+      "default": 5,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "exact_expected_content": {
+      "title": "Exact Expected Content",
+      "type": "boolean"
+    },
+    "expected_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Expected Raw Byte Count",
+      "type": "integer"
+    },
+    "expected_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expected Raw Sha256",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_probe_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Jules Probe Unchanged",
+      "type": "boolean"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "observed_raw_byte_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Observed Raw Byte Count",
+      "type": "integer"
+    },
+    "observed_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Observed Raw Sha256",
+      "type": "string"
+    },
+    "original_marker_count": {
+      "minimum": 0,
+      "title": "Original Marker Count",
+      "type": "integer"
+    },
+    "preserved_child_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Preserved Child Unchanged",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "demo-co/google-edit-rerun-observation/v1",
+      "default": "demo-co/google-edit-rerun-observation/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "second_child_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Second Child Unchanged",
+      "type": "boolean"
+    },
+    "selected_choice": {
+      "enum": [
+        "A",
+        "B"
+      ],
+      "title": "Selected Choice",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "failed_exact_content"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "working_document_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Working Document Unchanged",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "status",
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "baseline_generation",
+    "baseline_sha256",
+    "choices_generation",
+    "choices_sha256",
+    "selected_choice",
+    "document_id",
+    "admin_tab_id",
+    "admin_revision_id",
+    "observed_raw_sha256",
+    "observed_raw_byte_count",
+    "expected_raw_sha256",
+    "expected_raw_byte_count",
+    "exact_expected_content",
+    "original_marker_count"
+  ],
+  "title": "GoogleEditRerunObservation",
+  "type": "object"
+}

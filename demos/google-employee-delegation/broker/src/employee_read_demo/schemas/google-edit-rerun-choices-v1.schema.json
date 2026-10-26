@@ -1,0 +1,144 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "precommitted_provider_expectation",
+      "default": "precommitted_provider_expectation",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "baseline_generation": {
+      "minimum": 1,
+      "title": "Baseline Generation",
+      "type": "integer"
+    },
+    "baseline_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "title": "Baseline Raw Byte Count",
+      "type": "integer"
+    },
+    "baseline_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Raw Sha256",
+      "type": "string"
+    },
+    "baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Sha256",
+      "type": "string"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 5,
+      "default": 5,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "marker": {
+      "pattern": "^AP071-RERUN-[0-9a-f]{24}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "option_a_expected_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "title": "Option A Expected Raw Byte Count",
+      "type": "integer"
+    },
+    "option_a_expected_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Option A Expected Raw Sha256",
+      "type": "string"
+    },
+    "option_a_text_byte_count": {
+      "exclusiveMinimum": 0,
+      "title": "Option A Text Byte Count",
+      "type": "integer"
+    },
+    "option_a_text_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Option A Text Sha256",
+      "type": "string"
+    },
+    "option_b_expected_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "title": "Option B Expected Raw Byte Count",
+      "type": "integer"
+    },
+    "option_b_expected_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Option B Expected Raw Sha256",
+      "type": "string"
+    },
+    "option_b_text_byte_count": {
+      "exclusiveMinimum": 0,
+      "title": "Option B Text Byte Count",
+      "type": "integer"
+    },
+    "option_b_text_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Option B Text Sha256",
+      "type": "string"
+    },
+    "replacement_rule": {
+      "const": "replace_single_marker_in_exact_raw_export/v1",
+      "default": "replace_single_marker_in_exact_raw_export/v1",
+      "title": "Replacement Rule",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-edit-rerun-choices/v1",
+      "default": "demo-co/google-edit-rerun-choices/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "baseline_generation",
+    "baseline_sha256",
+    "document_id",
+    "marker",
+    "baseline_raw_sha256",
+    "baseline_raw_byte_count",
+    "option_a_text_sha256",
+    "option_a_text_byte_count",
+    "option_a_expected_raw_sha256",
+    "option_a_expected_raw_byte_count",
+    "option_b_text_sha256",
+    "option_b_text_byte_count",
+    "option_b_expected_raw_sha256",
+    "option_b_expected_raw_byte_count"
+  ],
+  "title": "GoogleEditRerunChoiceCommitments",
+  "type": "object"
+}

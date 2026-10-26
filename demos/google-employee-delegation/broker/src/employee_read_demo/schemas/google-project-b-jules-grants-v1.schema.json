@@ -1,0 +1,120 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "admin_export_matches_fixture": {
+      "title": "Admin Export Matches Fixture",
+      "type": "boolean"
+    },
+    "admin_owned_document_observed": {
+      "title": "Admin Owned Document Observed",
+      "type": "boolean"
+    },
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "read_grant_denial_leaked_fixture": {
+      "title": "Read Grant Denial Leaked Fixture",
+      "type": "boolean"
+    },
+    "read_grant_export_matches_fixture": {
+      "title": "Read Grant Export Matches Fixture",
+      "type": "boolean"
+    },
+    "read_grant_http_status": {
+      "maximum": 599,
+      "minimum": 100,
+      "title": "Read Grant Http Status",
+      "type": "integer"
+    },
+    "read_grant_kind": {
+      "const": "google-person-jules-drive-readonly",
+      "default": "google-person-jules-drive-readonly",
+      "title": "Read Grant Kind",
+      "type": "string"
+    },
+    "resource_id": {
+      "const": "doc-project-b-plan",
+      "default": "doc-project-b-plan",
+      "title": "Resource Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-project-b-jules-grants/v1",
+      "default": "demo-co/google-project-b-jules-grants/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "write_grant_denial_leaked_fixture": {
+      "title": "Write Grant Denial Leaked Fixture",
+      "type": "boolean"
+    },
+    "write_grant_export_matches_fixture": {
+      "title": "Write Grant Export Matches Fixture",
+      "type": "boolean"
+    },
+    "write_grant_http_status": {
+      "maximum": 599,
+      "minimum": 100,
+      "title": "Write Grant Http Status",
+      "type": "integer"
+    },
+    "write_grant_kind": {
+      "const": "google-write-person-jules-drive-file",
+      "default": "google-write-person-jules-drive-file",
+      "title": "Write Grant Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "document_id",
+    "drive_id",
+    "jules_subject",
+    "admin_owned_document_observed",
+    "admin_export_matches_fixture",
+    "read_grant_http_status",
+    "read_grant_export_matches_fixture",
+    "write_grant_http_status",
+    "write_grant_export_matches_fixture",
+    "read_grant_denial_leaked_fixture",
+    "write_grant_denial_leaked_fixture"
+  ],
+  "title": "GoogleProjectBJulesGrants",
+  "type": "object"
+}

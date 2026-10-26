@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from .admission import AdmissionStore
 from .authority_identity import authority_for_identity_packet
 from .enrollment import EmployeeBinding
+from .contracts import valid_service
 
 
 class OperatorDenied(PermissionError):
@@ -55,17 +57,37 @@ class OperatorRoot:
     def issue_employee(self, *, binding: EmployeeBinding, identity_packet: bytes,
                        service: str, now: int | None = None,
                        lifetime: int = 3600) -> EmployeeAuthority:
+        return self.issue_employee_for_tool(
+            binding=binding, identity_packet=identity_packet, service=service,
+            tool="google_drive_document_read", now=now, lifetime=lifetime,
+        )
+
+    def issue_employee_for_tool(self, *, binding: EmployeeBinding,
+                                identity_packet: bytes, service: str, tool: str,
+                                now: int | None = None,
+                                lifetime: int = 3600,
+                                remaining_depth: int = 1) -> EmployeeAuthority:
+        """Issue one exact MCP tool grant to the enrolled employee key.
+
+        The operator calls this for the AP-071 task approval and confirmation
+        tools as well as a provider write tool. It never accepts a tool name
+        from an HTTP request or widens the existing AP-070 read grant.
+        """
         from auths import _native
 
         principal, employee_evidence = authority_for_identity_packet(identity_packet)
-        if principal != binding.principal or not 60 <= lifetime <= 3600:
+        if (principal != binding.principal or not 60 <= lifetime <= 3600
+                or not valid_service(service) or not isinstance(tool, str)
+                or re.fullmatch(r"[a-z][a-z0-9_]{0,63}", tool) is None
+                or remaining_depth not in (0, 1)):
             raise OperatorDenied("employee enrollment or grant lifetime is invalid")
         now = int(time.time()) if now is None else now
         audience = f"mcp://{service}"
         request = _native.GrantRequest(
             _native.Principal(binding.principal), "auths.mcp", 2,
-            [("tools/call", f"{audience}/tools/google_drive_document_read")],
-            now, now + lifetime, [audience], None, None, 1, None,
+            [("tools/call", f"{audience}/tools/{tool}")],
+            now, now + lifetime, [audience], None, None,
+            remaining_depth, None,
             "raw-key-baseline", [],
         )
         unsigned = _native.root_grant(_native.Principal(self.principal), request)

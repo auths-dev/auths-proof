@@ -18,8 +18,11 @@ pub mod commissioning_floor;
 #[cfg(unix)]
 pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
-    GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
+    GatewaySubmissionReview, TaskActivity, TaskPopulatePreflightInputs, TaskPopulationLineage,
+    TaskWriteProofs, TaskWriteSession, commissioning_principal_sha256, review_submission,
 };
+#[cfg(unix)]
+pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
 mod connection;
 mod credential_journal;
 mod echo_verify;
@@ -31,6 +34,7 @@ pub mod fuzzing;
 mod generation_floor;
 #[cfg(unix)]
 pub mod listener;
+mod materializer;
 mod observer;
 mod onboarding;
 mod operator;
@@ -38,11 +42,43 @@ mod pre_entry;
 mod qualification;
 mod readiness;
 pub mod recipe;
+mod release_commitment;
+// The internal release channel presents this signature after sending the
+// exact bytes. The installed read operator path is not yet exposed.
+#[allow(dead_code)]
+mod release_ack;
+// The internal credential-owning read executor uses this local channel;
+// installed command wiring and stronger process isolation remain open.
+#[allow(dead_code)]
+#[cfg(unix)]
+mod release_channel;
+// Native proof admission is joined in the internal managed read executor;
+// installed command wiring remains open.
+#[allow(dead_code)]
+mod release_verify;
+// The task state serves installed writes and internal managed read delivery.
+#[allow(dead_code)]
+mod release_state;
+pub use release_state::TaskStatus;
 mod semantic_closure;
 mod separation;
 mod store;
 mod submit;
 mod support;
+// Human task approval is served only by the owner-side task session so far.
+#[allow(dead_code)]
+mod task_activation;
+// A signed two-effect plan is verified before it can enter the task journal.
+#[allow(dead_code)]
+mod task_effect_plan;
+mod task_populate_attestation;
+#[allow(dead_code)]
+mod task_recovery_attestation;
+#[allow(dead_code)]
+mod task_recovery_confirmation;
+// Exact task-write confirmation is called only by the owner-side task session.
+#[allow(dead_code)]
+mod task_write;
 mod transport;
 
 #[cfg(test)]
@@ -72,7 +108,10 @@ pub use audit::{
     MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, ProviderResult, UnverifiedEntries,
     audit_bundle,
 };
-pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
+pub use binding::{
+    GatewayConnectionDescriptor, GatewayConnectionError, GatewayTaskConnectionDescriptor,
+    TASK_CONNECTION_DESCRIPTOR_SCHEMA,
+};
 pub use bounds::{
     ARGUMENT_CEILING_CANONICALIZATION, ARGUMENT_CEILING_EVALUATOR, ARGUMENT_CEILING_POLICY_TYPE,
     ARGUMENT_CEILING_POLICY_VERSION, ArgumentCeilingPolicy, BoundedPolicyError, ListedValues,
@@ -95,6 +134,11 @@ pub use engine::{
     SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;
+pub use materializer::{
+    CredentialMaterializationContext, CredentialMaterializationError, CredentialMaterializer,
+    CredentialRequestKind, MATERIALIZER_SOURCE_PREFIX, MaterializedCredential,
+    MaterializerInstallation,
+};
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,
@@ -122,12 +166,17 @@ pub use readiness::{
 };
 pub use recipe::{
     ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,
-    ClosedProviderRequest, CompiledRecipe, CredentialReadMethod, CredentialRequirement,
-    GatewayRecipeError, IdempotencyKind, LogicalOperationId, LostClaimReentry, OperatorNamespace,
-    ProviderHeaderClass, ProviderResponseRule, RECIPE_REVIEW_SCHEMA, RECIPE_SOURCE_SCHEMA,
-    RECOVERY_CAPABILITY_SCHEMA, RecipeEchoReview, RecipePreconditionReview, RecipeReview,
-    RecoveryCapability, RecoveryClass, RecoveryDeclarations, RequestHeader, StateObservation,
+    ClosedProviderRequest, ClosedReleaseRequest, CompiledRecipe, CompiledReleaseRecipe,
+    CredentialReadMethod, CredentialRequirement, GatewayRecipeError, IdempotencyKind,
+    LogicalOperationId, LostClaimReentry, OperatorNamespace, ProviderHeaderClass,
+    ProviderResponseRule, RECIPE_REVIEW_SCHEMA, RECIPE_SOURCE_SCHEMA, RECOVERY_CAPABILITY_SCHEMA,
+    RELEASE_RECIPE_REVIEW_SCHEMA, RELEASE_RECIPE_SOURCE_SCHEMA, RecipeEchoReview,
+    RecipePreconditionReview, RecipeReview, RecoveryCapability, RecoveryClass,
+    RecoveryDeclarations, ReleaseProjectionError, RequestHeader, StateObservation,
     UnknownResolution, WriteMethod, echo_token, idempotency_key, recovery_capability,
+};
+pub use release_commitment::{
+    ReleaseCommitment, ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey,
 };
 pub use semantic_closure::GATEWAY_SEMANTIC_CLOSURE_SHA256;
 pub use separation::{

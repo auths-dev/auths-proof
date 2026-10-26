@@ -1,0 +1,26 @@
+{
+  "schema": "auths.gateway-release-recipe-source/1",
+  "profile_schema_digest": "e932ca3725337d3e3f6f809c834b966fc975fb4f0796b1050d48e8f6f7560159",
+  "service": "google-drive-delegation-demo",
+  "tool": "release_project_a_text_v2",
+  "operator_namespace": "google-read-demo",
+  "credential": {"kind": "bearer"},
+  "origin": "https://www.googleapis.com",
+  "path": [
+    {"kind": "fixed", "value": "drive"},
+    {"kind": "fixed", "value": "v3"},
+    {"kind": "fixed", "value": "files"},
+    {"kind": "field", "name": "resource_id"},
+    {"kind": "fixed", "value": "export"}
+  ],
+  "query": {"mimeType": "text/plain"},
+  "resource_field": "resource_id",
+  "recipient_field": "agent_principal",
+  "response": {
+    "status": 200,
+    "media_type": "text/plain",
+    "maximum_provider_bytes": 65536,
+    "maximum_release_bytes": 16384,
+    "projection": {"kind": "whole-text"}
+  }
+}
