@@ -8,9 +8,12 @@ from unittest.mock import patch
 
 from employee_read_demo.google_gateway_credential_shim import (
     GatewayReadCredentialDenied, GatewayWriteCredentialDenied,
-    install_jules_read_lease, install_jules_write_lease,
+    install_jules_read_lease, install_jules_readonly_lease,
+    install_jules_write_lease,
 )
+from employee_read_demo.google_readonly_credential import ReadOnlyCredentialPins
 from employee_read_demo.google_write_credential import WriteCredentialPins
+from employee_read_demo.project_b_grants_handoff import ProjectBGrantPins
 from employee_read_demo.token_store import TokenLease
 from employee_read_demo.write_handoff import WriteHandoffPins
 
@@ -58,6 +61,29 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             read_profile_lock_path=Path("/opt/auths/read-profile.lock.json"),
             read_recipe_digest="d" * 64,
             read_alias="jules-read",
+            now=now,
+        )
+
+    def install_readonly(self, *, now: int = 1000):
+        return install_jules_readonly_lease(
+            evidence_path=Path("/private/project-b-grants.json"),
+            grant_path=Path("/private/jules-readonly-grant.json"),
+            pins=ReadOnlyCredentialPins(
+                project_b=ProjectBGrantPins(
+                    company="atlas-studio", instance="run-1",
+                    definition_hash="a" * 64, jules_subject="subject-1",
+                    document_id="project-b", drive_id="drive-1",
+                    evidence_sha256="b" * 64,
+                ),
+                client_id="desktop-client-1", primary_domain="example.test",
+                connection_id="read-only-pin", connection_generation=1,
+            ),
+            gateway_binary=Path("/opt/auths/bin/auths-gateway"),
+            state_dir=Path("/private/gateway"),
+            read_recipe_path=Path("/opt/auths/read-recipe.json"),
+            read_profile_lock_path=Path("/opt/auths/read-profile.lock.json"),
+            read_recipe_digest="d" * 64,
+            read_alias="jules-readonly",
             now=now,
         )
 
@@ -225,6 +251,27 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             with self.assertRaises(GatewayReadCredentialDenied) as caught:
                 self.install_read()
             self.assertNotIn("private-access", str(caught.exception))
+
+    def test_readonly_grant_uses_same_private_stdin_install_path(self) -> None:
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_readonly_token",
+            return_value=TokenLease("private-readonly-access", 2000),
+        ) as lease, patch(
+            "employee_read_demo.google_gateway_credential_shim.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, json.dumps({
+                "outcome": "read-connection-installed",
+                "connection_id": "conn_CCCCCCCCCCCCCCCCCCCCCC",
+                "connection_generation": 1,
+                "recipe_digest": "d" * 64,
+            }).encode(), b""),
+        ) as run:
+            installed = self.install_readonly()
+        lease.assert_called_once()
+        self.assertEqual(installed.connection_subject, "subject-1")
+        self.assertEqual(installed.connection_id, "conn_CCCCCCCCCCCCCCCCCCCCCC")
+        self.assertEqual(run.call_args.kwargs["input"], b"private-readonly-access")
+        self.assertNotIn("private-readonly-access", repr(run.call_args.args[0]))
+        self.assertNotIn("private-readonly-access", repr(installed))
 
 
 if __name__ == "__main__":

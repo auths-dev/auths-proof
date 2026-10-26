@@ -57,6 +57,7 @@ from .finance_denial_handoff import FinanceDenialPins, validate_finance_denial
 from .finance_write_grant_handoff import (
     FinanceWriteGrantPins, validate_finance_write_grant,
 )
+from .project_b_grants_handoff import ProjectBGrantPins, validate_project_b_grants
 from .edit_rerun_handoff import (
     EditRerunPins, EditRerunTarget, LOGICAL_ID, validate_edit_rerun,
 )
@@ -116,6 +117,7 @@ class Workbench:
     edit_rerun_target: EditRerunTarget | None = None
     negative_create_target: NegativeCreateTarget | None = None
     populate_failure_target: PopulateFailureTarget | None = None
+    project_b_exclusion_target: str | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -310,9 +312,16 @@ class Handler(BaseHTTPRequestHandler):
                         and session.subject == self.workbench.write_pins.jules_subject
                     ),
                     "task_read_only_available": bool(
-                        self.workbench.finance_read_target is not None
+                        self.workbench.write_browser is not None
+                        and self.workbench.write_browser.read_only
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
+                    ),
+                    "task_read_only_kind": (
+                        "finance_denial" if self.workbench.finance_read_target is not None
+                        else "project_b_exclusion"
+                        if self.workbench.project_b_exclusion_target is not None
+                        else None
                     ),
                     "task_write_paired_available": bool(
                         self.workbench.write_confirmation is not None
@@ -328,7 +337,8 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                     "task_write_execution_available": bool(
                         self.workbench.write_confirmation is not None
-                        and self.workbench.finance_read_target is None
+                        and self.workbench.write_browser is not None
+                        and not self.workbench.write_browser.read_only
                         and self.workbench.write_confirmation.gateway_state_dir is not None
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
@@ -538,6 +548,8 @@ class Handler(BaseHTTPRequestHandler):
                         resource_handle=(
                             self.workbench.finance_read_target
                             if self.workbench.finance_read_target is not None else
+                            evidence["probe_document_id"]
+                            if self.workbench.project_b_exclusion_target is not None else
                             parent_id if paired else
                             self.workbench.write_target.child.candidate_id
                             if self.workbench.write_target is not None else
@@ -546,7 +558,8 @@ class Handler(BaseHTTPRequestHandler):
                             evidence["document_id"]),
                         resource_label=(
                             "No write destination (read-only task)"
-                            if self.workbench.finance_read_target is not None else
+                            if (self.workbench.finance_read_target is not None
+                                or self.workbench.project_b_exclusion_target is not None) else
                             (f"Project A scratch run {scratch.run_id} ({scratch.case})"
                              if scratch is not None else
                              "Project A destination folder") if paired else
@@ -631,7 +644,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path in {"/api/v1/write/confirmations/prepare",
                         "/api/v1/write/confirmations/authorize"}:
-                if self.workbench.finance_read_target is not None:
+                if (self.workbench.write_browser is not None
+                        and self.workbench.write_browser.read_only):
                     raise OperatorDenied("read-only task has no write confirmation")
                 flow = self.workbench.write_confirmation
                 if flow is None:
@@ -676,7 +690,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path in {"/api/v1/write/effect-plans/prepare",
                         "/api/v1/write/effect-plans/authorize"}:
-                if self.workbench.finance_read_target is not None:
+                if (self.workbench.write_browser is not None
+                        and self.workbench.write_browser.read_only):
                     raise OperatorDenied("read-only task has no write effect plan")
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.companion_recipe_path is None:
@@ -722,7 +737,8 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
             if path == "/api/v1/write/submissions/execute":
-                if self.workbench.finance_read_target is not None:
+                if (self.workbench.write_browser is not None
+                        and self.workbench.write_browser.read_only):
                     raise OperatorDenied("read-only task cannot submit a write")
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.gateway_state_dir is None:
@@ -740,7 +756,8 @@ class Handler(BaseHTTPRequestHandler):
                         "/api/v1/write/recovered-child/authorize",
                         "/api/v1/write/recovered-child/execute"}:
                 flow = self.workbench.write_confirmation
-                if (self.workbench.finance_read_target is not None or flow is None
+                if ((self.workbench.write_browser is not None
+                     and self.workbench.write_browser.read_only) or flow is None
                         or flow.companion_recipe_path is None):
                     raise OperatorDenied("paired recovered-child review is unavailable")
                 employee, agent, _, _, _ = self._write_bindings(session)
@@ -1103,6 +1120,10 @@ def main() -> int:
                         help="private same-grant Jules finance denial observation")
     parser.add_argument("--task-finance-write-grant-sha256",
                         help="operator-reviewed digest of the same-grant observation")
+    parser.add_argument("--task-project-b-grants-evidence", type=Path,
+                        help="fresh private proof that Jules's read-only grant can read excluded Project B")
+    parser.add_argument("--task-project-b-grants-sha256")
+    parser.add_argument("--task-project-b-document-id")
     parser.add_argument("--task-create-negative-setup", type=Path)
     parser.add_argument("--task-create-negative-setup-sha256")
     parser.add_argument("--task-create-negative-v4-pins", type=Path)
@@ -1215,6 +1236,12 @@ def main() -> int:
     if any(option is not None for option in write_options) and not all(
             option is not None for option in write_options):
         parser.error("all task-write inputs must be supplied together")
+    if (any(option is not None for option in (
+            args.task_project_b_grants_evidence,
+            args.task_project_b_grants_sha256,
+            args.task_project_b_document_id))
+            and not all(option is not None for option in write_options)):
+        parser.error("Project B exclusion requires a complete task installation")
     negative_setup_options = (
         args.task_create_negative_setup,
         args.task_create_negative_setup_sha256,
@@ -1300,6 +1327,7 @@ def main() -> int:
     write_target = None
     upfront_choices = None
     finance_read_target = None
+    project_b_exclusion_target = None
     edit_rerun_target = None
     negative_create_target = None
     populate_failure_target = None
@@ -1347,6 +1375,31 @@ def main() -> int:
                 )["document_id"]
             except (ContractRejected, OSError, PermissionError) as error:
                 parser.error(f"finance denial observation refused: {error}")
+        project_b_options = (
+            args.task_project_b_grants_evidence,
+            args.task_project_b_grants_sha256,
+            args.task_project_b_document_id,
+        )
+        if any(option is not None for option in project_b_options):
+            if not all(option is not None for option in project_b_options):
+                parser.error("Project B exclusion pins must be complete")
+            if finance_read_target is not None:
+                parser.error("read-only probe modes cannot be combined")
+            try:
+                project_b_exclusion_target = validate_project_b_grants(
+                    args.task_project_b_grants_evidence,
+                    ProjectBGrantPins(
+                        company=write_pins.company,
+                        instance=write_pins.instance,
+                        definition_hash=write_pins.definition_hash,
+                        jules_subject=write_pins.jules_subject,
+                        document_id=args.task_project_b_document_id,
+                        drive_id=write_evidence["drive_id"],
+                        evidence_sha256=args.task_project_b_grants_sha256,
+                    ), now=int(time.time()),
+                ).document_id
+            except (ContractRejected, OSError, PermissionError) as error:
+                parser.error(f"Project B grant observation refused: {error}")
         if args.task_write_current_baseline is not None:
             try:
                 validate_current_write_observation(
@@ -1450,7 +1503,8 @@ def main() -> int:
             companion_recipe_path=args.task_companion_write_recipe,
             companion_profile_lock_path=args.task_companion_write_profile_lock,
             upfront_allowed_arguments=upfront_choices,
-            read_only=finance_read_target is not None,
+            read_only=(finance_read_target is not None
+                       or project_b_exclusion_target is not None),
             private_output_dir=args.task_write_output_dir,
         )
     confirmation_options = (
@@ -1572,7 +1626,8 @@ def main() -> int:
                           agent_transport, service, write_browser,
                           args.task_write_evidence, write_pins, write_confirmation,
                           write_target, finance_read_target, edit_rerun_target,
-                          negative_create_target, populate_failure_target)
+                          negative_create_target, populate_failure_target,
+                          project_b_exclusion_target)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

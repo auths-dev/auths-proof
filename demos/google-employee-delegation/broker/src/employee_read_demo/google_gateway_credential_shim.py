@@ -20,6 +20,10 @@ from pathlib import Path
 from .google_write_credential import (
     WriteCredentialDenied, WriteCredentialPins, lease_jules_write_token,
 )
+from .google_readonly_credential import (
+    ReadOnlyCredentialDenied, ReadOnlyCredentialPins,
+    lease_jules_readonly_token,
+)
 
 
 MIN_REMAINING_SECONDS = 600
@@ -203,6 +207,59 @@ def install_jules_read_lease(
         raise GatewayReadCredentialDenied("Jules subject-checked grant refused") from error
     if lease.expires_at <= now + MIN_REMAINING_SECONDS:
         raise GatewayReadCredentialDenied("Jules bearer expires too soon")
+    return _install_checked_read_bearer(
+        gateway_binary=gateway_binary, state_dir=state_dir,
+        read_recipe_path=read_recipe_path,
+        read_profile_lock_path=read_profile_lock_path,
+        read_recipe_digest=read_recipe_digest, read_alias=read_alias,
+        subject=write_credential_pins.producer.jules_subject,
+        access_token=lease.access_token, expires_at=lease.expires_at,
+    )
+
+
+def install_jules_readonly_lease(
+    *, evidence_path: Path, grant_path: Path,
+    pins: ReadOnlyCredentialPins, gateway_binary: Path, state_dir: Path,
+    read_recipe_path: Path, read_profile_lock_path: Path,
+    read_recipe_digest: str, read_alias: str,
+    now: int | None = None,
+) -> InstalledReadLease:
+    """Install Jules's separately consented Drive read-only grant for GETs."""
+    now = int(time.time()) if now is None else now
+    try:
+        lease = lease_jules_readonly_token(
+            evidence_path, grant_path, pins,
+            connection_id=pins.connection_id,
+            connection_generation=pins.connection_generation, now=now,
+        )
+    except ReadOnlyCredentialDenied as error:
+        raise GatewayReadCredentialDenied(
+            "Jules subject-checked read-only grant refused") from error
+    if lease.expires_at <= now + MIN_REMAINING_SECONDS:
+        raise GatewayReadCredentialDenied("Jules read-only bearer expires too soon")
+    return _install_checked_read_bearer(
+        gateway_binary=gateway_binary, state_dir=state_dir,
+        read_recipe_path=read_recipe_path,
+        read_profile_lock_path=read_profile_lock_path,
+        read_recipe_digest=read_recipe_digest, read_alias=read_alias,
+        subject=pins.project_b.jules_subject,
+        access_token=lease.access_token, expires_at=lease.expires_at,
+    )
+
+
+def _install_checked_read_bearer(
+    *, gateway_binary: Path, state_dir: Path, read_recipe_path: Path,
+    read_profile_lock_path: Path, read_recipe_digest: str, read_alias: str,
+    subject: str, access_token: str, expires_at: int,
+) -> InstalledReadLease:
+    paths = (gateway_binary, state_dir, read_recipe_path,
+             read_profile_lock_path)
+    if (not all(path.is_absolute() for path in paths)
+            or not _DIGEST.fullmatch(read_recipe_digest)
+            or not read_alias or len(read_alias) > 128
+            or not all(char.isalnum() or char in "-_" for char in read_alias)
+            or not subject or len(subject) > 256):
+        raise GatewayReadCredentialDenied("operator read inputs are incomplete")
     command = [
         str(gateway_binary), "task-read-connect",
         "--state-dir", str(state_dir),
@@ -211,13 +268,13 @@ def install_jules_read_lease(
         "--approve-digest", read_recipe_digest,
         "--provider", "google",
         "--alias", read_alias,
-        "--account-subject", write_credential_pins.producer.jules_subject,
+        "--account-subject", subject,
         "--credential-stdin",
     ]
     try:
         result = subprocess.run(
             command,
-            input=lease.access_token.encode("ascii"),
+            input=access_token.encode("ascii"),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env={"PATH": os.environ.get("PATH", "")},
@@ -247,6 +304,6 @@ def install_jules_read_lease(
             "gateway read install result unavailable; inspect state before retry",
         ) from error
     return InstalledReadLease(
-        installed["connection_id"], write_credential_pins.producer.jules_subject,
-        installed["connection_generation"], read_recipe_digest, lease.expires_at,
+        installed["connection_id"], subject,
+        installed["connection_generation"], read_recipe_digest, expires_at,
     )

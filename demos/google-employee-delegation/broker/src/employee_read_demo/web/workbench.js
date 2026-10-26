@@ -229,7 +229,9 @@ async function prepareWriteTask() {
   byId("write-activity-timeline").replaceChildren();
   byId("write-review").hidden = false;
   message(!writeScope
-    ? "Review Jules's account, finance source, agent and one-read budget. This task grants no write; Google may still deny the read."
+    ? session.task_read_only_kind === "project_b_exclusion"
+      ? "Review Jules's read-only Google account, permitted Project A source, separate agent and one-read budget. Project B is excluded even though this Google account can read it. This task grants no write."
+      : "Review Jules's account, finance source, agent and one-read budget. This task grants no write; Google may still deny the read."
     : result.card.pending_child
     ? "Review the Project A folder, exact child proposal, agent and limits before signing both child grants and the task. The two-effect content plan is still required before provider entry."
     : result.card.write_approval_mode === "bounded-upfront"
@@ -292,7 +294,9 @@ async function authorizeWriteTask() {
       ? "Jules's create/populate task is active. The exact two-effect content plan is still required before provider entry."
       : "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry.");
   } else if (!result.agent_package) {
-    message("Jules's read-only task is active. The separate agent may try the pinned finance read once; Google can deny access, and no write is permitted.");
+    message(session.task_read_only_kind === "project_b_exclusion"
+      ? "Jules's read-only task is active. The separate agent may read only the pinned Project A source; Project B remains excluded despite provider access. No write is permitted."
+      : "Jules's read-only task is active. The separate agent may try the pinned finance read once; Google can deny access, and no write is permitted.");
   } else if (session.task_write_upfront_available) {
     message("Jules approved the displayed bounded choices. The separate agent must sign one complete choice before the gateway can submit it; no later exact confirmation will be requested.");
   } else if (result.status === "activated_awaiting_agent_proposal") {
@@ -613,12 +617,16 @@ async function start() {
   byId("disconnect").hidden = !session.drive_connected;
   if (session.google_status === "jules_write_only") {
     byId("page-title").textContent = session.task_read_only_available
-      ? "Jules delegates one finance read attempt"
+      ? session.task_read_only_kind === "project_b_exclusion"
+        ? "Jules delegates one Project A read"
+        : "Jules delegates one finance read attempt"
       : session.task_write_upfront_available
       ? "Jules delegates one bounded Project A edit"
       : "Jules delegates Project A read and write";
     byId("page-description").textContent = session.task_read_only_available
-      ? "Jules signs a one-read agent task. The gateway admits it, then Google decides whether Jules may read the finance file."
+      ? session.task_read_only_kind === "project_b_exclusion"
+        ? "Jules signs a one-read agent task for Project A. Auths excludes Project B even though the same Google connection can read it."
+        : "Jules signs a one-read agent task. The gateway admits it, then Google decides whether Jules may read the finance file."
       : session.task_write_upfront_available
       ? "Jules signs one short agent task with the complete permitted edits shown in advance. The gateway accepts only one listed choice."
       : "Jules signs a bounded agent task, then confirms the exact proposed change before the gateway uses her existing Google grant.";
@@ -644,11 +652,17 @@ async function start() {
     bind("write-prepare", prepareWriteTask);
     bind("write-authorize", authorizeWriteTask);
     if (session.task_read_only_available) {
-      byId("write-heading").textContent = "Delegate one finance read attempt";
-      byId("write-purpose").value = "Test Jules's provider-denied finance document access";
+      const projectBExcluded = session.task_read_only_kind === "project_b_exclusion";
+      byId("write-heading").textContent = projectBExcluded
+        ? "Delegate one Project A read" : "Delegate one finance read attempt";
+      byId("write-purpose").value = projectBExcluded
+        ? "Test that the agent cannot read task-excluded Project B"
+        : "Test Jules's provider-denied finance document access";
       byId("write-prepare").textContent = "Review read-only task";
       byId("write-status").textContent = "No read-only task signed.";
-      byId("write-task-description").textContent = "The pinned finance file, Jules account, separate agent and one-read budget are fixed by the operator's installation. This grants no write. Google may deny the read after Auths admits it.";
+      byId("write-task-description").textContent = projectBExcluded
+        ? "The permitted Project A source, Jules's read-only Google account, separate agent and one-read budget are fixed by the operator's installation. Project B is excluded. This grants no write."
+        : "The pinned finance file, Jules account, separate agent and one-read budget are fixed by the operator's installation. This grants no write. Google may deny the read after Auths admits it.";
     } else if (session.task_write_upfront_available) {
       byId("write-task-description").textContent = "The account, registered agent, destination and complete allowed marker replacements come from the operator's pinned installation. Surrounding Doc text remains. Review both choices before signing; one listed edit may run without a later confirmation.";
     }
