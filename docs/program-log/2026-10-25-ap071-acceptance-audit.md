@@ -128,3 +128,18 @@ fresh Jules-signed installed run remains. The owner workbench now conditionally
 recomputes the private producer/task join and shows a redacted effect row and
 checked-child link, but this path has passed synthetic tests only, not a live
 v2 provider observation.
+
+## 26 October provider-final-v2 update
+
+The [fresh installed Google run](2026-10-26-ap071-provider-final-v2-live.md)
+supersedes the two historical “fresh run remains” statements above. Jules
+enrolled a new browser key after the original Incognito key was lost, signed a
+bounded task and exact two-effect plan, and the isolated separate agent read
+the 51-byte Project A source, created one Doc, then populated it through the
+revised `provider_values` recipe. The owner-side join of the gateway task
+journal and demo_co generation-0053 report returned `joined /
+exact_populated / retry_authorized=false`. The independent 148-byte export
+matched the signed content, and Jules opened the resulting Doc and saw the
+handoff text. This closes the revised-recipe **positive** create/populate
+case. The remaining hostile matrix, installed cross-provider conformance and
+production qualification in §9 remain separate acceptance gates.
