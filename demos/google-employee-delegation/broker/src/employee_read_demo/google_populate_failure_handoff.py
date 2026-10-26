@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from importlib.resources import files
 from pathlib import Path
 
+from .contracts import commitment
 from .demo_co_contract import ContractRejected, _load, _unique_pairs
 from .google_create_handoff import CHILD_TITLE, MARKER
 from .google_create_v4_handoff import (
@@ -32,6 +33,8 @@ DENIAL_SCHEMA = "google-populate-denial-v1.schema.json"
 DENIAL_SCHEMA_SHA256 = "64070c9319310aba683d0a4431475c315d45c714d3d857381c557aa1dfbd7815"
 RECOVERY_SCHEMA = "google-populate-denial-recovery-v1.schema.json"
 RECOVERY_SCHEMA_SHA256 = "c8322bd0a082c7fe40e0118c86633c357b7abfac0fc1990d29b2c2555dec7329"
+POST_ENTRY_SCHEMA = "google-populate-post-entry-observation-v1.schema.json"
+POST_ENTRY_SCHEMA_SHA256 = "8ef317accf40827a67e5fb40b55d070271124c0be184e430edf2d3dea103b898"
 BLANK_SHA256 = "f1945cd6c19e56b3c1c78943ef5ec18116907a4ca1efc40a57d48ab1db7adfc5"
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 GENERATION = re.compile(r"generation-([0-9]{4,})\Z")
@@ -323,6 +326,272 @@ def validate_populate_denial_recovery(
         "expected_raw_sha256": expected_sha256,
         "expected_raw_byte_count": len(expected),
         "authority": "provider_state_only",
+    }
+
+
+def validate_populate_post_entry(
+    source_v4_paths: tuple[Path, Path, Path],
+    setup_path: Path, setup_sha256: str,
+    precreate_path: Path, precreate_sha256: str,
+    blank_path: Path, blank_sha256: str,
+    post_path: Path, post_sha256: str,
+    v4: CreateV4FinalPins, *, expected_text: str,
+    bounded_observation_generation: int,
+    bounded_observation_sha256: str,
+) -> dict:
+    """Join immutable Google observations after an entered population response is lost.
+
+    This proves provider state only. Auths's separate attempt and one-use fault
+    records establish entry and response loss; this verdict never permits retry.
+    """
+    if (type(expected_text) is not str
+            or not 1 <= len(expected_text.encode("utf-8")) <= 16_384
+            or type(bounded_observation_generation) is not int
+            or bounded_observation_generation < 1
+            or type(bounded_observation_sha256) is not str
+            or HEX64.fullmatch(bounded_observation_sha256) is None):
+        raise ContractRejected("post-entry content or bounded pin is invalid")
+    blank_generation, blank = _pinned_observation(
+        blank_path, blank_sha256, "google-populate-blank-baseline.json",
+        BLANK_SCHEMA, BLANK_SCHEMA_SHA256,
+    )
+    target, precreate_generation, precreate = validate_populate_precreate_baseline(
+        *source_v4_paths, setup_path, setup_sha256,
+        precreate_path, precreate_sha256, v4,
+        now=int(_timestamp(blank.get("observed_at")).timestamp()),
+    )
+    post_generation, post = _pinned_observation(
+        post_path, post_sha256, "google-populate-post-entry-observation.json",
+        POST_ENTRY_SCHEMA, POST_ENTRY_SCHEMA_SHA256,
+    )
+    setup, _ = _load(setup_path, SETUP_SCHEMA)
+    source = v4.candidate.baseline
+    expected = b"\xef\xbb\xbf" + expected_text.encode("utf-8")
+    expected_digest = hashlib.sha256(expected).hexdigest()
+    child = blank.get("child_id")
+    common = {
+        "company": source.company, "instance": source.instance,
+        "definition_hash": source.definition_hash, "drive_id": source.drive_id,
+        "run_id": target.run_id, "run_folder_id": target.parent_id,
+        "marker": target.marker,
+    }
+    if (not precreate_generation < blank_generation < post_generation
+            or any(any(document.get(key) != value for key, value in common.items())
+                   for document in (blank, post))
+            or any(any(document.get(key) is not True for key in (
+                "original_seven_unchanged", "canonical_project_a_unchanged",
+                "canonical_project_b_unchanged"))
+                   for document in (blank, post))
+            or blank.get("schema_version")
+                != "demo-co/google-populate-blank-baseline/v1"
+            or blank.get("status") != "ready"
+            or blank.get("attribution") != "provider_state_only"
+            or blank.get("setup_generation") != target.setup_generation
+            or blank.get("setup_sha256") != target.setup_sha256
+            or blank.get("child_title") != CHILD_TITLE
+            or blank.get("marker_match_count") != 1
+            or blank.get("run_child_count") != 1
+            or blank.get("raw_byte_count") != 3
+            or blank.get("raw_sha256") != BLANK_SHA256
+            or not _identifier(child)
+            or not _identifier(blank.get("tab_id"))
+            or not _identifier(blank.get("admin_revision_id"))
+            or post.get("schema_version")
+                != "demo-co/google-populate-post-entry-observation/v1"
+            or post.get("status") != "exact_populated"
+            or post.get("attribution") != "provider_state_only"
+            or post.get("project_a_folder_id") != source.folder_id
+            or post.get("scratch_root_id") != setup["scratch_root_id"]
+            or post.get("child_id") != child
+            or post.get("child_created_at") != blank.get("child_created_at")
+            or post.get("tab_id") != blank.get("tab_id")
+            or post.get("blank_baseline_generation") != blank_generation
+            or post.get("blank_baseline_sha256") != blank_sha256
+            or post.get("blank_admin_revision_id") != blank.get("admin_revision_id")
+            or post.get("blank_raw_sha256") != BLANK_SHA256
+            or post.get("observed_admin_revision_id") == blank.get("admin_revision_id")
+            or post.get("revision_changed") is not True
+            or post.get("provider_match_count") != 1
+            or post.get("run_child_count") != 1
+            or post.get("exact_scratch_root_children") is not True
+            or post.get("bounded_document_unchanged") is not True
+            or post.get("bounded_observation_generation")
+                != bounded_observation_generation
+            or post.get("bounded_observation_sha256")
+                != bounded_observation_sha256
+            or post.get("exact_expected_content") is not True
+            or post.get("still_exactly_blank") is not False
+            or post.get("provider_entry_attested") is not False
+            or post.get("retry_authorized") is not False
+            or post.get("run_marker_occurrences_in_content") != 0
+            or post.get("expected_raw_byte_count") != len(expected)
+            or post.get("observed_raw_byte_count") != len(expected)
+            or post.get("expected_raw_sha256") != expected_digest
+            or post.get("observed_raw_sha256") != expected_digest):
+        raise ContractRejected("post-entry observation differs from approved run")
+    before = _timestamp(precreate["observed_at"])
+    created = _timestamp(blank["child_created_at"])
+    blank_time = _timestamp(blank["observed_at"])
+    after = _timestamp(post["observed_at"])
+    if not before <= created <= blank_time < after:
+        raise ContractRejected("post-entry observation order changed")
+    return {
+        "authority": "provider_state_only", "retry_authorized": False,
+        "run_id": target.run_id, "run_folder_id": target.parent_id,
+        "marker": target.marker, "child_id": child,
+        "precreate_generation": precreate_generation,
+        "precreate_sha256": precreate_sha256,
+        "blank_generation": blank_generation,
+        "blank_sha256": blank_sha256,
+        "post_generation": post_generation,
+        "post_sha256": post_sha256,
+        "expected_raw_sha256": expected_digest,
+        "expected_raw_byte_count": len(expected),
+        "status": "exact_populated",
+    }
+
+
+def join_populate_post_entry(
+    task_dir: Path, gateway_status: dict, support_bundle: dict,
+    consumed_arm: dict, population_review: dict, provider: dict,
+    *, gateway_sha256: str,
+) -> dict:
+    """Join one unknown Auths attempt to independent exact Google after-state."""
+    if (task_dir.is_symlink() or not task_dir.is_dir()
+            or stat.S_IMODE(task_dir.stat().st_mode) & 0o077):
+        raise ContractRejected("private post-entry task journal is unavailable")
+
+    def read(name: str) -> dict:
+        path = task_dir / name
+        if (path.is_symlink() or not path.is_file()
+                or stat.S_IMODE(path.stat().st_mode) & 0o077
+                or path.stat().st_size > 16_384):
+            raise ContractRejected("post-entry task record is unavailable")
+        try:
+            value = json.loads(path.read_bytes(), object_pairs_hook=_unique_pairs)
+        except (OSError, ValueError) as error:
+            raise ContractRejected("post-entry task record is malformed") from error
+        if type(value) is not dict:
+            raise ContractRejected("post-entry task record is malformed")
+        return value
+
+    if any((task_dir / name).exists() for name in (
+            "populate-recovery-entry.json", "populate-recovery-result.json")):
+        raise ContractRejected("an unknown population cannot use pre-entry recovery")
+    task_id = task_dir.name
+    card = read("task-card.json")
+    plan = read("effect-plan.json")
+    baseline = read("pre-create-baseline.json")
+    entry = read("populate-entry.json")
+    result = read("populate-result.json")
+    create = plan.get("create") if type(plan) is dict else None
+    pop_id = plan.get("populate_operation_id")
+    attempts = support_bundle.get("attempts") if type(support_bundle) is dict else None
+    pending = card.get("pending_child") if type(card) is dict else None
+    arguments = (population_review.get("arguments")
+                 if type(population_review) is dict else None)
+    request = (population_review.get("request")
+               if type(population_review) is dict else None)
+    if (type(arguments) is not dict or type(request) is not dict
+            or population_review.get("schema")
+                != "auths.gateway-submission-review/1"
+            or population_review.get("actors") != [card.get("agent_principal")]
+            or arguments.get("task_id") != task_id
+            or arguments.get("operation_id") != pop_id
+            or arguments.get("document_id") != provider.get("child_id")
+            or arguments.get("text") != plan.get("initial_text")
+            or request.get("method") != "POST"
+            or type(request.get("url")) is not str
+            or provider.get("child_id") not in request["url"]
+            or type(request.get("content_type")) is not str
+            or type(request.get("headers")) is not list
+            or type(request.get("body")) is not str):
+        raise ContractRejected("native population review differs from plan")
+    request_commitment = commitment("auths.agent-write-request.v1", {
+        "method": request["method"], "url": request["url"],
+        "content_type": request["content_type"],
+        "headers": request["headers"],
+        "body_hex": request["body"].encode("utf-8").hex(),
+    })
+    if (type(create) is not dict
+            or type(pending) is not dict
+            or card.get("task_id") != task_id
+            or pending.get("parent_handle") != provider.get("run_folder_id")
+            or pending.get("marker") != provider.get("marker")
+            or create.get("resource_handle") != pending.get("parent_handle")
+            or create.get("operation_id") != pending.get("create_operation_id")
+            or plan.get("populate_recipe_digest")
+                != pending.get("populate_recipe_digest")
+            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("task_id") != task_id
+            or type(plan.get("initial_text")) is not str
+            or not _identifier(create.get("operation_id"))
+            or not _identifier(pop_id)
+            or baseline.get("schema")
+                != "auths.ap071-pre-create-baseline-populate-failure/1"
+            or baseline.get("task_id") != task_id
+            or baseline.get("create_operation_id") != create["operation_id"]
+            or baseline.get("generation") != provider.get("precreate_generation")
+            or baseline.get("observation_sha256") != provider.get("precreate_sha256")
+            or baseline.get("parent_id") != provider.get("run_folder_id")
+            or baseline.get("marker") != provider.get("marker")
+            or entry != {
+                "schema": "auths.ap071-populate-entry/1", "task_id": task_id,
+                "child_id": provider.get("child_id"),
+                "populate_operation_id": pop_id,
+                "baseline_sha256": provider.get("precreate_sha256"),
+                "preflight_sha256": entry.get("preflight_sha256"),
+            }
+            or type(entry.get("preflight_sha256")) is not str
+            or HEX64.fullmatch(entry["preflight_sha256"]) is None
+            or result != {
+                "schema": "auths.ap071-populate-result/1", "task_id": task_id,
+                "populate_operation_id": pop_id, "outcome": "unknown",
+            }
+            or provider.get("authority") != "provider_state_only"
+            or provider.get("retry_authorized") is not False
+            or provider.get("status") != "exact_populated"
+            or provider.get("expected_raw_sha256") != hashlib.sha256(
+                b"\xef\xbb\xbf" + plan["initial_text"].encode()).hexdigest()
+            or consumed_arm.get("schema")
+                != "auths.development-populate-response-loss-arm/1"
+            or consumed_arm.get("task_id") != task_id
+            or consumed_arm.get("operation_id") != pop_id
+            or consumed_arm.get("request_commitment")
+                != request_commitment):
+        raise ContractRejected("post-entry Auths records differ from provider lineage")
+    if (type(gateway_status) is not dict
+            or gateway_status.get("schema") != "auths.gateway-agent-task-status/1"
+            or gateway_status.get("task_id") != task_id
+            or gateway_status.get("revoked") is not True
+            or gateway_status.get("provider_calls") != 1
+            or gateway_status.get("releases") != 1
+            or gateway_status.get("released_bytes") != 51
+            or gateway_status.get("writes") != 2
+            or gateway_status.get("write_operations")
+                != [create["operation_id"], pop_id]
+            or support_bundle.get("schema") != "auths.gateway-support-bundle/1"
+            or support_bundle.get("build_sha256") != gateway_sha256
+            or type(attempts) is not dict
+            or attempts.get("listed") != 2
+            or attempts.get("truncated") is not False
+            or attempts.get("by_stage") != {"observed": 1, "unknown": 1}
+            or type(attempts.get("identifiers")) is not list
+            or len(attempts["identifiers"]) != 2
+            or {item.get("stage") for item in attempts["identifiers"]
+                    if type(item) is dict} != {"observed", "unknown"}):
+        raise ContractRejected("gateway ledger does not prove one entered unknown population")
+    return {
+        "schema": "auths.ap071-populate-post-entry-join/1",
+        "status": "accepted", "task_id": task_id,
+        "child_id": provider["child_id"],
+        "create_operation_id": create["operation_id"],
+        "populate_operation_id": pop_id,
+        "provider_generation": provider["post_generation"],
+        "create_attempts": 1, "population_attempts": 1,
+        "population_outcome": "unknown",
+        "provider_state": "exact_populated",
+        "retry_authorized": False,
     }
 
 

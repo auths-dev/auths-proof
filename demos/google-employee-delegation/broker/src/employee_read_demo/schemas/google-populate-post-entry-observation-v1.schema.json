@@ -1,0 +1,248 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "blank_admin_revision_id": {
+      "title": "Blank Admin Revision Id",
+      "type": "string"
+    },
+    "blank_baseline_generation": {
+      "minimum": 1,
+      "title": "Blank Baseline Generation",
+      "type": "integer"
+    },
+    "blank_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Baseline Sha256",
+      "type": "string"
+    },
+    "blank_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Raw Sha256",
+      "type": "string"
+    },
+    "bounded_document_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Bounded Document Unchanged",
+      "type": "boolean"
+    },
+    "bounded_observation_generation": {
+      "minimum": 1,
+      "title": "Bounded Observation Generation",
+      "type": "integer"
+    },
+    "bounded_observation_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Bounded Observation Sha256",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "child_created_at": {
+      "format": "date-time",
+      "title": "Child Created At",
+      "type": "string"
+    },
+    "child_id": {
+      "title": "Child Id",
+      "type": "string"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "default": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "exact_expected_content": {
+      "title": "Exact Expected Content",
+      "type": "boolean"
+    },
+    "exact_scratch_root_children": {
+      "const": true,
+      "default": true,
+      "title": "Exact Scratch Root Children",
+      "type": "boolean"
+    },
+    "expected_raw_byte_count": {
+      "exclusiveMinimum": 3,
+      "maximum": 100000,
+      "title": "Expected Raw Byte Count",
+      "type": "integer"
+    },
+    "expected_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expected Raw Sha256",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_admin_revision_id": {
+      "title": "Observed Admin Revision Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "observed_raw_byte_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Observed Raw Byte Count",
+      "type": "integer"
+    },
+    "observed_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Observed Raw Sha256",
+      "type": "string"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_folder_id": {
+      "title": "Project A Folder Id",
+      "type": "string"
+    },
+    "provider_entry_attested": {
+      "const": false,
+      "default": false,
+      "title": "Provider Entry Attested",
+      "type": "boolean"
+    },
+    "provider_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Provider Match Count",
+      "type": "integer"
+    },
+    "retry_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Retry Authorized",
+      "type": "boolean"
+    },
+    "revision_changed": {
+      "title": "Revision Changed",
+      "type": "boolean"
+    },
+    "run_child_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Run Child Count",
+      "type": "integer"
+    },
+    "run_folder_id": {
+      "title": "Run Folder Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "run_marker_occurrences_in_content": {
+      "minimum": 0,
+      "title": "Run Marker Occurrences In Content",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "demo-co/google-populate-post-entry-observation/v1",
+      "default": "demo-co/google-populate-post-entry-observation/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scratch_root_child_count": {
+      "const": 6,
+      "default": 6,
+      "title": "Scratch Root Child Count",
+      "type": "integer"
+    },
+    "scratch_root_id": {
+      "title": "Scratch Root Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "exact_populated",
+        "still_blank",
+        "unexpected_state"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "still_exactly_blank": {
+      "title": "Still Exactly Blank",
+      "type": "boolean"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "blank_baseline_generation",
+    "blank_baseline_sha256",
+    "bounded_observation_generation",
+    "bounded_observation_sha256",
+    "run_id",
+    "marker",
+    "drive_id",
+    "project_a_folder_id",
+    "scratch_root_id",
+    "run_folder_id",
+    "child_id",
+    "child_created_at",
+    "tab_id",
+    "blank_admin_revision_id",
+    "observed_admin_revision_id",
+    "revision_changed",
+    "blank_raw_sha256",
+    "observed_raw_sha256",
+    "observed_raw_byte_count",
+    "expected_raw_sha256",
+    "expected_raw_byte_count",
+    "exact_expected_content",
+    "still_exactly_blank",
+    "run_marker_occurrences_in_content"
+  ],
+  "title": "GooglePopulatePostEntryObservation",
+  "type": "object"
+}
