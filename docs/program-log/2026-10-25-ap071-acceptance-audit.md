@@ -112,6 +112,9 @@ not include the PAT, released field bytes or private provider responses.
 The [provider-final v2 consumer](2026-10-26-ap071-provider-final-v2-consumer.md)
 vendors demo_co's forward-only dynamic inventory and final-observation
 schemas at reviewed SHA-256 pins. It accepts an exact synthetic final state
-and refuses source, child, baseline, content and retry swaps. The contract
-does not prove that Auths entered Google; a fresh Jules-signed installed run
-and a joined task/attempt/provider verdict remain open.
+and refuses source, child, baseline, content and retry swaps. A new gateway
+lineage readout identifies the journal-bound preflight signature; the private
+task/provider join checks that signature, native task/plan commitments,
+charged reads and writes, and exact attempt stages. This source and loopback
+evidence does not prove that Auths entered Google under the revised recipe; a
+fresh Jules-signed installed run and a redacted owner-view effect link remain.

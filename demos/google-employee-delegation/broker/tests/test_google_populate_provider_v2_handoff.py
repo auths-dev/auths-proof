@@ -133,7 +133,7 @@ class ProducerV2ConsumerTests(unittest.TestCase):
         baseline = SimpleNamespace(**{
             "company": "atlas-studio", "instance": "test-instance",
             "definition_hash": "1" * 64, "drive_id": "drive-one",
-            "folder_id": "project-a",
+            "folder_id": "project-a", "jules_subject": "jules-subject",
         })
         self.v4 = SimpleNamespace(candidate=SimpleNamespace(baseline=baseline))
 

@@ -954,6 +954,12 @@ impl ReleaseTaskState {
         self.populate_preflight.as_ref()
     }
 
+    pub(crate) fn recorded_populate_preflight_is_valid(&self) -> bool {
+        self.populate_preflight
+            .as_ref()
+            .is_some_and(|preflight| self.valid_populate_preflight(preflight))
+    }
+
     fn scope_matches(
         &self,
         handle: &str,

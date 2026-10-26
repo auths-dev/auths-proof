@@ -77,6 +77,10 @@ impl VerifiedPopulatePreflight {
     pub(crate) fn checked_at(&self) -> u64 {
         self.statement.checked_at
     }
+
+    pub(crate) fn signature_sha256(&self) -> &str {
+        &self.signature_sha256
+    }
 }
 
 fn valid_digest(value: &str) -> bool {

@@ -18,8 +18,8 @@ pub mod commissioning_floor;
 #[cfg(unix)]
 pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
-    GatewaySubmissionReview, TaskActivity, TaskPopulatePreflightInputs, TaskWriteProofs,
-    TaskWriteSession, commissioning_principal_sha256, review_submission,
+    GatewaySubmissionReview, TaskActivity, TaskPopulatePreflightInputs, TaskPopulationLineage,
+    TaskWriteProofs, TaskWriteSession, commissioning_principal_sha256, review_submission,
 };
 #[cfg(unix)]
 pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};

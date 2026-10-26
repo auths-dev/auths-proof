@@ -33,10 +33,32 @@ Installing that wheel without dependencies into a new private target path and
 importing the consumer from that path succeeded; both packaged schema hashes
 matched the reviewed pins without a checkout import.
 
+The gateway now exposes owner-only `task-population-lineage`, a redacted read
+of the journal-bound effect-plan commitment, child ID and SHA-256 of the
+verified preflight signature. A separate Auths join checks that value against
+the private preflight report, recomputes the native task and plan commitments,
+and matches one acknowledged read, two charged writes, the exact create and
+populate attempt stages, and the producer's exact child/content verdict. A
+response lost after population stays `unknown` in the joined result; the
+independent exact provider state does not convert it into a successful gateway
+response or permit retry. The join returns no plain content hash.
+
+Six focused join tests pass, including task, plan, child, preflight and
+attempt swaps, malformed inputs, and response-status checks. The gateway's
+loopback create/populate test checks the journal-derived preflight signature
+hash, and the CLI help exposes the new
+read-only command. A final broker wheel containing both the consumer and
+join was built at
+`/private/tmp/ap071-provider-v2-join-final-wheel-20261026/auths_google_employee_delegation_broker-0.1.0-py3-none-any.whl`
+with SHA-256 `d7c11b4d9d5c2e61db539c04dce015e080194aa49a224af69bc1ef71aa70e680`.
+It installed and imported from a source-free private target path. Neither
+wheel nor gateway command has run against a fresh Google task.
+
 The next live run needs a new demo_co setup/run folder and marker, a fresh
 inventory and pre-create baseline, one Jules-signed task and exact plan using
 the current `provider_values` recipe, a blank-child baseline, one population
-attempt, and a private final v2 observation. The Auths task and gateway
-attempt records must then be joined to that independent provider result.
+attempt, and a private final v2 observation. The Auths join must then be run
+on the live task, gateway activity and lineage reports and the independent
+provider result, before its redacted verdict can appear in the owner view.
 The historical generation-0048 observation predates the current recipe and
 does not qualify this run.

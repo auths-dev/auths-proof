@@ -1807,6 +1807,21 @@ pub struct TaskActivity {
     write_attempts: Vec<TaskWriteAttemptActivity>,
 }
 
+/// Owner-only, redacted link to the exact signed preflight stored in the
+/// task journal. It remains readable after task expiry or revocation for
+/// independent provider-effect reconciliation; it grants no new action.
+#[cfg(unix)]
+#[derive(Serialize)]
+pub struct TaskPopulationLineage {
+    schema: &'static str,
+    task_id: String,
+    plan_commitment: String,
+    create_operation_id: String,
+    populate_operation_id: String,
+    child_id: String,
+    preflight_signature_sha256: String,
+}
+
 #[cfg(unix)]
 #[derive(Serialize)]
 struct TaskWriteAttemptActivity {
@@ -1903,6 +1918,43 @@ impl TaskWriteSession<'_> {
             schema: "auths.gateway-agent-task-activity/1",
             task,
             write_attempts,
+        })
+    }
+
+    /// Read the journal's immutable population lineage without exposing its
+    /// signed provider values or credential-bearing preflight evidence.
+    /// This is evidence correlation, not authorization or an effect verdict.
+    pub fn population_lineage(&self, task_id: &str) -> Result<TaskPopulationLineage, &'static str> {
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.population-lineage-unavailable")?
+            .ok_or("gateway.task.population-lineage-unavailable")?;
+        if !state.recorded_populate_preflight_is_valid() {
+            return Err("gateway.task.population-lineage-unavailable");
+        }
+        let plan = state
+            .effect_plan()
+            .ok_or("gateway.task.population-lineage-unavailable")?;
+        let child = state
+            .bound_child_scope()
+            .ok_or("gateway.task.population-lineage-unavailable")?;
+        let preflight = state
+            .populate_preflight()
+            .ok_or("gateway.task.population-lineage-unavailable")?;
+        if child.recipe_digest != plan.populate_recipe_digest
+            || preflight.facts().child_id != child.handle
+        {
+            return Err("gateway.task.population-lineage-unavailable");
+        }
+        Ok(TaskPopulationLineage {
+            schema: "auths.gateway-task-population-lineage/1",
+            task_id: task_id.to_owned(),
+            plan_commitment: plan.plan_commitment.clone(),
+            create_operation_id: plan.create.operation_id.clone(),
+            populate_operation_id: plan.populate_operation_id.clone(),
+            child_id: child.handle,
+            preflight_signature_sha256: preflight.signature_sha256().to_owned(),
         })
     }
 
@@ -5118,6 +5170,11 @@ pub(crate) mod tests {
             not_entered("gateway.task.preflight-required"),
             "a child binding alone cannot authorize population"
         );
+        assert_eq!(
+            session.population_lineage("task-create-reconcile").err(),
+            Some("gateway.task.population-lineage-unavailable"),
+            "there is no signed preflight to correlate yet"
+        );
         let checked_at = wall_clock_seconds().expect("preflight time");
         let statement = json!({
             "schema": "auths.gateway-task-populate-preflight/2",
@@ -5150,6 +5207,21 @@ pub(crate) mod tests {
         session
             .record_populate_preflight("task-create-reconcile", &report)
             .expect("durably record Jules child preflight");
+        let lineage = serde_json::to_value(
+            session
+                .population_lineage("task-create-reconcile")
+                .expect("journal-bound preflight lineage"),
+        )
+        .expect("lineage JSON");
+        assert_eq!(lineage["schema"], "auths.gateway-task-population-lineage/1");
+        assert_eq!(lineage["child_id"], "child_ABC-123");
+        assert_eq!(lineage["populate_operation_id"], "populate-reconcile-1");
+        assert_eq!(
+            lineage["preflight_signature_sha256"],
+            hex::encode(sha2::Sha256::digest(
+                preflight_key.sign(&preimage).to_bytes()
+            ))
+        );
         let mut changed_args = populate_args.clone();
         changed_args["text"] = json!("Changed handoff draft");
         let changed = submission_for(
@@ -5253,6 +5325,16 @@ pub(crate) mod tests {
             not_entered("gateway.task.write-replay"),
             "a successful population cannot enter the provider again"
         );
+        session
+            .revoke("task-create-reconcile")
+            .expect("revoke completed task");
+        let retired_lineage = serde_json::to_value(
+            session
+                .population_lineage("task-create-reconcile")
+                .expect("read-only lineage survives revocation"),
+        )
+        .expect("retired lineage JSON");
+        assert_eq!(retired_lineage, lineage);
 
         // Exercise the other journal branch with the same pinned installation:
         // transport entry occurs, but no complete create response is recorded.
