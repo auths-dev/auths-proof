@@ -115,13 +115,22 @@ trio and pins file, the five new report paths and SHA-256s, the private source
 pin, and the signed preflight basename. No new Google action was taken to
 prepare this sequence.
 
-The gateway was built and copied to the owner-private
+The earlier gateway was built and copied to the owner-private
 `/private/tmp/ap071-gateway-v2-20261026/auths-gateway` before a live task.
 Its SHA-256 is
 `707c4ec66188b0ccdb388c298e8262270bae7ae8116e5875a2c364c69ea74c40`;
 its installed help exposes `task-activity`, `task-population-lineage` and
 `task-submit`. This is a development binary pin, not yet a complete installed
 Google task or production qualification.
+
+The current source-free Google bundle, after the release audit-key rotation
+change, is pinned in the [preparation log](2026-10-26-ap071-google-source-free-prep.md)
+with manifest SHA-256
+`1d4142c8104957721e4c0f465a642144c7bcb68df4c77411ef5c5e4ee17896a2`.
+Its gateway SHA-256 is
+`a20fd28c5a7a8c3a96d2bd1a6b3fd9c30dfdcd88466657395cff293a95bf10a7`.
+Use those current pins for the next Jules run; the earlier binary pin records
+the source-level consumer work only.
 
 The next live run needs a new demo_co setup/run folder and marker, a fresh
 inventory and pre-create baseline, one Jules-signed task and exact plan using

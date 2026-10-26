@@ -43,3 +43,19 @@ human-to-agent task or exercised the live Google effect, and it does not
 qualify production custody or container isolation. The
 [producer v2 runbook](2026-10-26-ap071-provider-final-v2-consumer.md)
 records the remaining report sequence and owner-view evidence manifest.
+
+After the development release audit-key rotation change, the gateway was
+rebuilt with SHA-256
+`a20fd28c5a7a8c3a96d2bd1a6b3fd9c30dfdcd88466657395cff293a95bf10a7`.
+The current source-free bundle is
+`/private/tmp/ap071-google-source-free-bundle-current-20261026` with manifest
+SHA-256
+`1d4142c8104957721e4c0f465a642144c7bcb68df4c77411ef5c5e4ee17896a2`.
+It retains the pinned custody executable and three wheels above, and the
+updated gateway. The bundle's independent manifest check passed, and its
+33-wheel offline installation at
+`/private/tmp/ap071-google-source-free-install-current-20261026`
+imported all three primary modules from the isolated environment and loaded
+the gateway help. No Google request, Jules signature or provider effect was
+attempted during this refresh. Use this current bundle pin for the fresh v2
+run; the earlier bundle remains historical preparation evidence.
