@@ -1,0 +1,194 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "baseline_generation": {
+      "minimum": 1,
+      "title": "Baseline Generation",
+      "type": "integer"
+    },
+    "baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Sha256",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "choices_generation": {
+      "minimum": 1,
+      "title": "Choices Generation",
+      "type": "integer"
+    },
+    "choices_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Choices Sha256",
+      "type": "string"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "default": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "exact_expected_content": {
+      "const": true,
+      "default": true,
+      "title": "Exact Expected Content",
+      "type": "boolean"
+    },
+    "exact_scratch_root_children": {
+      "const": true,
+      "default": true,
+      "title": "Exact Scratch Root Children",
+      "type": "boolean"
+    },
+    "final_admin_revision_id": {
+      "title": "Final Admin Revision Id",
+      "type": "string"
+    },
+    "final_jules_revision_id": {
+      "title": "Final Jules Revision Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_export_matches_admin": {
+      "const": true,
+      "default": true,
+      "title": "Jules Export Matches Admin",
+      "type": "boolean"
+    },
+    "marker": {
+      "const": "AP071-NEG-62e394bb6eb62df674bd4035",
+      "default": "AP071-NEG-62e394bb6eb62df674bd4035",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "original_marker_count": {
+      "const": 0,
+      "default": 0,
+      "title": "Original Marker Count",
+      "type": "integer"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_folder_id": {
+      "title": "Project A Folder Id",
+      "type": "string"
+    },
+    "provider_entry_attested": {
+      "const": false,
+      "default": false,
+      "title": "Provider Entry Attested",
+      "type": "boolean"
+    },
+    "raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Raw Byte Count",
+      "type": "integer"
+    },
+    "raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Raw Sha256",
+      "type": "string"
+    },
+    "revision_changed_from_baseline": {
+      "const": true,
+      "default": true,
+      "title": "Revision Changed From Baseline",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "demo-co/google-bounded-negative-observation/v1",
+      "default": "demo-co/google-bounded-negative-observation/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scratch_root_child_count": {
+      "const": 5,
+      "default": 5,
+      "title": "Scratch Root Child Count",
+      "type": "integer"
+    },
+    "scratch_root_id": {
+      "title": "Scratch Root Id",
+      "type": "string"
+    },
+    "selected_choice": {
+      "const": "A",
+      "default": "A",
+      "title": "Selected Choice",
+      "type": "string"
+    },
+    "status": {
+      "const": "option_a_exact",
+      "default": "option_a_exact",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "baseline_generation",
+    "baseline_sha256",
+    "choices_generation",
+    "choices_sha256",
+    "drive_id",
+    "project_a_folder_id",
+    "scratch_root_id",
+    "document_id",
+    "tab_id",
+    "final_admin_revision_id",
+    "final_jules_revision_id",
+    "raw_sha256",
+    "raw_byte_count"
+  ],
+  "title": "GoogleBoundedNegativeObservation",
+  "type": "object"
+}

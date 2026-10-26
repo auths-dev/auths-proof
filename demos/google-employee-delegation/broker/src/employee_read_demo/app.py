@@ -61,8 +61,13 @@ from .project_b_grants_handoff import ProjectBGrantPins, validate_project_b_gran
 from .edit_rerun_handoff import (
     EditRerunPins, EditRerunTarget, LOGICAL_ID, validate_edit_rerun,
 )
+from .bounded_negative_handoff import (
+    BoundedNegativePins, validate_bounded_negative,
+)
 from .google_write_credential import WriteCredentialPins
-from .google_write_preflight import EditTarget, preflight_jules_edit
+from .google_write_preflight import (
+    BOUNDED_NEGATIVE_LOGICAL_ID, EditTarget, preflight_jules_edit,
+)
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 from .agent_transport import AgentTransport, AgentTransportDenied
 from .receipts import ReceiptStore
@@ -1110,6 +1115,9 @@ def main() -> int:
     parser.add_argument("--task-edit-rerun-choices", type=Path)
     parser.add_argument("--task-edit-rerun-choices-sha256")
     parser.add_argument("--task-edit-rerun-previous-observation-sha256")
+    parser.add_argument("--task-bounded-negative-baseline", type=Path)
+    parser.add_argument("--task-bounded-negative-choices", type=Path)
+    parser.add_argument("--task-bounded-negative-pins", type=Path)
     parser.add_argument("--task-finance-denial-evidence", type=Path,
                         help="private demo_co provider-denial observation for a read-only task")
     parser.add_argument("--task-finance-denial-sha256",
@@ -1307,6 +1315,16 @@ def main() -> int:
             or args.task_write_current_baseline is not None
             or args.task_write_created_child is not None):
         parser.error("clean edit rerun requires a pinned upfront task")
+    bounded_options = (args.task_bounded_negative_baseline,
+                       args.task_bounded_negative_choices,
+                       args.task_bounded_negative_pins)
+    if any(option is not None for option in bounded_options) and (
+            not all(option is not None for option in bounded_options)
+            or any(option is not None for option in rerun_options)
+            or args.task_upfront_choices is None
+            or args.task_write_current_baseline is not None
+            or args.task_write_created_child is not None):
+        parser.error("bounded negative run requires one pinned upfront task")
     finance_options = (args.task_finance_denial_evidence,
                        args.task_finance_denial_sha256,
                        args.task_finance_document_id,
@@ -1329,6 +1347,7 @@ def main() -> int:
     finance_read_target = None
     project_b_exclusion_target = None
     edit_rerun_target = None
+    bounded_negative_mode = False
     negative_create_target = None
     populate_failure_target = None
     if all(option is not None for option in write_options):
@@ -1436,6 +1455,27 @@ def main() -> int:
                 parser.error(f"clean edit rerun producer handoff refused: {error}")
             if upfront_choices != edit_rerun_target.allowed_arguments():
                 parser.error("upfront choices disagree with producer commitments")
+        if args.task_bounded_negative_baseline is not None:
+            try:
+                raw = json.loads(_private_file(
+                    args.task_bounded_negative_pins, 4096),
+                    object_pairs_hook=_unique_pairs)
+                fields = {"baseline_sha256", "choices_sha256",
+                          "scratch_root_id", "scratch_plan_sha256",
+                          "v4_baseline_sha256", "v4_final_sha256"}
+                if type(raw) is not dict or set(raw) != fields:
+                    raise ContractRejected("bounded negative pins are malformed")
+                edit_rerun_target = validate_bounded_negative(
+                    args.task_bounded_negative_baseline,
+                    args.task_bounded_negative_choices,
+                    BoundedNegativePins(write_pins, **raw),
+                    source_evidence=write_evidence, now=int(time.time()),
+                )
+            except (ContractRejected, OSError, PermissionError, ValueError) as error:
+                parser.error(f"bounded negative producer handoff refused: {error}")
+            if upfront_choices != edit_rerun_target.allowed_arguments():
+                parser.error("upfront choices disagree with bounded negative pins")
+            bounded_negative_mode = True
         if args.task_write_created_child is not None:
             if args.task_companion_write_recipe is not None:
                 parser.error("created-child continuation cannot issue another create")
@@ -1579,7 +1619,9 @@ def main() -> int:
                 current_observation_sha256=args.task_write_current_baseline_sha256,
                 target=(None if edit_rerun_target is None else EditTarget(
                     edit_rerun_target.document_id,
-                    edit_rerun_target.document_title, LOGICAL_ID,
+                    edit_rerun_target.document_title,
+                    (BOUNDED_NEGATIVE_LOGICAL_ID
+                     if bounded_negative_mode else LOGICAL_ID),
                     edit_rerun_target.folder_id,
                     edit_rerun_target.drive_id,
                     edit_rerun_target.tab_id,

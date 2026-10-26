@@ -29,6 +29,9 @@ DOCS_DOCUMENTS = "https://docs.googleapis.com/v1/documents"
 FIELDS = "id,name,mimeType,parents,driveId,appProperties,capabilities(canAddChildren,canEdit)"
 FOLDER_LOGICAL_ID = "ap071-project-a-folder"
 DOCUMENT_LOGICAL_ID = "ap071-project-a-working-doc"
+BOUNDED_NEGATIVE_LOGICAL_ID = "ap071-bounded-upfront-negative-doc"
+SCRATCH_ROOT_LOGICAL_ID = "ap071-negative-root"
+SCRATCH_ROOT_TITLE = "Demo Co AP-071 Recovery Negatives"
 
 
 class WritePreflightDenied(PermissionError):
@@ -130,13 +133,19 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
     document_id = evidence["document_id"]
     document_title = evidence["document_title"]
     document_logical_id = DOCUMENT_LOGICAL_ID
+    document_parent_id = evidence["folder_id"]
+    document_owner = f"demo-co/v1:{pins.producer.instance}/{pins.producer.company}"
     tab_id = evidence["tab_id"]
     marker = evidence["marker"]
     if target is not None:
-        if (target.folder_id != evidence["folder_id"]
+        nested_scratch = target.logical_id == BOUNDED_NEGATIVE_LOGICAL_ID
+        if ((target.folder_id != evidence["folder_id"] and not nested_scratch)
+                or (target.folder_id == evidence["folder_id"] and nested_scratch)
                 or target.drive_id != evidence["drive_id"]
                 or target.document_id == evidence["document_id"]
-                or target.logical_id != "ap071-project-a-clean-edit-rerun"
+                or target.logical_id not in (
+                    "ap071-project-a-clean-edit-rerun",
+                    BOUNDED_NEGATIVE_LOGICAL_ID)
                 or not target.document_id or len(target.document_id) > 64
                 or not target.document_title or len(target.document_title) > 256
                 or not target.tab_id or len(target.tab_id) > 16
@@ -147,6 +156,11 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
         document_id = target.document_id
         document_title = target.document_title
         document_logical_id = target.logical_id
+        document_parent_id = target.folder_id
+        if nested_scratch:
+            document_owner = (
+                f"demo-co/v1:{pins.producer.instance}/"
+                "atlas-studio-recovery-negative")
         tab_id = target.tab_id
         marker = target.marker
         baseline_sha256 = target.baseline_sha256
@@ -197,6 +211,24 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
                 or type(folder_capabilities) is not dict
                 or folder_capabilities.get("canAddChildren") is not True):
             raise WritePreflightDenied("Project A folder drifted or Jules cannot create")
+        if (target is not None
+                and target.logical_id == BOUNDED_NEGATIVE_LOGICAL_ID):
+            scratch = _json_object(_bounded_get(
+                session, f"{DRIVE_FILES}/{quote(target.folder_id, safe='')}",
+                params={"supportsAllDrives": "true", "fields": FIELDS},
+                maximum=MAX_METADATA_BYTES, media_type="application/json",
+            ))
+            capabilities = scratch.get("capabilities")
+            if (not _owned(
+                    scratch, item_id=target.folder_id,
+                    title=SCRATCH_ROOT_TITLE,
+                    mime="application/vnd.google-apps.folder",
+                    drive_id=evidence["drive_id"], owner=document_owner,
+                    logical_id=SCRATCH_ROOT_LOGICAL_ID,
+                    parent_id=folder_id)
+                    or type(capabilities) is not dict
+                    or capabilities.get("canAddChildren") is not True):
+                raise WritePreflightDenied("Project A scratch root drifted")
         document = _json_object(_bounded_get(
             session, f"{DRIVE_FILES}/{quote(document_id, safe='')}",
             params={"supportsAllDrives": "true", "fields": FIELDS},
@@ -206,8 +238,9 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
         if (not _owned(document, item_id=document_id,
                        title=document_title,
                        mime="application/vnd.google-apps.document",
-                       drive_id=evidence["drive_id"], owner=owner,
-                       logical_id=document_logical_id, parent_id=folder_id)
+                       drive_id=evidence["drive_id"], owner=document_owner,
+                       logical_id=document_logical_id,
+                       parent_id=document_parent_id)
                 or type(document_capabilities) is not dict
                 or document_capabilities.get("canEdit") is not True):
             raise WritePreflightDenied("working Doc drifted or Jules cannot edit")
