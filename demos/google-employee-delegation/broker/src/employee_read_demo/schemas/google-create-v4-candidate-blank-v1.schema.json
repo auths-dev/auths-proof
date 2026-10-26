@@ -1,0 +1,173 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "baseline_generation": {
+      "minimum": 1,
+      "title": "Baseline Generation",
+      "type": "integer"
+    },
+    "baseline_observed_at": {
+      "format": "date-time",
+      "title": "Baseline Observed At",
+      "type": "string"
+    },
+    "baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Sha256",
+      "type": "string"
+    },
+    "blank_export_byte_count": {
+      "const": 3,
+      "default": 3,
+      "title": "Blank Export Byte Count",
+      "type": "integer"
+    },
+    "blank_export_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Export Sha256",
+      "type": "string"
+    },
+    "blank_layout": {
+      "const": "section-break-then-newline-paragraph/v1",
+      "default": "section-break-then-newline-paragraph/v1",
+      "title": "Blank Layout",
+      "type": "string"
+    },
+    "candidate_admin_revision_id": {
+      "title": "Candidate Admin Revision Id",
+      "type": "string"
+    },
+    "candidate_created_at": {
+      "format": "date-time",
+      "title": "Candidate Created At",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Candidate Marker",
+      "type": "string"
+    },
+    "candidate_marker_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Candidate Marker Match Count",
+      "type": "integer"
+    },
+    "candidate_tab_id": {
+      "title": "Candidate Tab Id",
+      "type": "string"
+    },
+    "candidate_title": {
+      "title": "Candidate Title",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 7,
+      "default": 7,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_project_b_write_denied": {
+      "const": true,
+      "default": true,
+      "title": "Jules Project B Write Denied",
+      "type": "boolean"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "neighbors_match_baseline": {
+      "const": true,
+      "default": true,
+      "title": "Neighbors Match Baseline",
+      "type": "boolean"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-create-v4-candidate-blank/v1",
+      "default": "demo-co/google-create-v4-candidate-blank/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "observed_blank",
+      "default": "observed_blank",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "baseline_generation",
+    "baseline_sha256",
+    "baseline_observed_at",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "candidate_id",
+    "candidate_title",
+    "candidate_created_at",
+    "candidate_marker",
+    "candidate_tab_id",
+    "candidate_admin_revision_id",
+    "blank_export_sha256"
+  ],
+  "title": "GoogleCreateV4CandidateBlank",
+  "type": "object"
+}

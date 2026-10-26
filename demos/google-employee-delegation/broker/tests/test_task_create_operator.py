@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import CHILD_TITLE
 from employee_read_demo.google_create_preflight import JulesCreateRecoverySearchResult
 from employee_read_demo.operator_authority import OperatorDenied
@@ -215,6 +216,28 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             )
             search.assert_not_called()
 
+        status["write_operations"] = ["create-1"]
+        incomplete_report = self.task_dir / "recovery-search-incomplete.json"
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator._run_gateway",
+                    return_value=json.dumps(status).encode()),
+              patch("employee_read_demo.task_create_operator.search_jules_created_child",
+                    side_effect=ContractRejected("incompleteSearch")),
+              self.assertRaisesRegex(OperatorDenied, "search is incomplete")):
+            search_planned_created_child(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id, write_evidence_path=self.root / "evidence",
+                grant_path=self.root / "grant", credential_pins_path=self.root / "pins",
+                report_path=incomplete_report, now=self.now,
+            )
+        self.assertFalse(incomplete_report.exists())
+
     def test_v2_baseline_is_pinned_before_four_child_create(self) -> None:
         self.evidence.update({
             "customer_id": "customer-1", "jules_subject": "jules-subject",
@@ -381,6 +404,80 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             record = json.loads((self.task_dir / "pre-create-baseline.json").read_bytes())
             self.assertEqual(record["schema"], "auths.ap071-pre-create-baseline/3")
             self.assertTrue(_recorded_baseline_is_valid(record, self.task_id))
+            gateway.assert_called_once()
+
+    def test_v4_baseline_is_durable_before_seventh_child_create(self) -> None:
+        self.evidence.update({
+            "customer_id": "customer-1", "jules_subject": "jules-subject",
+            "drive_id": "drive-A", "folder_id": "project-a-folder",
+        })
+        self.pins.producer.evidence_sha256 = "f" * 64
+        generation = self.root / "generation-0021"
+        generation.mkdir(mode=0o700)
+        baseline = generation / "google-create-v4-baseline.json"
+        self._write(baseline, {"observed_at": self.observation["observed_at"]})
+        baseline_sha = hashlib.sha256(baseline.read_bytes()).hexdigest()
+        roles = ("working", "jules_probe", "preserved_first", "second_auths",
+                 "clean_edit", "recovered_first")
+        pins_path = self.root / "v4-pins.json"
+        self._write(pins_path, {
+            "company": "atlas-studio", "instance": "live-test-atlas",
+            "definition_hash": "a" * 64, "customer_id": "customer-1",
+            "jules_subject": "jules-subject", "drive_id": "drive-A",
+            "folder_id": "project-a-folder",
+            "source_verification_sha256": "f" * 64,
+            "source_v3_baseline_generation": 18,
+            "source_v3_baseline_sha256": "1" * 64,
+            "source_v3_final_generation": 20,
+            "source_v3_final_sha256": "2" * 64,
+            "baseline_generation": 21, "baseline_sha256": baseline_sha,
+            "neighbors": [{"role": role,
+                           "document_id": ("working-doc" if index == 0
+                                           else f"neighbor-{index}"),
+                           "raw_content_sha256": f"{index + 3:x}" * 64,
+                           "raw_content_byte_count": 10 + index}
+                          for index, role in enumerate(roles)],
+            "prior_markers": ["ap071_" + value * 32 for value in "abc"],
+        })
+
+        def entered(command, **kwargs):
+            record = json.loads((self.task_dir / "pre-create-baseline.json").read_bytes())
+            self.assertEqual(record["schema"], "auths.ap071-pre-create-baseline/4")
+            self.assertEqual(record["generation"], 21)
+            self.assertTrue(_recorded_baseline_is_valid(record, self.task_id))
+            return subprocess.CompletedProcess(
+                command, 0, b'{"outcome":"response-recorded"}', b"",
+            )
+
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.validate_create_v4_precreate_baseline",
+                    return_value={"observed_at": self.observation["observed_at"]}),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    side_effect=entered) as gateway):
+            result = submit_planned_create(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id, write_evidence_path=self.root / "evidence",
+                credential_pins_path=self.root / "pins",
+                baseline_path=baseline, baseline_sha256=baseline_sha,
+                v4_pins_path=pins_path, now=self.now,
+            )
+            self.assertEqual(result["baseline_generation"], 21)
+            with self.assertRaisesRegex(OperatorDenied, "already handed off"):
+                submit_planned_create(
+                    gateway_binary=self.root / "gateway",
+                    gateway_sha256="e" * 64,
+                    gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                    task_id=self.task_id, write_evidence_path=self.root / "evidence",
+                    credential_pins_path=self.root / "pins",
+                    baseline_path=baseline, baseline_sha256=baseline_sha,
+                    v4_pins_path=pins_path, now=self.now,
+                )
             gateway.assert_called_once()
 
     def test_baseline_is_durable_before_one_gateway_create(self) -> None:

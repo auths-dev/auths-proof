@@ -28,6 +28,10 @@ from .google_create_v3_handoff import (
     CreateV3BaselinePins, CreateV3CandidateBlankPins, CreateV3NeighborPins,
     validate_create_v3_recovery_handoff,
 )
+from .google_create_v4_handoff import (
+    CreateV4BaselinePins, CreateV4CandidateBlankPins, CreateV4NeighborPins,
+    validate_create_v4_recovery_handoff,
+)
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
 from .task_populate_operator import _gateway, _run_gateway
@@ -51,7 +55,8 @@ _RULE_MODULES = (
     "task_recovery_operator.py", "task_create_operator.py",
     "task_populate_operator.py", "task_write_card.py", "operator_cli.py",
     "google_create_preflight.py", "google_create_handoff.py",
-    "google_create_v3_handoff.py", "demo_co_contract.py",
+    "google_create_v3_handoff.py", "google_create_v4_handoff.py",
+    "demo_co_contract.py",
 )
 
 
@@ -69,7 +74,8 @@ def current_recovery_attestation_rule_digest() -> str:
 
 def attest_response_less_candidate(
     inputs: dict, baseline_path: Path, candidate_path: Path,
-    search_report_path: Path, pins: CreateV3CandidateBlankPins,
+    search_report_path: Path,
+    pins: CreateV3CandidateBlankPins | CreateV4CandidateBlankPins,
     *, search_report_sha256: str, signing_key: Ed25519PrivateKey,
     now: int,
 ) -> bytes:
@@ -116,7 +122,12 @@ def attest_response_less_candidate(
                 item.document_id for item in pins.baseline.neighbors
             }):
         raise ContractRejected("recovery signer differs from installed task pins")
-    candidate = validate_create_v3_recovery_handoff(
+    validate_handoff = (
+        validate_create_v4_recovery_handoff
+        if isinstance(pins, CreateV4CandidateBlankPins)
+        else validate_create_v3_recovery_handoff
+    )
+    candidate = validate_handoff(
         baseline_path, candidate_path, search_report_path, pins,
         task_id=inputs["task_id"],
         create_operation_id=inputs["create_operation_id"],
@@ -176,7 +187,8 @@ def attest_response_less_candidate(
     })
 
 
-def _candidate_pins(path: Path) -> CreateV3CandidateBlankPins:
+def _candidate_pins(path: Path) -> (
+        CreateV3CandidateBlankPins | CreateV4CandidateBlankPins):
     try:
         value = json.loads(_private_read(path, 16_384),
                            object_pairs_hook=_unique_pairs)
@@ -187,17 +199,26 @@ def _candidate_pins(path: Path) -> CreateV3CandidateBlankPins:
         baseline = value.pop("baseline")
         if type(baseline) is not dict or type(baseline.get("neighbors")) is not list:
             raise ValueError("baseline pins")
-        baseline["neighbors"] = tuple(
-            CreateV3NeighborPins(**item) for item in baseline["neighbors"]
-        )
-        pins = CreateV3CandidateBlankPins(
-            baseline=CreateV3BaselinePins(**baseline), **value,
-        )
+        if "source_v3_final_sha256" in baseline:
+            baseline["neighbors"] = tuple(
+                CreateV4NeighborPins(**item) for item in baseline["neighbors"]
+            )
+            baseline["prior_markers"] = tuple(baseline["prior_markers"])
+            pins = CreateV4CandidateBlankPins(
+                baseline=CreateV4BaselinePins(**baseline), **value,
+            )
+        else:
+            baseline["neighbors"] = tuple(
+                CreateV3NeighborPins(**item) for item in baseline["neighbors"]
+            )
+            pins = CreateV3CandidateBlankPins(
+                baseline=CreateV3BaselinePins(**baseline), **value,
+            )
         pins.validate()
         return pins
     except (OSError, PermissionError, TypeError, ValueError, KeyError,
             ContractRejected) as error:
-        raise OperatorDenied("private v3 candidate pins are unavailable") from error
+        raise OperatorDenied("private candidate pins are unavailable") from error
 
 
 def prepare_recovery_attestation(

@@ -51,12 +51,23 @@ metadata step could not resolve Google from its restricted process; the
 same signed gateway recovery was completed in the network-enabled operator
 process. Neither failure bound a child or sent a second create.
 
+The create ran under gateway binary SHA-256
+`aa6a4ceef758c9fc332eda3ca566cb443b76ccd90b5f493208521696408db40b`.
+Recovery and population ran after that bug fix under SHA-256
+`b69d5de56d21bc1ed147c446cc708d3ecc2f615b6fbcb58db8353cabe511ea84`.
+This run is live integration evidence, **not a same-build installed-artifact
+qualification**. A clean fixed-build rerun is required for that claim.
+
 Jules's live preflight checked the recovered child's blank tab and revision,
 then the separate agent signed the plan's population action. The gateway
 recorded one Google Docs `batchUpdate` response for operation
 `populate-vIDVh62ripODhs-q`. The final task status charged exactly two writes
 against its two-write budget, one read call, one 51-byte acknowledged release,
 and no extra operation IDs.
+
+After binding, a read-only recovery-input query refused with
+`gateway.task.recovery-plan-mismatch`. The task did not expose a second
+recovered-child binding path, and no further provider write was attempted.
 
 demo_co's private generation-0020 final observation, SHA-256
 `edf586cf331d760787b171d8758984120a6976cdf50b25464bb6407fce1112a8`,
@@ -69,7 +80,7 @@ Jules's Project B write was denied. The provider observation proves final
 Google state; the signed Auths task, attempt and recovery journals establish
 the delegation and operation attribution.
 
-This completes the **single-match live recovery case**. The zero-match,
-multiple-match and incomplete-search lost-response cases, remaining hostile
-matrix, production custody and qualification still require their own evidence
-before full AP-SPEC-071 acceptance.
+This demonstrates the **single-match live recovery path**. A fixed-build
+rerun, the zero-match, multiple-match and incomplete-search lost-response
+cases, remaining hostile matrix, production custody and qualification still
+require their own evidence before full AP-SPEC-071 acceptance.
