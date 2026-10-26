@@ -76,7 +76,9 @@ signed preflight and the exact provider after-state. Its redacted verdict is
 The Doc remains available for Jules to inspect at
 `https://docs.google.com/document/d/1kffA_d8rxw_-hRm71oG_XYAMW0tWSvuj-4tLy6p1uro/edit`.
 Jules opened the Doc in Chrome and confirmed the agent-written handoff text is
-visible. The run folder and Doc are retained for review; no cleanup is claimed.
+visible. Jules also loaded task `iUU8lgLhKdzuSRMqYQQT3O2T` in the Chrome
+workbench's activity view and confirmed that its provider-effect row appears.
+The run folder and Doc are retained for review; no cleanup is claimed.
 
 This proves one installed, source-free positive read/create/populate journey.
 Full §9 acceptance still requires the remaining installed negative and

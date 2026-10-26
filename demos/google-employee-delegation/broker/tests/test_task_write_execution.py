@@ -323,6 +323,11 @@ class TaskWriteExecutionTests(unittest.TestCase):
                              b"human-proof")
             self.assertEqual((self.task_dir / "effect-plan.action").read_bytes(),
                              b"human-action")
+            with self.assertRaisesRegex(OperatorDenied, "already recorded"):
+                self.flow.prepare_effect_plan(
+                    task_id=self.task_id, employee=None, agent=None,
+                    agent_identity_packet=b"packet", now=1004,
+                )
             self.assertEqual(json.loads((self.task_dir / "effect-plan.json").read_bytes()),
                              prepared.plan)
             self.assertNotIn("task-submit", command)

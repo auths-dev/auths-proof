@@ -368,6 +368,9 @@ class TaskWriteConfirmationFlow:
                             now: int | None = None) -> PreparedEffectPlan:
         if (self.companion_recipe_path is None or self.gateway_state_dir is None):
             raise OperatorDenied("paired create plan is not installed")
+        plan_path = self._task_dir(task_id) / "effect-plan.json"
+        if plan_path.exists() or plan_path.is_symlink():
+            raise OperatorDenied("effect plan already recorded; review task activity")
         now = int(time.time()) if now is None else now
         card, review = self._review(task_id, employee, agent, now)
         pending = card.get("pending_child")
