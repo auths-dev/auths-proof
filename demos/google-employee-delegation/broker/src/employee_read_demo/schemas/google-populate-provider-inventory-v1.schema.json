@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "ScratchNodePin": {
+      "additionalProperties": false,
+      "properties": {
+        "file_id": {
+          "title": "File Id",
+          "type": "string"
+        },
+        "mime_type": {
+          "enum": [
+            "application/vnd.google-apps.folder",
+            "application/vnd.google-apps.document"
+          ],
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent_id": {
+          "title": "Parent Id",
+          "type": "string"
+        },
+        "raw_byte_count": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Raw Byte Count"
+        },
+        "raw_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Raw Sha256"
+        },
+        "revision_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revision Id"
+        }
+      },
+      "required": [
+        "file_id",
+        "parent_id",
+        "name",
+        "mime_type",
+        "raw_sha256",
+        "raw_byte_count",
+        "revision_id"
+      ],
+      "title": "ScratchNodePin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_folder_id": {
+      "title": "Project A Folder Id",
+      "type": "string"
+    },
+    "run_folder_empty": {
+      "const": true,
+      "title": "Run Folder Empty",
+      "type": "boolean"
+    },
+    "run_folder_id": {
+      "title": "Run Folder Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-populate-provider-inventory/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scratch_root_child_count": {
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Scratch Root Child Count",
+      "type": "integer"
+    },
+    "scratch_root_id": {
+      "title": "Scratch Root Id",
+      "type": "string"
+    },
+    "setup_generation": {
+      "minimum": 1,
+      "title": "Setup Generation",
+      "type": "integer"
+    },
+    "setup_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Setup Sha256",
+      "type": "string"
+    },
+    "sibling_pins": {
+      "items": {
+        "$ref": "#/$defs/ScratchNodePin"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Sibling Pins",
+      "type": "array"
+    },
+    "source_document_id": {
+      "title": "Source Document Id",
+      "type": "string"
+    },
+    "source_jules_export_matches_admin": {
+      "const": true,
+      "title": "Source Jules Export Matches Admin",
+      "type": "boolean"
+    },
+    "source_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Source Raw Byte Count",
+      "type": "integer"
+    },
+    "source_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Raw Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "setup_generation",
+    "setup_sha256",
+    "run_id",
+    "marker",
+    "drive_id",
+    "project_a_folder_id",
+    "scratch_root_id",
+    "run_folder_id",
+    "scratch_root_child_count",
+    "sibling_pins",
+    "run_folder_empty",
+    "source_document_id",
+    "source_raw_sha256",
+    "source_raw_byte_count",
+    "source_jules_export_matches_admin",
+    "original_seven_unchanged",
+    "canonical_project_a_unchanged",
+    "canonical_project_b_unchanged",
+    "attribution"
+  ],
+  "title": "GooglePopulateProviderInventory",
+  "type": "object"
+}
