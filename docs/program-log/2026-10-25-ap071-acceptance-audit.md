@@ -101,3 +101,10 @@ tasks subsequently delivered their own acknowledged seven-byte read, with
 one charged provider call each and zero writes. The independent record
 remained unchanged and was retired. Plan, child and preflight swaps remain
 unverified in the installed create/populate vertical.
+
+The [redacted installed-case manifest](2026-10-26-ap071-installed-case-manifest.json)
+joins nine source-free Airtable cases to their bundle-manifest digests, task
+IDs, redacted receipt digests and verified cleanup states. Its absolute
+`/private/tmp` paths identify evidence on this host; the pin values survive
+if those disposable local artifacts are later removed. This manifest does
+not include the PAT, released field bytes or private provider responses.

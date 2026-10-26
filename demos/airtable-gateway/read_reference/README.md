@@ -96,6 +96,9 @@ independent after-state and run-owned cleanup. The Airtable PAT does not
 establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
+The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
+pins the bundle manifests and redacted receipts for nine installed cases on
+this host, including both restart boundaries and the two-task swap.
 
 If a run fails after fixture creation, preserve its private root and execute
 `cleanup` once the effect has been inspected. Do not start another run on the

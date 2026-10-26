@@ -1,0 +1,88 @@
+{
+  "schema": "auths.ap071-installed-case-manifest/1",
+  "date": "2026-10-26",
+  "scope": "local source-free Airtable provider runs; the PAT is operator-held and does not establish employee identity",
+  "cases": [
+    {
+      "case": "normal-read-exact-write",
+      "bundle": "/private/tmp/ap071-airtable-installed-bundle-20261026",
+      "bundle_manifest_sha256": "abfd32f358fa58e57104b9b1822d346b9ce22c331dfefeafb60a9a9451a44939",
+      "receipt": "/private/tmp/ap071-airtable-sourcefree-live-20261026-1/operator/redacted-result.json",
+      "receipt_sha256": "9ad2f5be8e6601bccabee555d312e787a7b82e84508925271b698396d743c128",
+      "task_ids": ["7cST6SSHofPFczWdYA6uk0Cq"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "lost-agent-acknowledgement",
+      "bundle": "/private/tmp/ap071-airtable-installed-bundle-20261026",
+      "bundle_manifest_sha256": "abfd32f358fa58e57104b9b1822d346b9ce22c331dfefeafb60a9a9451a44939",
+      "receipt": "/private/tmp/ap071-airtable-sourcefree-lost_ack-20261026/operator/redacted-result.json",
+      "receipt_sha256": "210dde132915840bac7cc870a1e97b2b3cd05b08051a29c38329a309dd9c394d",
+      "task_ids": ["pnNtH6x4YrrFoabaX3K2oomp"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "unspent-revocation",
+      "bundle": "/private/tmp/ap071-airtable-installed-bundle-20261026",
+      "bundle_manifest_sha256": "abfd32f358fa58e57104b9b1822d346b9ce22c331dfefeafb60a9a9451a44939",
+      "receipt": "/private/tmp/ap071-airtable-sourcefree-revocation-20261026/operator/redacted-result.json",
+      "receipt_sha256": "0ec260dcbf3bb5db6312bb543dfab45e250d66dd7ba7a7f9ba2fe68ac849f4fb",
+      "task_ids": ["uU8fffDpMGlerxxWrLA0I5sH"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "second-upfront-write-refused",
+      "bundle": "/private/tmp/ap071-airtable-installed-bundle-20261026",
+      "bundle_manifest_sha256": "abfd32f358fa58e57104b9b1822d346b9ce22c331dfefeafb60a9a9451a44939",
+      "receipt": "/private/tmp/ap071-airtable-sourcefree-second_write-20261026/operator/redacted-result.json",
+      "receipt_sha256": "15840d4a63a25c2fad3bb190b1b0814d25a6eafaedd95970048372acbab759cd",
+      "task_ids": ["uF6rQtB2F9MBd5z9qQIpvF3g"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "concurrent-last-write",
+      "bundle": "/private/tmp/ap071-airtable-installed-bundle-20261026",
+      "bundle_manifest_sha256": "abfd32f358fa58e57104b9b1822d346b9ce22c331dfefeafb60a9a9451a44939",
+      "receipt": "/private/tmp/ap071-airtable-sourcefree-concurrent_writes-20261026/operator/redacted-result.json",
+      "receipt_sha256": "7dfb78bdf6da5e4c408e1131fe0c0cb270bbe10c3d0a1ca693eec1a9088fba03",
+      "task_ids": ["l2p9B3InnDhMCs260YSLP936"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "crash-after-release-entry",
+      "bundle": "/private/tmp/ap071-airtable-crash-entry-bundle-20261026",
+      "bundle_manifest_sha256": "fb1fff54abf1535bea418cd26fa171c3319ce6bc683b5bb56e51be8fc2ebb332",
+      "receipt": "/private/tmp/ap071-airtable-crash-entry-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "f142795b2f4471f670f540574cde414720384ac7cfcea763ce9778f6f6eca31a",
+      "task_ids": ["Ky1iLK6pAxCKfyd_uk09DmCn"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "crash-after-content-before-ack",
+      "bundle": "/private/tmp/ap071-airtable-content-crash-bundle-20261026",
+      "bundle_manifest_sha256": "5f1b4c204b4de42cebe324e024611d42c715c6c0d5580a0d02b6f5ad368a3705",
+      "receipt": "/private/tmp/ap071-airtable-content-crash-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "e93f2c2c65557e6feac8f8449c511b61580e90ff13655c6ac4af56935a7c0d06",
+      "task_ids": ["pLhrTCNyQs5s3Lts8YU8Nche"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "crash-after-write-reservation-before-attempt",
+      "bundle": "/private/tmp/ap071-airtable-write-crash-cli-bundle-20261026",
+      "bundle_manifest_sha256": "cd7b4b18cd5a8deab0ef0f96c2de677a73c96bd5cdb857c2cb7df05fa1da1df5",
+      "receipt": "/private/tmp/ap071-airtable-write-crash-cli-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "9c8155598eeb03bb453c7f8543043c545c8cbf97f1cb2183d4f14ed03d0ac807",
+      "task_ids": ["7CUnkprvRXoGjEVQ1mbW7hba"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "two-task-shared-connection-swap",
+      "bundle": "/private/tmp/ap071-airtable-two-task-bundle-20261026",
+      "bundle_manifest_sha256": "f31d3015123a4fab5c9176b5da6862cb239ce9047178fadfb1c36e3d751e2630",
+      "receipt": "/private/tmp/ap071-airtable-two-task-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "83146447158b9852b1d26e781a3555dd62a1a2ba6f1e74cf66772378c2c486e5",
+      "task_ids": ["epqOlClWl8bfS4bstNor-5r7", "u_43CRB5VQ8kIsUjbfvIAETu"],
+      "cleanup": "run-owned-record-retired"
+    }
+  ]
+}
