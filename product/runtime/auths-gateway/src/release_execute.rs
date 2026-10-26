@@ -233,7 +233,18 @@ impl GatewayEngine {
         &self,
         submission: ManagedReadSubmission<'_>,
     ) -> ManagedReleaseResult {
-        let Some(now) = wall_clock_seconds() else {
+        self.execute_managed_read_with_clock(submission, &wall_clock_seconds)
+            .await
+    }
+
+    // Private clock seam for deterministic expiry interleavings. Installed
+    // entry points always use the gateway clock above, never caller time.
+    async fn execute_managed_read_with_clock(
+        &self,
+        submission: ManagedReadSubmission<'_>,
+        clock: &(dyn Fn() -> Option<u64> + Sync),
+    ) -> ManagedReleaseResult {
+        let Some(now) = clock() else {
             return ManagedReleaseResult::NotEntered {
                 code: "gateway.verify.clock-unavailable",
             };
@@ -245,7 +256,7 @@ impl GatewayEngine {
         let request = prepared.verified.request();
         let operation_id = request.operation_id().as_str();
         let connection = prepared.loaded.record();
-        let Some(reservation_time) = wall_clock_seconds() else {
+        let Some(reservation_time) = clock() else {
             return not_entered("gateway.verify.clock-unavailable");
         };
         if submission
@@ -263,7 +274,7 @@ impl GatewayEngine {
                 code: "gateway.release.task-admission",
             };
         }
-        let content = match self.fetch_projected(&submission, &prepared).await {
+        let content = match self.fetch_projected(&submission, &prepared, clock).await {
             Ok(content) => content,
             Err(failure) => return record_read_failure(&submission, operation_id, failure),
         };
@@ -276,7 +287,7 @@ impl GatewayEngine {
                 "gateway.release.connection-changed",
             );
         }
-        let Some(release_time) = wall_clock_seconds() else {
+        let Some(release_time) = clock() else {
             return refuse_release(
                 &submission,
                 operation_id,
@@ -425,13 +436,16 @@ impl GatewayEngine {
         &self,
         submission: &ManagedReadSubmission<'_>,
         prepared: &PreparedRead,
+        clock: &(dyn Fn() -> Option<u64> + Sync),
     ) -> Result<Zeroizing<Vec<u8>>, ReadFailure> {
-        current_task(submission, prepared)?;
         if !unchanged(submission.read_connection, &prepared.loaded).await
             || submission.read_qualification.check().is_err()
         {
             return Err(ReadFailure::Refused("gateway.release.connection-changed"));
         }
+        // The connection reload can yield to a concurrent revocation. Check
+        // the task after it completes, immediately before opening custody.
+        current_task(submission, prepared, clock())?;
         self.execution_witness.lease();
         let source = submission
             .read_credentials
@@ -441,7 +455,7 @@ impl GatewayEngine {
             )
             .await
             .map_err(|_| ReadFailure::Refused("gateway.release.credential-unavailable"))?;
-        current_task(submission, prepared)?;
+        current_task(submission, prepared, clock())?;
         let lease = if let Some(installation) = self
             .materializers
             .get(prepared.loaded.record().connection_id().as_str())
@@ -472,12 +486,12 @@ impl GatewayEngine {
         } else {
             source
         };
-        current_task(submission, prepared)?;
         if !unchanged(submission.read_connection, &prepared.loaded).await
             || submission.read_qualification.check().is_err()
         {
             return Err(ReadFailure::Refused("gateway.release.connection-changed"));
         }
+        current_task(submission, prepared, clock())?;
         let response = prepared
             .transport
             .release_read(prepared.verified.request(), &lease)
@@ -498,9 +512,9 @@ impl GatewayEngine {
 fn current_task(
     submission: &ManagedReadSubmission<'_>,
     prepared: &PreparedRead,
+    now: Option<u64>,
 ) -> Result<(), ReadFailure> {
-    let now =
-        wall_clock_seconds().ok_or(ReadFailure::Refused("gateway.verify.clock-unavailable"))?;
+    let now = now.ok_or(ReadFailure::Refused("gateway.verify.clock-unavailable"))?;
     let state = submission
         .ledger
         .load(submission.task_id)
@@ -563,7 +577,6 @@ fn refuse_release(
 #[cfg(all(test, feature = "loopback-provider"))]
 mod tests {
     use super::*;
-    use crate::GatewayObserver;
     use crate::engine::tests::administration;
     use crate::harness::{self, Signer};
     use crate::release_state::ReleaseStage;
@@ -572,6 +585,10 @@ mod tests {
         AgentTaskDescriptor, ApprovedAgentTask, TaskReadScope, TaskWriteVerb,
     };
     use crate::task_write::TaskWriteBinding;
+    use crate::{
+        GatewayAttemptError, GatewayAttemptKey, GatewayAttemptStore, GatewayInsert,
+        GatewayObserver, GatewayRecordEntry, GatewayRecordKind,
+    };
     use auths_connections::ConnectionRecord;
     use auths_identity_raw_key::RawKeyIdentityMethod;
     use ed25519_dalek::Signer as _;
@@ -611,6 +628,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn expiry_during_static_credential_lease_prevents_provider_read() {
+        run_managed_read(false, false, false, false, ReadRace::StaticLeaseExpiry).await;
+    }
+
+    #[tokio::test]
+    async fn revocation_during_connection_reload_prevents_new_read_lease() {
+        run_managed_read(false, false, false, false, ReadRace::BeforeLeaseReload).await;
+    }
+
+    #[tokio::test]
+    async fn revocation_during_connection_reload_prevents_provider_read() {
+        run_managed_read(false, false, false, false, ReadRace::BeforeProviderReload).await;
+    }
+
+    #[tokio::test]
     async fn no_send_after_release_entry_has_a_durable_charged_receipt() {
         run_managed_read(true, false, false, false, ReadRace::None).await;
     }
@@ -625,11 +657,71 @@ mod tests {
         None,
         Materialization,
         StaticLease,
+        StaticLeaseExpiry,
+        BeforeLeaseReload,
+        BeforeProviderReload,
+    }
+
+    // Commit task revocation while an unchanged connection record is being
+    // reloaded. Connection identity cannot stand in for current task authority.
+    struct RevokingConnectionStore {
+        inner: Arc<dyn GatewayAttemptStore>,
+        task_root: PathBuf,
+        loads: AtomicU64,
+        revoke_at_load: u64,
+    }
+
+    impl GatewayAttemptStore for RevokingConnectionStore {
+        fn insert_all(
+            &self,
+            entries: &[GatewayRecordEntry],
+        ) -> Result<GatewayInsert, GatewayAttemptError> {
+            self.inner.insert_all(entries)
+        }
+
+        fn load(
+            &self,
+            kind: GatewayRecordKind,
+            key: &GatewayAttemptKey,
+        ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
+            let record = self.inner.load(kind, key)?;
+            if kind == GatewayRecordKind::Connection
+                && self.loads.fetch_add(1, Ordering::SeqCst) + 1 == self.revoke_at_load
+            {
+                FileReleaseTaskLedger::open(&self.task_root)
+                    .expect("reopen task during connection reload")
+                    .revoke("task-1")
+                    .expect("revoke during connection reload");
+            }
+            Ok(record)
+        }
+
+        fn replace(
+            &self,
+            kind: GatewayRecordKind,
+            key: &GatewayAttemptKey,
+            current: &[u8],
+            next: &[u8],
+        ) -> Result<(), GatewayAttemptError> {
+            self.inner.replace(kind, key, current, next)
+        }
+
+        fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
+            self.inner.sweep_expired(now, limit)
+        }
+
+        fn attempt_keys(
+            &self,
+            limit: usize,
+        ) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+            self.inner.attempt_keys(limit)
+        }
     }
 
     struct RevokingCredentialStore {
         inner: Arc<dyn ConnectionCredentialStore>,
         task_root: PathBuf,
+        expire_clock: Option<(Arc<AtomicU64>, u64)>,
     }
 
     #[async_trait::async_trait]
@@ -653,10 +745,17 @@ mod tests {
         ) -> Result<auths_connections::StoredSecretLease, auths_connections::CredentialStoreError>
         {
             let lease = self.inner.lease_secret(binding, deadline).await?;
-            FileReleaseTaskLedger::open(&self.task_root)
-                .expect("reopen task ledger")
-                .revoke("task-1")
-                .expect("revoke during static credential lease");
+            if let Some((clock, expires_at)) = &self.expire_clock {
+                // The credential's monotonic lease is still valid, while the
+                // signed task reaches its exact wall-clock expiry boundary.
+                assert!(lease.expose(Instant::now()).is_ok());
+                clock.store(*expires_at, Ordering::SeqCst);
+            } else {
+                FileReleaseTaskLedger::open(&self.task_root)
+                    .expect("reopen task ledger")
+                    .revoke("task-1")
+                    .expect("revoke during static credential lease");
+            }
             Ok(lease)
         }
 
@@ -778,6 +877,7 @@ mod tests {
             .expect("provider");
         engine.loopback_port = Some(provider.local_addr().expect("address").port());
         let now = wall_clock_seconds().expect("clock");
+        let read_clock = Arc::new(AtomicU64::new(now));
         let root = Signer::new(0x11);
         let agent = Signer::new(0x22);
         let observer = GatewayObserver::from_test_seed(0x33);
@@ -882,7 +982,7 @@ mod tests {
         std::fs::create_dir(&floor_root).expect("read floor directory");
         std::fs::set_permissions(&floor_root, std::fs::Permissions::from_mode(0o700))
             .expect("read floor mode");
-        let read_floor = GenerationFloor::new(floor_root);
+        let read_floor = GenerationFloor::new(floor_root.clone());
         read_floor.initialize(&bound).expect("read floor");
         ledger.initialize(&approved).expect("activate");
         if materialize {
@@ -900,10 +1000,12 @@ mod tests {
                 )),
             );
         }
-        if race == ReadRace::StaticLease {
+        if matches!(race, ReadRace::StaticLease | ReadRace::StaticLeaseExpiry) {
             engine.credentials = Arc::new(RevokingCredentialStore {
                 inner: Arc::clone(&engine.credentials),
                 task_root: std::fs::canonicalize(&ledger_root).expect("canonical ledger root"),
+                expire_clock: (race == ReadRace::StaticLeaseExpiry)
+                    .then(|| (Arc::clone(&read_clock), approved.descriptor().expires_at)),
             });
         }
         let mut action_arguments = arguments(&read_recipe, agent.principal.as_str());
@@ -1115,9 +1217,59 @@ mod tests {
         if fail_before_content {
             read_session.channel.fail_before_content_for_test();
         }
-        let result = read_session
-            .read("task-1", &signed.proof, &signed.action)
+        if matches!(
+            race,
+            ReadRace::BeforeLeaseReload | ReadRace::BeforeProviderReload
+        ) {
+            read_session.connection = SharedConnection::new(
+                Arc::new(RevokingConnectionStore {
+                    inner: engine.attempts.store(),
+                    task_root: std::fs::canonicalize(&ledger_root).expect("canonical ledger root"),
+                    loads: AtomicU64::new(0),
+                    // First load prepares the read. The second precedes
+                    // custody and the third precedes provider entry.
+                    revoke_at_load: if race == ReadRace::BeforeLeaseReload {
+                        2
+                    } else {
+                        3
+                    },
+                }),
+                bound.provider_kind().clone(),
+                bound.alias().clone(),
+            )
+            .with_generation_floor(GenerationFloor::new(floor_root));
+        }
+        let execution_before = engine.execution_witness.snapshot();
+        let result = engine
+            .execute_managed_read_with_clock(
+                ManagedReadSubmission {
+                    task_id: "task-1",
+                    agent_proof: &signed.proof,
+                    agent_action: &signed.action,
+                    pins: &task_session.pins,
+                    recipe: &read_session.recipe,
+                    read_connection: &read_session.connection,
+                    read_credentials: &engine.credentials,
+                    read_qualification: &read_session.qualification,
+                    ledger: &task_session.ledger,
+                    commitment_key: &read_session.commitment_key,
+                    channel: &read_session.channel,
+                    exit_after_release_entry: false,
+                },
+                &|| Some(read_clock.load(Ordering::SeqCst)),
+            )
             .await;
+        if race != ReadRace::None {
+            let execution_after = engine.execution_witness.snapshot();
+            assert_eq!(
+                execution_after.read_transport_entries,
+                execution_before.read_transport_entries
+            );
+            assert_eq!(
+                execution_after.credential_lease_calls - execution_before.credential_lease_calls,
+                u64::from(race != ReadRace::BeforeLeaseReload)
+            );
+        }
         if race != ReadRace::None {
             assert_eq!(
                 result,
@@ -1186,6 +1338,12 @@ mod tests {
         assert_eq!(state.stage("read-1"), Some(stage));
         let status = serde_json::to_value(task_session.status("task-1").expect("task status"))
             .expect("redacted status");
+        if race == ReadRace::StaticLeaseExpiry {
+            assert_eq!(
+                status["revoked"], false,
+                "expiry must not be masked by revocation"
+            );
+        }
         assert_eq!(
             status["reads"][0]["stage"],
             if fail_materialization || race != ReadRace::None {

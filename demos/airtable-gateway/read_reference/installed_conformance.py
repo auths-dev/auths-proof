@@ -319,6 +319,7 @@ def run(env_file: Path, root: Path, binary: Path,
         oversize_field: bool = False,
         oversize_body: bool = False,
         missing_field: bool = False,
+        retired_record: bool = False,
         macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, exit_after_release_entry,
@@ -327,7 +328,7 @@ def run(env_file: Path, root: Path, binary: Path,
             upfront_second_write, concurrent_upfront_writes,
             exit_after_write_reservation, two_task_swap,
             rotate_before_write, rotate_release_audit_key,
-            oversize_field, oversize_body, missing_field)) > 1:
+            oversize_field, oversize_body, missing_field, retired_record)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -793,16 +794,22 @@ def run(env_file: Path, root: Path, binary: Path,
            "--package-file", agent_dir / "read-package.json",
            "--arguments-file", agent_dir / "read-arguments.json",
            "--out-dir", read_output)
-    if oversize_field or oversize_body or missing_field:
+    if oversize_field or oversize_body or missing_field or retired_record:
         # The operator changes only this run-owned record after task admission.
         # Each shape is independently read back before the signed agent GET.
         selected = ("X" * 65 if oversize_field else
                     "X" * 17_000 if oversize_body else None)
-        changed = airtable.request("PATCH", row_path,
-                                   {"fields": {"DemoStatus": selected}})
-        if (changed.get("id") != record
-                or changed.get("fields", {}).get("DemoStatus") != selected):
-            raise RuntimeError("Airtable response-shape fixture did not take effect")
+        if retired_record:
+            # Retire only this run's ownership-journaled disposable record.
+            # The already signed action stays unchanged and must reach Airtable.
+            resources = Resources(token, api=airtable.request)
+            resources.cleanup(root / "resources.json")
+        else:
+            changed = airtable.request("PATCH", row_path,
+                                       {"fields": {"DemoStatus": selected}})
+            if (changed.get("id") != record
+                    or changed.get("fields", {}).get("DemoStatus") != selected):
+                raise RuntimeError("Airtable response-shape fixture did not take effect")
         if oversize_body and len(selected) <= 16_384:
             raise RuntimeError("provider-body fixture did not exceed its limit")
         receiver = _agent(
@@ -830,20 +837,38 @@ def run(env_file: Path, root: Path, binary: Path,
                 channel.unlink()
         status = _gateway(binary, "task-status", "--state-dir", state,
                           "--task-id", signed.task_id)
-        observed = airtable.request("GET", row_path)
+        # Retain the actual gateway result even if a later fixture/readback
+        # assertion fails. Never reconstruct a provider status from the ledger.
+        _write_json(operator / "response-refusal-observation.json", {
+            "task_id": signed.task_id, "read_outcome": result,
+            "gateway_status": status,
+            "agent_content": "present" if (agent_dir / "rejected-source.bin").exists() else "none",
+        })
+        if retired_record:
+            journal = resources.journal(root / "resources.json")
+            observed_matches = resources.discover(resources.names(
+                journal["protected_run"], journal["count"]))
+            independent_matches = journal["retired"] and not observed_matches
+        else:
+            observed = airtable.request("GET", row_path)
+            independent_matches = (observed.get("id") == record and
+                                   observed.get("fields", {}).get("DemoStatus") == selected)
+        expected_statuses = ({403, 404} if retired_record else
+                             {None, 200} if oversize_body else {200})
         if (result.get("outcome") != "provider-unavailable"
-                or result.get("status") not in ({None, 200} if oversize_body else {200})
+                or result.get("status") not in expected_statuses
                 or status.get("provider_calls") != 1
                 or status.get("releases") != 0
                 or status.get("released_bytes") != 0
                 or status.get("writes") != 0
                 or status.get("reads", [{}])[0].get("stage") != "provider-unavailable"
                 or (agent_dir / "rejected-source.bin").exists()
-                or observed.get("id") != record
-                or observed.get("fields", {}).get("DemoStatus") != selected):
+                or not independent_matches):
             raise RuntimeError("Airtable response shape escaped the release gate")
-        case = ("oversize-field" if oversize_field else
+        case = ("retired-record" if retired_record else
+                "oversize-field" if oversize_field else
                 "oversize-body" if oversize_body else "missing-field")
+        cleanup_state = "run-owned-record-retired" if retired_record else "pending"
         _write_json(operator / "redacted-result.json", {
             "schema": "auths.ap071-airtable-" + case + "/1",
             "task_id": signed.task_id, "record_id": record,
@@ -851,15 +876,16 @@ def run(env_file: Path, root: Path, binary: Path,
             "reviewed_release_limit_bytes": 64,
             "reviewed_provider_body_limit_bytes": 16_384,
             "read_outcome": result, "gateway_status": status,
-            "independent_readback": ("field-absent" if missing_field else
+            "independent_readback": ("owned-record-absent" if retired_record else
+                                     "field-absent" if missing_field else
                                      "field-retained"),
-            "agent_content": "none", "cleanup": "pending",
+            "agent_content": "none", "cleanup": cleanup_state,
         })
         print(json.dumps({
             "status": "installed-airtable-" + case + "-refused",
             "task_id": signed.task_id, "record_id": record,
             "result": str(operator / "redacted-result.json"),
-            "cleanup": "pending",
+            "cleanup": cleanup_state,
         }, sort_keys=True))
         airtable.close()
         return
@@ -1450,6 +1476,8 @@ def main() -> None:
                         help="refuse a task-admitted Airtable body larger than 16 KiB")
     parser.add_argument("--missing-field", action="store_true",
                         help="refuse a task-admitted Airtable response without DemoStatus")
+    parser.add_argument("--retired-record", action="store_true",
+                        help="retire this run's record after signing and require a real Airtable 403/404")
     parser.add_argument("--macos-agent-sandbox", action="store_true",
                         help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
@@ -1471,6 +1499,7 @@ def main() -> None:
             oversize_field=args.oversize_field,
             oversize_body=args.oversize_body,
             missing_field=args.missing_field,
+            retired_record=args.retired_record,
             macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)

@@ -97,10 +97,22 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for sixteen installed cases
+pins the bundle manifests and redacted receipts for seventeen installed cases
 on this host, including both restart boundaries, the two-task swap, the
 no-content delivery fault, a stale-generation write refusal and an isolated
 Linux container read/write run.
+
+Use `--retired-record` for the real provider-status denial case. After signing
+the task and agent read, the runner retires only its own disposable record
+through the ownership journal. The unchanged signed read must reach Airtable
+and return 403 or 404, with one charged call, zero release bytes and no agent
+content. Independent discovery must still find no owned record. The runner
+persists the actual gateway result before later assertions; an unexpected
+response remains failed evidence. This case performs its retirement inside
+the run and records cleanup complete. The
+[installed HTTP 403 result](../../../docs/program-log/2026-10-26-ap071-read-boundary-and-status.md)
+does not demonstrate employee ACL withdrawal, a second employee identity,
+media-type substitution, redirects or changed origin.
 
 Use `--oversize-field` for the live projection-ceiling case. After the task is
 active, the operator changes only the disposable record's `DemoStatus` to 65

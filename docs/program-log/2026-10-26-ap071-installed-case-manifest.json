@@ -146,6 +146,15 @@
       "receipt_sha256": "69639745bff34ef762134ad3b073cfdb397fc88a4cd1023336b4271accb360ea",
       "task_ids": ["4zv5y6rX_oCC6m2jAFEZmQX1"],
       "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "retired-record-provider-status-refused",
+      "bundle": "/private/tmp/ap071-airtable-status-v2-bundle-20261026",
+      "bundle_manifest_sha256": "765d80b6b826c697701154f256623db95864d16842254d366374d7d44f9df9c2",
+      "receipt": "/private/tmp/ap071-airtable-status-v2-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "57482ab49b1c14827bc91a754b5494384b15a8e0eb9b12fff39e0e71e76fcf88",
+      "task_ids": ["g4VHKAoMBEmhWkbQIPYPaNw8"],
+      "cleanup": "run-owned-record-retired"
     }
   ]
 }
