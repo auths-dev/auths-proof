@@ -61,9 +61,12 @@ class JulesChildPreflightTests(unittest.TestCase):
         preflight.assert_called_once()
         envelope = json.loads(report)
         statement = envelope["statement"]
-        self.assertEqual((statement["child_id"], statement["tab_id"],
-                          statement["revision_id"], statement["valid_until"]),
+        self.assertEqual((statement["child_id"], statement["provider_values"]["tab_id"],
+                          statement["provider_values"]["required_revision_id"],
+                          statement["valid_until"]),
                          (pins.candidate_id, "t.0", "revision-1", 1050))
+        self.assertEqual(set(statement["evidence_digests"]),
+                         {"metadata", "capability", "document"})
         self.assertEqual(
             report,
             json.dumps(envelope, sort_keys=True, separators=(",", ":"),

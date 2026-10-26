@@ -814,6 +814,60 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied("gateway task status is unavailable")
         return status
 
+    def activity(self, *, task_id: str, employee: EmployeeBinding) -> dict:
+        """Join charged writes to matching durable gateway attempt stages.
+
+        This adds transport facts to the owner view. It does not treat a
+        provider response as independent proof of the intended effect.
+        """
+        status = self.status(task_id=task_id, employee=employee)
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-activity",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+            ], capture_output=True, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied("gateway task activity is unavailable") from error
+        if result.returncode != 0 or len(result.stdout) > 32_768:
+            raise OperatorDenied("gateway task activity is unavailable")
+        try:
+            activity = json.loads(result.stdout, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise OperatorDenied("gateway task activity is unavailable") from error
+        if (type(activity) is not dict
+                or set(activity) != {"schema", "task", "write_attempts"}
+                or activity["schema"] != "auths.gateway-agent-task-activity/1"
+                or activity["task"] != status
+                or type(activity["write_attempts"]) is not list
+                or len(activity["write_attempts"]) != len(status["write_operations"])):
+            raise OperatorDenied("gateway task activity changed; refresh")
+        stages = {"claimed-no-attempt", "not-entered",
+                  "attempting", "response-recorded", "unknown", "observed",
+                  "observed-by-provider"}
+        operation_ids = []
+        for write in activity["write_attempts"]:
+            if (type(write) is not dict
+                    or set(write) != {"operation_id", "stage", "response_status",
+                                      "observation_match"}
+                    or type(write["operation_id"]) is not str
+                    or write["operation_id"] not in status["write_operations"]
+                    or type(write["stage"]) is not str
+                    or write["stage"] not in stages
+                    or (write["response_status"] is not None
+                        and (type(write["response_status"]) is not int
+                             or not 100 <= write["response_status"] <= 599))
+                    or (write["observation_match"] is not None
+                        and type(write["observation_match"]) is not bool)
+                    or (write["stage"] == "claimed-no-attempt"
+                        and (write["response_status"] is not None
+                             or write["observation_match"] is not None))):
+                raise OperatorDenied("gateway task activity is unavailable")
+            operation_ids.append(write["operation_id"])
+        if sorted(operation_ids) != sorted(status["write_operations"]):
+            raise OperatorDenied("gateway task activity is unavailable")
+        return activity
+
     def submit(self, *, task_id: str, employee: EmployeeBinding,
                agent: AgentBinding, now: int | None = None) -> dict:
         """Recheck Jules's edit precondition, then submit one admitted agent write.

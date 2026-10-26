@@ -35,8 +35,8 @@ from .google_write_preflight import (
 from .write_handoff import validate_write_handoff
 
 MAX_RECOVERY_PAGE_BYTES = 131_072
-POPULATE_PREFLIGHT_SCHEMA = "auths.gateway-task-populate-preflight/1"
-POPULATE_PREFLIGHT_DOMAIN = b"auths.gateway-task-populate-preflight/1\0"
+POPULATE_PREFLIGHT_SCHEMA = "auths.gateway-task-populate-preflight/2"
+POPULATE_PREFLIGHT_DOMAIN = b"auths.gateway-task-populate-preflight/2\0"
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _RULE_MODULES = (
     "google_create_preflight.py", "google_create_handoff.py",
@@ -229,11 +229,15 @@ def attest_jules_created_child(
         "connection_id": observed.connection_id,
         "connection_generation": observed.connection_generation,
         "connection_subject": observed.connection_subject,
-        "tab_id": observed.tab_id,
-        "revision_id": observed.revision_id,
-        "metadata_sha256": observed.metadata_sha256,
-        "capability_sha256": observed.capability_sha256,
-        "docs_sha256": observed.docs_sha256,
+        "provider_values": {
+            "required_revision_id": observed.revision_id,
+            "tab_id": observed.tab_id,
+        },
+        "evidence_digests": {
+            "metadata": observed.metadata_sha256,
+            "capability": observed.capability_sha256,
+            "document": observed.docs_sha256,
+        },
         "checked_at": observed.checked_at,
         "valid_until": valid_until,
     }

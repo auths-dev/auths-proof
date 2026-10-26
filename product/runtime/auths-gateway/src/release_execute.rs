@@ -79,6 +79,8 @@ pub struct TaskReadSession<'s, 'e> {
     qualification: Arc<QualificationGate>,
     commitment_key: ReleaseCommitmentKey,
     channel: UnixAgentReleaseChannel,
+    #[cfg(feature = "loopback-provider")]
+    exit_after_release_entry: bool,
 }
 
 impl<'e> TaskWriteSession<'e> {
@@ -120,6 +122,8 @@ impl<'e> TaskWriteSession<'e> {
             qualification: inputs.qualification,
             commitment_key: inputs.commitment_key,
             channel,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_release_entry: false,
         })
     }
 }
@@ -133,6 +137,24 @@ impl TaskReadSession<'_, '_> {
     #[must_use]
     pub fn with_fail_before_content_for_development(mut self) -> Self {
         self.channel.fail_before_content_for_test();
+        self
+    }
+
+    /// Development-fault build only: terminate the gateway process after
+    /// durable release entry and before the first channel content byte.
+    #[cfg(feature = "loopback-provider")]
+    #[must_use]
+    pub fn with_exit_after_release_entry_for_development(mut self) -> Self {
+        self.exit_after_release_entry = true;
+        self
+    }
+
+    /// Development-fault build only: terminate after sending the complete
+    /// content and ACK challenge, before reading the signed agent ACK.
+    #[cfg(feature = "loopback-provider")]
+    #[must_use]
+    pub fn with_exit_after_content_send_for_development(mut self) -> Self {
+        self.channel.exit_after_content_send_for_development();
         self
     }
 
@@ -158,6 +180,8 @@ impl TaskReadSession<'_, '_> {
                 ledger: &self.task.ledger,
                 commitment_key: &self.commitment_key,
                 channel: &self.channel,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_release_entry: self.exit_after_release_entry,
             })
             .await
     }
@@ -179,6 +203,8 @@ pub(crate) struct ManagedReadSubmission<'a> {
     pub(crate) ledger: &'a FileReleaseTaskLedger,
     pub(crate) commitment_key: &'a ReleaseCommitmentKey,
     pub(crate) channel: &'a UnixAgentReleaseChannel,
+    #[cfg(feature = "loopback-provider")]
+    pub(crate) exit_after_release_entry: bool,
 }
 
 struct PreparedRead {
@@ -269,6 +295,12 @@ impl GatewayEngine {
             .is_err()
         {
             return refuse_release(&submission, operation_id, "gateway.release.release-refused");
+        }
+        #[cfg(feature = "loopback-provider")]
+        if submission.exit_after_release_entry {
+            // Deliberately bypass destructors and the reply path. The
+            // installed next command must reopen both task journals.
+            std::process::exit(86);
         }
         let evidence = match prepared
             .channel
@@ -394,6 +426,7 @@ impl GatewayEngine {
         submission: &ManagedReadSubmission<'_>,
         prepared: &PreparedRead,
     ) -> Result<Zeroizing<Vec<u8>>, ReadFailure> {
+        current_task(submission, prepared)?;
         if !unchanged(submission.read_connection, &prepared.loaded).await
             || submission.read_qualification.check().is_err()
         {
@@ -408,6 +441,7 @@ impl GatewayEngine {
             )
             .await
             .map_err(|_| ReadFailure::Refused("gateway.release.credential-unavailable"))?;
+        current_task(submission, prepared)?;
         let lease = if let Some(installation) = self
             .materializers
             .get(prepared.loaded.record().connection_id().as_str())
@@ -438,6 +472,7 @@ impl GatewayEngine {
         } else {
             source
         };
+        current_task(submission, prepared)?;
         if !unchanged(submission.read_connection, &prepared.loaded).await
             || submission.read_qualification.check().is_err()
         {
@@ -458,6 +493,26 @@ impl GatewayEngine {
             .map(Zeroizing::new)
             .map_err(|_| ReadFailure::ProviderUnavailable(Some(response.status)))
     }
+}
+
+fn current_task(
+    submission: &ManagedReadSubmission<'_>,
+    prepared: &PreparedRead,
+) -> Result<(), ReadFailure> {
+    let now =
+        wall_clock_seconds().ok_or(ReadFailure::Refused("gateway.verify.clock-unavailable"))?;
+    let state = submission
+        .ledger
+        .load(submission.task_id)
+        .map_err(|_| ReadFailure::Refused("gateway.release.task-state"))?
+        .ok_or(ReadFailure::Refused("gateway.release.task-inactive"))?;
+    let task = state
+        .activated_task(submission.pins, now)
+        .map_err(|_| ReadFailure::Refused("gateway.release.task-inactive"))?;
+    if task.descriptor() != prepared.task.descriptor() {
+        return Err(ReadFailure::Refused("gateway.release.task-inactive"));
+    }
+    Ok(())
 }
 
 fn record_read_failure(
@@ -532,32 +587,137 @@ mod tests {
 
     #[tokio::test]
     async fn managed_read_joins_native_task_provider_and_registered_agent() {
-        run_managed_read(false, false, false, false).await;
+        run_managed_read(false, false, false, false, ReadRace::None).await;
     }
 
     #[tokio::test]
     async fn managed_read_materializes_after_task_reservation() {
-        run_managed_read(false, false, true, false).await;
+        run_managed_read(false, false, true, false, ReadRace::None).await;
     }
 
     #[tokio::test]
     async fn failed_materialization_never_sends_source_to_provider() {
-        run_managed_read(false, false, true, true).await;
+        run_managed_read(false, false, true, true, ReadRace::None).await;
+    }
+
+    #[tokio::test]
+    async fn revocation_during_materialization_prevents_provider_read() {
+        run_managed_read(false, false, true, false, ReadRace::Materialization).await;
+    }
+
+    #[tokio::test]
+    async fn revocation_during_static_credential_lease_prevents_provider_read() {
+        run_managed_read(false, false, false, false, ReadRace::StaticLease).await;
     }
 
     #[tokio::test]
     async fn no_send_after_release_entry_has_a_durable_charged_receipt() {
-        run_managed_read(true, false, false, false).await;
+        run_managed_read(true, false, false, false, ReadRace::None).await;
     }
 
     #[tokio::test]
     async fn provider_denial_after_task_admission_releases_no_content() {
-        run_managed_read(false, true, false, false).await;
+        run_managed_read(false, true, false, false, ReadRace::None).await;
+    }
+
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    enum ReadRace {
+        None,
+        Materialization,
+        StaticLease,
+    }
+
+    struct RevokingCredentialStore {
+        inner: Arc<dyn ConnectionCredentialStore>,
+        task_root: PathBuf,
+    }
+
+    #[async_trait::async_trait]
+    impl ConnectionCredentialStore for RevokingCredentialStore {
+        async fn install(
+            &self,
+            connection_id: &auths_connections::ConnectionId,
+            generation: std::num::NonZeroU64,
+            secret: auths_connections::SecretBytes,
+        ) -> Result<
+            auths_connections::CredentialReferenceCommitment,
+            auths_connections::CredentialStoreError,
+        > {
+            self.inner.install(connection_id, generation, secret).await
+        }
+
+        async fn lease_secret(
+            &self,
+            binding: &auths_connections::CredentialBinding,
+            deadline: Instant,
+        ) -> Result<auths_connections::StoredSecretLease, auths_connections::CredentialStoreError>
+        {
+            let lease = self.inner.lease_secret(binding, deadline).await?;
+            FileReleaseTaskLedger::open(&self.task_root)
+                .expect("reopen task ledger")
+                .revoke("task-1")
+                .expect("revoke during static credential lease");
+            Ok(lease)
+        }
+
+        async fn replace(
+            &self,
+            connection_id: &auths_connections::ConnectionId,
+            old_generation: std::num::NonZeroU64,
+            new_generation: std::num::NonZeroU64,
+            secret: auths_connections::SecretBytes,
+        ) -> Result<
+            auths_connections::CredentialReferenceCommitment,
+            auths_connections::CredentialStoreError,
+        > {
+            self.inner
+                .replace(connection_id, old_generation, new_generation, secret)
+                .await
+        }
+
+        async fn revoke(
+            &self,
+            connection_id: &auths_connections::ConnectionId,
+            generation: std::num::NonZeroU64,
+        ) -> Result<(), auths_connections::CredentialStoreError> {
+            self.inner.revoke(connection_id, generation).await
+        }
+
+        async fn holds(
+            &self,
+            binding: &auths_connections::CredentialBinding,
+        ) -> Result<(), auths_connections::CredentialStoreError> {
+            self.inner.holds(binding).await
+        }
+
+        async fn confirm(
+            &self,
+            binding: &auths_connections::CredentialBinding,
+            secret: auths_connections::SecretBytes,
+        ) -> Result<(), auths_connections::CredentialStoreError> {
+            self.inner.confirm(binding, secret).await
+        }
+
+        async fn retire_superseded(
+            &self,
+            binding: &auths_connections::CredentialBinding,
+        ) -> Result<(), auths_connections::CredentialStoreError> {
+            self.inner.retire_superseded(binding).await
+        }
+
+        async fn delete_connection(
+            &self,
+            connection_id: &auths_connections::ConnectionId,
+            known: &[std::num::NonZeroU64],
+        ) -> Result<(), auths_connections::CredentialStoreError> {
+            self.inner.delete_connection(connection_id, known).await
+        }
     }
 
     struct ReadMaterializer {
         calls: Arc<AtomicU64>,
         fail: bool,
+        revoke_task_at: Option<std::path::PathBuf>,
     }
 
     #[async_trait::async_trait]
@@ -577,6 +737,12 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if self.fail {
                 return Err(crate::CredentialMaterializationError);
+            }
+            if let Some(root) = &self.revoke_task_at {
+                FileReleaseTaskLedger::open(root)
+                    .expect("reopen task ledger")
+                    .revoke("task-1")
+                    .expect("revoke during materialization");
             }
             Ok(crate::MaterializedCredential {
                 lease: auths_connections::StoredSecretLease::from_store(
@@ -598,9 +764,12 @@ mod tests {
         provider_denied: bool,
         materialize: bool,
         fail_materialization: bool,
+        race: ReadRace,
     ) {
         assert!(!(fail_before_content && provider_denied));
         assert!(!fail_materialization || materialize);
+        assert!(race != ReadRace::Materialization || materialize);
+        assert!(race != ReadRace::StaticLease || !materialize);
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
         let read_recipe = recipe();
@@ -651,18 +820,6 @@ mod tests {
             .await
             .expect("replace");
         let materializer_calls = Arc::new(AtomicU64::new(0));
-        if materialize {
-            engine.materializers.insert(
-                bound.connection_id().as_str().to_owned(),
-                Arc::new(crate::MaterializerInstallation::new(
-                    Arc::new(ReadMaterializer {
-                        calls: Arc::clone(&materializer_calls),
-                        fail: fail_materialization,
-                    }),
-                    [9; 32],
-                )),
-            );
-        }
 
         let identity = RawKeyIdentityMethod::identity(
             auths_signature_ed25519::ED25519_V1,
@@ -718,7 +875,7 @@ mod tests {
         std::fs::set_permissions(&ledger_root, std::fs::Permissions::from_mode(0o700))
             .expect("ledger mode");
         let ledger = FileReleaseTaskLedger::open(
-            std::fs::canonicalize(ledger_root).expect("canonical ledger root"),
+            std::fs::canonicalize(&ledger_root).expect("canonical ledger root"),
         )
         .expect("ledger");
         let floor_root = directory.path().join("read-floor");
@@ -728,6 +885,27 @@ mod tests {
         let read_floor = GenerationFloor::new(floor_root);
         read_floor.initialize(&bound).expect("read floor");
         ledger.initialize(&approved).expect("activate");
+        if materialize {
+            engine.materializers.insert(
+                bound.connection_id().as_str().to_owned(),
+                Arc::new(crate::MaterializerInstallation::new(
+                    Arc::new(ReadMaterializer {
+                        calls: Arc::clone(&materializer_calls),
+                        fail: fail_materialization,
+                        revoke_task_at: (race == ReadRace::Materialization).then(|| {
+                            std::fs::canonicalize(&ledger_root).expect("canonical ledger root")
+                        }),
+                    }),
+                    [9; 32],
+                )),
+            );
+        }
+        if race == ReadRace::StaticLease {
+            engine.credentials = Arc::new(RevokingCredentialStore {
+                inner: Arc::clone(&engine.credentials),
+                task_root: std::fs::canonicalize(&ledger_root).expect("canonical ledger root"),
+            });
+        }
         let mut action_arguments = arguments(&read_recipe, agent.principal.as_str());
         action_arguments.insert(
             "task_commitment".to_owned(),
@@ -772,6 +950,8 @@ mod tests {
                 commitment_key: &ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32]))
                     .expect("key"),
                 channel: &channel,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_release_entry: false,
             })
             .await;
         assert!(matches!(
@@ -805,6 +985,8 @@ mod tests {
                 commitment_key: &ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32]))
                     .expect("key"),
                 channel: &channel,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_release_entry: false,
             })
             .await;
         assert!(matches!(
@@ -837,7 +1019,12 @@ mod tests {
             stream.write_all(&signature).await.expect("signature");
             let length = match stream.read_u32().await {
                 Ok(length) => length as usize,
-                Err(error) if fail_before_content || provider_denied || fail_materialization => {
+                Err(error)
+                    if fail_before_content
+                        || provider_denied
+                        || fail_materialization
+                        || race != ReadRace::None =>
+                {
                     assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
                     return Vec::new();
                 }
@@ -858,7 +1045,7 @@ mod tests {
         });
         let provider_ready = Arc::clone(&authenticated);
         let provider_server = tokio::spawn(async move {
-            if fail_materialization {
+            if fail_materialization || race != ReadRace::None {
                 assert!(
                     tokio::time::timeout(Duration::from_millis(250), provider.accept())
                         .await
@@ -908,6 +1095,8 @@ mod tests {
                 connection_subject: subject.to_owned(),
             },
             ledger,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_write_reservation: false,
         };
         let mut read_session = task_session
             .read_session(TaskReadOperatorInputs {
@@ -929,7 +1118,15 @@ mod tests {
         let result = read_session
             .read("task-1", &signed.proof, &signed.action)
             .await;
-        if fail_materialization {
+        if race != ReadRace::None {
+            assert_eq!(
+                result,
+                ManagedReleaseResult::NoRelease {
+                    code: "gateway.release.task-inactive"
+                }
+            );
+            assert!(agent_server.await.expect("agent").is_empty());
+        } else if fail_materialization {
             assert_eq!(
                 result,
                 ManagedReleaseResult::NoRelease {
@@ -971,13 +1168,13 @@ mod tests {
             .expect("task");
         assert_eq!(
             state.counts(),
-            if provider_denied || fail_materialization {
+            if provider_denied || fail_materialization || race != ReadRace::None {
                 (1, 0, 0)
             } else {
                 (1, 1, 5)
             }
         );
-        let stage = if fail_materialization {
+        let stage = if fail_materialization || race != ReadRace::None {
             ReleaseStage::ReleaseRefused
         } else if provider_denied {
             ReleaseStage::ProviderUnavailable
@@ -991,7 +1188,7 @@ mod tests {
             .expect("redacted status");
         assert_eq!(
             status["reads"][0]["stage"],
-            if fail_materialization {
+            if fail_materialization || race != ReadRace::None {
                 "release-refused"
             } else if provider_denied {
                 "provider-unavailable"
@@ -1003,7 +1200,7 @@ mod tests {
         );
         assert_eq!(
             status["released_bytes"],
-            if provider_denied || fail_materialization {
+            if provider_denied || fail_materialization || race != ReadRace::None {
                 0
             } else {
                 5

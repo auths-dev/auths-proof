@@ -72,8 +72,8 @@ recovered-child binding path, and no further provider write was attempted.
 demo_co's private generation-0020 final observation, SHA-256
 `edf586cf331d760787b171d8758984120a6976cdf50b25464bb6407fce1112a8`,
 passed the pinned v3 consumer. The new Doc has the exact approved 145-byte text
-plus Google's three-byte UTF-8 BOM: raw export 148 bytes, SHA-256
-`a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+plus Google's three-byte UTF-8 BOM: raw export 148 bytes, with its content
+digest retained in private verifier custody.
 It remains the sole new Project A child with the unique marker. All five
 pre-existing children and canonical Project A/B documents were unchanged;
 Jules's Project B write was denied. The provider observation proves final

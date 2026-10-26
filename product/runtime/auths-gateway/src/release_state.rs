@@ -71,6 +71,9 @@ pub(crate) struct ReleaseTaskPolicy {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WriteOperation {
+    /// Recorded at reservation so activity can find the exact attempt even
+    /// when one task uses recipes with different replay namespaces.
+    operator_namespace: String,
     resource_handle: String,
     recipe_digest: String,
     verb: crate::task_activation::TaskWriteVerb,
@@ -79,6 +82,13 @@ struct WriteOperation {
     connection_subject: String,
     action_commitment: String,
     request_commitment: String,
+}
+
+pub(crate) struct WriteAttemptPin {
+    pub(crate) operation_id: String,
+    pub(crate) operator_namespace: String,
+    pub(crate) recipe_digest: String,
+    pub(crate) action_commitment: String,
 }
 
 /// Immutable child authority derived from one reserved task create and a
@@ -323,6 +333,18 @@ fn same_commitment(expected: &str, presented: &str) -> bool {
 }
 
 impl ReleaseTaskState {
+    pub(crate) fn write_attempt_pins(&self) -> Vec<WriteAttemptPin> {
+        self.writes
+            .iter()
+            .map(|(operation_id, write)| WriteAttemptPin {
+                operation_id: operation_id.clone(),
+                operator_namespace: write.operator_namespace.clone(),
+                recipe_digest: write.recipe_digest.clone(),
+                action_commitment: write.action_commitment.clone(),
+            })
+            .collect()
+    }
+
     pub(crate) fn status(&self) -> TaskStatus {
         let reads = self
             .operations
@@ -661,12 +683,25 @@ impl ReleaseTaskState {
 
     /// Durably charge a task write before gateway claim or credential lease.
     /// An unknown transport result never refunds this count or reopens its ID.
+    #[cfg(test)]
     fn reserve_write(
         &mut self,
         approved: &ApprovedTaskWrite,
         now: u64,
     ) -> Result<(), ReleaseStateError> {
+        self.reserve_write_with_namespace(approved, "test-only", now)
+    }
+
+    fn reserve_write_with_namespace(
+        &mut self,
+        approved: &ApprovedTaskWrite,
+        operator_namespace: &str,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if crate::OperatorNamespace::parse(operator_namespace).is_err() {
+            return Err(ReleaseStateError::Binding);
+        }
         let intent = approved.intent();
         if intent.task_id != self.task_id
             || !same_commitment(&self.task_commitment, &intent.task_commitment)
@@ -714,6 +749,7 @@ impl ReleaseTaskState {
         self.writes.insert(
             intent.operation_id.clone(),
             WriteOperation {
+                operator_namespace: operator_namespace.to_owned(),
                 resource_handle: intent.resource_handle.clone(),
                 recipe_digest: intent.recipe_digest.clone(),
                 verb: intent.verb.clone(),
@@ -1257,6 +1293,7 @@ impl ReleaseTaskState {
         }
         for (operation_id, write) in &self.writes {
             if !bounded_text(operation_id, 128)
+                || crate::OperatorNamespace::parse(&write.operator_namespace).is_err()
                 || self.operations.contains_key(operation_id)
                 || !valid_digest(&write.action_commitment)
                 || write.action_commitment == "0".repeat(64)
@@ -1584,6 +1621,7 @@ impl FileReleaseTaskLedger {
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn reserve_write(
         &self,
         approved: &ApprovedTaskWrite,
@@ -1591,6 +1629,17 @@ impl FileReleaseTaskLedger {
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(&approved.intent().task_id, |state| {
             state.reserve_write(approved, now)
+        })
+    }
+
+    pub(crate) fn reserve_write_with_namespace(
+        &self,
+        approved: &ApprovedTaskWrite,
+        operator_namespace: &str,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(&approved.intent().task_id, |state| {
+            state.reserve_write_with_namespace(approved, operator_namespace, now)
         })
     }
 
@@ -2256,6 +2305,15 @@ mod tests {
         let first = write_intent("edit-1");
         state.reserve_write(&first, 101).expect("first write claim");
         assert_eq!(state.write_count(), 1);
+        let mut obsolete = serde_json::to_value(&state).expect("task JSON");
+        obsolete["writes"]["edit-1"]
+            .as_object_mut()
+            .expect("write record")
+            .remove("operator_namespace");
+        assert!(
+            serde_json::from_value::<ReleaseTaskState>(obsolete).is_err(),
+            "obsolete claims without a recipe namespace must be rejected"
+        );
         assert_eq!(
             state.reserve_write(&first, 101),
             Err(ReleaseStateError::Replay)

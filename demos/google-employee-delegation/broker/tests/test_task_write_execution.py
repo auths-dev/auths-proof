@@ -174,6 +174,49 @@ class TaskWriteExecutionTests(unittest.TestCase):
             with self.assertRaisesRegex(OperatorDenied, "status is unavailable"):
                 self.flow.status(task_id=self.task_id, employee=employee)
 
+    def test_activity_requires_exact_task_and_write_attempt_join(self) -> None:
+        card = self.task_dir / "task-card.json"
+        card.write_text(json.dumps({
+            "task_id": self.task_id, "company_id": "atlas",
+            "human_principal": "human-1",
+        }), encoding="utf-8")
+        card.chmod(0o600)
+        employee = EmployeeBinding("atlas", "jules", "issuer", "subject",
+                                   "human-1", "binding")
+        status = {
+            "schema": "auths.gateway-agent-task-status/1", "task_id": self.task_id,
+            "expires_at": 2000, "revoked": False,
+            "provider_calls": 0, "max_provider_calls": 0,
+            "releases": 0, "max_releases": 0,
+            "released_bytes": 0, "max_release_bytes": 0,
+            "writes": 1, "max_writes": 1, "reads": [],
+            "write_operations": ["write-1"],
+        }
+        activity = {
+            "schema": "auths.gateway-agent-task-activity/1", "task": status,
+            "write_attempts": [{
+                "operation_id": "write-1", "stage": "response-recorded",
+                "response_status": 200, "observation_match": None,
+            }],
+        }
+
+        def gateway_result(payload: dict) -> subprocess.CompletedProcess:
+            return subprocess.CompletedProcess([], 0, json.dumps(payload).encode(), b"")
+
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   side_effect=[gateway_result(status), gateway_result(activity)]) as run:
+            self.assertEqual(self.flow.activity(task_id=self.task_id, employee=employee),
+                             activity)
+        self.assertEqual([call.args[0][1] for call in run.call_args_list],
+                         ["task-status", "task-activity"])
+
+        altered = json.loads(json.dumps(activity))
+        altered["write_attempts"][0]["operation_id"] = "other-task-write"
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   side_effect=[gateway_result(status), gateway_result(altered)]):
+            with self.assertRaisesRegex(OperatorDenied, "activity is unavailable"):
+                self.flow.activity(task_id=self.task_id, employee=employee)
+
     def test_one_effect_plan_records_exact_draft_before_any_provider_write(self) -> None:
         self.flow.companion_recipe_path = self.root / "populate-recipe"
         self.flow.companion_profile_lock_path = self.root / "populate-lock"

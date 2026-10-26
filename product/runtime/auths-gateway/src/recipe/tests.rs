@@ -48,6 +48,12 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
                 "../../../../../demos/todoist-gateway/create_reference/profile.lock.json"
             ),
         ),
+        "todoist-populate" => (
+            include_bytes!("../../../../../demos/todoist-gateway/populate_reference/recipe.json"),
+            include_bytes!(
+                "../../../../../demos/todoist-gateway/populate_reference/profile.lock.json"
+            ),
+        ),
         "airtable-task-edit" => (
             include_bytes!("../../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!(
@@ -64,7 +70,10 @@ fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
     assert!(recipe.requires_task_admission());
     assert_eq!(
         recipe.task_populate_fields(),
-        Some(("text", "tab_id", "required_revision_id"))
+        Some((
+            "text",
+            &["required_revision_id".to_owned(), "tab_id".to_owned()][..]
+        ))
     );
     let args = arguments(
         &recipe,
@@ -73,7 +82,7 @@ fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
             "task_id": "task-1",
             "task_commitment": "45".repeat(32),
             "document_id": "child_ABC-123",
-        "tab_id": "t.0",
+            "tab_id": "t.0",
             "text": "Project A is on track. Next: confirm handoff.",
             "required_revision_id": "revision-1"
         }),
@@ -89,7 +98,7 @@ fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
         serde_json::from_slice::<Value>(request.body()).expect("body"),
         json!({
             "requests": [{"insertText": {
-            "endOfSegmentLocation": {"tabId": "t.0"},
+                "endOfSegmentLocation": {"tabId": "t.0"},
                 "text": "Project A is on track. Next: confirm handoff."
             }}],
             "writeControl": {"requiredRevisionId": "revision-1"}
@@ -110,8 +119,38 @@ fn planned_population_recipe_refuses_unreviewed_provider_fields() {
     recipe["task_populate"]["text_field"] = json!("required_revision_id");
     assert!(CompiledRecipe::compile(&serde_json::to_vec(&recipe).expect("source"), lock).is_err());
     let mut recipe: Value = serde_json::from_slice(source).expect("source");
-    recipe["task_populate"]["revision_field"] = json!("operation_id");
+    recipe["task_populate"]["preflight_fields"] = json!(["operation_id"]);
     assert!(CompiledRecipe::compile(&serde_json::to_vec(&recipe).expect("source"), lock).is_err());
+}
+
+#[test]
+fn todoist_population_uses_bound_child_and_plan_text_without_google_fields() {
+    let recipe = compiled("todoist-populate");
+    assert!(recipe.requires_task_admission());
+    let (text, preflight_fields) = recipe.task_populate_fields().expect("population");
+    assert_eq!(text, "text");
+    assert!(preflight_fields.is_empty());
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "populate-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "todoist_task_id": "task-ABC-123",
+            "text": "Approved handoff",
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed task population");
+    assert_eq!(
+        request.url(),
+        "https://api.todoist.com/api/v1/tasks/task-ABC-123"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("body"),
+        json!({"description": "Approved handoff"})
+    );
 }
 
 fn compiled(name: &str) -> CompiledRecipe {

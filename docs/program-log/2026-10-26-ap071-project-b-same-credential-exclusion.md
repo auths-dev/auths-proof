@@ -30,8 +30,8 @@ it does not assert an Auths provider request.
    zero writes. No Google request was admitted for this action.
 2. The same agent then signed the permitted Project A read under the same
    task and connection. The gateway returned `agent-acknowledged`; the
-   separate agent received 51 bytes whose SHA-256 matched demo_co's pinned
-   Project A source (`605a3d7e0908275e59d53743fc570418b04acbab9f7184bfdb91670656909335`).
+   separate agent received 51 bytes that the private verifier matched to
+   demo_co's pinned Project A source. The content digest stays private.
    The final journal showed exactly one provider call, one 51-byte release,
    zero writes and revocation.
 

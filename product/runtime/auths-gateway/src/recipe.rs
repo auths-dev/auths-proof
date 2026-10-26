@@ -637,14 +637,11 @@ impl CompiledRecipe {
         })
     }
 
-    pub(crate) fn task_populate_fields(&self) -> Option<(&str, &str, &str)> {
-        self.source.task_populate.as_ref().map(|populate| {
-            (
-                populate.text.as_str(),
-                populate.tab.as_str(),
-                populate.revision.as_str(),
-            )
-        })
+    pub(crate) fn task_populate_fields(&self) -> Option<(&str, &[String])> {
+        self.source
+            .task_populate
+            .as_ref()
+            .map(|populate| (populate.text.as_str(), populate.preflight_fields.as_slice()))
     }
 
     /// What this recipe can prove after an ambiguous write.

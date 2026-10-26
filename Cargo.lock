@@ -746,6 +746,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-google-employee-custody"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "auths-connections",
+ "auths-gateway",
+ "base64ct",
+ "hex",
+ "reqwest",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "subtle",
+ "tempfile",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
 name = "auths-hsm-attested"
 version = "1.0.0-rc.1"
 dependencies = [

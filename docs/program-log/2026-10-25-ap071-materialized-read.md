@@ -12,10 +12,9 @@ directory. No Google credential was included in its package.
 The installed gateway reached Google using Jules's subject-bound, source-backed
 post-reservation credential materializer. Its result was `agent-acknowledged`.
 The durable task status records one provider call, one release, 51 bytes
-released, and zero writes. The agent's 51-byte private output has SHA-256
-`605a3d7e0908275e59d53743fc570418b04acbab9f7184bfdb91670656909335`,
-matching the independent source pin and the gateway's acknowledged release
-receipt. The private evidence lives under
+released, and zero writes. A private verifier matched the agent's 51-byte
+output to the independent source pin and the gateway's acknowledged release
+receipt. The content digest remains in private custody. The private evidence lives under
 `/private/tmp/ap071-materializer-live-v2-20261025` and
 `/private/tmp/ap071-jules-local/agent/0VG6F0UsVsh0tSaw8aMoBYVu`.
 

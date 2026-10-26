@@ -26,16 +26,7 @@ from pathlib import Path
 
 import requests
 
-ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
-for source in (
-    ROOT / "bindings/python/src",
-    ROOT / "demos/google-employee-delegation/broker/src",
-    ROOT / "demos/google-employee-delegation/agent/src",
-    ROOT / "demos/airtable-gateway",
-    ROOT / "qualification/reference",
-):
-    sys.path.insert(0, str(source))
 
 from auths.identity.authoring import create_raw_key_ed25519_identity
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -59,6 +50,7 @@ READ_DIGEST = "bc0335d9ab4fb4bb381834bef8aa5e6e6df58686f0920db460a109efa272fec7"
 BASE = "appQD3Qf0YFBCW9bV"
 TABLE = "tblBx2jwe0IsPYRKT"
 ACCOUNT = "operator-airtable-pat"
+AGENT_SANDBOX_PROFILE: Path | None = None
 
 
 def _private_dir(path: Path, *, create: bool = False) -> Path:
@@ -79,6 +71,74 @@ def _token(env_file: Path) -> str:
     if type(token) is not str or not token.startswith("pat"):
         raise ValueError("Airtable development PAT is unavailable")
     return token
+
+
+def _configure_custody(binary: Path, state: Path, operator: Path,
+                       env_file: Path, source_ref: str,
+                       write_connection: dict, read_connection: dict) -> None:
+    sidecar = HERE / "airtable_custody.py"
+    if (not sidecar.is_absolute() or sidecar.is_symlink()
+            or not sidecar.is_file() or not sidecar.stat().st_mode & 0o111):
+        raise ValueError("installed Airtable custody executable is unavailable")
+    env_fd = os.open(env_file, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(env_fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or info.st_size > 16_384
+                or stat.S_IMODE(info.st_mode) & 0o077):
+            raise ValueError("Airtable PAT file is not owner-private")
+        env_digest = hashlib.sha256(stream.read(16_385)).hexdigest()
+    sidecar_digest = hashlib.sha256(sidecar.read_bytes()).hexdigest()
+    entries = []
+    for label, connection, recipe, kind, generation in (
+        ("write", write_connection, WRITE_DIGEST, "write-effect",
+         write_connection["credential_generation"]),
+        ("read", read_connection, READ_DIGEST, "read-release",
+         read_connection["connection_generation"]),
+    ):
+        path = operator / f"airtable-{label}-custody-pins.json"
+        body = {
+            "schema": "auths.airtable-custody-pins/1",
+            "connection_id": connection["connection_id"],
+            "connection_generation": generation,
+            "source_generation": generation,
+            "source_ref": source_ref,
+            "account_subject": ACCOUNT,
+            "recipe_digest": recipe,
+            "kind": kind,
+            "pat_file": str(env_file),
+            "pat_file_sha256": env_digest,
+        }
+        _write_json(path, body)
+        described = subprocess.run(
+            [str(sidecar), "--describe", "--pins", str(path)],
+            capture_output=True, timeout=15, check=False,
+            env={"PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        if described.returncode != 0 or len(described.stdout) > 1_024:
+            raise RuntimeError("installed Airtable custody descriptor refused")
+        descriptor = json.loads(described.stdout)
+        if (descriptor.get("schema") != "auths.custody-process-descriptor/1"
+                or descriptor.get("connection_id") != connection["connection_id"]):
+            raise RuntimeError("installed Airtable custody descriptor changed")
+        entries.append({
+            "schema": "auths.custody-process/1",
+            "connection_id": connection["connection_id"],
+            "executable": str(sidecar),
+            "executable_sha256": sidecar_digest,
+            "provider_pins": str(path),
+            "provider_pins_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "authority_digest": descriptor["authority_digest"],
+        })
+    entries.sort(key=lambda item: item["connection_id"])
+    installation = operator / "task-materializers.json"
+    _write_json(installation, {
+        "schema": "auths.gateway-task-materializers/2",
+        "materializers": entries,
+    })
+    _gateway(binary, "task-materializer-configure", "--state-dir", state,
+             "--from", installation)
+    _gateway(binary, "task-materializer-probe", "--state-dir", state)
 
 
 class Airtable:
@@ -137,16 +197,53 @@ def _gateway(binary: Path, command: str, *args: str,
     return result
 
 
+def _crash_during_release(binary: Path, state: Path, task_id: str,
+                          proof: Path, action: Path, *, flag: str,
+                          expected_exit: int) -> None:
+    completed = subprocess.run(
+        [str(binary), "task-read-submit", "--state-dir", str(state),
+         "--task-id=" + task_id, "--agent-proof", str(proof),
+         "--agent-action", str(action), flag],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120,
+        env={"PATH": os.environ.get("PATH", "")}, check=False,
+    )
+    if completed.returncode != expected_exit or completed.stdout:
+        raise RuntimeError("gateway did not exit at the selected release boundary")
+
+
+def _crash_after_write_reservation(binary: Path, state: Path, task_id: str,
+                                   task_dir: Path) -> None:
+    completed = subprocess.run(
+        [str(binary), "task-submit", "--state-dir", str(state),
+         "--task-id=" + task_id,
+         "--agent-proof", str(task_dir / "agent.proof"),
+         "--agent-action", str(task_dir / "agent.action"),
+         "--confirmation-proof", str(task_dir / "confirmation.proof"),
+         "--confirmation-action", str(task_dir / "confirmation.action"),
+         "--exit-after-write-reservation"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120,
+        env={"PATH": os.environ.get("PATH", "")},
+        check=False,
+    )
+    if completed.returncode != 88 or completed.stdout:
+        raise RuntimeError("gateway did not exit after durable write reservation")
+
+
 def _agent(command: str, *args: str, wait: bool = True) -> subprocess.CompletedProcess | subprocess.Popen:
     env = {"PATH": os.environ.get("PATH", ""), "PYTHONNOUSERSITE": "1",
-           "PYTHONPATH": os.pathsep.join((
-               str(ROOT / "bindings/python/src"),
-               str(ROOT / "demos/google-employee-delegation/agent/src"),
-           ))}
-    invocation = ([sys.executable, str(HERE / "lost_ack_agent.py"),
-                   *map(str, args)] if command == "serve-release-lossy" else
-                  [sys.executable, "-m", "employee_read_agent.cli", command,
-                   *map(str, args)])
+           "PYTHONDONTWRITEBYTECODE": "1"}
+    if command == "serve-release-lossy":
+        invocation = [sys.executable, str(HERE / "lost_ack_agent.py"),
+                      *map(str, args)]
+    elif command == "isolation-probe":
+        invocation = [sys.executable, "-m", "employee_read_agent.isolation_probe",
+                      *map(str, args)]
+    else:
+        invocation = [sys.executable, "-m", "employee_read_agent.cli", command,
+                      *map(str, args)]
+    if AGENT_SANDBOX_PROFILE is not None:
+        invocation = ["/usr/bin/sandbox-exec", "-f",
+                      str(AGENT_SANDBOX_PROFILE), *invocation]
     if not wait:
         return subprocess.Popen(invocation, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, env=env)
@@ -162,6 +259,41 @@ def _write_json(path: Path, value: dict) -> None:
                                     separators=(",", ":")).encode("utf-8"))
 
 
+def _install_macos_agent_sandbox(operator: Path, agent_dir: Path,
+                                 state: Path, env_file: Path) -> None:
+    """Apply one OS profile to every installed agent command in this run."""
+    global AGENT_SANDBOX_PROFILE
+    if sys.platform != "darwin" or not Path("/usr/bin/sandbox-exec").is_file():
+        raise ValueError("macOS agent sandbox is unavailable")
+    paths = (operator.resolve(strict=True), state.resolve(strict=True),
+             env_file.resolve(strict=True))
+    if any(path == agent_dir.resolve(strict=True) for path in paths):
+        raise ValueError("agent directory overlaps a protected path")
+    profile = operator / "agent.sb"
+    quoted = tuple(json.dumps(str(path)) for path in paths)
+    agent_path = json.dumps(str(agent_dir.resolve(strict=True)))
+    body = ("(version 1)\n(allow default)\n(deny network-outbound)\n"
+            f"(deny file-read* (subpath {quoted[0]}) (subpath {quoted[1]})"
+            f" (literal {quoted[2]}))\n"
+            "(deny file-write*)\n"
+            f"(allow file-write* (subpath {agent_path}))\n")
+    _private_write(profile, body.encode("utf-8"))
+    AGENT_SANDBOX_PROFILE = profile
+    probe = _agent(
+        "isolation-probe", "--macos-agent-dir", agent_dir,
+        "--macos-channel-dir", agent_dir,
+        "--macos-run-root", agent_dir.parent,
+        "--macos-gateway-state", state,
+        "--macos-operator-private", operator,
+        "--macos-credential-file", env_file,
+    )
+    result = json.loads(probe.stdout)
+    if (result.get("schema") != "auths.ap071-agent-isolation-probe/2"
+            or result.get("passed") is not True):
+        raise RuntimeError("installed agent isolation probe refused")
+    _write_json(operator / "agent-isolation.json", result)
+
+
 def _wait_for(path: Path, process: subprocess.Popen) -> None:
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
@@ -175,25 +307,44 @@ def _wait_for(path: Path, process: subprocess.Popen) -> None:
 
 def run(env_file: Path, root: Path, binary: Path,
         *, drop_ack: bool = False, fail_before_content: bool = False,
+        exit_after_release_entry: bool = False,
+        exit_after_content_send: bool = False,
         revoke_before_actions: bool = False,
         upfront_second_write: bool = False,
-        concurrent_upfront_writes: bool = False) -> None:
+        concurrent_upfront_writes: bool = False,
+        exit_after_write_reservation: bool = False,
+        macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
-    if sum((drop_ack, fail_before_content, revoke_before_actions,
-            upfront_second_write, concurrent_upfront_writes)) > 1:
+    if sum((drop_ack, fail_before_content, exit_after_release_entry,
+            exit_after_content_send,
+            revoke_before_actions,
+            upfront_second_write, concurrent_upfront_writes,
+            exit_after_write_reservation)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
     state = _private_dir(root / "gateway", create=True)
     if not binary.is_absolute() or binary.is_symlink() or not binary.is_file():
         raise ValueError("gateway binary is unavailable")
-    if fail_before_content:
+    if macos_agent_sandbox:
+        _install_macos_agent_sandbox(operator, agent_dir, state, env_file)
+    if fail_before_content or exit_after_release_entry or exit_after_content_send:
         help_result = subprocess.run(
             [str(binary), "task-read-submit", "--help"],
             capture_output=True, timeout=15, check=True,
         )
-        if b"--fail-before-content" not in help_result.stdout:
-            raise ValueError("development no-content fault is unavailable")
+        flag = (b"--exit-after-release-entry" if exit_after_release_entry else
+                b"--exit-after-content-send" if exit_after_content_send else
+                b"--fail-before-content")
+        if flag not in help_result.stdout:
+            raise ValueError("development release fault is unavailable")
+    if exit_after_write_reservation:
+        help_result = subprocess.run(
+            [str(binary), "task-submit", "--help"],
+            capture_output=True, timeout=15, check=True,
+        )
+        if b"--exit-after-write-reservation" not in help_result.stdout:
+            raise ValueError("development write fault is unavailable")
     write_review = _gateway(
         binary, "review", "--recipe", WRITE / "recipe.json",
         "--profile-lock", WRITE / "profile.lock.json",
@@ -266,6 +417,7 @@ def run(env_file: Path, root: Path, binary: Path,
     issued = json.loads(authority.read_bytes())
     _private_write(operator / "trusted-context.cbor",
                    base64.urlsafe_b64decode(issued["trusted_template_b64"]))
+    source_ref = "auths.materializer-source/1:airtable-operator-pat://" + run_id
     write_connection = _gateway(
         binary, "install", "--state-dir", state,
         "--recipe", WRITE / "recipe.json",
@@ -273,8 +425,9 @@ def run(env_file: Path, root: Path, binary: Path,
         "--trusted-context", operator / "trusted-context.cbor",
         "--approve-digest", WRITE_DIGEST, "--provider", "airtable",
         "--alias", "ap071-write", "--account-label", ACCOUNT,
-        "--credential-stdin", "--connection-json", "--deployment", "development",
-        secret=token.encode("ascii"),
+        "--credential-stdin", "--credential-source-stdin",
+        "--connection-json", "--deployment", "development",
+        secret=source_ref.encode("ascii"),
     )
     read_connection = _gateway(
         binary, "task-read-connect", "--state-dir", state,
@@ -282,8 +435,11 @@ def run(env_file: Path, root: Path, binary: Path,
         "--profile-lock", HERE / "profile.lock.json",
         "--approve-digest", READ_DIGEST, "--provider", "airtable",
         "--alias", "ap071-read", "--account-subject", ACCOUNT,
-        "--credential-stdin", secret=token.encode("ascii"),
+        "--credential-stdin", "--credential-source-stdin",
+        secret=source_ref.encode("ascii"),
     )
+    _configure_custody(binary, state, operator, env_file, source_ref,
+                       write_connection, read_connection)
     read_scope = {
         "handle": record, "recipe_digest": READ_DIGEST,
         "connection_id": read_connection["connection_id"],
@@ -443,6 +599,11 @@ def run(env_file: Path, root: Path, binary: Path,
     if (excluded != {"outcome": "not-entered", "code": "gateway.release.scope"}
             or zero.get("provider_calls") != 0
             or zero.get("releases") != 0):
+        _write_json(operator / "excluded-read-diagnostic.json", {
+            "outcome": excluded.get("outcome"), "code": excluded.get("code"),
+            "provider_calls": zero.get("provider_calls"),
+            "releases": zero.get("releases"),
+        })
         raise RuntimeError("excluded Airtable read entered provider or released content")
     read_operation = "airtable-read-one"
     _write_json(agent_dir / "read-arguments.json", {
@@ -556,27 +717,38 @@ def run(env_file: Path, root: Path, binary: Path,
                     "--channel-name", "airtable-agent-local", wait=False)
     try:
         _wait_for(channel, server)
-        release = _gateway(
-            binary, "task-read-submit", "--state-dir", state,
-            "--task-id", signed.task_id,
-            "--agent-proof", read_output / "read.proof",
-            "--agent-action", read_output / "read.action",
-            *(("--fail-before-content",) if fail_before_content else ()),
-        )
+        if exit_after_release_entry or exit_after_content_send:
+            _crash_during_release(
+                binary, state, signed.task_id,
+                read_output / "read.proof", read_output / "read.action",
+                flag=("--exit-after-release-entry" if exit_after_release_entry
+                      else "--exit-after-content-send"),
+                expected_exit=(86 if exit_after_release_entry else 87),
+            )
+            release = {"outcome": "delivery-unknown"}
+        else:
+            release = _gateway(
+                binary, "task-read-submit", "--state-dir", state,
+                "--task-id", signed.task_id,
+                "--agent-proof", read_output / "read.proof",
+                "--agent-action", read_output / "read.action",
+                *(("--fail-before-content",) if fail_before_content else ()),
+            )
         server.communicate(timeout=15)
-        if not fail_before_content and server.returncode != 0:
+        if not (fail_before_content or exit_after_release_entry or
+                exit_after_content_send) and server.returncode != 0:
             raise RuntimeError("agent did not acknowledge the Airtable release")
-        if fail_before_content and server.returncode == 0:
+        if (fail_before_content or exit_after_release_entry) and server.returncode == 0:
             raise RuntimeError("agent completed despite the no-send fault")
     finally:
         if server.poll() is None:
             server.terminate()
             server.communicate(timeout=5)
-    if fail_before_content and source.exists():
+    if (fail_before_content or exit_after_release_entry) and source.exists():
         raise RuntimeError("agent received content after the no-send fault")
-    if not fail_before_content and source.read_bytes() != b"Pending":
+    if not (fail_before_content or exit_after_release_entry) and source.read_bytes() != b"Pending":
         raise RuntimeError("agent received unexpected Airtable content")
-    if drop_ack or fail_before_content:
+    if drop_ack or fail_before_content or exit_after_release_entry or exit_after_content_send:
         status = _gateway(binary, "task-status", "--state-dir", state,
                           "--task-id", signed.task_id)
         expected_stage = "not-delivered" if fail_before_content else "delivery-unknown"
@@ -620,19 +792,27 @@ def run(env_file: Path, root: Path, binary: Path,
                 or (agent_dir / "replay-source.bin").exists()):
             raise RuntimeError("faulted read was delivered a second time")
         _write_json(operator / "redacted-result.json", {
-            "schema": ("auths.ap071-airtable-no-send/1" if fail_before_content
+            "schema": ("auths.ap071-airtable-crash-after-content/1"
+                       if exit_after_content_send else
+                       "auths.ap071-airtable-crash-after-entry/1"
+                       if exit_after_release_entry else
+                       "auths.ap071-airtable-no-send/1" if fail_before_content
                        else "auths.ap071-airtable-lost-ack/1"),
             "task_id": signed.task_id, "record_id": record,
             "read_operation_id": read_operation,
             "read_outcome": release["outcome"],
-            "agent_saved_exact_bytes": drop_ack,
+            "agent_saved_exact_bytes": drop_ack or exit_after_content_send,
             "replay_outcome": replay["outcome"],
             "replay_code": replay["code"],
             "gateway_status": status,
             "cleanup": "pending",
         })
         print(json.dumps({
-            "status": ("installed-airtable-no-send-observed" if fail_before_content
+            "status": ("installed-airtable-crash-after-content-observed"
+                       if exit_after_content_send else
+                       "installed-airtable-crash-after-entry-observed"
+                       if exit_after_release_entry else
+                       "installed-airtable-no-send-observed" if fail_before_content
                        else "installed-airtable-lost-ack-observed"),
             "task_id": signed.task_id, "record_id": record,
             "result": str(operator / "redacted-result.json"),
@@ -812,6 +992,52 @@ def run(env_file: Path, root: Path, binary: Path,
             or before_allowed.get("writes") != 0
             or airtable.request("GET", row_path) != before):
         raise RuntimeError("changed Airtable action entered provider or spent write")
+    if exit_after_write_reservation:
+        _crash_after_write_reservation(binary, state, signed.task_id,
+                                       signed.private_task_dir)
+        charged = _gateway(binary, "task-activity", "--state-dir", state,
+                           "--task-id", signed.task_id)
+        replay = _gateway(
+            binary, "task-submit", "--state-dir", state,
+            "--task-id", signed.task_id,
+            "--agent-proof", signed.private_task_dir / "agent.proof",
+            "--agent-action", signed.private_task_dir / "agent.action",
+            "--confirmation-proof", signed.private_task_dir / "confirmation.proof",
+            "--confirmation-action", signed.private_task_dir / "confirmation.action",
+        )
+        after_replay = _gateway(binary, "task-activity", "--state-dir", state,
+                                "--task-id", signed.task_id)
+        after_provider = airtable.request("GET", row_path)
+        if (charged.get("task", {}).get("writes") != 1
+                or charged.get("write_attempts") != [{
+                    "operation_id": write_operation,
+                    "stage": "claimed-no-attempt",
+                    "response_status": None,
+                    "observation_match": None,
+                }]
+                or replay != {"outcome": "not-entered",
+                              "code": "gateway.task.write-replay"}
+                or after_replay != charged or after_provider != before):
+            raise RuntimeError("crashed write reservation was retried or entered provider")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-write-reservation-crash/1",
+            "task_id": signed.task_id, "record_id": record,
+            "write_operation_id": write_operation,
+            "write_stage": "claimed-no-attempt",
+            "write_budget_spent": charged["task"]["writes"],
+            "replay_outcome": replay["outcome"],
+            "replay_code": replay["code"],
+            "provider_effect": "none",
+            "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-write-reservation-crash-observed",
+            "task_id": signed.task_id, "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     outcome = flow.submit(task_id=signed.task_id, employee=employee, agent=agent)
     after = airtable.request("GET", row_path)
     if (after.get("id") != record
@@ -889,12 +1115,20 @@ def main() -> None:
                         help="receive bytes but deliberately lose agent ACK")
     parser.add_argument("--fail-before-content", action="store_true",
                         help="development gateway fault after release charge, before content")
+    parser.add_argument("--exit-after-release-entry", action="store_true",
+                        help="development gateway exits after durable release entry")
+    parser.add_argument("--exit-after-content-send", action="store_true",
+                        help="development gateway exits after sending exact content")
     parser.add_argument("--revoke-before-actions", action="store_true",
                         help="revoke after both actions are signed but before provider entry")
     parser.add_argument("--upfront-second-write", action="store_true",
                         help="allow two bounded choices but only one write effect")
     parser.add_argument("--concurrent-upfront-writes", action="store_true",
                         help="race two signed bounded choices for one write effect")
+    parser.add_argument("--exit-after-write-reservation", action="store_true",
+                        help="development gateway exits between durable write and attempt journals")
+    parser.add_argument("--macos-agent-sandbox", action="store_true",
+                        help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
     if args.command == "run":
         if args.gateway_bin is None:
@@ -902,9 +1136,13 @@ def main() -> None:
         run(args.env_file, args.root, args.gateway_bin,
             drop_ack=args.drop_ack,
             fail_before_content=args.fail_before_content,
+            exit_after_release_entry=args.exit_after_release_entry,
+            exit_after_content_send=args.exit_after_content_send,
             revoke_before_actions=args.revoke_before_actions,
             upfront_second_write=args.upfront_second_write,
-            concurrent_upfront_writes=args.concurrent_upfront_writes)
+            concurrent_upfront_writes=args.concurrent_upfront_writes,
+            exit_after_write_reservation=args.exit_after_write_reservation,
+            macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)
 

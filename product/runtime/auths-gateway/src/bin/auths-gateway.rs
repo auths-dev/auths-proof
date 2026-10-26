@@ -12,12 +12,12 @@ fn main() {
 }
 
 #[cfg(unix)]
-#[path = "google_custody.rs"]
-mod google_custody;
+#[path = "process_custody.rs"]
+mod process_custody;
 
 #[cfg(unix)]
 mod unix {
-    use super::google_custody::{GoogleCustodyMaterializer, GoogleCustodyPins};
+    use super::process_custody::{ProcessCustodyMaterializer, ProcessCustodyPins};
     use auths_connections::{
         ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionProfile,
         ConnectionRecord, ConnectionState, CredentialStoreKind, PersistentCredentialStore,
@@ -101,7 +101,7 @@ mod unix {
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     const TASK_WRITE_INSTALLATION_FILE: &str = "task-write-installation.json";
-    const TASK_MATERIALIZERS_FILE: &str = "task-google-materializers.json";
+    const TASK_MATERIALIZERS_FILE: &str = "task-materializers.json";
     const TASK_WRITE_STATE_DIRECTORY: &str = "agent-task-state";
     const TASK_READ_INSTALLATION_FILE: &str = "task-read-installation.json";
     const TASK_READ_RECIPE_FILE: &str = "task-read-recipe.json";
@@ -385,7 +385,7 @@ mod unix {
             #[arg(long)]
             from: PathBuf,
         },
-        /// Development operator only: bind private Google custody pins to
+        /// Development operator only: bind digest-pinned custody processes to
         /// already installed opaque-source connections. Contains no tokens.
         TaskMaterializerConfigure {
             #[arg(long)]
@@ -393,8 +393,8 @@ mod unix {
             #[arg(long)]
             from: PathBuf,
         },
-        /// Development operator only: refresh each installed Google grant and
-        /// verify its pinned identity without releasing a token or reading data.
+        /// Development operator only: probe each installed custody process
+        /// without releasing a token or reading provider data.
         TaskMaterializerProbe {
             #[arg(long)]
             state_dir: PathBuf,
@@ -454,6 +454,16 @@ mod unix {
             #[cfg(feature = "loopback-provider")]
             #[arg(long)]
             fail_before_content: bool,
+            /// Development fault: terminate after the durable release entry
+            /// and before any content byte enters the agent channel.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long, conflicts_with = "fail_before_content")]
+            exit_after_release_entry: bool,
+            /// Development fault: terminate after sending complete content
+            /// and before recording the agent's signed acknowledgement.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long, conflicts_with_all = ["fail_before_content", "exit_after_release_entry"])]
+            exit_after_content_send: bool,
         },
         /// Development operator only: compare one owner-private source file
         /// with a durably acknowledged release. The signed draft's SHA-256 is
@@ -482,6 +492,14 @@ mod unix {
         /// Development operator only: print redacted durable task budgets,
         /// read delivery stages and claimed write operation IDs.
         TaskStatus {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
+        /// Development operator only: join task-charged writes to their
+        /// durable gateway attempt stages without exposing provider bytes.
+        TaskActivity {
             #[arg(long)]
             state_dir: PathBuf,
             #[arg(long)]
@@ -520,6 +538,11 @@ mod unix {
             /// its exact create or preflight-bound population operation.
             #[arg(long, conflicts_with = "confirmation_proof")]
             recorded_effect_plan: bool,
+            /// Development fault after the task write is durable and before
+            /// the independent gateway attempt is claimed.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            exit_after_write_reservation: bool,
         },
         /// Development operator only: verify one native human effect plan
         /// against the original agent create and persist it before any write.
@@ -1130,9 +1153,9 @@ mod unix {
 
     #[derive(Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
-    struct TaskGoogleMaterializers {
+    struct TaskMaterializers {
         schema: String,
-        materializers: Vec<GoogleCustodyPins>,
+        materializers: Vec<ProcessCustodyPins>,
     }
 
     /// Whether production custody policy applies. It always does for a
@@ -3387,10 +3410,10 @@ mod unix {
         .map_err(|_| "gateway.task.engine-unavailable")?
     }
 
-    fn parse_task_materializers(bytes: &[u8]) -> Result<TaskGoogleMaterializers, Failure> {
-        let bundle: TaskGoogleMaterializers = serde_json::from_slice(bytes)
+    fn parse_task_materializers(bytes: &[u8]) -> Result<TaskMaterializers, Failure> {
+        let bundle: TaskMaterializers = serde_json::from_slice(bytes)
             .map_err(|_| "gateway.materializer.invalid-installation")?;
-        if bundle.schema != "auths.gateway-task-materializers/1"
+        if bundle.schema != "auths.gateway-task-materializers/2"
             || bundle.materializers.is_empty()
             || bundle.materializers.len() > 4
             || serde_json_canonicalizer::to_vec(&bundle)
@@ -3419,10 +3442,10 @@ mod unix {
         let bytes = task_private_file(state_dir, TASK_MATERIALIZERS_FILE, 16 * 1024)?;
         let bundle = parse_task_materializers(&bytes)?;
         for pins in bundle.materializers {
-            let adapter = Arc::new(GoogleCustodyMaterializer::new(pins)?);
+            let adapter = Arc::new(ProcessCustodyMaterializer::new(pins)?);
             let id = ConnectionId::parse(adapter.connection_id().to_owned())
                 .map_err(|_| "gateway.materializer.invalid-connection")?;
-            let authority = adapter.authority_digest();
+            let authority = adapter.authority_digest()?;
             engine = engine.with_credential_materializer(
                 &id,
                 Arc::new(auths_gateway::MaterializerInstallation::new(
@@ -3507,7 +3530,7 @@ mod unix {
         Ok(())
     }
 
-    fn task_materializer_configure(state_dir: &Path, from: &Path) -> Result<(), Failure> {
+    async fn task_materializer_configure(state_dir: &Path, from: &Path) -> Result<(), Failure> {
         private_root(state_dir)?;
         if installation(state_dir)?.deployment != Deployment::Development {
             return Err("gateway.materializer.development-only".into());
@@ -3518,7 +3541,10 @@ mod unix {
         let bytes = read_bounded(from, 16 * 1024)?;
         let bundle = parse_task_materializers(&bytes)?;
         for pins in bundle.materializers {
-            GoogleCustodyMaterializer::new(pins)?;
+            ProcessCustodyMaterializer::new(pins)?
+                .validate_source()
+                .await
+                .map_err(|_| "gateway.materializer.source-refused")?;
         }
         private_file(&state_dir.join(TASK_MATERIALIZERS_FILE), &bytes)?;
         println!("{{\"outcome\":\"task-materializers-configured\"}}");
@@ -3534,7 +3560,7 @@ mod unix {
         let bundle = parse_task_materializers(&bytes)?;
         let count = bundle.materializers.len();
         for pins in bundle.materializers {
-            GoogleCustodyMaterializer::new(pins)?
+            ProcessCustodyMaterializer::new(pins)?
                 .probe_identity()
                 .await
                 .map_err(|_| "gateway.materializer.identity-probe-refused")?;
@@ -3813,6 +3839,8 @@ mod unix {
         agent_proof: PathBuf,
         agent_action: PathBuf,
         #[cfg(feature = "loopback-provider")] fail_before_content: bool,
+        #[cfg(feature = "loopback-provider")] exit_after_release_entry: bool,
+        #[cfg(feature = "loopback-provider")] exit_after_content_send: bool,
     ) -> Result<(), Failure> {
         private_root(&state_dir)?;
         let installed = task_read_installation(&state_dir)?;
@@ -3851,6 +3879,10 @@ mod unix {
         #[cfg(feature = "loopback-provider")]
         let read = if fail_before_content {
             read.with_fail_before_content_for_development()
+        } else if exit_after_release_entry {
+            read.with_exit_after_release_entry_for_development()
+        } else if exit_after_content_send {
+            read.with_exit_after_content_send_for_development()
         } else {
             read
         };
@@ -3962,6 +3994,19 @@ mod unix {
         Ok(())
     }
 
+    async fn task_activity(state_dir: PathBuf, task_id: String) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let activity = session.activity(&task_id).await?;
+        println!(
+            "{}",
+            serde_json::to_string(&activity).map_err(|_| "gateway.task.invalid-activity")?
+        );
+        Ok(())
+    }
+
     async fn task_activate(
         state_dir: PathBuf,
         proof: PathBuf,
@@ -3997,6 +4042,8 @@ mod unix {
         confirmation_proof: Option<PathBuf>,
         confirmation_action: Option<PathBuf>,
         recorded_effect_plan: bool,
+        #[cfg(feature = "loopback-provider")]
+        exit_after_write_reservation: bool,
     }
 
     async fn task_submit(inputs: TaskSubmitInputs) -> Result<(), Failure> {
@@ -4009,11 +4056,19 @@ mod unix {
             confirmation_proof,
             confirmation_action,
             recorded_effect_plan,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_write_reservation,
         } = inputs;
         let engine = task_engine_for(&state_dir, recipe_digest).await?;
         let installation = task_installation(&state_dir)?;
         let session =
             engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        #[cfg(feature = "loopback-provider")]
+        let session = if exit_after_write_reservation {
+            session.with_exit_after_write_reservation_for_development()
+        } else {
+            session
+        };
         let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
         let agent_action = read_bounded(&agent_action, 64 * 1024)?;
         let confirmation = match (confirmation_proof, confirmation_action) {
@@ -5089,7 +5144,7 @@ mod unix {
             } => submit(app_socket, proof, action).await,
             Command::TaskConfigure { state_dir, from } => task_configure(state_dir, from).await,
             Command::TaskMaterializerConfigure { state_dir, from } => {
-                task_materializer_configure(&state_dir, &from)
+                task_materializer_configure(&state_dir, &from).await
             }
             Command::TaskMaterializerProbe { state_dir } => {
                 task_materializer_probe(&state_dir).await
@@ -5133,6 +5188,10 @@ mod unix {
                 agent_action,
                 #[cfg(feature = "loopback-provider")]
                 fail_before_content,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_release_entry,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_content_send,
             } => {
                 task_read_submit(
                     state_dir,
@@ -5141,6 +5200,10 @@ mod unix {
                     agent_action,
                     #[cfg(feature = "loopback-provider")]
                     fail_before_content,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_release_entry,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_content_send,
                 )
                 .await
             }
@@ -5162,6 +5225,7 @@ mod unix {
             }
             Command::TaskRevoke { state_dir, task_id } => task_revoke(state_dir, task_id).await,
             Command::TaskStatus { state_dir, task_id } => task_status(state_dir, task_id).await,
+            Command::TaskActivity { state_dir, task_id } => task_activity(state_dir, task_id).await,
             Command::TaskActivate {
                 state_dir,
                 proof,
@@ -5176,6 +5240,8 @@ mod unix {
                 confirmation_proof,
                 confirmation_action,
                 recorded_effect_plan,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation,
             } => {
                 task_submit(TaskSubmitInputs {
                     state_dir,
@@ -5186,6 +5252,8 @@ mod unix {
                     confirmation_proof,
                     confirmation_action,
                     recorded_effect_plan,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_write_reservation,
                 })
                 .await
             }

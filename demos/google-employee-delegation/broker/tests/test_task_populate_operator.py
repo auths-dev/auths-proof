@@ -101,7 +101,8 @@ class TaskPopulateOperatorTests(unittest.TestCase):
             statement = report["statement"]
             self.assertEqual(statement["child_id"], self.inputs["child_id"])
             self.assertEqual(statement["plan_commitment"], self.inputs["plan_commitment"])
-            self.assertEqual(statement["revision_id"], "revision-1")
+            self.assertEqual(statement["provider_values"]["required_revision_id"],
+                             "revision-1")
             return b'{"outcome":"populate-preflight-recorded"}\n'
 
         with (

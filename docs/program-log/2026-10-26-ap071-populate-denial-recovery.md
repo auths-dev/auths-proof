@@ -43,8 +43,7 @@ submitted population operation `populate-RMVrMA3NVIWH3cPr` once. The gateway
 recorded HTTP 200. demo_co's final generation 0037, SHA-256
 `667480e9afec3790cd7d7307154488fe4530315cb9550dfd2b9fc650939a7fe3`,
 found the same child, a changed revision, and the exact expected 148-byte raw
-export SHA-256
-`a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+export. Its content digest remains in private verifier custody.
 It observed one run child and unchanged original seven Docs and canonical
 Project A/B state. Jules revoked the completed task. Its final ledger records
 one acknowledged 51-byte read, exactly two write operation IDs, and

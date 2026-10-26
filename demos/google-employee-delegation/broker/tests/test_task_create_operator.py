@@ -128,7 +128,7 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             "connection_subject": "jules-subject",
         }
         report = {"statement": inputs | {
-            "schema": "auths.gateway-task-populate-preflight/1",
+            "schema": "auths.gateway-task-populate-preflight/2",
             "valid_until": self.now + 60,
         }, "signature_b64": "signed-jules-report"}
         preflight_path = self.root / "preflight.json"

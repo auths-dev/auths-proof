@@ -800,7 +800,8 @@ class Handler(BaseHTTPRequestHandler):
                     task_id=body["task_id"], employee=employee, agent=agent)
                 self._json(HTTPStatus.OK, result)
                 return
-            if path in {"/api/v1/write/tasks/revoke", "/api/v1/write/tasks/status"}:
+            if path in {"/api/v1/write/tasks/revoke", "/api/v1/write/tasks/status",
+                        "/api/v1/write/tasks/activity"}:
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.gateway_state_dir is None:
                     raise OperatorDenied("gateway task status is unavailable")
@@ -815,6 +816,10 @@ class Handler(BaseHTTPRequestHandler):
                 if path.endswith("/revoke"):
                     flow.revoke(task_id=body["task_id"], employee=employee)
                     self._json(HTTPStatus.OK, {"status": "revoked", "task_id": body["task_id"]})
+                elif path.endswith("/activity"):
+                    self._json(HTTPStatus.OK, flow.activity(
+                        task_id=body["task_id"], employee=employee,
+                    ))
                 else:
                     self._json(HTTPStatus.OK, flow.status(
                         task_id=body["task_id"], employee=employee,

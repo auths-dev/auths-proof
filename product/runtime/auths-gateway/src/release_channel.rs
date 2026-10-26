@@ -53,6 +53,8 @@ pub(crate) struct UnixAgentReleaseChannel {
     agent_identity_packet: Vec<u8>,
     #[cfg(any(test, feature = "loopback-provider"))]
     fail_before_content: bool,
+    #[cfg(feature = "loopback-provider")]
+    exit_after_content_send: bool,
 }
 
 /// A socket peer that proved possession of the registered agent key under a
@@ -62,6 +64,8 @@ pub(crate) struct AuthenticatedReleaseChannel {
     agent_identity_packet: Vec<u8>,
     #[cfg(any(test, feature = "loopback-provider"))]
     fail_before_content: bool,
+    #[cfg(feature = "loopback-provider")]
+    exit_after_content_send: bool,
 }
 
 impl UnixAgentReleaseChannel {
@@ -86,12 +90,19 @@ impl UnixAgentReleaseChannel {
             agent_identity_packet,
             #[cfg(any(test, feature = "loopback-provider"))]
             fail_before_content: false,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_content_send: false,
         })
     }
 
     #[cfg(any(test, feature = "loopback-provider"))]
     pub(crate) fn fail_before_content_for_test(&mut self) {
         self.fail_before_content = true;
+    }
+
+    #[cfg(feature = "loopback-provider")]
+    pub(crate) fn exit_after_content_send_for_development(&mut self) {
+        self.exit_after_content_send = true;
     }
 
     /// Authenticate the peer before the caller charges or sends a release.
@@ -127,6 +138,8 @@ impl UnixAgentReleaseChannel {
             agent_identity_packet: self.agent_identity_packet.clone(),
             #[cfg(any(test, feature = "loopback-provider"))]
             fail_before_content: self.fail_before_content,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_content_send: self.exit_after_content_send,
         })
     }
 }
@@ -173,6 +186,12 @@ impl AuthenticatedReleaseChannel {
         write_frame(&mut self.stream, &message, MAX_FRAME_BYTES)
             .await
             .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
+        #[cfg(feature = "loopback-provider")]
+        if self.exit_after_content_send {
+            // The agent may have durably saved the bytes and signed an ACK,
+            // but the gateway never observes it or commits acknowledgement.
+            std::process::exit(87);
+        }
         let signature = read_frame(&mut self.stream, MAX_SIGNATURE_BYTES)
             .await
             .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
@@ -400,6 +419,8 @@ mod tests {
             stream,
             agent_identity_packet: packet,
             fail_before_content: false,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_content_send: false,
         };
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).expect("key");
         let result = channel

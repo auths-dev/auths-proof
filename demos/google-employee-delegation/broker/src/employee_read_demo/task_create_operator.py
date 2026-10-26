@@ -677,7 +677,7 @@ def submit_planned_population(*, gateway_binary: Path, gateway_sha256: str,
             or type(inputs.get("child_id")) is not str
             or _CHILD_ID.fullmatch(inputs["child_id"]) is None
             or type(statement) is not dict
-            or statement.get("schema") != "auths.gateway-task-populate-preflight/1"
+            or statement.get("schema") != "auths.gateway-task-populate-preflight/2"
             or any(statement.get(field) != inputs.get(field) for field in (
                 "task_id", "task_commitment", "plan_commitment",
                 "create_operation_id", "child_id", "populate_recipe_digest",

@@ -104,8 +104,8 @@ reads and zero creates. The earlier review challenge had expired; no grant was
 signed from that challenge. The new task activated with the same Jules Google
 subject and pinned destination. A fresh Jules-subject preflight checked the
 child's metadata, Project A parent and marker, `canEdit`, blank Docs tab and
-revision. The separate agent signed the original 145-byte draft (SHA-256
-`480f253eaa1267aa3d0ce802ff0703dd2057017774f08af53f1ae555ed725ecb`)
+revision. The separate agent signed the original 145-byte draft (whose content
+digest remains in private custody)
 for operation `AboQfNlXiYrqV0vXXn-wYkO7`. Jules signed the exact proposal;
 the gateway's durable attempt records one `documents.batchUpdate` with HTTP
 200 and `response-recorded` at 18:27 UTC. This continuation did not reuse or
@@ -119,8 +119,8 @@ and status `ready`. It verified the exact child ID, title, sole Project A
 parent, shared drive and unique marker; the exact three-child folder
 inventory; unchanged working and canonical Project A/B Docs; and Jules's
 Project B write denial. The current Google export is 148 bytes: a three-byte
-UTF-8 BOM followed by exactly the agent-signed 145 bytes. Its export SHA-256
-is `a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+UTF-8 BOM followed by exactly the agent-signed 145 bytes. The private verifier
+retains the export content digest.
 Auths' pinned v1 consumer accepted that producer report as
 `provider_state_observed`. The separate signed task, agent proposal, human
 confirmation and gateway attempt provide the attribution path; the producer
@@ -211,8 +211,8 @@ generation-0006 baseline. Generation 0007
 `6ddec2c52642fba0c0a09fec83fbd0d0be0aaa43fec699adec63c749fea0b7cb`
 and status `ready`. It found one new Project A child and a unique marker,
 four direct children, the precise 148-byte Drive export (three-byte BOM
-followed by the approved 145-byte text), and SHA-256
-`a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+followed by the approved 145-byte text). The private verifier retained the
+export content digest.
 The preserved child, working Doc and canonical Project A/B Docs matched the
 pre-create state, and Jules was still denied Project B write. Auths' pinned
 v2 consumer accepted the three independent producer stages as

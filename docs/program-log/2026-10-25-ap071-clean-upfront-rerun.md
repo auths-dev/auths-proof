@@ -11,17 +11,15 @@ separate observation.
 demo_co created `Demo Co AP-071 Project A Clean Edit Rerun` under the existing
 Project A folder. Its private, immutable generation 0013 export pins Google
 Doc `1No9AogHOiVqVgtZ1Qa5TTxpY81YZffzfhIIK8NkqS_A`, one tab, Jules's
-`canEdit` capability, a 39-byte raw text export comprising BOM and one marker,
-and SHA-256 `ee05eaa34ced2313dd067adcc4a8b74c17662203cf558ffe9f7b3387526edcbc`.
+`canEdit` capability, and a 39-byte raw text export comprising BOM and one
+marker. Its content digest stays in private producer custody.
 It also pins the canonical Project A/B, Jules probe, both prior Auths child
 Docs, and the old working Doc as unchanged. The generation 0013 artifact is
 pinned by SHA-256 `ef3f82b6fbdc12a5464fae5e1ee9f2b0f5522a187fc3d26cb8f9cc766fed4381`.
 
 Before a new Jules signature, demo_co exported generation 0014 with both
-complete expected raw after-state hashes. Option A is 93 raw bytes and SHA-256
-`a44c4cb6fcfa3af4b7a82357faa36f1e57f9664b305226b4badc1e6fbdf196ed`;
-option B is 93 raw bytes and SHA-256
-`921c63c11a96a7a30afd3f51c1be8a19f9d802e27c6cbbb37394fde43034cb7a`.
+complete expected raw after-state commitments kept in private custody. Options
+A and B are each 93 raw bytes. Their content digests are not public.
 The generation 0014 artifact is pinned by SHA-256
 `d0aa6e8b2eb01231ad4201ecefefd33490a3cd92361c89e0be33fad6f19723b1`.
 The Auths consumer reconstructs and checks the complete raw baseline and both
@@ -77,9 +75,8 @@ demo_co then ran its independent read-only inspection and produced immutable
 generation 0015 `google-edit-rerun-observation.json`, SHA-256
 `59e5ee1bf9efaef6592ad2d448ea370e7b7d89a85c6acd9f5df073dfaa617900`.
 It observed the same owned Doc in the exact Project A parent, tab `t.0`, and
-a nonempty admin revision. The **complete** raw export is 93 bytes with SHA-256
-`a44c4cb6fcfa3af4b7a82357faa36f1e57f9664b305226b4badc1e6fbdf196ed`,
-equal to precommitted option A and unequal to option B. The original marker
+a nonempty admin revision. The **complete** 93-byte raw export privately
+matched precommitted option A and differed from option B. The original marker
 count is zero. The direct child count stayed five; the canonical Project A/B
 Docs, Jules probe, both prior Auths child Docs, and old working Doc were
 unchanged against their producer pins. The observation's attribution is

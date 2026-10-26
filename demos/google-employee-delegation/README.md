@@ -192,19 +192,27 @@ GET-only read connection. The stdin value is a versioned
 generation; it contains no token. Without a matching materializer, the
 gateway refuses to send that reference as a provider bearer.
 
-After both connection IDs are known, the operator installs one owner-private,
-canonical `auths.gateway-task-materializers/1` JSON file using
-`task-materializer-configure --state-dir STATE --from PINS`. Each
-`auths.google-credential-materializer/1` entry pins one connection and source
-generation, the exact source reference, the demo_co verification file and
-SHA-256, the owner-private Google grant and Desktop client files, client ID, subject,
-verified email, hosted domain, reviewed recipe digests and allowed read/write
-operation kinds. The write connection uses `write-effect`; the read connection
-uses `read-release`. Configure the adapter before activating a new task.
+After both connection IDs are known, the operator prepares one owner-private
+Google pin document per connection, then installs the canonical
+`auths.gateway-task-materializers/2` process bundle with
+`task-materializer-configure --state-dir STATE --from BUNDLE`. The shared
+gateway pins each custody executable and provider pin document by SHA-256;
+it contains no Google grant parser or OAuth client. The separate
+`auths-google-employee-custody` executable owns the exact source reference,
+demo_co verification file and digest, owner-private Google grant and Desktop
+client files, client ID, subject, verified email, hosted domain, reviewed recipe
+digests and allowed operation kinds. The write connection uses `write-effect`;
+the read connection uses `read-release`. Configure custody before activating a
+new task. The development-only
+[`build_installation.py`](custody/build_installation.py) makes the direct
+cutover from an existing private Google pin bundle to v2 and obtains the
+authority digest from the sidecar itself. It creates a fresh private output
+directory and never copies grant bytes into the bundle.
 
-For an admitted operation, the adapter rechecks those pins, refreshes the
+For an admitted operation, the custody process rechecks those pins, refreshes the
 existing Google grant in memory, verifies live UserInfo, and leases only the
-short-lived bearer to gateway transport. The agent, task card and recipe never
+short-lived bearer to gateway transport. The gateway still checks the returned
+subject, authority digest and deadline. The agent, task card and recipe never
 receive the grant. Synthetic and installed setup checks are recorded in the
 [AP-071 custody log](../../docs/program-log/2026-10-25-ap071-google-custody-materializer.md);
 the earlier live Jules writes used the original preinstalled bearer path, so

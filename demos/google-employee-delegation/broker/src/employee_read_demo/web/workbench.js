@@ -426,9 +426,14 @@ async function revokeWriteTask() {
 async function loadWriteTaskStatus() {
   const taskId = value("write-confirm-task-id");
   if (!taskId) throw new Error("Enter the signed agent task ID first");
-  const status = await api("/api/v1/write/tasks/status", {task_id: taskId});
-  if (status.task_id !== taskId || status.schema !== "auths.gateway-agent-task-status/1") {
-    throw new Error("Gateway status did not match the selected task");
+  const activity = await api("/api/v1/write/tasks/activity", {task_id: taskId});
+  const status = activity.task;
+  if (activity.schema !== "auths.gateway-agent-task-activity/1" ||
+      status?.task_id !== taskId ||
+      status.schema !== "auths.gateway-agent-task-status/1" ||
+      !Array.isArray(activity.write_attempts) ||
+      activity.write_attempts.length !== status.write_operations.length) {
+    throw new Error("Gateway activity did not match the selected task");
   }
   const summary = byId("write-activity-summary");
   summary.textContent = `Provider calls ${status.provider_calls}/${status.max_provider_calls}; ` +
@@ -456,8 +461,24 @@ async function loadWriteTaskStatus() {
     const bytes = read.released_bytes === null ? "" : ` (${read.released_bytes} bytes charged)`;
     addEvent(`Read ${read.operation_id}: ${readStage[read.stage]}${bytes}.`);
   }
-  for (const operationId of status.write_operations) {
-    addEvent(`Write ${operationId}: task write allowance claimed; provider entry and effect require separate evidence.`);
+  const writeStage = {
+    "claimed-no-attempt": "task write claimed; no gateway attempt recorded yet",
+    "not-entered": "no provider entry recorded",
+    "attempting": "provider entry may be in progress",
+    "unknown": "provider entry or effect is uncertain; no automatic retry",
+    "response-recorded": "provider response recorded; intended effect needs independent verification",
+    "observed": "gateway readback recorded; independent verification is separate",
+    "observed-by-provider": "gateway echo readback linked; independent verification is separate",
+  };
+  for (const write of activity.write_attempts) {
+    if (!status.write_operations.includes(write.operation_id) ||
+        !Object.hasOwn(writeStage, write.stage)) {
+      throw new Error("Gateway write activity did not match the selected task");
+    }
+    const response = write.response_status === null ? "" : ` (HTTP ${write.response_status})`;
+    const comparison = write.stage === "observed" && write.observation_match === false
+      ? " Readback did not match." : "";
+    addEvent(`Write ${write.operation_id}: ${writeStage[write.stage]}${response}.${comparison}`);
   }
   if (status.revoked) addEvent("Task revoked; new actions are closed.");
   message(status.revoked ? "This agent task is revoked." : "Gateway task activity is current.");

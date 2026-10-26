@@ -70,13 +70,13 @@ def planned_populate_arguments(*, package: dict, plan: dict, preflight: dict,
     create = plan["create"]
     fields = recipe.get("task_populate")
     resource_field = recipe["task_binding"].get("resource_field")
+    values = statement.get("provider_values")
     if (type(fields) is not dict
-            or set(fields) != {"text_field", "tab_field", "revision_field"}
-            or (fields["text_field"], fields["tab_field"],
-                fields["revision_field"], resource_field)
-            != ("text", "tab_id", "required_revision_id", "document_id")
+            or set(fields) != {"text_field", "preflight_fields"}
+            or (fields["text_field"], fields["preflight_fields"], resource_field)
+            != ("text", ["required_revision_id", "tab_id"], "document_id")
             or recipe.get("operator_namespace") != "google-docs-populate-demo"
-            or statement.get("schema") != "auths.gateway-task-populate-preflight/1"
+            or statement.get("schema") != "auths.gateway-task-populate-preflight/2"
             or statement.get("task_id") != package.get("task_id")
             or statement.get("task_commitment") != package.get("task_commitment")
             or statement.get("create_operation_id") != create.get("operation_id")
@@ -100,10 +100,12 @@ def planned_populate_arguments(*, package: dict, plan: dict, preflight: dict,
             or _ID.fullmatch(plan["populate_operation_id"]) is None
             or type(statement.get("child_id")) is not str
             or _ID.fullmatch(statement["child_id"]) is None
-            or type(statement.get("tab_id")) is not str
-            or not 1 <= len(statement["tab_id"].encode()) <= 64
-            or type(statement.get("revision_id")) is not str
-            or not 1 <= len(statement["revision_id"].encode()) <= 128
+            or type(values) is not dict
+            or set(values) != {"tab_id", "required_revision_id"}
+            or type(values["tab_id"]) is not str
+            or not 1 <= len(values["tab_id"].encode()) <= 64
+            or type(values["required_revision_id"]) is not str
+            or not 1 <= len(values["required_revision_id"].encode()) <= 128
             or type(plan["expires_at"]) is not int
             or type(statement.get("valid_until")) is not int
             or type(statement.get("checked_at")) is not int
@@ -130,7 +132,6 @@ def planned_populate_arguments(*, package: dict, plan: dict, preflight: dict,
         "task_id": package["task_id"],
         "task_commitment": package["task_commitment"],
         resource_field: statement["child_id"],
-        fields["tab_field"]: statement["tab_id"],
-        fields["revision_field"]: statement["revision_id"],
         fields["text_field"]: plan["initial_text"],
+        **values,
     }

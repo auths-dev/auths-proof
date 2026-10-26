@@ -72,17 +72,14 @@ pub(super) struct CreatedChildSource {
 }
 
 /// The only agent-controlled provider fields permitted in a planned child
-/// population. Their values are checked against the human plan or a fresh
-/// credential-bearing preflight before the request may enter the provider.
+/// population. The content comes from the human plan; the remaining bounded
+/// values come from a fresh credential-bearing provider preflight.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct TaskPopulateSource {
     #[serde(rename = "text_field")]
     pub(super) text: String,
-    #[serde(rename = "tab_field")]
-    pub(super) tab: String,
-    #[serde(rename = "revision_field")]
-    pub(super) revision: String,
+    pub(super) preflight_fields: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

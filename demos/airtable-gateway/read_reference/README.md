@@ -42,21 +42,60 @@ journal and verifies its absence. A successful run is installed mechanism
 evidence; the PAT still supplies no employee-subject claim or production
 credential custody.
 
-Run from the repository root with the local Python dependencies and native
-gateway binary available. The private `.env` must contain only the supported
-`PERSONAL_ACCESS_TOKEN` field; the tool reads it as an owner-only file and
-passes the PAT only on gateway stdin and in operator HTTPS requests. Choose a
-fresh owner-private output directory under `/private/tmp` for each run:
+For new acceptance evidence, build a source-free bundle from the reviewed
+gateway executable, the native Auths wheel, the broker and agent wheels, and
+an offline wheelhouse containing all of their Python dependencies. The bundle
+copies the runner, fixed read/write recipes and fixture helpers, and pins
+every byte in `manifest.json`. Record the printed manifest SHA-256 alongside
+the gateway build and recipe digests. `run.py` checks the manifest before
+creating a fresh virtual environment and installs only those wheels; it never
+prepends checkout paths or inherits `PYTHONPATH`. The private `.env` must
+contain only `PERSONAL_ACCESS_TOKEN`; the tool reads it as an owner-only file
+and uses it in operator HTTPS requests. The current runner places only an opaque
+`auths.materializer-source/1:` reference on gateway stdin, then installs the
+bundled, digest-pinned `airtable_custody.py` process for both read and write
+connections. That sidecar reads the private PAT after task admission, checks
+the exact connection, source, recipe, kind and file digest, and returns a
+short-lived bearer to the gateway. The agent never receives the PAT.
+On macOS, `--macos-agent-sandbox` applies an OS Seatbelt profile to every
+installed agent subprocess. It denies outbound network access, reads of the
+gateway state/operator private files/PAT, and writes outside the agent's
+private directory. The runner checks those denials from the installed agent
+before creating a disposable provider record. This is a local fixture
+boundary; production isolation still needs its own deployment qualification.
+Choose a fresh owner-private output directory under `/private/tmp` for each
+run:
 
 ```sh
-python demos/airtable-gateway/read_reference/installed_conformance.py run \
+python demos/airtable-gateway/read_reference/build_installed_bundle.py \
+  --output /private/tmp/ap071-airtable-bundle \
+  --gateway-bin /absolute/path/to/auths-gateway \
+  --auths-wheel /absolute/path/to/auths.whl \
+  --broker-wheel /absolute/path/to/broker.whl \
+  --agent-wheel /absolute/path/to/agent.whl \
+  --dependency-wheelhouse /absolute/path/to/offline-wheels
+python3.12 /private/tmp/ap071-airtable-bundle/run.py run \
+  --manifest-sha256 PRINTED_MANIFEST_SHA256 \
   --env-file /absolute/private/airtable.env \
-  --root /private/tmp/ap071-airtable-run-1 \
-  --gateway-bin /absolute/path/to/auths-gateway
-python demos/airtable-gateway/read_reference/installed_conformance.py cleanup \
+  --root /private/tmp/ap071-airtable-run-1
+python3.12 /private/tmp/ap071-airtable-bundle/run.py cleanup \
+  --manifest-sha256 PRINTED_MANIFEST_SHA256 \
   --env-file /absolute/private/airtable.env \
   --root /private/tmp/ap071-airtable-run-1
 ```
+
+Use the Python interpreter matching the native wheel's ABI and the dependency
+wheelhouse platform. Keep the printed manifest digest outside the bundle;
+the runner requires that independent pin on every invocation.
+
+The older 25 October run used checkout imports and remains historical
+mechanism evidence. A [26 October source-free run](../../../docs/program-log/2026-10-26-ap071-airtable-source-free-installed.md)
+and later [custody process runs](../../../docs/program-log/2026-10-26-ap071-custody-process-cutover.md)
+record bundle pins, offline installation, provider counts, task receipts,
+independent after-state and run-owned cleanup. The Airtable PAT does not
+establish a second human-bound employee account.
+An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
+used `--macos-agent-sandbox` for a complete read/write journey.
 
 If a run fails after fixture creation, preserve its private root and execute
 `cleanup` once the effect has been inspected. Do not start another run on the
@@ -78,6 +117,28 @@ the first content-byte write. The operator verifies a charged `not-delivered`
 receipt, no agent content file, and same-operation replay refusal before
 retiring the disposable record. This fault flag is absent from the ordinary
 gateway build.
+
+The same development build also accepts `--exit-after-release-entry`. It
+terminates the gateway process after durably charging the release and before
+any content byte is sent. The installed runner reopens the task in a new
+process, requires `delivery-unknown` with retained byte/call budgets, and
+refuses a second delivery under the same operation ID. The
+[installed crash run](../../../docs/program-log/2026-10-26-ap071-installed-release-crash.md)
+records the manifest pin and redacted result. `--exit-after-content-send`
+stops after sending the exact bytes but before reading the signed ACK; its
+separate installed run requires the agent's saved bytes, retained
+`delivery-unknown` charge after restart and refusal of redelivery.
+
+For the durable write-journal boundary, use a `loopback-provider` build and
+add `--exit-after-write-reservation`. The installed gateway exits after
+charging an exact-confirmed write in the task ledger and before claiming its
+attempt. The runner starts new gateway processes, requires
+`claimed-no-attempt` with one spent write, refuses same-operation replay,
+and independently checks that Airtable still has its original value. The
+[installed crash run](../../../docs/program-log/2026-10-26-ap071-installed-release-crash.md)
+records the manifest pin, redacted result and cleanup. This environment
+selected fault is a CLI flag only in the development build; an ordinary
+gateway refuses the flag before any provider request.
 
 For the concurrent final-write budget case, add `--concurrent-upfront-writes`
 to `run`. One synthetic human task lists two complete permitted choices but

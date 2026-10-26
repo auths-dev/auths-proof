@@ -9,9 +9,10 @@ use base64ct::{Base64Unpadded, Encoding as _};
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
+use std::collections::BTreeMap;
 
-const SCHEMA: &str = "auths.gateway-task-populate-preflight/1";
-const DOMAIN: &[u8] = b"auths.gateway-task-populate-preflight/1\0";
+const SCHEMA: &str = "auths.gateway-task-populate-preflight/2";
+const DOMAIN: &[u8] = b"auths.gateway-task-populate-preflight/2\0";
 const MAX_REPORT_BYTES: usize = 8_192;
 const MAX_VALIDITY_SECONDS: u64 = 90;
 
@@ -29,11 +30,8 @@ pub(crate) struct PopulatePreflightStatement {
     connection_id: String,
     connection_generation: u64,
     connection_subject: String,
-    tab_id: String,
-    revision_id: String,
-    metadata_sha256: String,
-    capability_sha256: String,
-    docs_sha256: String,
+    provider_values: BTreeMap<String, String>,
+    evidence_digests: BTreeMap<String, String>,
     checked_at: u64,
     valid_until: u64,
 }
@@ -64,8 +62,7 @@ impl VerifiedPopulatePreflight {
     pub(crate) fn facts(&self) -> PopulatePreflightFacts<'_> {
         PopulatePreflightFacts {
             child_id: &self.statement.child_id,
-            tab_id: &self.statement.tab_id,
-            revision_id: &self.statement.revision_id,
+            provider_values: &self.statement.provider_values,
             connection_subject: &self.statement.connection_subject,
             connection_generation: self.statement.connection_generation,
             checked_at: self.statement.checked_at,
@@ -103,6 +100,14 @@ fn valid_provider_value(value: &str, max_bytes: usize) -> bool {
         && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
+fn valid_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
 fn statement_matches(
     statement: &PopulatePreflightStatement,
     expected: &ExpectedPopulatePreflight<'_>,
@@ -121,16 +126,18 @@ fn statement_matches(
         && statement.connection_generation == plan.create.connection_generation
         && statement.connection_subject == plan.create.connection_subject
         && valid_id(&statement.child_id)
-        && valid_provider_value(&statement.tab_id, 64)
-        && valid_provider_value(&statement.revision_id, 128)
-        && [
-            &statement.metadata_sha256,
-            &statement.capability_sha256,
-            &statement.docs_sha256,
-            &statement.preflight_rule_digest,
-        ]
-        .into_iter()
-        .all(|digest| valid_digest(digest))
+        && statement.provider_values.len() <= 4
+        && statement
+            .provider_values
+            .iter()
+            .all(|(name, value)| valid_name(name) && valid_provider_value(value, 256))
+        && (1..=8).contains(&statement.evidence_digests.len())
+        && statement.evidence_digests.contains_key("metadata")
+        && statement
+            .evidence_digests
+            .iter()
+            .all(|(name, digest)| valid_name(name) && valid_digest(digest))
+        && valid_digest(&statement.preflight_rule_digest)
         && statement.checked_at < statement.valid_until
         && statement.valid_until <= plan.expires_at
         && statement.valid_until - statement.checked_at <= MAX_VALIDITY_SECONDS
@@ -228,11 +235,15 @@ mod tests {
             connection_id: "connection-1".into(),
             connection_generation: 3,
             connection_subject: "jules".into(),
-            tab_id: "t.0".into(),
-            revision_id: "revision-1".into(),
-            metadata_sha256: "3".repeat(64),
-            capability_sha256: "4".repeat(64),
-            docs_sha256: "5".repeat(64),
+            provider_values: BTreeMap::from([
+                ("required_revision_id".into(), "revision-1".into()),
+                ("tab_id".into(), "t.0".into()),
+            ]),
+            evidence_digests: BTreeMap::from([
+                ("metadata".into(), "3".repeat(64)),
+                ("capability".into(), "4".repeat(64)),
+                ("document".into(), "5".repeat(64)),
+            ]),
             checked_at: 100,
             valid_until: 160,
         };
@@ -246,7 +257,30 @@ mod tests {
         let public = hex::encode(key.verifying_key().to_bytes());
         let verified = verify_populate_preflight(&report, &public, &expected, 110)
             .expect("pinned signed fresh report");
-        assert_eq!(verified.facts().tab_id, "t.0");
+        assert_eq!(verified.facts().provider_values["tab_id"], "t.0");
+        let mut simple = verified.statement.clone();
+        simple.provider_values.clear();
+        simple.evidence_digests = BTreeMap::from([("metadata".into(), "3".repeat(64))]);
+        let mut simple_preimage = DOMAIN.to_vec();
+        simple_preimage.extend(serde_json_canonicalizer::to_vec(&simple).expect("statement"));
+        let simple_report = serde_json_canonicalizer::to_vec(&SignedPopulatePreflight {
+            statement: simple.clone(),
+            signature_b64: Base64Unpadded::encode_string(&key.sign(&simple_preimage).to_bytes()),
+        })
+        .expect("simple preflight report");
+        assert!(
+            verify_populate_preflight(&simple_report, &public, &expected, 110).is_some(),
+            "a provider with no late-bound fields still supplies signed child metadata"
+        );
+        simple.evidence_digests.clear();
+        let mut missing_preimage = DOMAIN.to_vec();
+        missing_preimage.extend(serde_json_canonicalizer::to_vec(&simple).expect("statement"));
+        let missing_report = serde_json_canonicalizer::to_vec(&SignedPopulatePreflight {
+            statement: simple,
+            signature_b64: Base64Unpadded::encode_string(&key.sign(&missing_preimage).to_bytes()),
+        })
+        .expect("missing metadata report");
+        assert!(verify_populate_preflight(&missing_report, &public, &expected, 110).is_none());
         assert!(verify_populate_preflight(&report, &"9".repeat(64), &expected, 110).is_none());
         assert!(verify_populate_preflight(&report, &public, &expected, 160).is_none());
         let mut changed: Value = serde_json::from_slice(&report).expect("report");

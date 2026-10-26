@@ -13,8 +13,8 @@ reset it. No canonical Project A or Project B file was edited.
   Their vendored schemas are pinned by SHA-256 in the Auths consumer.
 - The fixture is Doc `1Kus0s2X23vGembjUxWWDqQCVALVQdvgFNR8A5-mCzGM`,
   a child of scratch root `13WCvt0UcXhuLq0KgoxkYtrltmTGT499F`. The
-  pinned initial raw export was 37 bytes with SHA-256
-  `583ec7fc14238beffad72a1dc1c37f8f83184055160475ec24fd497f9dd927dd`.
+  pinned initial raw export was 37 bytes; its content digest remains in
+  private verifier custody.
 - Auths installed Jules's subject-checked `drive.file` credential in
   development connection `conn_IbUzmZ3xo6c8b3SEI82OBA`, generation 1. The
   fixed gateway binary SHA-256 was
@@ -56,8 +56,8 @@ Its schema SHA-256 is
 Auths copied the private observation into its isolated run and validated
 the schema, digest, generation chain, producer identity, task timing,
 document/parent/tab/marker pins and complete expected bytes. The admin and
-Jules exports both match precommitted option A: 93 raw bytes, SHA-256
-`a44c4cb6fcfa3af4b7a82357faa36f1e57f9664b305226b4badc1e6fbdf196ed`.
+Jules exports both privately match precommitted option A: 93 raw bytes. The
+content digest remains in verifier custody.
 The original marker is absent, the Jules revision changed, the scratch
 root still has five children, and the frozen seven and canonical Project A/B
 fixtures remain unchanged. demo_co attests provider state, not gateway

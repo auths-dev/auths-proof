@@ -1,7 +1,10 @@
 # AP-071 development Google custody materializer
 
-The gateway's provider-neutral `CredentialMaterializer` port now has a
-development Google vertical in the gateway binary. A write installation or
+The gateway's provider-neutral `CredentialMaterializer` port first had a
+development Google vertical in the gateway binary. The 26 October source
+cutover moved that vertical into a separately installed, digest-pinned Google
+custody executable; the gateway now interprets only the closed process
+materialization protocol. A write installation or
 separate read connection can store a versioned opaque source reference through
 `--credential-source-stdin`; the ordinary bearer path refuses that marker if
 no adapter is installed. The operator then installs one private canonical

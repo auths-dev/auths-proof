@@ -52,14 +52,15 @@ class PlannedPopulateTests(unittest.TestCase):
         }
         self.preflight = {
             "statement": {
-                "schema": "auths.gateway-task-populate-preflight/1",
+                "schema": "auths.gateway-task-populate-preflight/2",
                 "task_id": "task-1", "task_commitment": self.task_commitment,
                 "create_operation_id": "create-1",
                 "populate_recipe_digest": "b" * 64,
                 "connection_subject": "jules-subject",
                 "connection_generation": 1,
-                "child_id": "child-1", "tab_id": "tab-1",
-                "revision_id": "rev-1", "checked_at": 990,
+                "child_id": "child-1",
+                "provider_values": {"tab_id": "tab-1", "required_revision_id": "rev-1"},
+                "checked_at": 990,
                 "valid_until": 1050,
             },
             "signature_b64": "gateway-verifies-this-report",

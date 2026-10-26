@@ -8,10 +8,13 @@ with a single `insertText` request at the end of the freshly observed tab and
 recipe digest, child ID, tab ID, exact text and required revision. The compiled
 request supplies the URL and JSON structure; no caller can add a second
 subrequest or choose a different location through this profile.
-The recipe's `task_populate` declaration identifies the three fields whose
-values must come from the signed content plan and fresh child preflight:
-`text`, `tab_id` and `required_revision_id`. The common compiler rejects
+The recipe's `task_populate` declaration identifies the planned `text` field
+and two fresh provider preflight fields, `required_revision_id` and `tab_id`.
+The signed preflight report carries those values in a bounded map and hashes
+of the metadata, capability and Docs responses. The common compiler rejects
 another profile field that could affect this planned provider request.
+The sibling [Todoist reference](../../todoist-gateway/populate_reference/README.md)
+uses the same contract with no late-bound provider field.
 
 The profile limits inserted text to 192 UTF-8 bytes because the native action
 profile has a 4 KiB worst-case canonical-argument bound. This is enough for a

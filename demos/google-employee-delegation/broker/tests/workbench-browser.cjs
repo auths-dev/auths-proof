@@ -39,8 +39,11 @@ async function fetch(url, options = {}) {
   } else if (url === "/api/v1/write/tasks/authorize" && writeAuthorizeResponse) {
     posts.push(JSON.parse(options.body));
     result = writeAuthorizeResponse;
-  } else if (url === "/api/v1/write/tasks/status" && writeStatusResponse) {
-    result = writeStatusResponse;
+  } else if (url === "/api/v1/write/tasks/activity" && writeStatusResponse) {
+    result = {schema: "auths.gateway-agent-task-activity/1",
+      task: writeStatusResponse,
+      write_attempts: [{operation_id: "write-1", stage: "response-recorded",
+        response_status: 200, observation_match: null}]};
   } else if (url === "/api/v1/tasks/task-1") {
     result = { task: { task_id: "task-1", company_id: "atlas-studio",
       employee_principal: "employee-A", agent_principal: "agent-A",
@@ -154,7 +157,9 @@ async function main() {
   assert.match(byId("write-activity-timeline").options[1].textContent,
     /acknowledgement is missing/);
   assert.match(byId("write-activity-timeline").options[2].textContent,
-    /effect require separate evidence/);
+    /provider response recorded; intended effect needs independent verification/);
+  assert.match(byId("write-activity-timeline").options[2].textContent,
+    /HTTP 200/);
   writeAuthorizeResponse = {
     status: "signed_activation_unconfirmed", task_id: "task-upfront",
     agent_principal: "agent-A", expires_at: 9999999999,

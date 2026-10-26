@@ -47,8 +47,8 @@ The task was revoked after inspection.
 demo_co's independent read-only generation 0048 (SHA-256
 `0d70fdef725a9ee62dd523502ae6fe26d2752d5dd31bfc9743f083bdf58faea8`)
 found the same sole child and a changed Docs revision. The complete Google
-raw export was the exact approved 148 bytes, SHA-256
-`a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+raw export was the exact approved 148 bytes. Its content digest remains in
+private verifier custody.
 It found no run marker in the content and no change to the bounded-upfront
 Doc, frozen seven Docs or canonical Project A/B state. The producer attests
 provider state only; it does not attest Auths entry or authorize retry.

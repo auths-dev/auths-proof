@@ -1141,6 +1141,13 @@ impl GatewayEngine {
     /// cannot be leased.
     pub async fn reobserve(&self, operation_id: &str) -> Result<GatewaySubmitResult, &'static str> {
         let not_observable = "gateway.reobserve.not-observable";
+        // Task-aware submission owns its stored observation and current task
+        // checks. The generic operator command has no task identity or
+        // revocation state, so it must not lease a credential for a task-bound
+        // recipe after the task has ended.
+        if self.recipe.requires_task_admission() {
+            return Err("gateway.task.task-submit-required");
+        }
         // The stored observation plan does not retain the native-verified
         // create fields needed for child metadata comparisons. Re-observing
         // it after restart must not turn a name-only match into child evidence.
@@ -1312,6 +1319,8 @@ impl GatewayEngine {
             recovery_attestation: installation.recovery_attestation,
             binding,
             ledger,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_write_reservation: false,
         })
     }
 
@@ -1464,6 +1473,8 @@ impl GatewayEngine {
                 ledger: submission.ledger,
                 child_scope,
                 preflight_valid_until,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation: submission.exit_after_write_reservation,
             }),
             commissioning: None,
             commissioned_action: OnceLock::new(),
@@ -1579,6 +1590,13 @@ impl GatewayEngine {
     /// declared credential check; an outcome reads only the local attempt
     /// store. Nothing here writes to a provider or to the store.
     pub async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
+        // A task-bound recipe cannot expose a provider field or an attempt
+        // record through the unsigned application observation channel. Task
+        // reads use the managed recipient/byte budget and owner activity uses
+        // its separate authenticated operator path.
+        if self.recipe.requires_task_admission() {
+            return refused("gateway.task.task-submit-required");
+        }
         if let GatewayObserveRequest::PreEntry { operation_id } = request {
             return observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await;
         }
@@ -1775,6 +1793,27 @@ pub struct TaskWriteSession<'a> {
     recovery_attestation: Option<PopulatePreflightPin>,
     binding: TaskWriteBinding,
     ledger: FileReleaseTaskLedger,
+    #[cfg(feature = "loopback-provider")]
+    exit_after_write_reservation: bool,
+}
+
+/// Owner-visible correlation of a task claim with the exact durable gateway
+/// attempt. It contains no request body, response body or content digest.
+#[cfg(unix)]
+#[derive(Serialize)]
+pub struct TaskActivity {
+    schema: &'static str,
+    task: crate::TaskStatus,
+    write_attempts: Vec<TaskWriteAttemptActivity>,
+}
+
+#[cfg(unix)]
+#[derive(Serialize)]
+struct TaskWriteAttemptActivity {
+    operation_id: String,
+    stage: String,
+    response_status: Option<u16>,
+    observation_match: Option<bool>,
 }
 
 /// Native proofs and actions presented to the operator-owned task session.
@@ -1790,6 +1829,13 @@ pub struct TaskWriteProofs<'a> {
 
 #[cfg(unix)]
 impl TaskWriteSession<'_> {
+    /// Development fault for the durable task-write/attempt-journal boundary.
+    #[cfg(feature = "loopback-provider")]
+    pub fn with_exit_after_write_reservation_for_development(mut self) -> Self {
+        self.exit_after_write_reservation = true;
+        self
+    }
+
     /// Read the activated task's redacted accounting and operation stages.
     /// This view makes no assertion that a provider effect was observed.
     ///
@@ -1801,6 +1847,63 @@ impl TaskWriteSession<'_> {
             .map_err(|_| "gateway.task.status-unavailable")?
             .map(|state| state.status())
             .ok_or("gateway.task.status-unavailable")
+    }
+
+    /// Join each task-charged write to its attempt by the namespace recorded
+    /// at reservation, operation ID, native action and installed recipe. A
+    /// provider response is reported as a response, never as an effect.
+    /// # Errors
+    /// Refuses missing or corrupt task state, unavailable attempt storage or
+    /// an attempt whose recipe or action differs from the charged write.
+    pub async fn activity(&self, task_id: &str) -> Result<TaskActivity, &'static str> {
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.activity-unavailable")?
+            .ok_or("gateway.task.activity-unavailable")?;
+        let task = state.status();
+        let mut write_attempts = Vec::new();
+        for pin in state.write_attempt_pins() {
+            let namespace = crate::OperatorNamespace::parse(&pin.operator_namespace)
+                .map_err(|_| "gateway.task.activity-unavailable")?;
+            let operation = crate::LogicalOperationId::parse(&pin.operation_id)
+                .map_err(|_| "gateway.task.activity-unavailable")?;
+            let attempt = self
+                .engine
+                .attempts
+                .read(&namespace, &operation)
+                .await
+                .map_err(|_| "gateway.task.activity-unavailable")?;
+            let (stage, response_status, observation_match) = if let Some(attempt) = attempt {
+                if hex::encode(attempt.action_commitment()) != pin.action_commitment
+                    || hex::encode(attempt.recipe_digest()) != pin.recipe_digest
+                {
+                    return Err("gateway.task.activity-attempt-mismatch");
+                }
+                let stage = serde_json::to_value(attempt.stage())
+                    .ok()
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .ok_or("gateway.task.activity-unavailable")?;
+                (
+                    stage,
+                    attempt.response_status(),
+                    attempt.observation_match(),
+                )
+            } else {
+                ("claimed-no-attempt".to_owned(), None, None)
+            };
+            write_attempts.push(TaskWriteAttemptActivity {
+                operation_id: pin.operation_id,
+                stage,
+                response_status,
+                observation_match,
+            });
+        }
+        Ok(TaskActivity {
+            schema: "auths.gateway-agent-task-activity/1",
+            task,
+            write_attempts,
+        })
     }
 
     /// Privately compare a staged source with bytes the gateway released to
@@ -1907,6 +2010,8 @@ impl TaskWriteSession<'_> {
                 agent_action: proofs.agent_action,
                 confirmation: proofs.confirmation,
                 use_effect_plan: false,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation: self.exit_after_write_reservation,
             })
             .await
     }
@@ -1925,6 +2030,8 @@ impl TaskWriteSession<'_> {
                 agent_action: proofs.agent_action,
                 confirmation: proofs.confirmation,
                 use_effect_plan: true,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation: self.exit_after_write_reservation,
             })
             .await
     }
@@ -2304,6 +2411,8 @@ impl TaskWriteSession<'_> {
                 ledger: &self.ledger,
                 child_scope: None,
                 preflight_valid_until: None,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation: false,
             }),
             commissioning: None,
             commissioned_action: OnceLock::new(),
@@ -2371,10 +2480,18 @@ impl TaskWriteSession<'_> {
         &self,
         proofs: TaskWriteProofs<'_>,
     ) -> Result<String, &'static str> {
+        let now = wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?;
+        self.reconcile_created_child_at(proofs, now).await
+    }
+
+    async fn reconcile_created_child_at(
+        &self,
+        proofs: TaskWriteProofs<'_>,
+        now: u64,
+    ) -> Result<String, &'static str> {
         if self.engine.recipe.created_child_fields().is_none() {
             return Err("gateway.task.reconcile-not-create");
         }
-        let now = wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?;
         let state = self
             .ledger
             .load(proofs.task_id)
@@ -2386,10 +2503,48 @@ impl TaskWriteSession<'_> {
         if task.descriptor().write_approval_mode != WriteApprovalMode::Exact {
             return Err("gateway.task.reconcile-approval-mode");
         }
+        // The original create and confirmation were admitted at the durable
+        // attempt's evaluated time. A restart may outlive their short proof
+        // windows, but it must not extend the currently active task.
+        let operation_id = if let Some(plan) = state.effect_plan() {
+            plan.create.operation_id.clone()
+        } else {
+            let pins: Vec<_> = state
+                .write_attempt_pins()
+                .into_iter()
+                .filter(|pin| {
+                    pin.operator_namespace == self.engine.recipe.namespace().as_str()
+                        && pin.recipe_digest == self.engine.recipe.digest_hex()
+                })
+                .collect();
+            if pins.len() != 1 {
+                return Err("gateway.task.reconcile-attempt");
+            }
+            pins[0].operation_id.clone()
+        };
+        let operation = crate::LogicalOperationId::parse(&operation_id)
+            .map_err(|_| "gateway.task.reconcile-attempt")?;
+        let original = self
+            .engine
+            .attempts
+            .read(self.engine.recipe.namespace(), &operation)
+            .await
+            .map_err(|_| "gateway.task.reconcile-attempt")?
+            .ok_or("gateway.task.reconcile-attempt")?;
+        let evaluated_at = original.evaluated_at();
+        if evaluated_at > now
+            || evaluated_at < task.descriptor().not_before
+            || evaluated_at >= task.descriptor().expires_at
+            || state
+                .effect_plan()
+                .is_some_and(|plan| evaluated_at >= plan.expires_at)
+        {
+            return Err("gateway.task.reconcile-attempt-time");
+        }
         let verified = verify_detailed(
             &self.engine.recipe,
             &self.engine.trusted_context,
-            now,
+            evaluated_at,
             proofs.agent_proof,
             proofs.agent_action,
         )
@@ -2400,7 +2555,7 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
-            now,
+            evaluated_at,
         )
         .map_err(|_| "gateway.task.reconcile-intent")?;
         if intent.verb != crate::task_activation::TaskWriteVerb::Create {
@@ -2411,7 +2566,7 @@ impl TaskWriteSession<'_> {
                 &self.engine.trusted_context,
                 &task,
                 intent.clone(),
-                now,
+                evaluated_at,
                 proof,
                 action,
             )
@@ -2472,6 +2627,8 @@ impl TaskWriteSession<'_> {
                 ledger: &self.ledger,
                 child_scope: None,
                 preflight_valid_until: None,
+                #[cfg(feature = "loopback-provider")]
+                exit_after_write_reservation: false,
             }),
             commissioning: None,
             commissioned_action: OnceLock::new(),
@@ -2568,6 +2725,8 @@ struct TaskWriteSubmission<'a> {
     pub(crate) agent_action: &'a [u8],
     pub(crate) confirmation: Option<(&'a [u8], &'a [u8])>,
     pub(crate) use_effect_plan: bool,
+    #[cfg(feature = "loopback-provider")]
+    pub(crate) exit_after_write_reservation: bool,
 }
 
 #[cfg(unix)]
@@ -2579,6 +2738,8 @@ struct TaskWriteAdmission<'a> {
     ledger: &'a FileReleaseTaskLedger,
     child_scope: Option<crate::task_activation::TaskWriteScope>,
     preflight_valid_until: Option<u64>,
+    #[cfg(feature = "loopback-provider")]
+    exit_after_write_reservation: bool,
 }
 
 /// A local qualification arm, never part of task authority. Its exact
@@ -2753,11 +2914,22 @@ impl SubmitIo for EngineIo<'_> {
                 } else {
                     now
                 };
-                return admission
+                let reserved = admission
                     .ledger
-                    .reserve_write(admission.approved, now)
+                    .reserve_write_with_namespace(
+                        admission.approved,
+                        self.engine.recipe.namespace().as_str(),
+                        now,
+                    )
                     .map(|_| ())
                     .map_err(crate::release_state::ReleaseStateError::write_code);
+                #[cfg(feature = "loopback-provider")]
+                if reserved.is_ok() && admission.exit_after_write_reservation {
+                    // Development fault: the task journal is durable, but the
+                    // independent gateway attempt has not been claimed yet.
+                    std::process::exit(88);
+                }
+                return reserved;
             }
         }
         if self.engine.recipe.requires_task_admission() {
@@ -3635,6 +3807,32 @@ pub(crate) mod tests {
         use crate::task_activation::AgentTaskDescriptor;
         use serde_json::{Map, json};
 
+        #[cfg(feature = "loopback-provider")]
+        async fn unsigned_observation(
+            engine: &GatewayEngine,
+            record_id: &str,
+        ) -> GatewayObserveResult {
+            let (server, mut client) = tokio::net::UnixStream::pair().expect("application socket");
+            let frame = serde_json::to_vec(&json!({
+                "schema": crate::app::APP_OBSERVE_SCHEMA,
+                "request": {"kind": "read-back", "arguments": {"record_id": record_id}},
+            }))
+            .expect("observation frame");
+            let (_, response) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+                tokio::join!(crate::app::app_session(server, engine), async {
+                    crate::app::write_frame(&mut client, &frame)
+                        .await
+                        .expect("send observation");
+                    crate::app::read_frame(&mut client)
+                        .await
+                        .expect("observation response")
+                })
+            })
+            .await
+            .expect("task observation refused promptly");
+            serde_json::from_slice(&response).expect("observation result")
+        }
+
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
         #[cfg(feature = "loopback-provider")]
@@ -3729,6 +3927,34 @@ pub(crate) mod tests {
             .replace(&loaded, &bound)
             .await
             .expect("bind subject");
+        #[cfg(feature = "loopback-provider")]
+        {
+            engine.observer = Some(observer);
+            let prepared = engine
+                .prepare_entry()
+                .await
+                .expect("prepared static connection");
+            let lease = engine
+                .lease(&prepared)
+                .await
+                .expect("static credential lease");
+            drop(lease);
+            let leases = installation.first.leases.load(Ordering::SeqCst);
+            assert_eq!(
+                unsigned_observation(engine, "recTEST0000000002").await,
+                GatewayObserveResult::Refused {
+                    code: "gateway.task.task-submit-required".to_owned(),
+                }
+            );
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(50), listener.accept())
+                    .await
+                    .is_err(),
+                "excluded record must not enter provider transport"
+            );
+        }
+        let baseline_leases = installation.first.leases.load(Ordering::SeqCst);
         #[cfg(feature = "loopback-provider")]
         let materializer_calls = Arc::new(AtomicU64::new(0));
         #[cfg(feature = "loopback-provider")]
@@ -4026,7 +4252,10 @@ pub(crate) mod tests {
                 .write_count(),
             0
         );
-        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            installation.first.leases.load(Ordering::SeqCst),
+            baseline_leases
+        );
 
         #[cfg(feature = "loopback-provider")]
         {
@@ -4134,6 +4363,22 @@ pub(crate) mod tests {
                 matches!(result, GatewaySubmitResult::Observed { matched: true, .. }),
                 "unexpected gateway result: {result:?}"
             );
+            let activity = serde_json::to_value(
+                session
+                    .activity(&card.task_id)
+                    .await
+                    .expect("joined task activity"),
+            )
+            .expect("redacted activity");
+            assert_eq!(activity["schema"], "auths.gateway-agent-task-activity/1");
+            assert_eq!(activity["task"]["writes"], 1);
+            assert_eq!(
+                activity["write_attempts"][0]["operation_id"],
+                "write-installed-1"
+            );
+            assert_eq!(activity["write_attempts"][0]["stage"], "observed");
+            assert_eq!(activity["write_attempts"][0]["response_status"], 200);
+            assert_eq!(activity["write_attempts"][0]["observation_match"], true);
             assert_eq!(
                 session
                     .ledger
@@ -4178,6 +4423,8 @@ pub(crate) mod tests {
                     ledger: &session.ledger,
                     child_scope: None,
                     preflight_valid_until: None,
+                    #[cfg(feature = "loopback-provider")]
+                    exit_after_write_reservation: false,
                 }),
                 commissioning: None,
                 commissioned_action: OnceLock::new(),
@@ -4191,6 +4438,13 @@ pub(crate) mod tests {
             assert!(!raced.reload().await);
             assert!(raced.lease().await.is_none());
             assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
+            assert_eq!(
+                unsigned_observation(engine, "recTEST0000000002").await,
+                GatewayObserveResult::Refused {
+                    code: "gateway.task.task-submit-required".to_owned(),
+                }
+            );
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
             let revoked = session
                 .submit(TaskWriteProofs {
                     task_id: &card.task_id,
@@ -4201,16 +4455,33 @@ pub(crate) mod tests {
                 .await;
             assert_eq!(revoked, not_entered("gateway.task.inactive"));
             assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
+            assert_eq!(
+                engine.reobserve("write-installed-1").await,
+                Err("gateway.task.task-submit-required"),
+                "the generic operator reobservation has no task revocation context"
+            );
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
         }
     }
 
     #[cfg(all(unix, feature = "loopback-provider"))]
     #[tokio::test]
+    async fn recorded_create_reconciles_child_without_reentering_provider_write() {
+        recorded_create_reconcile_case(true).await;
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider"))]
+    #[tokio::test]
+    async fn exact_confirmed_create_reconciles_after_proof_expiry() {
+        recorded_create_reconcile_case(false).await;
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider"))]
     #[allow(
         clippy::too_many_lines,
-        reason = "the crash recovery fixture spans native proofs, two journals and one metadata-only provider read"
+        reason = "the crash recovery fixture covers both confirmation modes, two journals and one metadata-only provider read"
     )]
-    async fn recorded_create_reconciles_child_without_reentering_provider_write() {
+    async fn recorded_create_reconcile_case(with_plan: bool) {
         use crate::harness::{self, Signer};
         use crate::observed_tests::submission_for;
         use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
@@ -4385,7 +4656,7 @@ pub(crate) mod tests {
         let grant = harness::grant_for(
             &root,
             &agent.principal,
-            now,
+            now - 3_300,
             "google-drive-delegation-demo",
             "create_project_a_document_v1",
         )
@@ -4408,7 +4679,7 @@ pub(crate) mod tests {
             &[],
             "google-drive-delegation-demo",
             "create_project_a_document_v1",
-            now,
+            now - 3_300,
         );
         let verified = verify_detailed(
             &engine.recipe,
@@ -4427,6 +4698,27 @@ pub(crate) mod tests {
             now,
         )
         .expect("exact create intent");
+        let confirmation_grant = harness::grant_for(
+            &root,
+            &human.principal,
+            now - 3_300,
+            TASK_SERVICE,
+            CONFIRMATION_TOOL,
+        )
+        .expect("human exact-confirmation grant");
+        let confirmation = submission_for(
+            &root,
+            &human,
+            &confirmation_grant,
+            &Map::from_iter([(
+                "write".to_owned(),
+                serde_json::to_value(&intent).expect("create intent"),
+            )]),
+            &[],
+            TASK_SERVICE,
+            CONFIRMATION_TOOL,
+            now - 3_300,
+        );
         let effect_plan_grant = harness::grant_for(
             &root,
             &human.principal,
@@ -4459,85 +4751,87 @@ pub(crate) mod tests {
             crate::task_effect_plan::EFFECT_PLAN_TOOL,
             now,
         );
-        let mut altered_plan = effect_plan.action.clone();
-        *altered_plan.last_mut().expect("plan action byte") ^= 1;
-        assert_eq!(
-            session
-                .submit_planned_effect(TaskWriteProofs {
-                    task_id: "task-create-reconcile",
-                    agent_proof: &signed.proof,
-                    agent_action: &signed.action,
-                    confirmation: None,
-                })
-                .await,
-            GatewaySubmitResult::NotEntered {
-                code: "gateway.task.effect-plan-required".to_owned(),
-            },
-            "no provider entry is possible before the signed plan is durable"
-        );
-        assert!(
+        if with_plan {
+            let mut altered_plan = effect_plan.action.clone();
+            *altered_plan.last_mut().expect("plan action byte") ^= 1;
+            assert_eq!(
+                session
+                    .submit_planned_effect(TaskWriteProofs {
+                        task_id: "task-create-reconcile",
+                        agent_proof: &signed.proof,
+                        agent_action: &signed.action,
+                        confirmation: None,
+                    })
+                    .await,
+                GatewaySubmitResult::NotEntered {
+                    code: "gateway.task.effect-plan-required".to_owned(),
+                },
+                "no provider entry is possible before the signed plan is durable"
+            );
+            assert!(
+                session
+                    .record_effect_plan(
+                        "task-create-reconcile",
+                        &signed.proof,
+                        &signed.action,
+                        &effect_plan.proof,
+                        &altered_plan,
+                    )
+                    .is_err(),
+                "altered human plan cannot be recorded"
+            );
             session
                 .record_effect_plan(
                     "task-create-reconcile",
                     &signed.proof,
                     &signed.action,
                     &effect_plan.proof,
-                    &altered_plan,
+                    &effect_plan.action,
                 )
-                .is_err(),
-            "altered human plan cannot be recorded"
-        );
-        session
-            .record_effect_plan(
-                "task-create-reconcile",
-                &signed.proof,
-                &signed.action,
-                &effect_plan.proof,
-                &effect_plan.action,
-            )
-            .expect("record signed effect plan before create reservation");
-        assert!(
-            session
-                .create_recovery_inputs("task-create-reconcile")
-                .await
-                .is_err(),
-            "a signed plan alone cannot nominate a recovered child"
-        );
-        assert_eq!(
-            session
-                .populate_preflight_inputs("task-create-reconcile")
-                .err(),
-            Some("gateway.task.preflight-child-required"),
-            "no preflight may be prepared for an unbound child"
-        );
-        let mut changed_plan_args = plan_args.clone();
-        changed_plan_args
-            .get_mut("plan")
-            .expect("plan")
-            .as_object_mut()
-            .expect("plan object")
-            .insert("initial_text".to_owned(), json!("Changed draft"));
-        let changed_plan = submission_for(
-            &root,
-            &human,
-            &effect_plan_grant,
-            &changed_plan_args,
-            &[],
-            TASK_SERVICE,
-            crate::task_effect_plan::EFFECT_PLAN_TOOL,
-            now,
-        );
-        assert_eq!(
-            session.record_effect_plan(
-                "task-create-reconcile",
-                &signed.proof,
-                &signed.action,
-                &changed_plan.proof,
-                &changed_plan.action,
-            ),
-            Err("gateway.task.effect-plan-journal"),
-            "a second signed plan cannot change approved content"
-        );
+                .expect("record signed effect plan before create reservation");
+            assert!(
+                session
+                    .create_recovery_inputs("task-create-reconcile")
+                    .await
+                    .is_err(),
+                "a signed plan alone cannot nominate a recovered child"
+            );
+            assert_eq!(
+                session
+                    .populate_preflight_inputs("task-create-reconcile")
+                    .err(),
+                Some("gateway.task.preflight-child-required"),
+                "no preflight may be prepared for an unbound child"
+            );
+            let mut changed_plan_args = plan_args.clone();
+            changed_plan_args
+                .get_mut("plan")
+                .expect("plan")
+                .as_object_mut()
+                .expect("plan object")
+                .insert("initial_text".to_owned(), json!("Changed draft"));
+            let changed_plan = submission_for(
+                &root,
+                &human,
+                &effect_plan_grant,
+                &changed_plan_args,
+                &[],
+                TASK_SERVICE,
+                crate::task_effect_plan::EFFECT_PLAN_TOOL,
+                now,
+            );
+            assert_eq!(
+                session.record_effect_plan(
+                    "task-create-reconcile",
+                    &signed.proof,
+                    &signed.action,
+                    &changed_plan.proof,
+                    &changed_plan.action,
+                ),
+                Err("gateway.task.effect-plan-journal"),
+                "a second signed plan cannot change approved content"
+            );
+        }
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
         let provider = tokio::spawn(async move {
             for step in 0..4 {
@@ -4584,14 +4878,21 @@ pub(crate) mod tests {
                 stream.write_all(body.as_bytes()).await.expect("metadata");
             }
         });
-        let result = session
-            .submit_planned_effect(TaskWriteProofs {
-                task_id: "task-create-reconcile",
-                agent_proof: &signed.proof,
-                agent_action: &signed.action,
-                confirmation: None,
-            })
-            .await;
+        let proofs = TaskWriteProofs {
+            task_id: "task-create-reconcile",
+            agent_proof: &signed.proof,
+            agent_action: &signed.action,
+            confirmation: if with_plan {
+                None
+            } else {
+                Some((&confirmation.proof, &confirmation.action))
+            },
+        };
+        let result = if with_plan {
+            session.submit_planned_effect(proofs).await
+        } else {
+            session.submit(proofs).await
+        };
         assert!(
             matches!(
                 result,
@@ -4605,32 +4906,36 @@ pub(crate) mod tests {
             .expect("task journal")
             .expect("task state");
         assert_eq!(reserved_state.write_count(), 1);
-        assert!(
-            reserved_state
-                .recovery_create_reserved(reserved_state.effect_plan().expect("recorded plan"))
-        );
-        assert_eq!(
-            session
-                .create_recovery_inputs("task-create-reconcile")
-                .await
-                .err(),
-            Some("gateway.task.recovery-not-response-less"),
-            "a recorded response must use its own reconciliation path"
-        );
+        if with_plan {
+            assert!(
+                reserved_state
+                    .recovery_create_reserved(reserved_state.effect_plan().expect("recorded plan"))
+            );
+            assert_eq!(
+                session
+                    .create_recovery_inputs("task-create-reconcile")
+                    .await
+                    .err(),
+                Some("gateway.task.recovery-not-response-less"),
+                "a recorded response must use its own reconciliation path"
+            );
+        }
         drop(session);
         engine.attempts = installation.attempts.reopen();
         let session = engine
             .task_write_session(&installation_bytes, &state_root)
             .expect("reopened task session");
-        session
-            .record_effect_plan(
-                "task-create-reconcile",
-                &signed.proof,
-                &signed.action,
-                &effect_plan.proof,
-                &effect_plan.action,
-            )
-            .expect("same signed plan is idempotent after restart");
+        if with_plan {
+            session
+                .record_effect_plan(
+                    "task-create-reconcile",
+                    &signed.proof,
+                    &signed.action,
+                    &effect_plan.proof,
+                    &effect_plan.action,
+                )
+                .expect("same signed plan is idempotent after restart");
+        }
 
         let mut altered = signed.action.clone();
         *altered.last_mut().expect("action byte") ^= 1;
@@ -4640,20 +4945,56 @@ pub(crate) mod tests {
                     task_id: "task-create-reconcile",
                     agent_proof: &signed.proof,
                     agent_action: &altered,
-                    confirmation: None,
+                    confirmation: if with_plan {
+                        None
+                    } else {
+                        Some((&confirmation.proof, &confirmation.action))
+                    },
                 })
                 .await,
             Err("gateway.task.reconcile-agent-proof")
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 2);
+        assert!(
+            verify_detailed(
+                &engine.recipe,
+                &engine.trusted_context,
+                now + 360,
+                &signed.proof,
+                &signed.action,
+            )
+            .is_err(),
+            "the original agent proof has expired at recovery time"
+        );
+        if !with_plan {
+            assert!(
+                verify_exact_write_confirmation(
+                    &engine.trusted_context,
+                    &task,
+                    intent.clone(),
+                    now + 360,
+                    &confirmation.proof,
+                    &confirmation.action,
+                )
+                .is_err(),
+                "the original exact human confirmation has expired at recovery time"
+            );
+        }
         assert_eq!(
             session
-                .reconcile_created_child(TaskWriteProofs {
-                    task_id: "task-create-reconcile",
-                    agent_proof: &signed.proof,
-                    agent_action: &signed.action,
-                    confirmation: None,
-                })
+                .reconcile_created_child_at(
+                    TaskWriteProofs {
+                        task_id: "task-create-reconcile",
+                        agent_proof: &signed.proof,
+                        agent_action: &signed.action,
+                        confirmation: if with_plan {
+                            None
+                        } else {
+                            Some((&confirmation.proof, &confirmation.action))
+                        },
+                    },
+                    now + 360,
+                )
                 .await,
             Err("gateway.task.reconcile-metadata")
         );
@@ -4669,12 +5010,19 @@ pub(crate) mod tests {
         );
         assert_eq!(
             session
-                .reconcile_created_child(TaskWriteProofs {
-                    task_id: "task-create-reconcile",
-                    agent_proof: &signed.proof,
-                    agent_action: &signed.action,
-                    confirmation: None,
-                })
+                .reconcile_created_child_at(
+                    TaskWriteProofs {
+                        task_id: "task-create-reconcile",
+                        agent_proof: &signed.proof,
+                        agent_action: &signed.action,
+                        confirmation: if with_plan {
+                            None
+                        } else {
+                            Some((&confirmation.proof, &confirmation.action))
+                        },
+                    },
+                    now + 360,
+                )
                 .await,
             Ok("child_ABC-123".to_owned())
         );
@@ -4694,6 +5042,11 @@ pub(crate) mod tests {
             "reconciliation cannot reserve another write"
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 4);
+
+        if !with_plan {
+            assert!(state.effect_plan().is_none());
+            return;
+        }
 
         let preflight_inputs = serde_json::to_value(
             session
@@ -4767,7 +5120,7 @@ pub(crate) mod tests {
         );
         let checked_at = wall_clock_seconds().expect("preflight time");
         let statement = json!({
-            "schema": "auths.gateway-task-populate-preflight/1",
+            "schema": "auths.gateway-task-populate-preflight/2",
             "task_id": "task-create-reconcile",
             "task_commitment": hex::encode(commitment.as_bytes()),
             "plan_commitment": recorded_plan.plan_commitment,
@@ -4778,15 +5131,16 @@ pub(crate) mod tests {
             "connection_id": bound.connection_id().as_str(),
             "connection_generation": bound.generation().get(),
             "connection_subject": subject,
-            "tab_id": "t.0",
-            "revision_id": "revision-1",
-            "metadata_sha256": "3".repeat(64),
-            "capability_sha256": "4".repeat(64),
-            "docs_sha256": "5".repeat(64),
+            "provider_values": {"required_revision_id": "revision-1", "tab_id": "t.0"},
+            "evidence_digests": {
+                "metadata": "3".repeat(64),
+                "capability": "4".repeat(64),
+                "document": "5".repeat(64),
+            },
             "checked_at": checked_at,
             "valid_until": checked_at + 60,
         });
-        let mut preimage = b"auths.gateway-task-populate-preflight/1\0".to_vec();
+        let mut preimage = b"auths.gateway-task-populate-preflight/2\0".to_vec();
         preimage.extend(serde_json_canonicalizer::to_vec(&statement).expect("statement"));
         let report = serde_json_canonicalizer::to_vec(&json!({
             "statement": statement,
@@ -4869,6 +5223,24 @@ pub(crate) mod tests {
             2,
             "create and populate share one two-write budget"
         );
+        let activity = serde_json::to_value(
+            session
+                .activity("task-create-reconcile")
+                .await
+                .expect("cross-namespace task activity"),
+        )
+        .expect("activity JSON");
+        assert_eq!(
+            activity["write_attempts"][0]["operation_id"],
+            "create-reconcile-1"
+        );
+        assert_eq!(activity["write_attempts"][0]["response_status"], 200);
+        assert_eq!(
+            activity["write_attempts"][1]["operation_id"],
+            "populate-reconcile-1"
+        );
+        assert_eq!(activity["write_attempts"][1]["stage"], "response-recorded");
+        assert_eq!(activity["write_attempts"][1]["response_status"], 200);
         assert_eq!(
             session
                 .submit_planned_effect(TaskWriteProofs {

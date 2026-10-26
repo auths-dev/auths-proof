@@ -869,12 +869,9 @@ fn validate_task_populate(
     let Some(binding) = &source.task_binding else {
         return Err(GatewayRecipeError::InvalidSource);
     };
-    let provider_fields = [
-        binding.resource_field.as_str(),
-        populate.text.as_str(),
-        populate.tab.as_str(),
-        populate.revision.as_str(),
-    ];
+    let provider_fields = std::iter::once(binding.resource_field.as_str())
+        .chain(std::iter::once(populate.text.as_str()))
+        .chain(populate.preflight_fields.iter().map(String::as_str));
     let mut allowed: BTreeSet<&str> = [
         "operator_namespace",
         "operation_id",
@@ -886,11 +883,16 @@ fn validate_task_populate(
     .collect();
     if binding.verb != TaskWriteVerb::Edit
         || source.created_child.is_some()
-        || provider_fields.iter().any(|name| {
-            !matches!(fields.get(*name), Some(FieldSchema::String { minimum, maximum })
+        || populate.preflight_fields.len() > 4
+        || populate
+            .preflight_fields
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || provider_fields.into_iter().any(|name| {
+            !matches!(fields.get(name), Some(FieldSchema::String { minimum, maximum })
                 if *minimum >= 1 && *maximum <= 256)
-                || !rules.consumed.all.contains(*name)
-                || !allowed.insert(*name)
+                || !rules.consumed.all.contains(name)
+                || !allowed.insert(name)
         })
         || fields.keys().any(|name| !allowed.contains(name.as_str()))
     {
