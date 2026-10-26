@@ -63,7 +63,7 @@ def main() -> None:
                  "revoke-before-actions",
                  "upfront-second-write", "concurrent-upfront-writes",
                  "exit-after-write-reservation", "two-task-swap",
-                 "rotate-before-write",
+                 "rotate-before-write", "rotate-release-audit-key",
                  "macos-agent-sandbox"):
         parser.add_argument("--" + flag, action="store_true")
     args = parser.parse_args()
@@ -99,7 +99,7 @@ def main() -> None:
         "revoke_before_actions",
         "upfront_second_write", "concurrent_upfront_writes",
         "exit_after_write_reservation", "two_task_swap",
-        "rotate_before_write",
+        "rotate_before_write", "rotate_release_audit_key",
         "macos_agent_sandbox",
     ) if getattr(args, name)]
     if args.action == "container-run":

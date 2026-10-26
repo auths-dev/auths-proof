@@ -110,6 +110,15 @@
       "receipt_sha256": "b7165d4974cf974af678e12ddaaac8d393139c93ab5c7a8ee18fc7060ebbcdb0",
       "task_ids": ["8SgI-xIjgqXWWCjEX7Qj3ZnB"],
       "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "retained-release-audit-key-after-rotation",
+      "bundle": "/private/tmp/ap071-airtable-release-key-rotation-bundle-v2-20261026",
+      "bundle_manifest_sha256": "fdab929a4573edfb2d7ac7ab1f9b2ad36aae5f31c2e36e4041dcd0d4c225c477",
+      "receipt": "/private/tmp/ap071-airtable-release-key-rotation-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "cadd64812d32c074579645b9d8afaf1325221c0c12b384ddac1729b201724625",
+      "task_ids": ["xcCfKOpvIPl06GJzT3Fbbk-i"],
+      "cleanup": "run-owned-record-retired"
     }
   ]
 }

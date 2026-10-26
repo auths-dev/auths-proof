@@ -97,7 +97,7 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for twelve installed cases
+pins the bundle manifests and redacted receipts for thirteen installed cases
 on this host, including both restart boundaries, the two-task swap, the
 no-content delivery fault, a stale-generation write refusal and an isolated
 Linux container read/write run.
@@ -119,6 +119,16 @@ and exact-confirms a valid write, publishes the next installed write
 credential generation, then requires the old task to stop before provider
 entry. It independently reads the disposable record and retires it during
 the separate cleanup invocation.
+
+Use `--rotate-release-audit-key` for the retained read-commitment case. After
+the installed agent acknowledges its one field release, the runner privately
+compares the source, rotates the gateway's audit key in a separate process,
+then repeats the comparison against the same acknowledged operation. It
+requires the task counters to remain unchanged and continues through the
+normal exact write and independent after-state check. The redacted result
+records only the new key version and comparison verdict; key bytes and field
+content remain private. This development case requires a gateway build with
+`task-read-commitment-rotate` and does not qualify production key custody.
 
 If a run fails after fixture creation, preserve its private root and execute
 `cleanup` once the effect has been inspected. Do not start another run on the

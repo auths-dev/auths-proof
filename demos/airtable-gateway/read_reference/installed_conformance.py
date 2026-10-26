@@ -315,6 +315,7 @@ def run(env_file: Path, root: Path, binary: Path,
         exit_after_write_reservation: bool = False,
         two_task_swap: bool = False,
         rotate_before_write: bool = False,
+        rotate_release_audit_key: bool = False,
         macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, exit_after_release_entry,
@@ -322,7 +323,7 @@ def run(env_file: Path, root: Path, binary: Path,
             revoke_before_actions,
             upfront_second_write, concurrent_upfront_writes,
             exit_after_write_reservation, two_task_swap,
-            rotate_before_write)) > 1:
+            rotate_before_write, rotate_release_audit_key)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -992,10 +993,25 @@ def run(env_file: Path, root: Path, binary: Path,
         }, sort_keys=True))
         airtable.close()
         return
-    _gateway(binary, "task-release-compare", "--state-dir", state,
-             "--task-id", signed.task_id, "--operation-id", read_operation,
-             "--resource-handle", record, "--source-file", source,
-             secret=hashlib.sha256(source.read_bytes()).hexdigest().encode("ascii"))
+    compare_args = ("--state-dir", state, "--task-id", signed.task_id,
+                    "--operation-id", read_operation, "--resource-handle", record,
+                    "--source-file", source)
+    source_digest = hashlib.sha256(source.read_bytes()).hexdigest().encode("ascii")
+    original_comparison = _gateway(binary, "task-release-compare", *compare_args,
+                                   secret=source_digest)
+    if rotate_release_audit_key:
+        before_rotation = _gateway(binary, "task-status", "--state-dir", state,
+                                   "--task-id", signed.task_id)
+        rotated = _gateway(binary, "task-read-commitment-rotate", "--state-dir", state)
+        retained_comparison = _gateway(binary, "task-release-compare", *compare_args,
+                                       secret=source_digest)
+        after_rotation = _gateway(binary, "task-status", "--state-dir", state,
+                                  "--task-id", signed.task_id)
+        if (original_comparison != {"outcome": "source-matched"}
+                or rotated != {"outcome": "read-commitment-key-rotated", "key_version": 2}
+                or retained_comparison != original_comparison
+                or after_rotation != before_rotation):
+            raise RuntimeError("retained release audit key or task accounting changed")
     if upfront_second_write or concurrent_upfront_writes:
         outcomes = []
         first_status = None
@@ -1294,6 +1310,9 @@ def run(env_file: Path, root: Path, binary: Path,
         "changed_after_confirmation_code": changed.get("code"),
         "write_replay_outcome": replay.get("outcome"),
         "write_replay_code": replay.get("code"),
+        "release_audit_key_version": 2 if rotate_release_audit_key else 1,
+        "retained_release_comparison": ("matched-after-rotation"
+                                        if rotate_release_audit_key else "not-tested"),
         "gateway_status": status,
         "cleanup": "pending",
     })
@@ -1349,6 +1368,8 @@ def main() -> None:
                         help="activate two tasks on one connection and refuse cross-task and namespace actions")
     parser.add_argument("--rotate-before-write", action="store_true",
                         help="rotate write connection after exact confirmation and refuse stale task")
+    parser.add_argument("--rotate-release-audit-key", action="store_true",
+                        help="rotate the release commitment key and compare an earlier acknowledged read")
     parser.add_argument("--macos-agent-sandbox", action="store_true",
                         help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
@@ -1366,6 +1387,7 @@ def main() -> None:
             exit_after_write_reservation=args.exit_after_write_reservation,
             two_task_swap=args.two_task_swap,
             rotate_before_write=args.rotate_before_write,
+            rotate_release_audit_key=args.rotate_release_audit_key,
             macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)
