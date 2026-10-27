@@ -1311,3 +1311,16 @@ mod process {
         Ok((setup, running))
     }
 }
+
+/// Fixed trusted execution time for file-journal fixtures. Pure state tests
+/// continue to supply explicit integers and do not construct runtime clocks.
+#[cfg(test)]
+pub(crate) fn time_gate(now: u64) -> crate::QualificationGate {
+    crate::QualificationGate::new(
+        crate::QualificationPolicy::Optional,
+        None,
+        None,
+        Box::new(std::sync::Arc::new(crate::FixedClock::at(now))),
+        auths_recipe_qualification::VerifierState::default(),
+    )
+}

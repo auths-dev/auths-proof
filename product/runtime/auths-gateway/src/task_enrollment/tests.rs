@@ -606,3 +606,75 @@ fn stored_root_cannot_change_the_signed_task_partition_even_with_a_new_root_comm
             .is_ok()
     );
 }
+
+#[test]
+fn native_read_reservation_samples_clock_after_journal_lock_acquisition() {
+    let fixture = Fixture::new();
+    fixture.bootstrap().unwrap();
+    let mut arguments = crate::release_verify::tests::arguments(
+        &fixture.reads[0],
+        fixture.agent.principal.as_str(),
+    );
+    arguments.insert("task_id".into(), json!(TASK));
+    arguments.insert(
+        "task_commitment".into(),
+        json!(hex::encode(fixture.task.commitment())),
+    );
+    let signed = chained(
+        &[&fixture.company, &fixture.machine, &fixture.agent],
+        &[&fixture.resources[0], &fixture.resources[1]],
+        harness::SERVICE,
+        harness::TOOL,
+        &arguments,
+    );
+    let verified = crate::release_verify::verify_release_request(
+        &fixture.reads[0],
+        &fixture.context,
+        NOW,
+        &signed.proof,
+        &signed.action,
+    )
+    .unwrap();
+    let before = fixture.digest();
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(fixture.path.join(".release.lock"))
+        .unwrap();
+    rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive).unwrap();
+    let reserve = || {
+        fixture.ledger().reserve_verified_request(
+            &verified,
+            "source",
+            4,
+            "synthetic-account",
+            &fixture.time,
+        )
+    };
+    std::thread::scope(|scope| {
+        let (started, ready) = std::sync::mpsc::channel();
+        let worker = scope.spawn(move || {
+            started.send(()).unwrap();
+            reserve()
+        });
+        ready.recv().unwrap();
+        fixture.clock.set(NOW + 600);
+        drop(lock);
+        assert_eq!(
+            worker.join().unwrap().err(),
+            Some(ReleaseStateError::Inactive)
+        );
+    });
+    assert_eq!(fixture.digest(), before);
+    fixture.clock.set(NOW);
+    fixture.clock.trust_is(false);
+    assert_eq!(reserve().err(), Some(ReleaseStateError::Inactive));
+    assert_eq!(fixture.digest(), before);
+    fixture.clock.trust_is(true);
+    reserve().unwrap();
+    assert_eq!(
+        fixture.ledger().load(TASK).unwrap().unwrap().counts(),
+        (1, 0, 0)
+    );
+    assert_eq!(reserve().err(), Some(ReleaseStateError::Replay));
+}

@@ -919,7 +919,7 @@ mod tests {
                     create,
                     &VerifiedCreatedChild::from_test("child_ABC-123"),
                     &[9; 32],
-                    NOW + 1
+                    &crate::harness::time_gate(NOW + 1)
                 )
                 .is_err(),
             "unreserved create cannot bind a child"
@@ -944,7 +944,7 @@ mod tests {
                     create,
                     &VerifiedCreatedChild::from_test("child/other"),
                     &[9; 32],
-                    NOW + 1
+                    &crate::harness::time_gate(NOW + 1)
                 )
                 .is_err(),
             "unsafe child ID cannot bind"
@@ -957,7 +957,7 @@ mod tests {
                     &ApprovedTaskWrite::from_test_intent(changed_intent),
                     &VerifiedCreatedChild::from_test("child_ABC-123"),
                     &[9; 32],
-                    NOW + 1
+                    &crate::harness::time_gate(NOW + 1)
                 )
                 .is_err(),
             "changed request cannot bind"
@@ -970,7 +970,7 @@ mod tests {
                     &ApprovedTaskWrite::from_test_intent(changed_action),
                     &VerifiedCreatedChild::from_test("child_ABC-123"),
                     &[9; 32],
-                    NOW + 1
+                    &crate::harness::time_gate(NOW + 1)
                 )
                 .is_err(),
             "a different signed action cannot bind the reserved create"
@@ -980,7 +980,7 @@ mod tests {
                 create,
                 &VerifiedCreatedChild::from_test("child_ABC-123"),
                 &[9; 32],
-                NOW + 1,
+                &crate::harness::time_gate(NOW + 1),
             )
             .expect("bind observed child");
         assert!(
@@ -989,7 +989,7 @@ mod tests {
                     create,
                     &VerifiedCreatedChild::from_test("other-child"),
                     &[9; 32],
-                    NOW + 1
+                    &crate::harness::time_gate(NOW + 1)
                 )
                 .is_err(),
             "binding is immutable"

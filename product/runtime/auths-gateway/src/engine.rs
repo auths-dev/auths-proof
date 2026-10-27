@@ -2351,7 +2351,7 @@ impl TaskWriteSession<'_> {
                 .map(|pin| (pin.rule_digest.as_str(), pin.public_key_hex.as_str())),
         );
         self.ledger
-            .record_effect_plan(task_id, &plan, now)
+            .record_effect_plan(task_id, &plan, &self.engine.qualification)
             .map_err(|_| "gateway.task.effect-plan-journal")?;
         Ok(())
     }
@@ -2400,7 +2400,7 @@ impl TaskWriteSession<'_> {
         let verified = verify_populate_preflight(report, &pin.public_key_hex, &expected, now)
             .ok_or("gateway.task.preflight-report-refused")?;
         self.ledger
-            .record_populate_preflight(task_id, &verified, now)
+            .record_populate_preflight(task_id, &verified, &self.engine.qualification)
             .map_err(|_| "gateway.task.preflight-journal")?;
         Ok(())
     }
@@ -2740,9 +2740,7 @@ impl TaskWriteSession<'_> {
                 &verified_child,
                 &attestation,
                 &human_action_commitment,
-                self.engine
-                    .execution_time()
-                    .ok_or("gateway.task.recovery-clock")?,
+                &self.engine.qualification,
             )
             .map_err(|_| "gateway.task.recovery-binding")?;
         Ok(attestation.candidate_id().to_owned())
@@ -2964,9 +2962,7 @@ impl TaskWriteSession<'_> {
                 &approved,
                 &verified_child,
                 response_digest,
-                self.engine
-                    .execution_time()
-                    .ok_or("gateway.task.reconcile-clock")?,
+                &self.engine.qualification,
             )
             .map_err(|_| "gateway.task.reconcile-binding")?;
         Ok(candidate_id.clone())
@@ -3186,12 +3182,12 @@ impl SubmitIo for EngineIo<'_> {
     fn reserve_task_write(
         &self,
         _verified: &VerifiedCommand,
-        now: u64,
+        _now: u64,
     ) -> Result<(), &'static str> {
         #[cfg(unix)]
         {
             if let Some(admission) = &self.task_write {
-                let now = if let Some(valid_until) = admission.preflight_valid_until {
+                if let Some(valid_until) = admission.preflight_valid_until {
                     let current = self
                         .engine
                         .execution_time()
@@ -3199,16 +3195,14 @@ impl SubmitIo for EngineIo<'_> {
                     if current >= valid_until {
                         return Err("gateway.task.preflight-stale");
                     }
-                    current
-                } else {
-                    now
-                };
+                }
                 let reserved = admission
                     .ledger
                     .reserve_write_with_namespace(
                         admission.approved,
                         self.engine.recipe.namespace().as_str(),
-                        now,
+                        &self.engine.qualification,
+                        admission.preflight_valid_until,
                     )
                     .map(|_| ())
                     .map_err(crate::release_state::ReleaseStateError::write_code);
@@ -3232,13 +3226,18 @@ impl SubmitIo for EngineIo<'_> {
         &self,
         child: &crate::recipe::VerifiedCreatedChild,
         response_digest: &[u8; 32],
-        now: u64,
+        _now: u64,
     ) -> bool {
         #[cfg(unix)]
         if let Some(admission) = &self.task_write {
             return admission
                 .ledger
-                .bind_created_child(admission.approved, child, response_digest, now)
+                .bind_created_child(
+                    admission.approved,
+                    child,
+                    response_digest,
+                    &self.engine.qualification,
+                )
                 .is_ok();
         }
         false

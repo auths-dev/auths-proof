@@ -135,3 +135,60 @@ revocation read races now traverse the installed clock path. Required full CI
 runs gateway tests with all features, including the loopback read regressions.
 Source-closure generation and a compilation/lint result are not behavioral or
 hosted acceptance evidence; see the assessment's run log for current status.
+
+
+## Task-journal time sampling under contention
+
+The installed read/write journal previously accepted a timestamp sampled by its
+caller before acquiring the file lock. A worker could wait across task expiry or
+a preflight deadline and still commit using that old timestamp. The enrollment
+transaction already sampled under its lock; all live timed journal transitions
+now use the same `transaction_time` boundary through `update_timed`.
+
+Before:
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Clock
+    participant Journal
+    Caller->>Clock: Sample time
+    Caller->>Journal: Wait for lock, carrying old timestamp
+    Note over Clock,Journal: Validity can expire while waiting
+    Journal->>Journal: Validate and publish using old timestamp
+```
+
+After:
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Journal
+    participant Clock
+    Caller->>Journal: Request transition with installed clock reference
+    Journal->>Journal: Acquire exclusive lock and load current state
+    Journal->>Clock: Sample trusted execution time
+    Clock-->>Journal: Current time or refusal
+    Journal->>Journal: Check time, replay, revocation and capacity
+    Journal-->>Caller: Durably published state or unchanged-state refusal
+```
+
+The direct cutover covers provider-read reservation, disclosure entry, write
+reservation, effect-plan/preflight recording and created/recovered-child binding.
+The write preflight deadline is checked again inside the transaction. Recording
+an effect plan also checks its exclusive expiry there; preflight recording and
+recovered-child binding recheck their signed evidence windows through the same
+profile-owned predicates used by their native report verifiers. Pure state
+transitions retain explicit integer time for deterministic testing; production
+journal APIs no longer accept a caller timestamp for these decisions. No network
+or custody call occurs under the lock. Administrative revocation and authenticated
+late outcome evidence remain untimed: an expired task must not prevent recording
+what already occurred or erase its charges.
+
+Three authored tests exercise actual file-lock contention for native read
+reservation, write reservation/task and preflight expiry, and disclosure expiry;
+they also check loss of clock trust, unchanged refused state, replay after valid
+entry and retained charges on late acknowledgement. Hosted behavior is pending.
+This fixes transaction-time sampling, not every temporal predicate: native proof
+validity and status evidence still need binding/revalidation at the later entry
+boundary, and the remaining participant admission/entry cutover is incomplete.

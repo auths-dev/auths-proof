@@ -252,11 +252,15 @@ pub(crate) struct EnrollmentTransaction<'a> {
 
 impl EnrollmentTransaction<'_> {
     fn now(&self) -> Result<u64, ReleaseStateError> {
-        self.time
-            .execution_time()
-            .map(crate::DeploymentTime::unix_seconds)
-            .ok_or(ReleaseStateError::Inactive)
+        transaction_time(self.time)
     }
+}
+
+/// Sample the installed execution clock only after acquiring the journal lock.
+fn transaction_time(time: &crate::QualificationGate) -> Result<u64, ReleaseStateError> {
+    time.execution_time()
+        .map(crate::DeploymentTime::unix_seconds)
+        .ok_or(ReleaseStateError::Inactive)
 }
 
 /// One task's release accounting. A single CAS record keeps replay claims,
@@ -533,6 +537,9 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if now >= plan.expires_at {
+            return Err(ReleaseStateError::Inactive);
+        }
         if !self.valid_effect_plan(plan) {
             return Err(ReleaseStateError::Binding);
         }
@@ -614,6 +621,9 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if !preflight.valid_at(now) {
+            return Err(ReleaseStateError::Inactive);
+        }
         if !self.valid_populate_preflight(preflight) {
             return Err(ReleaseStateError::Binding);
         }
@@ -896,6 +906,9 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if !attestation.valid_at(now) {
+            return Err(ReleaseStateError::Inactive);
+        }
         if !self.recovery_create_reserved(plan) {
             return Err(ReleaseStateError::Replay);
         }
@@ -1816,6 +1829,18 @@ impl FileReleaseTaskLedger {
         Ok(state)
     }
 
+    /// Every live timed transition obtains its own time under the same lock
+    /// as replay, revocation and accounting. Pure state transitions still take
+    /// explicit time; no provider/custody I/O runs inside this helper.
+    fn update_timed(
+        &self,
+        task_id: &str,
+        time: &crate::QualificationGate,
+        change: impl FnOnce(&mut ReleaseTaskState, u64) -> Result<(), ReleaseStateError>,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(task_id, |state| change(state, transaction_time(time)?))
+    }
+
     #[cfg(test)]
     fn reserve_provider_call(
         &self,
@@ -1831,9 +1856,9 @@ impl FileReleaseTaskLedger {
         connection_id: &str,
         connection_generation: u64,
         connection_subject: &str,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(verified.request().task_id(), |state| {
+        self.update_timed(verified.request().task_id(), time, |state, now| {
             state.reserve_verified_request(
                 verified,
                 connection_id,
@@ -1859,9 +1884,13 @@ impl FileReleaseTaskLedger {
         &self,
         approved: &ApprovedTaskWrite,
         operator_namespace: &str,
-        now: u64,
+        time: &crate::QualificationGate,
+        valid_until: Option<u64>,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(&approved.intent().task_id, |state| {
+        self.update_timed(&approved.intent().task_id, time, |state, now| {
+            if valid_until.is_some_and(|deadline| now >= deadline) {
+                return Err(ReleaseStateError::Inactive);
+            }
             state.reserve_write_with_namespace(approved, operator_namespace, now)
         })
     }
@@ -1870,18 +1899,20 @@ impl FileReleaseTaskLedger {
         &self,
         task_id: &str,
         plan: &VerifiedEffectPlan,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(task_id, |state| state.record_effect_plan(plan, now))
+        self.update_timed(task_id, time, |state, now| {
+            state.record_effect_plan(plan, now)
+        })
     }
 
     pub(crate) fn record_populate_preflight(
         &self,
         task_id: &str,
         preflight: &VerifiedPopulatePreflight,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(task_id, |state| {
+        self.update_timed(task_id, time, |state, now| {
             state.record_populate_preflight(preflight, now)
         })
     }
@@ -1891,9 +1922,9 @@ impl FileReleaseTaskLedger {
         approved: &ApprovedTaskWrite,
         child: &VerifiedCreatedChild,
         response_digest: &[u8; 32],
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(&approved.intent().task_id, |state| {
+        self.update_timed(&approved.intent().task_id, time, |state, now| {
             state.bind_created_child(approved, child, response_digest, now)
         })
     }
@@ -1905,9 +1936,9 @@ impl FileReleaseTaskLedger {
         child: &VerifiedCreatedChild,
         attestation: &VerifiedRecoveryAttestation,
         human_action_commitment: &str,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(&approved.intent().task_id, |state| {
+        self.update_timed(&approved.intent().task_id, time, |state, now| {
             state.bind_recovered_child(
                 approved,
                 plan,
@@ -1963,9 +1994,9 @@ impl FileReleaseTaskLedger {
         operation_id: &str,
         content: &[u8],
         key: &ReleaseCommitmentKey,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(task_id, |state| {
+        self.update_timed(task_id, time, |state, now| {
             state.enter_release(operation_id, content, key, now)
         })
     }
@@ -2153,7 +2184,13 @@ mod tests {
             .expect("claim");
         let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).expect("key");
         let entered = ledger
-            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+            .enter_release(
+                "task-1",
+                "read-1",
+                b"Approved",
+                &key,
+                &crate::harness::time_gate(102),
+            )
             .expect("charge");
         assert_eq!(entered.acknowledged_key_version("read-1", "source-1"), None);
         assert!(!entered.acknowledged_content_matches("read-1", "source-1", b"Approved", &key,));
@@ -2350,7 +2387,13 @@ mod tests {
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
         let entered = ledger
-            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+            .enter_release(
+                "task-1",
+                "read-1",
+                b"Approved",
+                &key,
+                &crate::harness::time_gate(102),
+            )
             .expect("durable charge");
         let digest = entered.digest().expect("canonical digest");
         drop(ledger);
@@ -2372,7 +2415,13 @@ mod tests {
         );
         assert_eq!(
             restarted
-                .enter_release("task-1", "read-1", b"Approved", &key, 103)
+                .enter_release(
+                    "task-1",
+                    "read-1",
+                    b"Approved",
+                    &key,
+                    &crate::harness::time_gate(103)
+                )
                 .err(),
             Some(ReleaseStateError::Stage)
         );
@@ -2398,7 +2447,13 @@ mod tests {
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
         ledger
-            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+            .enter_release(
+                "task-1",
+                "read-1",
+                b"Approved",
+                &key,
+                &crate::harness::time_gate(102),
+            )
             .expect("durable charge");
         ledger
             .not_delivered(&ProvenNoSend::before_content("task-1", "read-1"))
@@ -2416,7 +2471,13 @@ mod tests {
         );
         assert_eq!(
             restarted
-                .enter_release("task-1", "read-1", b"Approved", &key, 103)
+                .enter_release(
+                    "task-1",
+                    "read-1",
+                    b"Approved",
+                    &key,
+                    &crate::harness::time_gate(103)
+                )
                 .err(),
             Some(ReleaseStateError::Stage)
         );
@@ -2506,7 +2567,13 @@ mod tests {
                     let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
                     barrier.wait();
                     ledger
-                        .enter_release("task-1", operation, b"Approved", &key, 102)
+                        .enter_release(
+                            "task-1",
+                            operation,
+                            b"Approved",
+                            &key,
+                            &crate::harness::time_gate(102),
+                        )
                         .map(|_| ())
                 }));
             }
@@ -2525,6 +2592,117 @@ mod tests {
         assert_eq!(
             ledger.load("task-1").expect("load").expect("task").counts(),
             (2, 1, 8)
+        );
+    }
+
+    fn clock_gate(clock: &Arc<crate::FixedClock>) -> crate::QualificationGate {
+        crate::QualificationGate::new(
+            crate::QualificationPolicy::Optional,
+            None,
+            None,
+            Box::new(Arc::clone(clock)),
+            auths_recipe_qualification::VerifierState::default(),
+        )
+    }
+
+    /// Hold the actual journal lock while the caller starts with valid time.
+    /// Advance to the exact exclusive deadline before allowing the transaction.
+    fn advance_while_locked<T: Send>(
+        ledger: &FileReleaseTaskLedger,
+        clock: &crate::FixedClock,
+        deadline: u64,
+        change: impl FnOnce() -> T + Send,
+    ) -> T {
+        let lock = ledger
+            .lock(rustix::fs::FlockOperation::LockExclusive)
+            .unwrap();
+        std::thread::scope(|scope| {
+            let (started, ready) = std::sync::mpsc::channel();
+            let worker = scope.spawn(move || {
+                started.send(()).unwrap();
+                change()
+            });
+            ready.recv().unwrap();
+            clock.set(deadline);
+            drop(lock);
+            worker.join().unwrap()
+        })
+    }
+
+    #[test]
+    fn write_reservation_samples_time_and_preflight_deadline_inside_journal_lock() {
+        for deadline in [None, Some(125)] {
+            let root = tempfile::tempdir().unwrap();
+            let path = fs::canonicalize(root.path()).unwrap().join("task");
+            let ledger = FileReleaseTaskLedger::open(&path).unwrap();
+            ledger.initialize_policy(write_policy()).unwrap();
+            let before = ledger.load("task-1").unwrap().unwrap().digest().unwrap();
+            let clock = Arc::new(crate::FixedClock::at(101));
+            let time = clock_gate(&clock);
+            let intent = write_intent("edit-1");
+            let reserve =
+                || ledger.reserve_write_with_namespace(&intent, "test-only", &time, deadline);
+            let refused = advance_while_locked(&ledger, &clock, deadline.unwrap_or(200), reserve);
+            assert_eq!(refused.err(), Some(ReleaseStateError::Inactive));
+            assert_eq!(
+                ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
+                before
+            );
+            clock.set(101);
+            clock.trust_is(false);
+            assert_eq!(reserve().err(), Some(ReleaseStateError::Inactive));
+            assert_eq!(
+                ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
+                before
+            );
+            clock.trust_is(true);
+            reserve().unwrap();
+            assert_eq!(reserve().err(), Some(ReleaseStateError::Replay));
+            clock.trust_is(false);
+            ledger.revoke("task-1").unwrap();
+            assert_eq!(ledger.load("task-1").unwrap().unwrap().write_count(), 1);
+        }
+    }
+
+    #[test]
+    fn disclosure_samples_locked_time_but_late_evidence_keeps_its_charge() {
+        let root = tempfile::tempdir().unwrap();
+        let path = fs::canonicalize(root.path()).unwrap().join("task");
+        let ledger = FileReleaseTaskLedger::open(&path).unwrap();
+        ledger.initialize_policy(policy()).unwrap();
+        ledger.reserve_provider_call(call("read-1"), 101).unwrap();
+        let before = ledger.load("task-1").unwrap().unwrap().digest().unwrap();
+        let clock = Arc::new(crate::FixedClock::at(101));
+        let time = clock_gate(&clock);
+        let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).unwrap();
+        let enter = || ledger.enter_release("task-1", "read-1", b"Approved", &key, &time);
+        assert_eq!(
+            advance_while_locked(&ledger, &clock, 200, enter).err(),
+            Some(ReleaseStateError::Inactive)
+        );
+        assert_eq!(
+            ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
+            before
+        );
+        clock.set(101);
+        clock.trust_is(false);
+        assert_eq!(enter().err(), Some(ReleaseStateError::Inactive));
+        assert_eq!(
+            ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
+            before
+        );
+        clock.trust_is(true);
+        let entered = enter().unwrap();
+        let evidence = acknowledgement(&entered, "read-1");
+        clock.set(200);
+        clock.trust_is(false);
+        ledger.acknowledge(&evidence).unwrap();
+        ledger.revoke("task-1").unwrap();
+        let retained = ledger.load("task-1").unwrap().unwrap();
+        assert_eq!(retained.counts(), (1, 1, 8));
+        assert_eq!(
+            retained.stage("read-1"),
+            Some(ReleaseStage::AgentAcknowledged)
         );
     }
 

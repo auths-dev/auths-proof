@@ -250,7 +250,7 @@ impl GatewayEngine {
         let request = prepared.verified.request();
         let operation_id = request.operation_id().as_str();
         let connection = prepared.loaded.record();
-        let Some(reservation_time) = submission.execution_time() else {
+        let Some(_) = submission.execution_time() else {
             return not_entered("gateway.verify.clock-unavailable");
         };
         if submission
@@ -260,7 +260,7 @@ impl GatewayEngine {
                 connection.connection_id().as_str(),
                 connection.generation().get(),
                 &prepared.connection_subject,
-                reservation_time,
+                submission.read_qualification,
             )
             .is_err()
         {
@@ -281,7 +281,7 @@ impl GatewayEngine {
                 "gateway.release.connection-changed",
             );
         }
-        let Some(release_time) = submission.execution_time() else {
+        let Some(_) = submission.execution_time() else {
             return refuse_release(
                 &submission,
                 operation_id,
@@ -295,7 +295,7 @@ impl GatewayEngine {
                 operation_id,
                 &content,
                 submission.commitment_key,
-                release_time,
+                submission.read_qualification,
             )
             .is_err()
         {

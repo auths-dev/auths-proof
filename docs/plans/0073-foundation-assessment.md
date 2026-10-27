@@ -761,3 +761,42 @@ protocol 148, public SDK 145, public surface 405 and frozen assurance manifest
 61 explicitly identify this source change. These generated reports do not add
 formal coverage for the journal integration. All nine new behavioral tests
 remain pending hosted execution; no acceptance criterion closes.
+
+
+## 24. Current time inside the task transaction
+
+Pushed journal revision `5a71adc8e855f44a1fbabcb7ccbc6215833acac2` is under full
+CI run 40594932593. Its plan and generated-artifact jobs passed; preflight and
+fast formal feedback were still running at this checkpoint. This does not
+include the following source change.
+
+Tracing operation entry found caller-sampled time flowing across a potentially
+blocking file lock. All seven live timed journal transitions now sample the
+installed clock under the existing transaction using one helper; pure state
+functions remain explicit-time. Write preflight expiry is rechecked under that
+lock. Late acknowledgements and revocations remain recordable without trusted
+execution time. The time contract records before/after diagrams and the exact
+scope. Three new tests cover native read, write/preflight and disclosure lock
+contention, untrusted time and retained evidence/accounting. Artifact construction
+compiled them (384 behavioral tests filtered out); no behavioral result is yet
+claimed. Native proof freshness at later entry, ancestry enforcement and all
+F01–F16 acceptance remain open.
+
+The task-plan expiry and signed preflight/recovery report windows are also
+rechecked at publication; their retained witnesses reuse the verifier's exact
+validity predicate. Existing signed-report tests now compare revalidation to
+fresh verification across both endpoints and extreme times. This still does not
+reverify every native grant/status dependency under the transaction.
+
+Hosted journal revision 5a71adc8 has now passed repository preflight. The
+implementation, compliance, dependency, secret, formal translation/Kani and live
+provider jobs are running; their outcomes are not yet known. No run includes the
+uncommitted transaction-time change yet.
+
+Final construction for the transaction-time slice passed: all-target/all-feature
+gateway Clippy, the source-closure generation test (384 behavioral tests filtered
+out), byte-identical proof-coverage reproduction and semantic inventory 406
+(identity 149, public SDK 146, public surface 406). Three new behavioral tests and
+the retained-report differential assertions await hosted execution. Journal
+revision 5a71adc8 also passed the hosted full-history secret gate; its remaining
+implementation/formal jobs are still running. No final acceptance is inferred.

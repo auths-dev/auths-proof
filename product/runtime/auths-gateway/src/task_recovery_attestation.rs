@@ -66,7 +66,18 @@ pub(crate) struct VerifiedRecoveryAttestation {
     commitment: String,
 }
 
+impl RecoveryStatement {
+    fn valid_at(&self, now: u64) -> bool {
+        (self.checked_at..self.valid_until).contains(&now)
+    }
+}
+
 impl VerifiedRecoveryAttestation {
+    /// Recheck this signed evidence at the journal's current transaction time.
+    pub(crate) fn valid_at(&self, now: u64) -> bool {
+        self.statement.valid_at(now)
+    }
+
     pub(crate) fn candidate_id(&self) -> &str {
         &self.statement.candidate_id
     }
@@ -175,7 +186,7 @@ pub(crate) fn verify_recovery_attestation(
     let envelope: SignedRecoveryAttestation = serde_json::from_slice(report).ok()?;
     if serde_json_canonicalizer::to_vec(&envelope).ok()? != report
         || !matches_expected(&envelope.statement, expected)
-        || !(envelope.statement.checked_at..envelope.statement.valid_until).contains(&now)
+        || !envelope.statement.valid_at(now)
     {
         return None;
     }
@@ -300,6 +311,13 @@ mod tests {
             hex::encode(sha2::Sha256::digest(&report))
         );
         assert!(verify_recovery_attestation(&report, &public, &expected, 160).is_none());
+        for now in [0, 99, 100, 110, 159, 160, 200, u64::MAX] {
+            assert_eq!(
+                verified.valid_at(now),
+                verify_recovery_attestation(&report, &public, &expected, now).is_some(),
+                "retained signed evidence must use the same validity boundary at {now}"
+            );
+        }
         assert!(verify_recovery_attestation(&report, &"9".repeat(64), &expected, 110).is_none());
         let mut wrong_subject: SignedRecoveryAttestation =
             serde_json::from_slice(&report).expect("report");

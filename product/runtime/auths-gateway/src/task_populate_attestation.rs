@@ -58,7 +58,18 @@ pub(crate) struct VerifiedPopulatePreflight {
     signature_sha256: String,
 }
 
+impl PopulatePreflightStatement {
+    fn valid_at(&self, now: u64) -> bool {
+        (self.checked_at..self.valid_until).contains(&now)
+    }
+}
+
 impl VerifiedPopulatePreflight {
+    /// Recheck this signed evidence at the journal's current transaction time.
+    pub(crate) fn valid_at(&self, now: u64) -> bool {
+        self.statement.valid_at(now)
+    }
+
     pub(crate) fn facts(&self) -> PopulatePreflightFacts<'_> {
         PopulatePreflightFacts {
             child_id: &self.statement.child_id,
@@ -161,7 +172,7 @@ pub(crate) fn verify_populate_preflight(
     let envelope: SignedPopulatePreflight = serde_json::from_slice(report).ok()?;
     if serde_json_canonicalizer::to_vec(&envelope).ok()? != report
         || !statement_matches(&envelope.statement, expected)
-        || !(envelope.statement.checked_at..envelope.statement.valid_until).contains(&now)
+        || !envelope.statement.valid_at(now)
     {
         return None;
     }
@@ -190,6 +201,21 @@ mod tests {
     use crate::task_write::ExactWriteIntent;
     use ed25519_dalek::{Signer as _, SigningKey};
     use serde_json::Value;
+
+    fn assert_retained_validity(
+        verified: &VerifiedPopulatePreflight,
+        report: &[u8],
+        public: &str,
+        expected: &ExpectedPopulatePreflight<'_>,
+    ) {
+        for now in [0, 99, 100, 110, 159, 160, 200, u64::MAX] {
+            assert_eq!(
+                verified.valid_at(now),
+                verify_populate_preflight(report, public, expected, now).is_some(),
+                "retained signed evidence must use the same validity boundary at {now}"
+            );
+        }
+    }
 
     #[test]
     fn pinned_preflight_signature_and_task_scope_are_required() {
@@ -287,6 +313,7 @@ mod tests {
         assert!(verify_populate_preflight(&missing_report, &public, &expected, 110).is_none());
         assert!(verify_populate_preflight(&report, &"9".repeat(64), &expected, 110).is_none());
         assert!(verify_populate_preflight(&report, &public, &expected, 160).is_none());
+        assert_retained_validity(&verified, &report, &public, &expected);
         let mut changed: Value = serde_json::from_slice(&report).expect("report");
         changed["statement"]["child_id"] = "other-child".into();
         let altered = serde_json_canonicalizer::to_vec(&changed).expect("altered");
