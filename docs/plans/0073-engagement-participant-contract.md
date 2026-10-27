@@ -7,7 +7,9 @@ The [assessment](0073-foundation-assessment.md) records actual evidence.
 
 ## 1. Current boundary and intended change
 
-The current immutable task names one human, one agent and one delivery channel.
+The original immutable task named one human, one agent and one delivery channel.
+The implemented role cutover now separates initiator and approver while retaining
+one agent and one delivery channel.
 The native verifier already supports attenuated delegation chains. The first
 AP073 change allows that chain to reach the final agent already approved by the
 human. It does not enroll another agent or grant it another budget.
@@ -174,3 +176,44 @@ reusing an operation through another recipe or descendant, simultaneous last
 capacity claims, parent revocation during enrollment/entry, old instance permits
 after replacement, restored state, and unknown outcomes after executor restart.
 Record exact artifacts and observed histories; this design is not test evidence.
+
+## 8. Closed partition reference and grant-binding decision
+
+`product/runtime/auths-gateway/src/engagement_reference.rs` is a phase-one,
+`cfg(test)` reference. Its inputs assume native authorization and possession
+verification have succeeded; it does not establish those facts, serialize
+state, issue dispatch permits or perform I/O. No F acceptance criterion closes
+because this reference exists. Production must demonstrate a refinement of
+these transitions under the authoritative partition transaction.
+
+Resource authority is pinned per immutable root scope. A participant's scope
+entry names its exact native grant ID; a child's corresponding grant must link
+to that parent's scope grant. Read and write grant paths may differ. The native
+enrollment-action grant is not implicitly resource authority. On operation
+admission, the verified single native branch must end in the complete sequence
+of scope grants belonging to the enrollment ancestry. Merely finding each
+principal somewhere in a bundle is insufficient. Native signature, subject,
+issuer, permission, status, depth and attenuation checks remain prerequisites.
+The future signed enrollment must commit this complete scope-to-grant mapping.
+
+The reference derives each ancestor's usage from the bounded operation journal
+rather than keeping a second mutable aggregate. Counts of provider reads,
+disclosures, disclosure bytes and writes remain distinct. Provider entry moves
+its reservation to uncertain; observation records it spent. Disclosure entry
+adds its own uncertain count and byte charge; authenticated acknowledgement
+moves that charge to spent. Recovery marks entered operations unknown without
+a second charge, refund or another entry. A refused entry retains its earlier
+reservation. Every refusal is atomic.
+
+The reference checks the current partition, executor and instance bindings at
+entry and disclosure, in addition to the exact recorded action and request.
+Changing a partition generation in these tests assumes a trustworthy external
+generation source; it does not prove rollback detection. Actual dispatch
+fencing, persistence failures, signed enrollment, child possession, exact
+approval and installed process isolation remain separate implementation work.
+
+Eight reference tests cover shared sibling capacity, all ancestor charging,
+revocation on both sides of entry, read-before-disclosure revocation, lost
+acknowledgement, mixed read/write replay and hard limits, scope/grant splicing,
+exact-request mutations, expiry, stale generations, overflow and randomized
+crash/revocation histories. Hosted execution remains pending.

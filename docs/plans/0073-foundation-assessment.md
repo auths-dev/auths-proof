@@ -401,3 +401,33 @@ The earlier hosted revision also passed PostgreSQL and records-API live jobs.
 Formal translation, Kani and compliance were still running at the last
 observation. The dependency correction is ready for a new hosted revision after
 that feedback is collected. All F01–F16 final acceptance remains open.
+
+
+## 16. Closed participant partition reference
+
+Security/dependency corrections were pushed as `a4a3c7af`. The next bounded
+implementation introduces the test-only partition reference required by the
+repository's vertical-first policy. It is linked from the
+[participant contract](0073-engagement-participant-contract.md#8-closed-partition-reference-and-grant-binding-decision).
+This is an oracle for the coming state cutover, not a shipping participant API.
+
+The concrete model owns one immutable ancestry tree and one mixed-operation
+journal. It derives ancestor usage from journal entries, preserves reserved,
+spent and uncertain categories, and retains every revoked or terminal record.
+No participant-specific store can supply fresh capacity. Scope authority binds
+actual native grant IDs per resource; this avoids conflating the grant used
+to enroll with the grants authorizing reads or writes. Eight native reference
+tests include randomized histories and assert that refusals leave state
+unchanged. These tests are written but not yet passing hosted evidence.
+
+Required next implementation: canonical signed enrollment plus child possession;
+exact per-scope native grant verification; bounded participant state in the
+existing locked task ledger; integration at reservation, provider entry and
+disclosure; then installed machine → A → B acceptance. The test-only reference
+assumes authenticated inputs and cannot substitute for any of those boundaries.
+
+Reference artifact construction passed: gateway closure generation compiled
+the eight new tests while running only its generation test (340 behavioral
+tests filtered out); proof-coverage and semantic-inventory generators also
+passed. The reference is excluded from production and did not change the
+measured decision closure or require a new frozen semantic identity.

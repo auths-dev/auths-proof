@@ -84,6 +84,8 @@ mod transport;
 
 #[cfg(test)]
 mod bounds_aggregate_tests;
+#[cfg(test)]
+mod engagement_reference;
 #[cfg(any(test, feature = "testkit-harness"))]
 pub mod harness;
 #[cfg(test)]
