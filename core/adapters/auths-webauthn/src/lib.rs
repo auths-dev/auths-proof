@@ -46,6 +46,10 @@ const MAX_ORIGINS: usize = 16;
 const AUTHENTICATOR_DATA_MINIMUM: usize = 37;
 const FLAG_USER_PRESENT: u8 = 0x01;
 const FLAG_USER_VERIFIED: u8 = 0x04;
+// Revision 2 stops assigning verifier evaluation time to historical UV events.
+// Bind that interpretation into both assurance reports and verifier configuration.
+const ASSURANCE_VERSION: u16 = 2;
+const CONFIGURATION_DOMAIN: &[u8] = b"webauthn-v1/assurance-v2";
 
 /// Signature-counter policy compiled from credential registration state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -399,7 +403,7 @@ impl PrincipalMethod for WebAuthnMethod {
             components.push(credential.observed_at.get().to_be_bytes().to_vec());
             components.push(credential.valid_until.get().to_be_bytes().to_vec());
         }
-        auths_ports::configuration_id(WEBAUTHN_V1.as_bytes(), components.iter().map(Vec::as_slice))
+        auths_ports::configuration_id(CONFIGURATION_DOMAIN, components.iter().map(Vec::as_slice))
     }
 
     fn maximum_work_units(&self) -> u64 {
@@ -478,20 +482,14 @@ impl PrincipalMethod for WebAuthnMethod {
         {
             return Err(PrincipalControlError::InvalidEvidence);
         }
-        let claims = assertion_claims(
-            flags,
-            credential,
-            &client.origin,
-            input.evaluation_time,
-            &self.source,
-        )?;
+        let claims = assertion_claims(flags, credential, &client.origin, &self.source)?;
         let signature_message = assertion.signature_message();
         ControlEvidence::new(
             credential.public_key.as_slice().to_vec(),
             claims,
             vec![EvidenceId::new(*evidence.id().as_bytes())],
             self.adapter.clone(),
-            1,
+            ASSURANCE_VERSION,
             75,
         )?
         .with_signature_message(signature_message)
@@ -502,7 +500,6 @@ fn assertion_claims(
     flags: u8,
     credential: &WebAuthnCredential,
     origin: &str,
-    evaluation_time: Timestamp,
     source: &EvidenceSourceId,
 ) -> Result<Vec<AssuranceClaim>, PrincipalControlError> {
     let mut claims = vec![
@@ -526,12 +523,12 @@ fn assertion_claims(
         )?,
     ];
     if flags & FLAG_USER_VERIFIED != 0 {
-        claims.push(claim(
-            "user-verified",
-            Vec::new(),
-            Some(evaluation_time),
-            source,
-        )?);
+        // The signed UV flag establishes a fact about this ceremony, but the
+        // assertion carries no trusted ceremony time. Neither registration
+        // observation, asserted signing time nor re-verification dates it.
+        // The central assurance evaluator refuses maximum-age requirements
+        // for undated claims.
+        claims.push(claim("user-verified", Vec::new(), None, source)?);
     }
     if let Some(level) = &credential.attestation_level {
         claims.push(claim(

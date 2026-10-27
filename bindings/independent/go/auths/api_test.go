@@ -163,11 +163,11 @@ func TestSharedCorpusRunsInNativeGoTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The pin covers 319 fixtures after the native K-of-N approval vectors,
+	// The pin covers 323 fixtures including undated WebAuthn UV at two times,
 	// with the stage in every vector's fields, and is the same digest
 	// `cargo xtask cross-language` requires of Rust, Go, and the independent
 	// TypeScript verifier.
-	const expected = "319:56666c11104f9b2f67b2c574328ac6ef92dd9361bd4511f03246cde9ef40cc8a"
+	const expected = "323:deeed0ff7cb085ea1420aa15159ec13783413a156ae94cc1e5f7313beff02b07"
 	if digest != expected {
 		t.Fatalf("semantic corpus digest mismatch: got %s", digest)
 	}

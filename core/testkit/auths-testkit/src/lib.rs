@@ -1678,6 +1678,48 @@ pub fn raw_key_root_hsm_actor() -> CorpusFixture {
     mixed_chain_fixture("raw-key-root-hsm-actor", &[root, actor], grant, canonical)
 }
 
+fn webauthn_freshness_fixture(
+    name: &'static str,
+    mut fixture: CorpusFixture,
+    role: ParticipantRole,
+    now: u64,
+) -> CorpusFixture {
+    let original =
+        auths_codec::decode_verifier_context(&fixture.context_bytes).expect("fixture context");
+    let policy = AssurancePolicy::new(
+        original.assurance_policy().id().clone(),
+        vec![AssuranceRequirement::new(
+            role,
+            AssuranceQuantifier::Every,
+            AssuranceClaimId::parse("user-verified").expect("UV claim"),
+            Some(FreshnessLimit::new(1).expect("freshness")),
+        )],
+    )
+    .expect("assurance policy");
+    let context = TrustedContext::new(
+        original.configuration(),
+        original.composition(),
+        original.trust_anchors().to_vec(),
+        original.accepted_registries().clone(),
+        original.expected_audience().clone(),
+        original.expected_challenge(),
+        Timestamp::new(now),
+        policy,
+        original.principal_status_snapshot().clone(),
+        original.grant_status_snapshot().clone(),
+        original.resource_matcher().clone(),
+        original.profile_policy().clone(),
+        original.channel_policy().clone(),
+        original.limits().clone(),
+    )
+    .expect("freshness fixture context");
+    fixture.name = name;
+    fixture.class = "indeterminate";
+    fixture.context_bytes = encode_verifier_context(&context).expect("fixture context bytes");
+    fixture.expected = Expected::Indeterminate(Requirement::AssuranceRequirementNotMet);
+    fixture
+}
+
 fn mixed_chain_fixture(
     name: &'static str,
     identities: &[Identity; 2],
@@ -5317,6 +5359,30 @@ fn build_corpus() -> Vec<CorpusFixture> {
         raw_key_root_did_web_actor(),
         webauthn_root_raw_key_actor(),
         raw_key_root_webauthn_actor(),
+        webauthn_freshness_fixture(
+            "webauthn-root-undated-uv",
+            webauthn_root_raw_key_actor(),
+            ParticipantRole::Root,
+            50,
+        ),
+        webauthn_freshness_fixture(
+            "webauthn-root-undated-uv-reverified",
+            webauthn_root_raw_key_actor(),
+            ParticipantRole::Root,
+            59,
+        ),
+        webauthn_freshness_fixture(
+            "webauthn-actor-undated-uv",
+            raw_key_root_webauthn_actor(),
+            ParticipantRole::Actor,
+            50,
+        ),
+        webauthn_freshness_fixture(
+            "webauthn-actor-undated-uv-reverified",
+            raw_key_root_webauthn_actor(),
+            ParticipantRole::Actor,
+            59,
+        ),
         hsm_root_raw_key_actor(),
         raw_key_root_hsm_actor(),
         untrusted_did_web_document(),

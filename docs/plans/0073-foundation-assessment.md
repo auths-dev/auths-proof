@@ -181,3 +181,40 @@ Next: verify the first change, then finish the participant/initiator/approver an
 | Qualification | `QualificationGate` holds a sealed deployment clock and an exact deployment tuple; public state marks development versus required qualification. | Preserve fail-closed qualification and exact semantic-closure updates. New code is not qualified by old provider evidence. |
 
 These findings identify owners and follow-up work, not a reason to create a new global framework. In particular, temporal evidence provenance belongs in core evidence contracts; clock acquisition and trust belong in the product boundary; provider freshness meaning stays profile-owned.
+
+## 12. Temporal evidence correction
+
+The next implementation slice addresses F07's observed WebAuthn defect at its
+source. The assertion's signed UV flag carries no trusted event time. Native,
+independent Go and independent TypeScript implementations now emit undated UV;
+the existing central assurance evaluator refuses maximum-age requirements on
+undated evidence. It still permits the fact for an unaged UV requirement.
+Credential observation and asserted signing time are not substituted. Adapter
+assurance revision 2 and its configuration domain commit the changed meaning.
+
+The protocol and adapter specifications state the provenance rule. This is a
+restriction of an unsupported freshness claim, not a fresh-ceremony service.
+Such a service needs an exact challenge/assertion binding, a trusted temporal
+observation and replay-aware outer authority. The general clock acquisition
+cutover and SPIFFE workload-attestation timestamp interpretation remain open.
+
+Evidence prepared:
+
+- Native portable-ABI regression
+  `webauthn_reverification_does_not_refresh_user_verification` exercises root and
+  actor roles at times 50 and 59, with both unaged and one-second-age policies.
+- Four canonical corpus cases cover the same dated-policy refusals in every
+  corpus consumer. The corpus grows from 319 to 323 cases. Existing proof,
+  action and body bytes and expected decision/code values are unchanged.
+- `cargo xtask wire --update` generated the canonical outputs. The changed
+  adapter configuration updates context/result commitments across the existing
+  corpus; these are generated changes, not hand-edited CBOR.
+- `cargo xtask semantic-digest` generated the shared test pin
+  `323:deeed0ff7cb085ea1420aa15159ec13783413a156ae94cc1e5f7313beff02b07`.
+  Generation is required to construct the change; it is not hosted acceptance
+  or a claim that the independent implementations pass.
+
+Inventory versions: core protocol 36 → 37, core fixture manifest 15 → 16,
+freeze/public-surface 394 → 395. No portable wire encoding or signature
+preimage changes. No new Lean theorem or full F07 closure is claimed. Hosted
+native, independent and binding verification remains required.
