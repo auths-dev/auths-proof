@@ -344,3 +344,60 @@ Role-slice artifact construction completed through the gateway closure generator
 owns one canonical commitment routine used by activation and reconstruction;
 Python continues using the native canonicalization/commitment ABI with the new
 domain. Full behavioral and cross-language acceptance remain pending.
+
+
+## 15. Hosted dependency and evidence corrections
+
+Run [40573770464](https://github.com/auths-dev/auths-proof/actions/runs/40573770464)
+on `5fb47802` passed repository preflight, formal fast feedback and the OpenTofu
+live job. The authoritative job stopped at stale proof-coverage measurement; it
+did not establish passing workspace behavioral or binding acceptance. The
+dependency and secret gates also failed. These failures are actionable and do
+not block continued implementation of the broader program.
+
+The dependency report identifies recently published RustSec advisories affecting
+crypto-bigint/ctutils, rustls, rustls-webpki, Tokio, bundled WebPKI roots and the
+zstd stack. The workspace and lockfile upgrade to patched releases. The
+crypto-bigint fix requires P-256 0.14 and its supported dependency graph; no
+advisory ignore, local crypto patch, unsafe exception or MSRV increase is added.
+The upstream normalization API now always returns a signature, so verifier and
+custody admission explicitly reject a signature whose normalized form differs
+from the original. Signing producers retain low-S normalization. SEC1 naming
+and signature-trait imports change with the library API; the accepted wire
+format, canonical key shape and stable rejection codes remain unchanged.
+Existing canonical P-256, high-S, malformed point, WebAuthn and custody fixtures
+remain required hosted regression evidence, not assumed equivalence.
+
+Upstream advisory sources:
+[RustCrypto timing](https://rustsec.org/advisories/RUSTSEC-2026-0387.html),
+[ctutils](https://rustsec.org/advisories/RUSTSEC-2026-0385.html),
+[TLS secret formatting](https://rustsec.org/advisories/RUSTSEC-2026-0346.html),
+[certificate path validation](https://rustsec.org/advisories/RUSTSEC-2026-0382.html),
+[Tokio I/O safety](https://rustsec.org/advisories/RUSTSEC-2026-0386.html),
+[zstd stream reuse](https://rustsec.org/advisories/RUSTSEC-2026-0391.html).
+
+The four Gitleaks findings are inherited commit fingerprints: a Python public
+import, two public Git revision references and a synthetic provider-shaped
+record ID. Source inspection confirmed their non-secret meaning. Documented
+fingerprint-specific entries preserve historical evidence and the provider
+binding fixture without exempting any path or detection rule. The installed
+scanner's Go build metadata identifies v8.28.0, matching hosted CI. Full-history
+reproduction reports no leaks after the corrections. `cargo deny check` also
+passes locally after the hosted failure and dependency upgrade. Neither is a
+substitute for the final exact-revision hosted gate.
+
+Artifact construction completed: architecture snapshots needed no graph-shape
+changes; proof-coverage measurement was refreshed (110/1031 decision functions,
+1289/11353 code lines, 15/82 check sites, with the pinned Study 006 reproduction
+byte-identical). The gateway closure generator passed its one generation test
+with 332 behavioral tests filtered out. Semantic inventory generation passed.
+Identity protocol advances 140 → 141, external custody 5 → 6, public SDK 137 →
+138, formal source closure 104 → 105, and freeze/public surface 397 → 398. These
+are source identity changes, not a new protocol wire version or formal theorem.
+The original 323-case canonical corpus is not regenerated for this dependency
+update. Its existing bytes remain the regression oracle.
+
+The earlier hosted revision also passed PostgreSQL and records-API live jobs.
+Formal translation, Kani and compliance were still running at the last
+observation. The dependency correction is ready for a new hosted revision after
+that feedback is collected. All F01–F16 final acceptance remains open.

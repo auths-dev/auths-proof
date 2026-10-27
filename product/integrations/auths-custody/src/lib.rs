@@ -604,7 +604,7 @@ fn canonical_signature(
         P256Signature::from_der(&bytes)
     }
     .map_err(|_| CustodyError::MalformedSignature)?;
-    if signature.normalize_s().is_some() {
+    if signature.normalize_s() != signature {
         return Err(CustodyError::NonCanonicalSignature);
     }
     SignatureBytes::new(signature.to_bytes().to_vec()).map_err(|_| CustodyError::MalformedSignature)
@@ -748,7 +748,7 @@ mod tests {
             request: &SigningIntent<'_>,
         ) -> Result<UntrustedSigningResponse, CustodyProviderError> {
             let signature: P256Signature = self.key.sign(request.signing_preimage());
-            let signature = signature.normalize_s().unwrap_or(signature);
+            let signature = signature.normalize_s();
             let mut transaction_digest = *request.transaction_digest();
             if self.transaction_mismatch {
                 transaction_digest[0] ^= 1;
@@ -798,7 +798,7 @@ mod tests {
         P256SignatureVerifier,
     ) {
         let key = SigningKey::from_slice(&[7; 32]).unwrap();
-        let verification = key.verifying_key().to_encoded_point(true);
+        let verification = key.verifying_key().to_sec1_point(true);
         let principal = PrincipalId::parse("raw:p256-test").unwrap();
         let signature = SignatureDescriptor::new(
             PrincipalMethodId::parse("raw-key-v1").unwrap(),
@@ -955,7 +955,7 @@ mod tests {
         let other = SigningKey::from_slice(&[5; 32]).unwrap();
         let identity = CustodyIdentity::p256(
             CustodyPrincipalForm::RawKeyV1,
-            other.verifying_key().to_encoded_point(false).as_bytes(),
+            other.verifying_key().to_sec1_point(false).as_bytes(),
         )
         .unwrap();
         assert!(matches!(

@@ -213,7 +213,7 @@ impl FakeLogKey {
             }
             Self::P256(key) => {
                 let mut spki = P256_SPKI_PREFIX.to_vec();
-                spki.extend_from_slice(key.verifying_key().to_encoded_point(false).as_bytes());
+                spki.extend_from_slice(key.verifying_key().to_sec1_point(false).as_bytes());
                 spki
             }
         }
@@ -226,12 +226,12 @@ impl FakeLogKey {
                 .to_vec(),
             Self::P256(key) => {
                 let signature: P256Signature = key.sign(message);
-                let low = signature.normalize_s().unwrap_or(signature);
+                let low = signature.normalize_s();
                 let (r, s) = low.split_scalars();
                 let high = P256Signature::from_scalars(r.to_bytes(), (-*s).to_bytes())
                     .expect("high-S pair");
                 assert!(
-                    high.normalize_s().is_some(),
+                    high.normalize_s() != high,
                     "the emitted signature is high-S"
                 );
                 high.to_der().as_bytes().to_vec()
@@ -404,7 +404,7 @@ impl SigstoreClient for FakeSigstore {
             ),
         ];
         set_validity(&mut params, self.leaf_window.0, self.leaf_window.1);
-        let point = key.to_encoded_point(false).as_bytes().to_vec();
+        let point = key.to_sec1_point(false).as_bytes().to_vec();
         let leaf = params
             .signed_by(&RawP256(point), &self.ca, &self.ca_key)
             .map_err(|_| refuse("leaf"))?;

@@ -411,7 +411,7 @@ mod tests {
                 public_key_sec1: self
                     .key
                     .verifying_key()
-                    .to_encoded_point(true)
+                    .to_sec1_point(true)
                     .as_bytes()
                     .to_vec(),
                 p256: true,
@@ -427,7 +427,7 @@ mod tests {
             message: &[u8],
         ) -> Result<Pkcs11SignOutput, Pkcs11Failure> {
             let signature: Signature = self.key.sign(message);
-            let signature = signature.normalize_s().unwrap_or(signature);
+            let signature = signature.normalize_s();
             Ok(Pkcs11SignOutput {
                 signature: signature.to_bytes().to_vec(),
             })

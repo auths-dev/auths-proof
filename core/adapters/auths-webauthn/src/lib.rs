@@ -725,7 +725,7 @@ mod tests {
     #[test]
     fn ceremony_message_binds_exact_auths_preimage() {
         let signing_key = SigningKey::from_bytes((&[7u8; 32]).into()).unwrap();
-        let point = signing_key.verifying_key().to_encoded_point(true);
+        let point = signing_key.verifying_key().to_sec1_point(true);
         let credential = WebAuthnCredential::new(
             b"credential-1".to_vec(),
             &P256Sha256Suite::new().unwrap(),
