@@ -206,13 +206,15 @@ export class ExactMcpTool<Fields extends FieldMap> {
     challenge: Uint8Array;
     evaluationTime: bigint;
     validitySeconds?: number;
+    /** Explicit signed audience; the verifier still enforces native grant and trust bounds. */
+    audience?: string;
   }>): Promise<PreparedMcpAction<CommandOf<Fields>>> {
     const encoded = this.encode(command);
     const validitySeconds = checkedValidity(options.validitySeconds);
     const engine = await loadPackagedWorkflowEngine();
     const prepared = engine.prepareMcpActionV1(
       this.service, this.name, encoded, options.actor, options.terminalGrant,
-      options.challenge, options.evaluationTime, validitySeconds,
+      options.challenge, options.evaluationTime, validitySeconds, options.audience,
     );
     try {
       if (prepared.argumentsJson.length > 4096) {
@@ -507,6 +509,8 @@ export async function authorProductionMcpProof<Fields extends FieldMap>(input: R
   inputs: ProductionAuthoringInputs;
   observations?: readonly SignedObservationAttachment[];
   validitySeconds?: number;
+  /** Signed audience selected by the author; independent native trust remains mandatory. */
+  audience?: string;
 }>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
   const production = input.inputs;
   if (production.signer.descriptor.contract !== "signer-custody/2" ||
@@ -529,6 +533,7 @@ export async function authorProductionMcpProof<Fields extends FieldMap>(input: R
     ...(production.signal === undefined ? {} : { signal: production.signal }),
     ...(input.observations === undefined ? {} : { observations: input.observations }),
     ...(input.validitySeconds === undefined ? {} : { validitySeconds: input.validitySeconds }),
+    ...(input.audience === undefined ? {} : { audience: input.audience }),
   });
 }
 
@@ -564,6 +569,8 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
   signal?: AbortSignal;
   observations?: readonly SignedObservationAttachment[];
   validitySeconds?: number;
+  /** Signed audience selected by the author; independent native trust remains mandatory. */
+  audience?: string;
 }>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
   if (input.grants.length < 1 || input.grants.length > 16) {
     throw new RangeError("grant chain count is outside bounds");
@@ -589,6 +596,7 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
     challenge: input.challenge,
     evaluationTime: input.evaluationTime,
     ...(input.validitySeconds === undefined ? {} : { validitySeconds: input.validitySeconds }),
+    ...(input.audience === undefined ? {} : { audience: input.audience }),
   });
   const prepared = input.observations === undefined || input.observations.length === 0
     ? unattached
@@ -616,6 +624,7 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
       signingPreimage: request.signingPreimage.slice(),
       expiresAtUnixSeconds: input.evaluationTime + 300n,
       display: Object.freeze([
+        ...(input.audience === undefined ? [] : [{ label: "audience", value: prepared.audience }]),
         { label: "service", value: input.contract.service },
         { label: "tool", value: input.contract.name },
         { label: "arguments", value: new TextDecoder("utf-8", { fatal: true }).decode(prepared.argumentsJson) },

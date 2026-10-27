@@ -1,4 +1,4 @@
-freeze_version = 406
+freeze_version = 407
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -45,9 +45,9 @@ freeze_version = 406
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 149
+"auths.identity.protocol" = 150
 "auths.modular-components" = 22
-"auths.portable-abi-bindings" = 124
+"auths.portable-abi-bindings" = 125
 "auths.product.bounded-domains" = 19
 "auths.product.bounded-policy" = 6
 "auths.product.configuration-commitments" = 1
@@ -57,14 +57,14 @@ freeze_version = 406
 "auths.product.facade" = 26
 "auths.product.github-issue-address-v2" = 4
 "auths.product.lifecycle" = 16
-"auths.product.mcp-closed-execution" = 32
+"auths.product.mcp-closed-execution" = 33
 "auths.product.mechanism-profile-conformance" = 12
 "auths.product.operations" = 5
-"auths.product.public-sdk-contract" = 146
+"auths.product.public-sdk-contract" = 147
 "auths.product.receipts" = 13
 "auths.product.release-assurance" = 7
 "auths.product.simplified-waist" = 19
 "auths.product.vocabulary" = 26
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 80
-"auths.release.public-surface" = 406
+"auths.release.public-surface" = 407

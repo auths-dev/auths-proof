@@ -4,8 +4,8 @@
 //! The native root activation must prove the resulting complete commitment.
 
 use crate::participant_enrollment::{
-    EnrollmentScopePins, EnrollmentTreeError, MAX_SCOPES, ParentEnrollmentPins,
-    ParticipantCeilings, root_enrollment_commitment,
+    EnrollmentResourceBinding, EnrollmentScopePins, EnrollmentTreeError, MAX_SCOPES,
+    ParentEnrollmentPins, ParticipantCeilings, root_enrollment_commitment,
 };
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
 use crate::{CompiledRecipe, CompiledReleaseRecipe};
@@ -40,17 +40,34 @@ pub struct TaskEnrollmentRecipes<'a> {
 pub struct TaskEnrollmentScope {
     /// Domain-separated commitment of scope kind and every signed scope field.
     pub scope_id: String,
+    /// Compiled recipe identity used in the exclusive native resource audience.
+    pub recipe_digest: String,
+    /// Sole native audience to approve in trust and sign in resource grants/actions.
+    pub resource_audience: String,
     /// Native MCP service fixed by the compiled recipe.
     pub service: String,
     /// Native tool fixed by the compiled recipe.
     pub tool: String,
     /// Native action argument fixed by the compiled recipe.
     pub resource_argument: String,
-    /// Exact handle from the signed task scope.
-    pub resource_handle: String,
+    /// Exact resource or explicitly unresolved created-child lineage.
+    pub resource: EnrollmentResourceBinding,
 }
 
-fn scope_id(kind: &str, scope: &impl Serialize) -> Result<String, EnrollmentTreeError> {
+/// Compute an audience from activated authority, never unverified action fields.
+pub(crate) fn audience(
+    task: &ApprovedAgentTask,
+    recipe_digest: &str,
+) -> Result<auths_model::Audience, crate::GatewaySubmitResult> {
+    crate::participant_enrollment::resource_audience(
+        task.commitment(),
+        task.descriptor().delegation.partition_generation,
+        recipe_digest,
+    )
+    .map_err(|_| crate::engine::not_entered("gateway.task.resource-audience"))
+}
+
+pub(crate) fn scope_id(kind: &str, scope: &impl Serialize) -> Result<String, EnrollmentTreeError> {
     let bytes = serde_json_canonicalizer::to_vec(&(kind, scope))
         .map_err(|_| EnrollmentTreeError::Binding)?;
     auths_codec::domain_commitment("auths.engagement-resource-scope.v1", &bytes)
@@ -58,23 +75,23 @@ fn scope_id(kind: &str, scope: &impl Serialize) -> Result<String, EnrollmentTree
         .map_err(|_| EnrollmentTreeError::Binding)
 }
 
-pub(crate) fn scopes(
+fn require_recipe_set(
     card: &AgentTaskDescriptor,
     recipes: &TaskEnrollmentRecipes<'_>,
-) -> Result<Vec<TaskEnrollmentScope>, EnrollmentTreeError> {
-    // A not-yet-observed child needs its profile-owned lineage projection.
-    // Refuse rather than substituting its parent or guessing a future handle.
-    if card.pending_child.is_some()
-        || card.read_scopes.len() + card.write_scopes.len() > MAX_SCOPES
-        || recipes.reads.len() > MAX_SCOPES
-        || recipes.writes.len() > MAX_SCOPES
-    {
-        return Err(EnrollmentTreeError::Binding);
-    }
-    let reads: BTreeMap<_, _> = recipes.reads.iter().map(|r| (r.digest_hex(), r)).collect();
-    let writes: BTreeMap<_, _> = recipes.writes.iter().map(|r| (r.digest_hex(), r)).collect();
+    reads: &BTreeMap<String, &CompiledReleaseRecipe>,
+    writes: &BTreeMap<String, &CompiledRecipe>,
+) -> Result<(), EnrollmentTreeError> {
     let expected_reads: BTreeSet<_> = card.read_scopes.iter().map(|s| &s.recipe_digest).collect();
-    let expected_writes: BTreeSet<_> = card.write_scopes.iter().map(|s| &s.recipe_digest).collect();
+    let expected_writes: BTreeSet<_> = card
+        .write_scopes
+        .iter()
+        .map(|s| &s.recipe_digest)
+        .chain(
+            card.pending_child
+                .iter()
+                .map(|pending| &pending.populate_recipe_digest),
+        )
+        .collect();
     if reads.len() != recipes.reads.len()
         || writes.len() != recipes.writes.len()
         || reads.keys().collect::<BTreeSet<_>>() != expected_reads
@@ -82,6 +99,35 @@ pub(crate) fn scopes(
     {
         return Err(EnrollmentTreeError::Binding);
     }
+    Ok(())
+}
+
+pub(crate) fn scopes(
+    card: &AgentTaskDescriptor,
+    recipes: &TaskEnrollmentRecipes<'_>,
+) -> Result<Vec<TaskEnrollmentScope>, EnrollmentTreeError> {
+    if card.read_scopes.len() + card.write_scopes.len() + usize::from(card.pending_child.is_some())
+        > MAX_SCOPES
+        || recipes.reads.len() > MAX_SCOPES
+        || recipes.writes.len() > MAX_SCOPES
+    {
+        return Err(EnrollmentTreeError::Binding);
+    }
+    let reads: BTreeMap<_, _> = recipes.reads.iter().map(|r| (r.digest_hex(), r)).collect();
+    let writes: BTreeMap<_, _> = recipes.writes.iter().map(|r| (r.digest_hex(), r)).collect();
+    require_recipe_set(card, recipes, &reads, &writes)?;
+    let commitment = card
+        .canonical_commitment()
+        .map_err(|_| EnrollmentTreeError::Binding)?;
+    let scoped_audience = |digest: &str| {
+        crate::participant_enrollment::resource_audience(
+            &commitment,
+            card.delegation.partition_generation,
+            digest,
+        )
+        .map(|audience| audience.as_str().to_owned())
+        .map_err(EnrollmentTreeError::Verification)
+    };
     let mut result = Vec::new();
     for scope in &card.read_scopes {
         let recipe = reads
@@ -90,10 +136,14 @@ pub(crate) fn scopes(
         let (tool, argument) = recipe.enrollment_binding();
         result.push(TaskEnrollmentScope {
             scope_id: scope_id("read", scope)?,
+            recipe_digest: scope.recipe_digest.clone(),
+            resource_audience: scoped_audience(&scope.recipe_digest)?,
             service: recipe.service().into(),
             tool: tool.into(),
             resource_argument: argument.into(),
-            resource_handle: scope.handle.clone(),
+            resource: EnrollmentResourceBinding::Exact {
+                handle: scope.handle.clone(),
+            },
         });
     }
     for scope in &card.write_scopes {
@@ -106,10 +156,34 @@ pub(crate) fn scopes(
         }
         result.push(TaskEnrollmentScope {
             scope_id: scope_id("write", scope)?,
+            recipe_digest: scope.recipe_digest.clone(),
+            resource_audience: scoped_audience(&scope.recipe_digest)?,
             service: recipe.service().into(),
             tool: recipe.enrollment_tool().into(),
             resource_argument: argument.into(),
-            resource_handle: scope.handle.clone(),
+            resource: EnrollmentResourceBinding::Exact {
+                handle: scope.handle.clone(),
+            },
+        });
+    }
+    if let Some(pending) = &card.pending_child {
+        let recipe = writes
+            .get(&pending.populate_recipe_digest)
+            .ok_or(EnrollmentTreeError::Binding)?;
+        let (argument, verb) = recipe.task_binding().ok_or(EnrollmentTreeError::Binding)?;
+        if verb != crate::task_activation::TaskWriteVerb::Edit
+            || recipe.created_child_fields().is_some()
+        {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        result.push(TaskEnrollmentScope {
+            scope_id: pending_scope_id(card)?,
+            recipe_digest: pending.populate_recipe_digest.clone(),
+            resource_audience: scoped_audience(&pending.populate_recipe_digest)?,
+            service: recipe.service().into(),
+            tool: recipe.enrollment_tool().into(),
+            resource_argument: argument.into(),
+            resource: pending_resource_binding(card)?,
         });
     }
     result.sort_by(|left, right| left.scope_id.cmp(&right.scope_id));
@@ -142,11 +216,12 @@ pub(crate) fn root_pins(
                 .ok_or(EnrollmentTreeError::Binding)?;
             Ok(EnrollmentScopePins {
                 scope_id: scope.scope_id,
+                recipe_digest: scope.recipe_digest,
                 parent_grant: GrantId::new(*grant),
                 service: scope.service,
                 tool: scope.tool,
                 resource_argument: scope.resource_argument,
-                resource_handle: scope.resource_handle,
+                resource: scope.resource,
             })
         })
         .collect::<Result<_, EnrollmentTreeError>>()?;
@@ -175,6 +250,90 @@ pub(crate) fn root_pins(
     Ok(pins)
 }
 
+fn pending_create_scope(
+    card: &AgentTaskDescriptor,
+) -> Result<&crate::task_activation::TaskWriteScope, EnrollmentTreeError> {
+    let pending = card
+        .pending_child
+        .as_ref()
+        .ok_or(EnrollmentTreeError::Binding)?;
+    card.write_scopes
+        .iter()
+        .find(|scope| {
+            scope.recipe_digest == pending.create_recipe_digest
+                && scope.handle == pending.parent_handle
+                && scope.verb == crate::task_activation::TaskWriteVerb::Create
+        })
+        .ok_or(EnrollmentTreeError::Binding)
+}
+
+fn pending_resource_binding(
+    card: &AgentTaskDescriptor,
+) -> Result<EnrollmentResourceBinding, EnrollmentTreeError> {
+    let pending = card
+        .pending_child
+        .as_ref()
+        .ok_or(EnrollmentTreeError::Binding)?;
+    Ok(EnrollmentResourceBinding::CreatedChild {
+        create_operation_id: pending.create_operation_id.clone(),
+        create_recipe_digest: pending.create_recipe_digest.clone(),
+        parent_scope_id: scope_id("write", pending_create_scope(card)?)?,
+    })
+}
+
+pub(crate) fn pending_scope_id(card: &AgentTaskDescriptor) -> Result<String, EnrollmentTreeError> {
+    let pending = card
+        .pending_child
+        .as_ref()
+        .ok_or(EnrollmentTreeError::Binding)?;
+    scope_id("created-child", &(pending, pending_create_scope(card)?))
+}
+
+fn expected_scope_recipes(
+    card: &AgentTaskDescriptor,
+) -> Result<BTreeMap<String, (String, EnrollmentResourceBinding)>, EnrollmentTreeError> {
+    let mut expected: BTreeMap<_, _> = card
+        .read_scopes
+        .iter()
+        .map(|scope| {
+            scope_id("read", scope).map(|id| {
+                (
+                    id,
+                    (
+                        scope.recipe_digest.clone(),
+                        EnrollmentResourceBinding::Exact {
+                            handle: scope.handle.clone(),
+                        },
+                    ),
+                )
+            })
+        })
+        .chain(card.write_scopes.iter().map(|scope| {
+            scope_id("write", scope).map(|id| {
+                (
+                    id,
+                    (
+                        scope.recipe_digest.clone(),
+                        EnrollmentResourceBinding::Exact {
+                            handle: scope.handle.clone(),
+                        },
+                    ),
+                )
+            })
+        }))
+        .collect::<Result<_, _>>()?;
+    if let Some(pending) = &card.pending_child {
+        expected.insert(
+            pending_scope_id(card)?,
+            (
+                pending.populate_recipe_digest.clone(),
+                pending_resource_binding(card)?,
+            ),
+        );
+    }
+    Ok(expected)
+}
+
 /// Recheck the immutable card-to-root association on protected journal restore.
 /// Exact recipe metadata was admitted at bootstrap. Every scope ID commits its
 /// full signed card scope, including recipe, connection generation and account.
@@ -187,18 +346,8 @@ pub(crate) fn root_matches_card(
     card: &AgentTaskDescriptor,
     commitment: &[u8; 32],
 ) -> bool {
-    let expected: Result<BTreeSet<_>, _> = card
-        .read_scopes
-        .iter()
-        .map(|scope| scope_id("read", scope))
-        .chain(
-            card.write_scopes
-                .iter()
-                .map(|scope| scope_id("write", scope)),
-        )
-        .collect();
+    let expected = expected_scope_recipes(card);
     root.engagement_commitment == *commitment
-        && card.pending_child.is_none()
         && root.partition_generation == card.delegation.partition_generation
         && root.principal.as_str() == card.agent_principal
         && root.instance_generation == card.delegation.root_instance_generation
@@ -216,12 +365,20 @@ pub(crate) fn root_matches_card(
         && expected.is_ok_and(|ids| {
             root.scopes
                 .iter()
-                .map(|scope| scope.scope_id.clone())
-                .collect::<BTreeSet<_>>()
+                .map(|scope| {
+                    (
+                        scope.scope_id.clone(),
+                        (scope.recipe_digest.clone(), scope.resource.clone()),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>()
                 == ids
         })
         && root_enrollment_commitment(root).is_ok_and(|id| id == root.enrollment_commitment)
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
+
+#[cfg(test)]
+pub(crate) mod test_authoring;

@@ -2917,6 +2917,7 @@ pub fn prepare_mcp_action_v1(
     challenge: &[u8],
     evaluation_time: u64,
     validity_seconds: Option<u32>,
+    audience: Option<String>,
 ) -> Result<McpActionPreparationV1, JsValue> {
     let arguments = mcp_arguments_from_js(arguments).map_err(js_error)?;
     prepare_mcp_action_native(
@@ -2928,6 +2929,7 @@ pub fn prepare_mcp_action_v1(
         challenge,
         evaluation_time,
         validity_seconds.map(u64::from),
+        audience.as_deref(),
     )
     .map_err(js_error)
 }
@@ -4791,6 +4793,7 @@ fn prepare_mcp_action_native(
     challenge: &[u8],
     evaluation_time: u64,
     validity_seconds: Option<u64>,
+    audience: Option<&str>,
 ) -> Result<McpActionPreparationV1, EngineError> {
     let call = McpToolCall::new(service, name, arguments)?;
     let untrusted = call.canonical_bytes()?;
@@ -4803,9 +4806,13 @@ fn prepare_mcp_action_native(
         .try_into()
         .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
     let resource = canonical.permission().resource().to_string();
+    let audience = match audience {
+        Some(value) => Audience::parse(value)?,
+        None => call.audience()?,
+    };
     let prepared = prepare_profile_action(
         canonical,
-        call.audience()?,
+        audience.clone(),
         PrincipalId::parse(actor)?,
         &terminal_grant,
         challenge,
@@ -4817,7 +4824,7 @@ fn prepare_mcp_action_native(
         action_envelope_cbor: auths_codec::encode_action_envelope(prepared.envelope())?,
         arguments_json: serde_json_canonicalizer::to_vec(call.arguments())
             .map_err(|_| EngineError::Abi("MCP arguments could not be canonicalized"))?,
-        audience: call.audience()?.to_string(),
+        audience: audience.to_string(),
         resource,
         display_digest_hex: display.canonical_digest_hex().to_owned(),
     })
@@ -6045,6 +6052,7 @@ mod tests {
             &[0x22; 32],
             50,
             None,
+            None,
         )
         .unwrap();
         let call = McpToolCall::new(
@@ -6059,6 +6067,74 @@ mod tests {
         assert_eq!(
             prepared.canonical_action_cbor,
             auths_codec::encode_canonical_action(&expected).unwrap()
+        );
+    }
+
+    #[test]
+    fn mcp_authoring_explicit_audience_matches_native_envelope() {
+        let bundle = raw_key_bundle();
+        let grant = bundle.grants().first().unwrap();
+        let terminal = auths_codec::encode_signed_grant(grant).unwrap();
+        let actor = grant.statement().subject();
+        let audience = format!(
+            "auths-engagement://v1/{}/7/{}",
+            "ab".repeat(32),
+            "cd".repeat(32)
+        );
+        let arguments = serde_json::from_value(serde_json::json!({"value": "reviewed"})).unwrap();
+        let prepared = prepare_mcp_action_native(
+            "reports",
+            "update_demo_record",
+            arguments,
+            actor.as_str(),
+            &terminal,
+            &[0x22; 32],
+            50,
+            None,
+            Some(&audience),
+        )
+        .unwrap();
+        let call = McpToolCall::new(
+            "reports",
+            "update_demo_record",
+            serde_json::from_value(serde_json::json!({"value": "reviewed"})).unwrap(),
+        )
+        .unwrap();
+        let canonical = McpProfile
+            .canonicalize(&call.canonical_bytes().unwrap())
+            .unwrap();
+        let native = prepare_profile_action(
+            canonical,
+            Audience::parse(&audience).unwrap(),
+            actor.clone(),
+            grant,
+            [0x22; 32],
+            50,
+            None,
+        )
+        .unwrap();
+        assert_eq!(prepared.audience, audience);
+        assert_eq!(
+            prepared.action_envelope_cbor,
+            auths_codec::encode_action_envelope(native.envelope()).unwrap()
+        );
+        assert_eq!(
+            prepared.canonical_action_cbor,
+            auths_codec::encode_canonical_action(native.canonical()).unwrap()
+        );
+        assert!(
+            prepare_mcp_action_native(
+                "reports",
+                "update_demo_record",
+                call.arguments().clone(),
+                actor.as_str(),
+                &terminal,
+                &[0x22; 32],
+                50,
+                None,
+                Some("")
+            )
+            .is_err()
         );
     }
 

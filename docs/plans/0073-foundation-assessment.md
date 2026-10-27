@@ -145,6 +145,12 @@ No provider operation is authorized merely to discover credentials. Establish th
 
 ## 9. First change and verification contract
 
+Historical slice: the human-on-resource-chain requirement and its positive test
+were superseded by the native root/resource-owner separation in §25. The current
+tests are `delegated_read_retains_native_path_but_requires_enrolled_task_root`
+and `native_proof_seals_actor_grant_and_resource_but_does_not_admit_task`.
+Their native assertions do not claim task admission without a published root.
+
 Change: replace terminal-human-issuer projection in `VerifiedReleaseRequest` with issuers on the exact native-authorized path. This fixes an unnecessary one-hop restriction while preserving explicit task approval of the final recipient.
 
 Tests added in `release_verify.rs`:
@@ -800,3 +806,79 @@ out), byte-identical proof-coverage reproduction and semantic inventory 406
 the retained-report differential assertions await hosted execution. Journal
 revision 5a71adc8 also passed the hosted full-history secret gate; its remaining
 implementation/formal jobs are still running. No final acceptance is inferred.
+
+
+## 25. Participant admission and resource-audience cutover
+
+Full CI 40594932593 on `5a71adc8` passed all 356 gateway tests (26 development
+fault tests ignored), including the new native journal/enrollment/concurrency
+tests. Preflight, compliance, full-history secrets, dependencies, live PostgreSQL,
+OpenTofu, records API, fast Lean and Kani also passed. Formal translation passed after two reproductions; authoritative Lean qualification
+remains running at this checkpoint. The authoritative job failed later in the OpenAPI
+corpus: its expected review JSON lacked the compiler's `created_child: null`.
+The maintained generator regenerated thirteen review files without changing any
+recipe digest. A new test reconstructs every committed recipe's review even when
+external vendor source documents are absent. All eight targeted corpus tests
+passed locally after inspecting the hosted failure; full vendor derivation still
+requires the pinned external inputs. This does not qualify the current source.
+
+The current uncommitted cutover requires native root/participant admission,
+exact enrolled grant suffixes, and shared ancestor accounting at read/write
+reservation and disclosure. A sealed native authority retains action/grant time
+intersection for locked reservation. Read recipients may be enrolled descendants;
+write projection still permits only the initial agent until approval carries its
+participant/instance binding. Unknown and no-send disclosure charges survive
+restart and revocation. Newly added tests cover pending-root refusal, unenrolled
+or unrelated native branches, ancestor contention and retained descendant charges.
+
+An additional bypass analysis found that enrollment alone leaves ordinary MCP
+routes available to a broadly delegated resource grant. The participant contract
+§15 defines and implements exclusive native engagement/partition/recipe audiences
+using the existing kernel. Runtime task verification derives the expected
+audience from protected activation, and anchors must explicitly authorize it.
+There is no automatic expansion of trust. Native fixture authoring and resource
+witnesses now carry distinct per-recipe grants. Tests for multi-audience grants,
+ordinary entry, foreign tasks/generations and recipe substitution have been added.
+
+Artifact construction currently compiles the new tests and regenerates the
+source closure (392 behavioral tests filtered out); those tests have not been
+reported as behaviorally passing. Earlier pure native-verification tests no
+longer claim that an initiator on a grant chain suffices for task admission.
+Their sealed-branch assertions remain, while real enrolled-journal tests own
+positive admission/budget coverage. File recovery, no-send, contention and
+locked disclosure-time fixtures now use native signed root publication rather
+than test-only rootless journal setup.
+
+This worktree is intentionally still in an unfinished cutover. Native installed runtime fixtures now publish real roots. Created-child enrollment
+uses typed deferred lineage rather than substituting the parent handle. The CLI
+now exposes bounded scope/root preparation, bootstrap, enrollment, inspection and
+revocation; Python/TypeScript authoring forwards explicit audiences to native
+authoring without altering trust. These binding changes have not yet been built
+or behaviorally tested. External installed-demo authoring, child writes and
+enrolled channel/ACK routing remain incomplete.
+Do not treat source-closure generation, the older hosted test result, or these
+negative admission tests as end-to-end evidence for this revision. No F01–F16
+acceptance closes. Full exact-revision CI and all original goal work remain.
+
+The CLI uses the installed recipe set and bounded proof-file manifests, not
+caller-selected provider addresses or credential issuance. New binding tests
+compare native action bytes and refuse grant/anchor audience substitution. The
+new CLI test checks explicit authority, shared proof-file byte limits and closed
+manifest decoding. All-target gateway Clippy passed while reproducing the earlier
+hosted preflight failure; behavioral evidence for this revision is still pending.
+
+Task-scoped proofs also require a task-aware review boundary before human exact
+approval. `TaskWriteSession::review_submission` and `task-review-submission` now
+load protected activation, derive the audience, verify the native command and
+check exact scope/child lineage before using the shared request projection. The
+installed human/machine task tests check this review, ordinary-route rejection
+and unknown-task refusal. Full offline task audit remains open.
+
+Artifact construction for this cutover passed: gateway source closure (one
+construction test, 392 behavioral tests filtered out), byte-identical proof
+coverage, and semantic inventory 407. Identity protocol 150, public SDK 147,
+portable ABI 125, MCP closed execution 33 and public surface 407 identify the
+changed contracts. The gateway all-target/all-feature Clippy reproduction and
+format/diff checks passed. The binding tests and new admission behavior have not
+yet run. Generated coverage remains 110/1031 decision functions, 1289/11353 lines,
+15/82 check sites and does not establish a new journal refinement proof.

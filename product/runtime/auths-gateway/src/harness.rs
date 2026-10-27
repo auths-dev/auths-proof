@@ -497,6 +497,36 @@ pub(crate) fn context_for_profiles(
     methods: &[&str],
     profiles: &[(&str, &str)],
 ) -> Result<TrustedContext, HarnessError> {
+    context_for_profiles_and_audiences(
+        roots,
+        observer,
+        configuration,
+        now,
+        depth,
+        composition,
+        methods,
+        profiles,
+        &[],
+    )
+}
+
+/// Explicit operator trust for engagement audiences in native test fixtures.
+/// Rebinding an expected audience does not widen an anchor's authority.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust names profile and explicit anchor audiences"
+)]
+pub(crate) fn context_for_profiles_and_audiences(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+    methods: &[&str],
+    profiles: &[(&str, &str)],
+    engagement_audiences: &[Audience],
+) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
@@ -511,10 +541,11 @@ pub(crate) fn context_for_profiles(
         .iter()
         .map(|(service, _)| *service)
         .collect::<BTreeSet<_>>();
-    let audiences = services
+    let mut audiences = services
         .iter()
         .map(|service| fixture(Audience::parse(&format!("mcp://{service}")), "audience"))
         .collect::<Result<Vec<_>, _>>()?;
+    audiences.extend_from_slice(engagement_audiences);
     let audience = fixture(
         Audience::parse(&format!("mcp://{}", profiles[0].0)),
         "audience",

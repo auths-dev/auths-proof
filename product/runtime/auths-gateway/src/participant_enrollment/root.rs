@@ -4,7 +4,8 @@ use super::{
     EnrollmentInvocation, EnrollmentResourceWitness, EnrollmentScopePins, MAX_ACTION_BYTES,
     MAX_SCOPES, PARTICIPANT_SERVICE, ParentEnrollmentPins, ParticipantCeilings,
     ParticipantEnrollmentError, bounded_invocations, bounded_parent, grant_identifier,
-    native_invocation,
+    native_invocation, native_invocation_for_audience, require_exclusive_resource_audience,
+    require_resource_witness, resource_audience,
 };
 use auths_model::{GrantId, TrustedContext};
 use serde::{Deserialize, Serialize};
@@ -57,7 +58,7 @@ pub fn root_enrollment_commitment(
 ) -> Result<[u8; 32], ParticipantEnrollmentError> {
     bounded_parent(pins)?;
     let body = RootCommitment {
-        schema: "auths.engagement-root/1",
+        schema: "auths.engagement-root/2",
         engagement_commitment: &pins.engagement_commitment,
         partition_generation: pins.partition_generation,
         principal: pins.principal.as_str(),
@@ -75,7 +76,7 @@ pub fn root_enrollment_commitment(
     if bytes.len() > MAX_ACTION_BYTES {
         return Err(ParticipantEnrollmentError::Invalid);
     }
-    auths_codec::domain_commitment("auths.engagement-root.v1", &bytes)
+    auths_codec::domain_commitment("auths.engagement-root.v2", &bytes)
         .map(|digest| *digest.as_bytes())
         .map_err(|_| ParticipantEnrollmentError::Invalid)
 }
@@ -154,23 +155,23 @@ pub(super) fn verify_root(
         if witness.scope_id != scope.scope_id {
             return Err(ParticipantEnrollmentError::ResourceAuthority);
         }
-        let (command, branch) = native_invocation(
+        let audience = resource_audience(
+            &root.engagement_commitment,
+            root.partition_generation,
+            &scope.recipe_digest,
+        )?;
+        let (command, branch) = native_invocation_for_audience(
             context,
             now,
             witness.invocation,
             &scope.service,
             &scope.tool,
+            audience.clone(),
         )?;
+        require_exclusive_resource_audience(&branch, &audience)?;
         root_holder(&branch, root, scope.parent_grant)
             .map_err(|_| ParticipantEnrollmentError::ResourceAuthority)?;
-        if command
-            .arguments()
-            .get(&scope.resource_argument)
-            .and_then(Value::as_str)
-            != Some(&scope.resource_handle)
-        {
-            return Err(ParticipantEnrollmentError::ResourceAuthority);
-        }
+        require_resource_witness(scope, &command, &branch)?;
     }
     Ok(())
 }

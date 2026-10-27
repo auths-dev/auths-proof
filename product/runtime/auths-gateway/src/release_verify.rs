@@ -15,8 +15,7 @@ use auths_profile_mcp::McpProfile;
 /// from inventing these facts after verification.
 pub(crate) struct VerifiedReleaseRequest {
     request: ClosedReleaseRequest,
-    actor: PrincipalId,
-    delegators: Vec<PrincipalId>,
+    authority: crate::bounds::NativeAuthority,
 }
 
 impl VerifiedReleaseRequest {
@@ -25,23 +24,19 @@ impl VerifiedReleaseRequest {
     }
 
     pub(crate) fn actor(&self) -> &PrincipalId {
-        &self.actor
+        self.authority.actor()
     }
 
-    /// Whether this principal issued a grant on the actual authorized path.
-    /// Unused grants and other proof branches cannot establish task authority.
-    pub(crate) fn delegated_by(&self, principal: &str) -> bool {
-        self.delegators
-            .iter()
-            .any(|delegator| delegator.as_str() == principal)
+    pub(crate) fn authority(&self) -> &crate::bounds::NativeAuthority {
+        &self.authority
     }
 }
 
 /// Verify a single agent action and its delegation path before a release
-/// task can reserve a provider call. Task admission must establish that its
-/// approving human delegated on that path, including through intermediaries.
-/// The task still pins the final agent, resource, connection and shared budget.
+/// task can reserve a provider call. Journal admission must establish the exact
+/// enrolled resource grant ancestry and charge every participant ancestor.
 /// Unsupported critical policy is refused rather than silently ignored.
+#[cfg(test)]
 pub(crate) fn verify_release_request(
     recipe: &CompiledReleaseRecipe,
     context: &TrustedContext,
@@ -51,6 +46,29 @@ pub(crate) fn verify_release_request(
 ) -> Result<VerifiedReleaseRequest, GatewaySubmitResult> {
     let audience = Audience::parse(&format!("mcp://{}", recipe.service()))
         .map_err(|_| not_entered("gateway.release.profile"))?;
+    verify_release_for_audience(recipe, context, audience, now, proof_cbor, action_cbor)
+}
+
+pub(crate) fn verify_task_release_request(
+    task: &crate::task_activation::ApprovedAgentTask,
+    recipe: &CompiledReleaseRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedReleaseRequest, GatewaySubmitResult> {
+    let audience = crate::task_enrollment::audience(task, &recipe.digest_hex())?;
+    verify_release_for_audience(recipe, context, audience, now, proof_cbor, action_cbor)
+}
+
+fn verify_release_for_audience(
+    recipe: &CompiledReleaseRecipe,
+    context: &TrustedContext,
+    audience: Audience,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedReleaseRequest, GatewaySubmitResult> {
     let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     if action.action_ids().len() != 1 {
@@ -99,12 +117,7 @@ pub(crate) fn verify_release_request(
     }
     Ok(VerifiedReleaseRequest {
         request,
-        actor: branch.actor.clone(),
-        delegators: branch
-            .chain
-            .iter()
-            .map(|grant| grant.statement().issuer().clone())
-            .collect(),
+        authority: branch.authority().map_err(not_entered)?,
     })
 }
 
@@ -338,7 +351,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn delegated_read_requires_task_human_on_the_authorized_path_and_final_recipient() {
+    fn delegated_read_retains_native_path_but_requires_enrolled_task_root() {
         let service = Signer::new(0x10);
         let human = Signer::new(0x11);
         let intermediary = Signer::new(0x21);
@@ -354,60 +367,16 @@ pub(crate) mod tests {
             verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
                 .expect("native verified delegation");
 
+        assert_eq!(verified.actor(), &agent.principal);
+        assert_eq!(verified.authority().grants().len(), 3);
         let policy = task_policy(&recipe, &human, &agent);
-        let mut state = ReleaseTaskState::from_test_policy(policy.clone()).expect("task policy");
-        state
-            .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-            .expect("human authorized the final recipient through an intermediary");
-        assert_eq!(state.counts(), (1, 0, 0));
-        assert!(
-            state
-                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-                .is_err(),
-            "delegation does not create another reservation for the same operation"
+        let mut state = ReleaseTaskState::from_test_policy(policy).expect("task policy");
+        assert_eq!(
+            state.reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW),
+            Err(crate::release_state::ReleaseStateError::Inactive),
+            "a native proof alone cannot bypass mandatory root enrollment"
         );
-        assert_eq!(state.counts(), (1, 0, 0));
-
-        let mut next_arguments = arguments.clone();
-        next_arguments.insert("operation_id".to_owned(), json!("read-2"));
-        let next = delegated_submission(
-            &[&service, &human, &intermediary, &agent],
-            &next_arguments,
-            2,
-        );
-        let next_verified =
-            verify_release_request(&recipe, &context, NOW, &next.proof, &next.action)
-                .expect("second native verified delegation");
-        assert!(
-            state
-                .reserve_verified_request(&next_verified, "jules-read", 3, "jules-subject", NOW)
-                .is_err(),
-            "a fresh delegated invocation still consumes the original task budget"
-        );
-        assert_eq!(state.counts(), (1, 0, 0));
-
-        for changed in [
-            ReleaseTaskPolicy {
-                initiator_principal: Signer::new(0x44).principal.as_str().to_owned(),
-                ..policy.clone()
-            },
-            ReleaseTaskPolicy {
-                agent_principal: intermediary.principal.as_str().to_owned(),
-                ..policy.clone()
-            },
-            ReleaseTaskPolicy {
-                task_commitment: [0x12; 32],
-                ..policy
-            },
-        ] {
-            let mut denied = ReleaseTaskState::from_test_policy(changed).expect("task policy");
-            assert!(
-                denied
-                    .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-                    .is_err()
-            );
-            assert_eq!(denied.counts(), (0, 0, 0));
-        }
+        assert_eq!(state.counts(), (0, 0, 0));
     }
 
     #[test]
@@ -453,7 +422,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn native_proof_and_task_bind_agent_human_resource_before_charge() {
+    fn native_proof_seals_actor_grant_and_resource_but_does_not_admit_task() {
         let root = Signer::new(0x11);
         let agent = Signer::new(0x22);
         let observer = GatewayObserver::from_test_seed(0x33);
@@ -466,7 +435,10 @@ pub(crate) mod tests {
             verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
                 .expect("native authorized proof");
         assert_eq!(verified.actor(), &agent.principal);
-        assert!(verified.delegated_by(root.principal.as_str()));
+        assert_eq!(
+            verified.authority().grants().first(),
+            Some(&grant_id(grant.statement()).unwrap())
+        );
         assert_eq!(verified.request().recipient(), agent.principal.as_str());
         assert_eq!(
             verified.request().url(),
@@ -474,49 +446,12 @@ pub(crate) mod tests {
         );
 
         let policy = task_policy(&recipe, &root, &agent);
-        let mut wrong_human = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
-            initiator_principal: Signer::new(0x44).principal.as_str().to_owned(),
-            ..policy.clone()
-        })
-        .expect("policy");
-        assert!(
-            wrong_human
-                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-                .is_err()
+        let mut pending = ReleaseTaskState::from_test_policy(policy).expect("policy");
+        assert_eq!(
+            pending.reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW),
+            Err(crate::release_state::ReleaseStateError::Inactive)
         );
-        assert_eq!(wrong_human.counts(), (0, 0, 0));
-        let mut wrong_task = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
-            task_commitment: [0x12; 32],
-            ..policy.clone()
-        })
-        .expect("policy");
-        assert!(
-            wrong_task
-                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-                .is_err()
-        );
-        assert_eq!(wrong_task.counts(), (0, 0, 0));
-        let mut state = ReleaseTaskState::from_test_policy(policy).expect("policy");
-        assert!(
-            state
-                .reserve_verified_request(&verified, "jules-read", 4, "jules-subject", NOW)
-                .is_err()
-        );
-        assert!(
-            state
-                .reserve_verified_request(&verified, "jules-read", 3, "other-subject", NOW)
-                .is_err()
-        );
-        assert_eq!(state.counts(), (0, 0, 0));
-        state
-            .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-            .expect("task admission");
-        assert_eq!(state.counts(), (1, 0, 0));
-        assert!(
-            state
-                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
-                .is_err()
-        );
+        assert_eq!(pending.counts(), (0, 0, 0));
     }
 
     #[test]

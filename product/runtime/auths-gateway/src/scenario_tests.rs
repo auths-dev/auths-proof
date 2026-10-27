@@ -342,6 +342,8 @@ pub(crate) fn admitted(
         .map_err(|error| crate::engine::not_entered(error.code()))?;
     Ok(VerifiedCommand {
         #[cfg(unix)]
+        authorities: Vec::new(),
+        #[cfg(unix)]
         actors: Vec::new(),
         request,
         bound,

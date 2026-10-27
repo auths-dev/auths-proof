@@ -30,7 +30,9 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/10";
+mod participants;
+
+const SCHEMA: &str = "auths.gateway-agent-task-state/11";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -725,7 +727,6 @@ impl ReleaseTaskState {
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
         if call.task_id != self.task_id
-            || call.recipient != self.agent_principal
             || !bounded_text(call.operation_id, 128)
             || call.action_commitment == [0; 32]
             || !self.resources.iter().any(|resource| {
@@ -1097,7 +1098,7 @@ impl ReleaseTaskState {
     }
 
     /// Admit a compiled request only with a native-verified sole actor and
-    /// human-issued grant. The connection reference must come from the
+    /// exact enrolled resource-grant ancestry. The connection reference must come from the
     /// loaded, subject-bound credential record for this read recipe.
     pub(crate) fn reserve_verified_request(
         &mut self,
@@ -1109,7 +1110,6 @@ impl ReleaseTaskState {
     ) -> Result<(), ReleaseStateError> {
         let request = verified.request();
         if verified.actor().as_str() != request.recipient()
-            || !verified.delegated_by(&self.initiator_principal)
             || !same_commitment(
                 &self.task_commitment,
                 &hex::encode(request.task_commitment()),
@@ -1117,6 +1117,19 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Binding);
         }
+        let scope = ReleaseResourceScope {
+            handle: request.resource_handle().to_owned(),
+            recipe_digest: hex::encode(request.recipe_digest()),
+            connection_id: connection_id.to_owned(),
+            connection_generation,
+            connection_subject: connection_subject.to_owned(),
+        };
+        self.admit_read_participant(
+            verified.authority(),
+            &scope,
+            request.operation_id().as_str(),
+            now,
+        )?;
         self.reserve_provider_call(
             ReleaseCall {
                 task_id: request.task_id(),
@@ -1496,6 +1509,11 @@ impl ReleaseTaskState {
         let policy = state.policy()?;
         Self::new(policy.clone()).map_err(|_| ReleaseStateError::Corrupt)?;
         state.validate_participant_root(&policy)?;
+        if state.activated_card.is_some() {
+            state
+                .validate_participant_accounting()
+                .map_err(|_| ReleaseStateError::Corrupt)?;
+        }
         let mut releases = 0_u32;
         let mut released_bytes = 0_u64;
         state.validate_writes()?;
@@ -1515,7 +1533,6 @@ impl ReleaseTaskState {
         }
         for (operation_id, operation) in &state.operations {
             if !bounded_text(operation_id, 128)
-                || operation.recipient != state.agent_principal
                 || !valid_digest(&operation.action_commitment)
                 || operation.action_commitment == "0".repeat(64)
                 || !state.resources.iter().any(|resource| {
@@ -1883,6 +1900,7 @@ impl FileReleaseTaskLedger {
     pub(crate) fn reserve_write_with_namespace(
         &self,
         approved: &ApprovedTaskWrite,
+        verified: &crate::engine::VerifiedCommand,
         operator_namespace: &str,
         time: &crate::QualificationGate,
         valid_until: Option<u64>,
@@ -1891,6 +1909,7 @@ impl FileReleaseTaskLedger {
             if valid_until.is_some_and(|deadline| now >= deadline) {
                 return Err(ReleaseStateError::Inactive);
             }
+            state.admit_write_participant(verified, approved.intent(), now)?;
             state.reserve_write_with_namespace(approved, operator_namespace, now)
         })
     }
@@ -1997,6 +2016,7 @@ impl FileReleaseTaskLedger {
         time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update_timed(task_id, time, |state, now| {
+            state.admit_disclosure_participant(operation_id, content.len(), now)?;
             state.enter_release(operation_id, content, key, now)
         })
     }
@@ -2135,11 +2155,13 @@ mod tests {
     ) -> VerifiedAgentAcknowledgement {
         let (version, commitment) = state.commitment(operation_id).expect("commitment");
         VerifiedAgentAcknowledgement {
-            task_id: "task-1".to_owned(),
-            task_commitment: "11".repeat(32),
+            task_id: state.task_id.clone(),
+            task_commitment: state.task_commitment.clone(),
             operation_id: operation_id.to_owned(),
-            recipient: "agent-principal".to_owned(),
-            released_bytes: 8,
+            recipient: state.operations[operation_id].recipient.clone(),
+            released_bytes: state.operations[operation_id]
+                .released_bytes
+                .expect("entered bytes"),
             commitment_key_version: version,
             content_commitment: commitment.to_owned(),
         }
@@ -2376,107 +2398,122 @@ mod tests {
 
     #[test]
     fn durable_restart_keeps_charge_and_refuses_same_operation() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize_policy(policy()).expect("task");
-        ledger
-            .reserve_provider_call(call("read-1"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
         let entered = ledger
             .enter_release(
-                "task-1",
+                crate::task_enrollment::tests::TASK,
                 "read-1",
                 b"Approved",
                 &key,
-                &crate::harness::time_gate(102),
+                &crate::harness::time_gate(crate::task_enrollment::tests::NOW),
             )
             .expect("durable charge");
         let digest = entered.digest().expect("canonical digest");
         drop(ledger);
 
         let restarted = FileReleaseTaskLedger::open(&path).expect("reopen");
-        let loaded = restarted.load("task-1").expect("load").expect("task");
+        let loaded = restarted
+            .load(crate::task_enrollment::tests::TASK)
+            .expect("load")
+            .expect("task");
         assert_eq!(loaded.digest().expect("digest"), digest);
         assert_eq!(loaded.counts(), (1, 1, 8));
         assert!(loaded.delivery_unknown("read-1"));
-        let stored = fs::read(restarted.key_path("task-1").expect("path")).expect("stored state");
+        let stored = fs::read(
+            restarted
+                .key_path(crate::task_enrollment::tests::TASK)
+                .expect("path"),
+        )
+        .expect("stored state");
         assert!(
             !stored
                 .windows(b"Approved".len())
                 .any(|part| part == b"Approved")
         );
         assert_eq!(
-            restarted.reserve_provider_call(call("read-1"), 103).err(),
+            fixture.reserve_read(&fixture.read(false, "read-1")).err(),
             Some(ReleaseStateError::Replay)
         );
         assert_eq!(
             restarted
                 .enter_release(
-                    "task-1",
+                    crate::task_enrollment::tests::TASK,
                     "read-1",
                     b"Approved",
                     &key,
-                    &crate::harness::time_gate(103)
+                    &crate::harness::time_gate(crate::task_enrollment::tests::NOW)
                 )
                 .err(),
             Some(ReleaseStateError::Stage)
         );
-        let loaded = restarted.load("task-1").expect("load").expect("task");
+        let loaded = restarted
+            .load(crate::task_enrollment::tests::TASK)
+            .expect("load")
+            .expect("task");
         assert_eq!(loaded.counts(), (1, 1, 8));
-        restarted.revoke("task-1").expect("revoke");
+        restarted
+            .revoke(crate::task_enrollment::tests::TASK)
+            .expect("revoke");
         assert_eq!(
-            restarted.reserve_provider_call(call("read-2"), 104).err(),
+            fixture.reserve_read(&fixture.read(false, "read-2")).err(),
             Some(ReleaseStateError::Inactive)
         );
     }
 
     #[test]
     fn no_send_receipt_survives_restart_without_refunding_or_replay() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize_policy(policy()).expect("task");
-        ledger
-            .reserve_provider_call(call("read-1"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
         ledger
             .enter_release(
-                "task-1",
+                crate::task_enrollment::tests::TASK,
                 "read-1",
                 b"Approved",
                 &key,
-                &crate::harness::time_gate(102),
+                &crate::harness::time_gate(crate::task_enrollment::tests::NOW),
             )
             .expect("durable charge");
         ledger
-            .not_delivered(&ProvenNoSend::before_content("task-1", "read-1"))
+            .not_delivered(&ProvenNoSend::before_content(
+                crate::task_enrollment::tests::TASK,
+                "read-1",
+            ))
             .expect("durable no-content proof");
         drop(ledger);
 
         let restarted = FileReleaseTaskLedger::open(&path).expect("reopen");
-        let loaded = restarted.load("task-1").expect("load").expect("task");
+        let loaded = restarted
+            .load(crate::task_enrollment::tests::TASK)
+            .expect("load")
+            .expect("task");
         assert_eq!(loaded.stage("read-1"), Some(ReleaseStage::NotDelivered));
         assert_eq!(loaded.counts(), (1, 1, 8));
         assert!(!loaded.delivery_unknown("read-1"));
         assert_eq!(
-            restarted.reserve_provider_call(call("read-1"), 103).err(),
+            fixture.reserve_read(&fixture.read(false, "read-1")).err(),
             Some(ReleaseStateError::Replay)
         );
         assert_eq!(
             restarted
                 .enter_release(
-                    "task-1",
+                    crate::task_enrollment::tests::TASK,
                     "read-1",
                     b"Approved",
                     &key,
-                    &crate::harness::time_gate(103)
+                    &crate::harness::time_gate(crate::task_enrollment::tests::NOW)
                 )
                 .err(),
             Some(ReleaseStateError::Stage)
@@ -2485,26 +2522,19 @@ mod tests {
 
     #[test]
     fn simultaneous_claim_has_one_winner_and_corruption_fails_closed() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
-        FileReleaseTaskLedger::open(&path)
-            .expect("open")
-            .initialize_policy(policy())
-            .expect("task");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let barrier = Arc::new(Barrier::new(2));
         let outcomes = std::thread::scope(|scope| {
             let mut jobs = Vec::new();
             for _ in 0..2 {
                 let barrier = Arc::clone(&barrier);
-                let path = path.clone();
+                let fixture = &fixture;
                 jobs.push(scope.spawn(move || {
-                    let ledger = FileReleaseTaskLedger::open(path).expect("open");
+                    let verified = fixture.read(false, "read-1");
                     barrier.wait();
-                    ledger
-                        .reserve_provider_call(call("read-1"), 101)
-                        .map(|_| ())
+                    fixture.reserve_read(&verified)
                 }));
             }
             jobs.into_iter()
@@ -2521,40 +2551,48 @@ mod tests {
         );
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
         assert_eq!(
-            ledger.load("task-1").expect("load").expect("task").counts(),
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .expect("load")
+                .expect("task")
+                .counts(),
             (1, 0, 0)
         );
         ledger
-            .provider_unavailable("task-1", "read-1")
+            .provider_unavailable(crate::task_enrollment::tests::TASK, "read-1")
             .expect("provider failed");
         assert_eq!(
             ledger
-                .load("task-1")
+                .load(crate::task_enrollment::tests::TASK)
                 .expect("load")
                 .expect("task")
                 .stage("read-1"),
             Some(ReleaseStage::ProviderUnavailable)
         );
-        fs::write(ledger.key_path("task-1").expect("path"), b"{}").expect("tamper");
+        fs::write(
+            ledger
+                .key_path(crate::task_enrollment::tests::TASK)
+                .expect("path"),
+            b"{}",
+        )
+        .expect("tamper");
         assert_eq!(
-            ledger.load("task-1").err(),
+            ledger.load(crate::task_enrollment::tests::TASK).err(),
             Some(ReleaseStateError::Corrupt)
         );
     }
 
     #[test]
     fn competing_release_entries_charge_only_one_budget_slot() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize_policy(policy()).expect("task");
-        ledger
-            .reserve_provider_call(call("read-1"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
             .expect("first call");
-        ledger
-            .reserve_provider_call(call("read-2"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-2"))
             .expect("second call");
         let barrier = Arc::new(Barrier::new(2));
         let outcomes = std::thread::scope(|scope| {
@@ -2568,11 +2606,11 @@ mod tests {
                     barrier.wait();
                     ledger
                         .enter_release(
-                            "task-1",
+                            crate::task_enrollment::tests::TASK,
                             operation,
                             b"Approved",
                             &key,
-                            &crate::harness::time_gate(102),
+                            &crate::harness::time_gate(crate::task_enrollment::tests::NOW),
                         )
                         .map(|_| ())
                 }));
@@ -2590,7 +2628,11 @@ mod tests {
             1
         );
         assert_eq!(
-            ledger.load("task-1").expect("load").expect("task").counts(),
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .expect("load")
+                .expect("task")
+                .counts(),
             (2, 1, 8)
         );
     }
@@ -2630,75 +2672,73 @@ mod tests {
     }
 
     #[test]
-    fn write_reservation_samples_time_and_preflight_deadline_inside_journal_lock() {
-        for deadline in [None, Some(125)] {
-            let root = tempfile::tempdir().unwrap();
-            let path = fs::canonicalize(root.path()).unwrap().join("task");
-            let ledger = FileReleaseTaskLedger::open(&path).unwrap();
-            ledger.initialize_policy(write_policy()).unwrap();
-            let before = ledger.load("task-1").unwrap().unwrap().digest().unwrap();
-            let clock = Arc::new(crate::FixedClock::at(101));
-            let time = clock_gate(&clock);
-            let intent = write_intent("edit-1");
-            let reserve =
-                || ledger.reserve_write_with_namespace(&intent, "test-only", &time, deadline);
-            let refused = advance_while_locked(&ledger, &clock, deadline.unwrap_or(200), reserve);
-            assert_eq!(refused.err(), Some(ReleaseStateError::Inactive));
-            assert_eq!(
-                ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
-                before
-            );
-            clock.set(101);
-            clock.trust_is(false);
-            assert_eq!(reserve().err(), Some(ReleaseStateError::Inactive));
-            assert_eq!(
-                ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
-                before
-            );
-            clock.trust_is(true);
-            reserve().unwrap();
-            assert_eq!(reserve().err(), Some(ReleaseStateError::Replay));
-            clock.trust_is(false);
-            ledger.revoke("task-1").unwrap();
-            assert_eq!(ledger.load("task-1").unwrap().unwrap().write_count(), 1);
-        }
-    }
-
-    #[test]
     fn disclosure_samples_locked_time_but_late_evidence_keeps_its_charge() {
-        let root = tempfile::tempdir().unwrap();
-        let path = fs::canonicalize(root.path()).unwrap().join("task");
-        let ledger = FileReleaseTaskLedger::open(&path).unwrap();
-        ledger.initialize_policy(policy()).unwrap();
-        ledger.reserve_provider_call(call("read-1"), 101).unwrap();
-        let before = ledger.load("task-1").unwrap().unwrap().digest().unwrap();
-        let clock = Arc::new(crate::FixedClock::at(101));
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().unwrap();
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
+            .unwrap();
+        let ledger = fixture.ledger();
+        let before = ledger
+            .load(crate::task_enrollment::tests::TASK)
+            .unwrap()
+            .unwrap()
+            .digest()
+            .unwrap();
+        let clock = fixture.clock.clone();
         let time = clock_gate(&clock);
         let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).unwrap();
-        let enter = || ledger.enter_release("task-1", "read-1", b"Approved", &key, &time);
+        let enter = || {
+            ledger.enter_release(
+                crate::task_enrollment::tests::TASK,
+                "read-1",
+                b"Approved",
+                &key,
+                &time,
+            )
+        };
         assert_eq!(
-            advance_while_locked(&ledger, &clock, 200, enter).err(),
+            advance_while_locked(
+                &ledger,
+                &clock,
+                crate::task_enrollment::tests::NOW + 600,
+                enter
+            )
+            .err(),
             Some(ReleaseStateError::Inactive)
         );
         assert_eq!(
-            ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .unwrap()
+                .unwrap()
+                .digest()
+                .unwrap(),
             before
         );
-        clock.set(101);
+        clock.set(crate::task_enrollment::tests::NOW);
         clock.trust_is(false);
         assert_eq!(enter().err(), Some(ReleaseStateError::Inactive));
         assert_eq!(
-            ledger.load("task-1").unwrap().unwrap().digest().unwrap(),
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .unwrap()
+                .unwrap()
+                .digest()
+                .unwrap(),
             before
         );
         clock.trust_is(true);
         let entered = enter().unwrap();
         let evidence = acknowledgement(&entered, "read-1");
-        clock.set(200);
+        clock.set(crate::task_enrollment::tests::NOW + 600);
         clock.trust_is(false);
         ledger.acknowledge(&evidence).unwrap();
-        ledger.revoke("task-1").unwrap();
-        let retained = ledger.load("task-1").unwrap().unwrap();
+        ledger.revoke(crate::task_enrollment::tests::TASK).unwrap();
+        let retained = ledger
+            .load(crate::task_enrollment::tests::TASK)
+            .unwrap()
+            .unwrap();
         assert_eq!(retained.counts(), (1, 1, 8));
         assert_eq!(
             retained.stage("read-1"),

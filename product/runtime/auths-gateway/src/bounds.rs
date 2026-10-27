@@ -45,8 +45,8 @@ use auths_bounded_policy::{
     PolicyTypeId, ProfileId, validate_registry,
 };
 use auths_model::{
-    BoundedPolicyCommitment, CanonicalAction, Digest, FactName, FactValue, PolicyCommitment,
-    PolicyIdentifier, PrincipalId, SignedGrant,
+    BoundedPolicyCommitment, CanonicalAction, Digest, FactName, FactValue, GrantId,
+    PolicyCommitment, PolicyIdentifier, PrincipalId, SignedGrant,
 };
 use auths_ports::ProfilePolicy as _;
 use auths_profile_mcp::McpArgumentsPolicy;
@@ -876,6 +876,53 @@ pub(crate) struct AuthorizedBranch {
     pub(crate) actor: PrincipalId,
     pub(crate) chain: Vec<SignedGrant>,
     validity_seconds: u64,
+    not_before: u64,
+    expires_at: u64,
+}
+
+/// Exact native branch facts retained for task admission. Only a branch selected
+/// by a sealed native action can construct this value. It is not a live permit.
+#[derive(Clone, Debug)]
+pub(crate) struct NativeAuthority {
+    actor: PrincipalId,
+    grants: Vec<GrantId>,
+    not_before: u64,
+    expires_at: u64,
+}
+
+impl NativeAuthority {
+    pub(crate) fn actor(&self) -> &PrincipalId {
+        &self.actor
+    }
+    pub(crate) fn grants(&self) -> &[GrantId] {
+        &self.grants
+    }
+    pub(crate) fn valid_at(&self, now: u64) -> bool {
+        (self.not_before..self.expires_at).contains(&now)
+    }
+}
+
+impl AuthorizedBranch {
+    pub(crate) fn authority(&self) -> Result<NativeAuthority, &'static str> {
+        let mut not_before = self.not_before;
+        let mut expires_at = self.expires_at;
+        let grants = self
+            .chain
+            .iter()
+            .map(|grant| {
+                not_before = not_before.max(grant.statement().validity().not_before().get());
+                expires_at = expires_at.min(grant.statement().validity().expires_at().get());
+                auths_codec::grant_id(grant.statement())
+                    .map_err(|_| "gateway.policy.proof-unavailable")
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(NativeAuthority {
+            actor: self.actor.clone(),
+            grants,
+            not_before,
+            expires_at,
+        })
+    }
 }
 
 /// The authorized branch of every verified action.
@@ -916,6 +963,8 @@ pub(crate) fn authorized_chains(
         chains.push(AuthorizedBranch {
             actor: action.envelope().actor().clone(),
             chain,
+            not_before: validity.not_before().get(),
+            expires_at: validity.expires_at().get(),
             validity_seconds: validity
                 .expires_at()
                 .get()
@@ -927,6 +976,9 @@ pub(crate) fn authorized_chains(
 
 /// What admission needs of the authorized branches.
 pub(crate) struct BranchFacts {
+    /// Exact actor/grant paths, without merging branches that share an actor.
+    #[cfg(unix)]
+    pub(crate) authorities: Vec<NativeAuthority>,
     /// Distinct actors of the exact action IDs sealed by native verification.
     #[cfg(unix)]
     pub(crate) actors: Vec<PrincipalId>,
@@ -959,6 +1011,11 @@ pub(crate) fn authorized_branches(
         }
     }
     Ok(BranchFacts {
+        #[cfg(unix)]
+        authorities: branches
+            .iter()
+            .map(AuthorizedBranch::authority)
+            .collect::<Result<_, _>>()?,
         #[cfg(unix)]
         actors: branches
             .iter()

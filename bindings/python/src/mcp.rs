@@ -12,7 +12,6 @@ use crate::receipts::{PyReceiptPreparation, prepare_decision};
 use crate::result::{NativeVerificationResult, native_result, verify_sealed};
 use auths_author::{
     ProfilePlanCommitment, ProfilePlanMember, WorkflowProofBuilder, address_evidence,
-    prepare_profile_action,
 };
 use auths_model::{EvidenceTypeId, MediaType, ResourceId};
 use auths_profile_api::ActionProfile;
@@ -709,7 +708,7 @@ fn commit_mcp_plan(py: Python<'_>, calls: Vec<Py<PyMcpCall>>) -> PyResult<PyNati
 }
 
 #[pyfunction]
-#[pyo3(signature = (call, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None))]
+#[pyo3(signature = (call, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None, *, audience = None))]
 fn prepare_mcp_call_action(
     call: PyRef<'_, PyMcpCall>,
     actor: PyRef<'_, PyPrincipal>,
@@ -717,42 +716,22 @@ fn prepare_mcp_call_action(
     challenge: &[u8],
     evaluation_time: u64,
     validity_seconds: Option<u64>,
+    audience: Option<&str>,
 ) -> PyResult<PyMcpAction> {
     let SignedObject::Grant(terminal_grant) = &terminal_grant.inner else {
         return Err(PyTypeError::new_err(
             "terminal grant must be a signed grant",
         ));
     };
-    let profile = McpProfile;
-    let canonical = profile
-        .canonicalize(&call.inner.canonical_bytes().map_err(value_error)?)
-        .map_err(value_error)?;
-    let display = profile.review_display(&canonical).map_err(value_error)?;
-    let challenge: [u8; 32] = challenge
-        .try_into()
-        .map_err(|_| crate::errors::malformed_input("challenge must contain 32 bytes"))?;
-    let prepared = prepare_profile_action(
-        canonical,
-        call.inner.audience().map_err(value_error)?,
+    crate::authoring::prepare_mcp_action_from_call(
+        &call.inner,
         actor.inner.clone(),
         terminal_grant,
         challenge,
         evaluation_time,
         validity_seconds,
+        audience,
     )
-    .map_err(value_error)?;
-    let (canonical, envelope) = prepared.into_parts();
-    Ok(PyMcpAction {
-        arguments_json: serde_json_canonicalizer::to_vec(call.inner.arguments())
-            .map_err(value_error)?,
-        audience: call.inner.audience().map_err(value_error)?.to_string(),
-        resource: canonical.permission().resource().to_string(),
-        display_digest_hex: display.canonical_digest_hex().to_owned(),
-        review_title: display.title().to_owned(),
-        review_fields: display.fields().to_vec(),
-        canonical,
-        envelope,
-    })
 }
 
 #[pyfunction]

@@ -107,6 +107,7 @@ async def author_production_mcp_proof(
     inputs: ProductionAuthoringInputs,
     observations: Sequence[SignedObservationAttachment] = (),
     validity_seconds: Optional[int] = None,
+    audience: Optional[str] = None,
 ) -> AuthoredMcpProof[CommandT]:
     """Author with explicit durable custody and separately supplied trust.
 
@@ -124,6 +125,7 @@ async def author_production_mcp_proof(
         evaluation_time=inputs.evaluation_time,
         observations=observations,
         validity_seconds=validity_seconds,
+        audience=audience,
     )
 
 
@@ -162,6 +164,7 @@ async def author_mcp_proof(
     evaluation_time: int,
     observations: Sequence[SignedObservationAttachment] = (),
     validity_seconds: Optional[int] = None,
+    audience: Optional[str] = None,
 ) -> AuthoredMcpProof[CommandT]:
     """Sign and assemble one exact action with externally supplied authority.
 
@@ -202,6 +205,7 @@ async def author_mcp_proof(
         challenge=challenge,
         evaluation_time=evaluation_time,
         validity_seconds=validity_seconds,
+        audience=audience,
     )
     if observations:
         prepared = attach_observations(prepared, observations)
@@ -222,7 +226,8 @@ async def author_mcp_proof(
         bytes(request.transaction_digest),
         bytes(request.signing_preimage),
         evaluation_time + 300,
-        tuple(ReviewField(label, value) for label, value in prepared.review_fields),
+        tuple(ReviewField(label, value) for label, value in prepared.review_fields)
+        + ((ReviewField("audience", prepared.audience),) if audience is not None else ()),
     )
     outcome = await signer.sign(custody_request)
     if isinstance(outcome, (CustodyRejected, CustodyIndeterminate)):

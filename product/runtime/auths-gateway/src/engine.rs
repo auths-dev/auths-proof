@@ -209,7 +209,13 @@ pub fn review_submission(
     proof: &[u8],
     action: &[u8],
 ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
-    let command = verify_detailed(recipe, context, now, proof, action)?;
+    review_verified_command(verify_detailed(recipe, context, now, proof, action)?)
+}
+
+#[cfg(unix)]
+fn review_verified_command(
+    command: VerifiedCommand,
+) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
     let request = &command.request;
     Ok(GatewaySubmissionReview {
         schema: "auths.gateway-submission-review/1",
@@ -1375,7 +1381,8 @@ impl GatewayEngine {
             Err(error) => return not_entered(error.write_code()),
         };
         let child_scope = state.bound_child_scope();
-        let verified = match verify_detailed(
+        let verified = match verify_task_command(
+            &task,
             &self.recipe,
             &self.trusted_context,
             now,
@@ -1901,7 +1908,7 @@ impl TaskWriteSession<'_> {
     /// card and operator-supplied compiled recipes. Preparation grants no entry.
     ///
     /// # Errors
-    /// Refuses stale tasks, substituted recipes and unresolved created-child scopes.
+    /// Refuses stale tasks, substituted recipes and invalid created-child bindings.
     pub fn participant_scopes(
         &self,
         task_id: &str,
@@ -2251,6 +2258,50 @@ impl TaskWriteSession<'_> {
         Ok(())
     }
 
+    /// Review an exact write under the activated task's native resource audience.
+    /// The installed recipe, connection binding and signed task scope determine
+    /// the projection. Review neither reserves capacity nor permits execution.
+    ///
+    /// # Errors
+    /// Refuses inactive tasks, invalid native proofs, foreign resource audiences
+    /// and requests outside the task's exact or verified created-child scope.
+    pub fn review_submission(
+        &self,
+        task_id: &str,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|error| not_entered(error.write_code()))?
+            .ok_or_else(|| not_entered("gateway.task.not-activated"))?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|error| not_entered(error.write_code()))?;
+        let command = verify_task_command(
+            &task,
+            &self.engine.recipe,
+            &self.engine.trusted_context,
+            now,
+            proof,
+            action,
+        )?;
+        derive_exact_write_intent(
+            &task,
+            &command,
+            &self.engine.recipe,
+            &self.binding,
+            state.bound_child_scope().as_ref(),
+            now,
+        )?;
+        review_verified_command(command)
+    }
+
     /// Verifies a previously activated task and one agent write, then runs
     /// the gateway's ordinary provider attempt machine under its task gate.
     pub async fn submit(&self, proofs: TaskWriteProofs<'_>) -> GatewaySubmitResult {
@@ -2319,7 +2370,8 @@ impl TaskWriteSession<'_> {
             .ok_or("gateway.task.effect-plan-state")?
             .activated_task(&self.pins, now)
             .map_err(|_| "gateway.task.effect-plan-inactive")?;
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &self.engine.recipe,
             &self.engine.trusted_context,
             now,
@@ -2650,7 +2702,8 @@ impl TaskWriteSession<'_> {
         {
             return Err("gateway.task.recovery-attempt-time");
         }
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &self.engine.recipe,
             &self.engine.trusted_context,
             original_time,
@@ -2827,7 +2880,8 @@ impl TaskWriteSession<'_> {
         {
             return Err("gateway.task.reconcile-attempt-time");
         }
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &self.engine.recipe,
             &self.engine.trusted_context,
             evaluated_at,
@@ -3140,9 +3194,27 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        let verified = verify_detailed(
+        #[cfg(unix)]
+        let task_audience = self
+            .task_write
+            .as_ref()
+            .map(|admission| {
+                crate::task_enrollment::audience(admission.task, &self.engine.recipe.digest_hex())
+            })
+            .transpose()?;
+        #[cfg(not(unix))]
+        let task_audience: Option<Audience> = None;
+        let audience = task_audience.map_or_else(
+            || {
+                Audience::parse(&format!("mcp://{}", self.engine.recipe.service()))
+                    .map_err(|_| not_entered("gateway.recipe.audience"))
+            },
+            Ok,
+        )?;
+        let verified = verify_detailed_for_audience(
             &self.engine.recipe,
             &self.engine.trusted_context,
+            audience,
             now,
             self.proof,
             self.action,
@@ -3181,7 +3253,7 @@ impl SubmitIo for EngineIo<'_> {
 
     fn reserve_task_write(
         &self,
-        _verified: &VerifiedCommand,
+        verified: &VerifiedCommand,
         _now: u64,
     ) -> Result<(), &'static str> {
         #[cfg(unix)]
@@ -3200,6 +3272,7 @@ impl SubmitIo for EngineIo<'_> {
                     .ledger
                     .reserve_write_with_namespace(
                         admission.approved,
+                        verified,
                         self.engine.recipe.namespace().as_str(),
                         &self.engine.qualification,
                         admission.preflight_valid_until,
@@ -3561,6 +3634,8 @@ pub(crate) fn verify_command(
 /// need of its authorized branches.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    #[cfg(unix)]
+    pub(crate) authorities: Vec<crate::bounds::NativeAuthority>,
     /// Exact actors of action IDs already sealed by the native verifier.
     #[cfg(unix)]
     pub(crate) actors: Vec<auths_model::PrincipalId>,
@@ -3595,6 +3670,32 @@ pub(crate) fn verify_detailed(
 ) -> Result<VerifiedCommand, GatewaySubmitResult> {
     let audience = Audience::parse(&format!("mcp://{}", recipe.service()))
         .map_err(|_| not_entered("gateway.recipe.audience"))?;
+    verify_detailed_for_audience(recipe, context, audience, now, proof_cbor, action_cbor)
+}
+
+/// Verify against the engagement selected by the protected journal, never an
+/// audience supplied by the agent. Ordinary entry remains on its MCP audience.
+#[cfg(unix)]
+pub(crate) fn verify_task_command(
+    task: &ApprovedAgentTask,
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
+    let audience = crate::task_enrollment::audience(task, &recipe.digest_hex())?;
+    verify_detailed_for_audience(recipe, context, audience, now, proof_cbor, action_cbor)
+}
+
+fn verify_detailed_for_audience(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    audience: Audience,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
     let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     let bound = admit_bounds(proof_cbor, action, recipe, now)?;
@@ -3612,6 +3713,8 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
+        #[cfg(unix)]
+        authorities: branches.authorities,
         #[cfg(unix)]
         actors: branches.actors,
         request,
@@ -3641,7 +3744,8 @@ pub(crate) fn authorized_action(
 }
 
 /// Rebinds only the verifier's expected audience for a fixed, gateway-owned
-/// approval profile. The caller must supply a code-defined audience; agent
+/// profile or journal-bound engagement. The caller must derive the audience
+/// from trusted configuration and activated state; agent
 /// input must never choose the audience being verified.
 pub(crate) fn verify_sealed_for_audience(
     context: &TrustedContext,
@@ -4134,8 +4238,8 @@ pub(crate) mod tests {
     )]
     async fn installed_task_write_case(independent_initiator: bool) {
         use crate::harness::{self, Signer};
-        use crate::observed_tests::submission_for;
         use crate::task_activation::AgentTaskDescriptor;
+        use crate::task_enrollment::test_authoring::submission as submission_for;
         use serde_json::{Map, json};
 
         #[cfg(feature = "loopback-provider")]
@@ -4361,6 +4465,10 @@ pub(crate) mod tests {
             "purpose": "Edit one test record"
         }))
         .expect("card");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &card,
+        );
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
             populate_preflight: None,
@@ -4447,14 +4555,21 @@ pub(crate) mod tests {
             &signed.action,
         )
         .expect("approved task");
-        let agent_grant = harness::grant_for(
+        let resource_grants = crate::task_enrollment::test_authoring::bootstrap(
+            &session.ledger,
+            &approved,
+            &crate::TaskEnrollmentRecipes {
+                reads: &[],
+                writes: std::slice::from_ref(&engine.recipe),
+            },
+            &engine.trusted_context,
+            &config.pins,
+            &engine.qualification,
             &root,
-            &agent.principal,
+            &agent,
             now,
-            "airtable-gateway-demo",
-            "set_demo_status_v2",
-        )
-        .expect("agent grant");
+        );
+        let agent_grant = &resource_grants[&engine.recipe.digest_hex()];
         let agent_arguments = json!({
             "operator_namespace": "airtable-demo",
             "operation_id": "write-installed-1",
@@ -4467,14 +4582,15 @@ pub(crate) mod tests {
         let agent_signed = submission_for(
             &root,
             &agent,
-            &agent_grant,
+            agent_grant,
             agent_arguments.as_object().expect("agent arguments"),
             &[],
             "airtable-gateway-demo",
             "set_demo_status_v2",
             now,
         );
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &approved,
             &engine.recipe,
             &engine.trusted_context,
             now,
@@ -4482,6 +4598,34 @@ pub(crate) mod tests {
             &agent_signed.action,
         )
         .expect("native agent action");
+        let review = session
+            .review_submission(&card.task_id, &agent_signed.proof, &agent_signed.action)
+            .expect("task audience review uses protected activation");
+        assert_eq!(
+            review.action_commitment,
+            hex::encode(verified.request.action_commitment())
+        );
+        assert_eq!(review.arguments, verified.arguments);
+        assert!(
+            review_submission(
+                &engine.recipe,
+                &engine.trusted_context,
+                now,
+                &agent_signed.proof,
+                &agent_signed.action,
+            )
+            .is_err(),
+            "ordinary review must not adopt an action-supplied task audience"
+        );
+        assert!(
+            session
+                .review_submission(
+                    "unactivated-task",
+                    &agent_signed.proof,
+                    &agent_signed.action,
+                )
+                .is_err()
+        );
         let intent = derive_exact_write_intent(
             &approved,
             &verified,
@@ -4873,8 +5017,8 @@ pub(crate) mod tests {
     )]
     async fn recorded_create_reconcile_case(with_plan: bool) {
         use crate::harness::{self, Signer};
-        use crate::observed_tests::submission_for;
         use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
+        use crate::task_enrollment::test_authoring::submission as submission_for;
         use auths_connections::SemanticId;
         use base64ct::{Base64Unpadded, Encoding as _};
         use ed25519_dalek::{Signer as _, SigningKey};
@@ -5018,6 +5162,10 @@ pub(crate) mod tests {
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("canonical card");
         let commitment = auths_codec::domain_commitment("auths.agent-task.v4", &canonical)
             .expect("card commitment");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &card,
+        );
         let task = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let mut digests = vec![engine.recipe.digest_hex(), populate.digest_hex()];
         digests.sort();
@@ -5050,14 +5198,21 @@ pub(crate) mod tests {
             .ledger
             .initialize(&task)
             .expect("activate fixture task");
-        let grant = harness::grant_for(
+        let resource_grants = crate::task_enrollment::test_authoring::bootstrap(
+            &session.ledger,
+            &task,
+            &crate::TaskEnrollmentRecipes {
+                reads: &[],
+                writes: &[engine.recipe.clone(), populate.clone()],
+            },
+            &engine.trusted_context,
+            &session.pins,
+            &engine.qualification,
             &root,
-            &agent.principal,
-            now - 3_300,
-            "google-drive-delegation-demo",
-            "create_project_a_document_v1",
-        )
-        .expect("agent create grant");
+            &agent,
+            now,
+        );
+        let grant = &resource_grants[&engine.recipe.digest_hex()];
         let args = json!({
             "operator_namespace": "google-drive-create-demo",
             "operation_id": "create-reconcile-1",
@@ -5071,14 +5226,15 @@ pub(crate) mod tests {
         let signed = submission_for(
             &root,
             &agent,
-            &grant,
+            grant,
             args.as_object().expect("arguments"),
             &[],
             "google-drive-delegation-demo",
             "create_project_a_document_v1",
             now - 3_300,
         );
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &engine.recipe,
             &engine.trusted_context,
             now,
@@ -5353,7 +5509,8 @@ pub(crate) mod tests {
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 2);
         assert!(
-            verify_detailed(
+            verify_task_command(
+                &task,
                 &engine.recipe,
                 &engine.trusted_context,
                 now + 360,
@@ -5470,18 +5627,11 @@ pub(crate) mod tests {
                 .expect("populate address")
                 .port(),
         );
-        engine.recipe = populate;
+        engine.recipe = populate.clone();
         let session = engine
             .task_write_session(&installation_bytes, &state_root)
             .expect("populate task session");
-        let populate_grant = harness::grant_for(
-            &root,
-            &agent.principal,
-            now,
-            "google-docs-delegation-demo",
-            "populate_created_project_a_document_v1",
-        )
-        .expect("agent populate grant");
+        let populate_grant = &resource_grants[&engine.recipe.digest_hex()];
         let populate_args = json!({
             "operator_namespace": "google-docs-populate-demo",
             "operation_id": "populate-reconcile-1",
@@ -5496,7 +5646,7 @@ pub(crate) mod tests {
         let populate_signed = submission_for(
             &root,
             &agent,
-            &populate_grant,
+            populate_grant,
             populate_args.as_object().expect("populate arguments"),
             &[],
             "google-docs-delegation-demo",
@@ -5572,7 +5722,7 @@ pub(crate) mod tests {
         let changed = submission_for(
             &root,
             &agent,
-            &populate_grant,
+            populate_grant,
             changed_args.as_object().expect("changed arguments"),
             &[],
             "google-docs-delegation-demo",
@@ -5696,6 +5846,10 @@ pub(crate) mod tests {
         let unknown_commitment =
             auths_codec::domain_commitment("auths.agent-task.v4", &unknown_card_bytes)
                 .expect("second card commitment");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &unknown_card,
+        );
         let unknown_task =
             ApprovedAgentTask::from_test_card(unknown_card, *unknown_commitment.as_bytes());
         let unknown_listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
@@ -5718,6 +5872,22 @@ pub(crate) mod tests {
             .ledger
             .initialize(&unknown_task)
             .expect("activate second task");
+        let unknown_grants = crate::task_enrollment::test_authoring::bootstrap(
+            &unknown_session.ledger,
+            &unknown_task,
+            &crate::TaskEnrollmentRecipes {
+                reads: &[],
+                writes: &[engine.recipe.clone(), populate.clone()],
+            },
+            &engine.trusted_context,
+            &unknown_session.pins,
+            &engine.qualification,
+            &root,
+            &agent,
+            now,
+        );
+        let grant = &unknown_grants[&engine.recipe.digest_hex()];
+
         let mut unknown_args = args.clone();
         unknown_args["task_id"] = json!("task-create-unknown");
         unknown_args["task_commitment"] = json!(hex::encode(unknown_commitment.as_bytes()));
@@ -5726,14 +5896,15 @@ pub(crate) mod tests {
         let unknown_signed = submission_for(
             &root,
             &agent,
-            &grant,
+            grant,
             unknown_args.as_object().expect("second create arguments"),
             &[],
             "google-drive-delegation-demo",
             "create_project_a_document_v1",
             now,
         );
-        let unknown_verified = verify_detailed(
+        let unknown_verified = verify_task_command(
+            &unknown_task,
             &engine.recipe,
             &engine.trusted_context,
             now,
@@ -5819,7 +5990,8 @@ pub(crate) mod tests {
             .expect("unknown create attempt");
         assert!(original_attempt.evaluated_at() <= now + 2);
         assert!(
-            verify_detailed(
+            verify_task_command(
+                &unknown_task,
                 &engine.recipe,
                 &engine.trusted_context,
                 original_attempt.evaluated_at(),

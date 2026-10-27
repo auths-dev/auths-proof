@@ -87,8 +87,12 @@ This slice does not admit runtime-selected recipients, new participant enrollmen
 
 The next direct source cutover uses task schema 3 with required
 `initiator_principal` and `approver_principal` fields, both pinned by the
-operator. Native task activation authenticates the initiator; read ancestry
-must include that initiator. Exact write, effect-plan and recovery approvals
+operator. Native task activation authenticates the initiator. Resource authority
+is independently established by native grants from the resource owner's trust
+domain; the initiator need not be on that resource path. Operation admission
+requires the exact enrolled resource-grant suffix and an exclusive engagement,
+partition-generation and recipe audience. Initiation alone never grants resource
+access. Exact write, effect-plan and recovery approvals
 authenticate the approver. Bounded-upfront mode cannot stand in for an independent
 approver: it is supported only when both roles are the same principal and the
 operator permits the mode. Neither role may equal the acting agent in this
@@ -107,8 +111,8 @@ separate parent, child-acceptance and resource-authority proofs. The
 [participant contract](../plans/0073-engagement-participant-contract.md#9-native-enrollment-verification-boundary)
 defines exact grant linkage, canonical commitments, bounds and trusted inputs.
 The returned value is a verified proposal; the task journal now durably publishes
-it under its transaction lock. Operation admission and participant capacity
-remain implementation work. Core proof wire
+it under its transaction lock. Mandatory operation admission and retained ancestor capacity are now implemented
+in source; exact-revision behavioral qualification remains pending. Core proof wire
 semantics are retained, and no provider action runs during verification.
 
 Native root bootstrap now proves holder control and separate resource authority
@@ -122,9 +126,8 @@ tree before native verification. Registered channels bind both child principal
 and instance generation. The task journal now owns root bootstrap, child enrollment
 and retained operator revocation in one protected record and transaction. It
 rechecks trusted time inside the lock and root association on reopening. This
-source integration still awaits hosted behavioral evidence. Operation admission,
-ancestor charging and child dispatch remain incomplete; pending-root tasks still
-use the existing initial-agent gate. See the
+source integration still awaits hosted behavioral evidence. Operation admission and ancestor charging now require the native root; pending-root
+tasks refuse resource operations. Child dispatch remains incomplete. See the
 [task-journal contract](../plans/0073-engagement-participant-contract.md#14-native-root-and-enrollment-in-the-existing-task-journal).
 
 ## 5. Portable verification and live admission

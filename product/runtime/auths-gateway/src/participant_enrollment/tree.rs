@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_TREE_BYTES: usize = 196_608;
-const SCHEMA: &str = "auths.engagement-enrollment-tree/1";
+const SCHEMA: &str = "auths.engagement-enrollment-tree/2";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,6 +71,66 @@ struct StoredTree {
 }
 
 impl EnrollmentTree {
+    fn principal_commitment(&self, principal: &str) -> Result<[u8; 32], EnrollmentTreeError> {
+        if self.root.principal.as_str() == principal {
+            return Ok(self.root.enrollment_commitment);
+        }
+        self.children
+            .values()
+            .find(|child| child.descriptor.child_principal == principal)
+            .map(|child| child.commitment)
+            .ok_or(EnrollmentTreeError::Binding)
+    }
+
+    /// Immutable attribution survives revocation and expiry; accounting must
+    /// never erase an ancestor's charge when eligibility ends.
+    pub(crate) fn retained_path(
+        &self,
+        principal: &str,
+    ) -> Result<Vec<[u8; 32]>, EnrollmentTreeError> {
+        self.ancestry(self.principal_commitment(principal)?)
+    }
+
+    pub(crate) fn active_principal_path(
+        &self,
+        principal: &str,
+        now: u64,
+    ) -> Result<Vec<ParentEnrollmentPins>, EnrollmentTreeError> {
+        self.active_path(self.principal_commitment(principal)?, now)?
+            .into_iter()
+            .map(|id| self.pins_for(id))
+            .collect()
+    }
+
+    pub(crate) fn retained_ceilings(
+        &self,
+    ) -> Result<Vec<ParentEnrollmentPins>, EnrollmentTreeError> {
+        std::iter::once(self.root.enrollment_commitment)
+            .chain(self.children.values().map(|child| child.commitment))
+            .map(|id| self.pins_for(id))
+            .collect()
+    }
+
+    /// Require the operation's one sealed native branch to end in the complete
+    /// root-to-leaf scope grant sequence. Equal principals on another grant are
+    /// insufficient, and branches are never unioned into a larger authority.
+    pub(crate) fn authorize_scope(
+        &self,
+        authority: &crate::bounds::NativeAuthority,
+        scope_id: &str,
+        now: u64,
+    ) -> Result<Vec<ParentEnrollmentPins>, EnrollmentTreeError> {
+        if !authority.valid_at(now) {
+            return Err(EnrollmentTreeError::Inactive);
+        }
+        let leaf = self.principal_commitment(authority.actor().as_str())?;
+        let expected = self.resource_grant_path(leaf, scope_id, now)?;
+        if expected.is_empty() || !authority.grants().ends_with(&expected) {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        self.active_principal_path(authority.actor().as_str(), now)
+    }
+
     pub(crate) const fn root(&self) -> &ParentEnrollmentPins {
         &self.root
     }

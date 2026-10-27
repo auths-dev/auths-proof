@@ -1,7 +1,7 @@
 # AP073 engagement and participant contract
 
 **Status:** implementation contract, 27 October 2026. Native enrollment verification, a bounded tree and operator-session publication into the task journal are implemented.
-CLI/binding enrollment, shared ancestor accounting, operation admission and qualification remain incomplete. This document resolves the next bounded
+Mandatory participant admission, retained ancestor accounting, task-specific native audiences, typed deferred-child scopes and bounded CLI preparation are implemented in source. Binding authoring forwards explicit audiences. End-to-end external authoring, child delivery/write integration and exact-revision qualification remain incomplete. This document resolves the next bounded
 design decisions under [AP-SPEC-073](../specs/0073-identity-authority-and-enforcement-foundation.md).
 The [assessment](0073-foundation-assessment.md) records actual evidence.
 
@@ -344,7 +344,7 @@ the signed child descriptor. Installed transport resolution and acknowledgement
 verification must preserve this same binding at disclosure; those integrations
 remain open. Channel addresses and credentials are never enrollment arguments.
 
-Canonical tree storage uses `auths.engagement-enrollment-tree/1`, bounded to
+Canonical tree storage uses `auths.engagement-enrollment-tree/2`, bounded to
 192 KiB. Decode requires separately authenticated root installation and checks
 all immutable root pins, exact schema/canonical bytes, bounds, unique IDs and
 principals, commitment integrity, acyclic complete ancestry and attenuation.
@@ -392,11 +392,11 @@ flowchart LR
     T --> D[Pending atomic task journal initialization]
 ```
 
-`auths.engagement-root/1` commits the engagement, partition generation, root
+`auths.engagement-root/2` commits the engagement, partition generation, root
 principal/instance, control grant, validity, depth, independent ceilings,
 channel owners/instances and every installed scope including native grant,
 service, tool, resource argument and exact handle. The canonical codec uses
-domain `auths.engagement-root.v1`. The existing enrollment ID and mutable
+domain `auths.engagement-root.v2`. The existing enrollment ID and mutable
 active/revoked flag are excluded: an ID cannot commit itself, and revocation
 must not change descendant parent links.
 
@@ -623,3 +623,164 @@ rather than guessing a future handle or treating the parent as that child.
 The profile-owned created-child lineage contract must be integrated before this
 becomes the mandatory operation path. CLI/bindings, channel/ACK selection,
 resource-entry fencing and the full isolated machine/A/B flow remain open.
+
+
+## 15. Mandatory admission and exclusive resource audiences (cutover in progress)
+
+An exact enrolled grant ID is insufficient isolation if the same grant still
+admits `mcp://service` and `AnyBody`. Its holder could submit a valid action to
+an ordinary recipe route outside the task journal. Mandatory participant checks
+inside task routes do not protect that other route. This is an authority boundary,
+not a request-label validation issue.
+
+The direct cutover uses the kernel's existing audience attenuation and signed
+action envelope. Each enrolled resource grant has exactly one audience:
+
+```text
+auths-engagement://v1/<lowercase task commitment>/<partition generation>/<lowercase compiled recipe digest>
+```
+
+All three values derive from signed activation and installed compiled recipes.
+Generation is a positive exact JSON integer, and both commitments have fixed
+canonical hexadecimal encodings. The public derivation function computes an
+identifier; it neither authenticates a caller nor authorizes an operation.
+
+Before:
+
+```mermaid
+flowchart LR
+    G[Native MCP resource grant] --> T[Task route and budgets]
+    G --> O[Ordinary route for same MCP permission]
+    O --> P[Provider outside engagement accounting]
+```
+
+After:
+
+```mermaid
+flowchart LR
+    R[Explicit resource-owner trust and native grants] --> G[Exclusive engagement and recipe audience]
+    G --> V[Native verification using journal-derived audience]
+    V --> J[Exact enrolled grant suffix and ancestor capacity]
+    J --> P[Task execution]
+    G --> O[Ordinary MCP audience entry]
+    O --> X[Native audience refusal]
+```
+
+Root bootstrap and every child enrollment reject a leaf grant with any second
+audience, even when its current witness verifies at the engagement audience.
+Native attenuation then prevents a child from adding an ordinary or another
+task/recipe audience. Control enrollment remains a separate control-service
+permission and cannot be installed as a provider recipe. Root scopes now carry
+an explicit recipe digest; restore compares the scope-ID-to-recipe mapping
+against the signed card, as well as rechecking the whole root commitment.
+Root commitment/schema version 2, enrollment tree version 2 and task state
+version 11 directly replace their predecessors; there are no legacy readers.
+
+The operator's native trust anchors must explicitly admit the engagement
+resource audiences. `TrustedContext::for_request` changes only the expected
+audience, never the anchors. The gateway must not rewrite ordinary anchor
+permissions into engagement permissions, infer resource authority from the
+initiator's task signature, or derive trust from an unverified action. Authoring
+and installation therefore need a preparation phase: form the task commitment
+and recipe identities, approve those audiences in resource trust, issue native
+resource grants, activate the task, then verify root possession and its exact
+resource witnesses. Task approval and native resource ownership remain separate.
+
+Read admission now requires active enrollment and the entire enrolled resource
+grant suffix on one sealed native branch. Initial-agent writes require the same
+mapping in addition to exact human approval. Reservation checks time after
+acquiring the journal lock. Capacity is computed from bounded retained records
+for every ancestor, including revoked descendants. Provider-read reservations
+remain spent; unknown, no-send and acknowledged disclosures all keep their byte
+and disclosure charges. Root and descendants contend under one lock. A fresh
+operation ID does not grant fresh ancestor capacity.
+
+This is unfinished source work, not a qualified rollout. Existing operator CLI,
+and installed-demo workflows still need the complete trust/grant/root
+preparation sequence. Section 16 implements typed created-child lineage; a parent
+resource never substitutes for a child.
+Child writes must bind participant identity/instance in human approval, and
+child disclosure must bind its enrolled delivery channel and acknowledgement.
+Provider entry, disclosure freshness, external revocation/status and rollback
+fencing remain separate open obligations. Audience separation alone establishes
+neither whole-store rollback protection nor information-flow control after an
+authorized recipient receives plaintext.
+
+## 16. Created-resource enrollment binding
+
+A future populate operation is already constrained by the signed pending-child
+proposal and the gateway's verified creation/recovery lineage. Enrollment must
+retain that distinction instead of inventing a concrete child handle at root
+publication. The scope projection therefore uses a closed resource sum:
+`exact(handle)` or `created-child(create operation, create recipe, parent scope)`.
+The deferred scope ID commits the complete pending-child proposal and the exact
+create scope, including connection identity/generation/account. Its native
+audience is the populate recipe audience for this engagement.
+
+A deferred resource witness establishes native authority for the populated tool,
+not existence or identity of the future child. Every native grant on that witness
+path must use `AnyBody`; an exact-body grant cannot prove authority for an unknown
+future handle. The leaf must still have the exclusive engagement/recipe audience.
+This deliberately refuses unsupported partial policies rather than interpreting
+which arbitrary constraints might hold for an unknown child. An operator and
+resource owner approve that task-scoped authority; ordinary entry cannot use it.
+
+At actual write admission, the full scope must equal the journal's bound child
+scope, which can only arise from the retained exact create and its checked
+provider observation or approved recovery. Only then does admission select the
+deferred enrollment scope and charge its participant ancestry. Neither a witness
+sample argument nor the signed parent handle becomes a usable populate target.
+The existing single-populate rule, exact human effect-plan/approval and connection
+binding remain in force. This adds no provider-specific field logic.
+
+```mermaid
+flowchart LR
+    P[Signed create and pending-child proposal] --> E[Deferred enrollment scope]
+    G[Exclusive populate native grant] --> E
+    C[Exact create admission] --> O[Verified creation or recovery lineage]
+    O --> B[Journal-bound child scope]
+    E --> A[Exact enrolled populate admission]
+    B --> A
+    A --> W[One approved populate effect]
+```
+
+This is a direct typed projection of the existing created-child contract, not a
+generic future-resource evaluator. Other resource discovery/selection semantics
+need their own reviewed contract and evidence before reuse.
+
+## 17. Bounded operator preparation and binding authoring
+
+The development/operator CLI exposes `task-enrollment scopes`, `root`,
+`bootstrap`, `enroll`, `inspect` and `revoke` against the existing task journal.
+It accepts only recipes already selected by the protected installation. Scope
+preparation emits the exact resource audience, typed resource binding and scope
+ID from the Rust owner. These are authoring inputs, not an authorization result.
+Root publication and child enrollment still require their distinct native proofs.
+
+Authority input is bounded to 16 KiB and the closed proof manifest to 64 KiB.
+At most sixteen resource witnesses share a 4 MiB proof/action-file allowance;
+each canonical action is at most 64 KiB. No CLI path issues keys or credentials,
+loads provider code, or sends a provider request. The manifest schema is
+`auths.gateway-root-enrollment-proofs/1` or
+`auths.gateway-child-enrollment-proofs/1`; unknown fields are refused.
+
+Python and TypeScript MCP authors accept an explicit signed audience, forwarded
+to the native authoring owner. The selected audience is included in custody
+review. Omission retains ordinary MCP authoring for non-engagement workflows;
+managed task verification always derives the engagement audience. Neither route
+changes native grants or independently installed anchors. WASM and both Python
+native entry points use canonical native authoring; Python's two entry points
+share one projection helper.
+
+The external workbench still needs a deliberate two-phase operator workflow:
+form the final card, approve its derived audiences, issue scoped resource/control
+grants and install trust, then activate and bootstrap. Resource ownership cannot
+be inferred from card initiation. Current CLI and binding source is not evidence
+that this external workflow or child delivery is complete.
+
+`task-review-submission` selects the installed write recipe and the protected
+activated task, verifies at the installed clock, and checks the exact signed
+scope or verified child lineage. It uses the same request-review projection as
+ordinary submission review. It cannot take an audience override, widen trust,
+consume an approval, or reserve an operation. The ordinary review API remains
+ordinary-audience-only; full offline audit of task evidence remains separate work.

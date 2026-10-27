@@ -178,6 +178,29 @@ fn rejected_case(directory: &Path, rejected: &auths_openapi_derive::Rejected) {
     }
 }
 
+/// Review reproduction needs only the committed recipe and lock, even when a
+/// large vendor OpenAPI input is unavailable. Full vendor derivation remains a
+/// separate pinned-input check above; this test does not claim to reproduce it.
+#[test]
+fn committed_recipe_reviews_match_current_compiler() {
+    let mut checked = 0;
+    for case in cases() {
+        if case["outcome"] != "derived" {
+            continue;
+        }
+        let directory = corpus().join("expected").join(case["id"].as_str().unwrap());
+        let recipe = fs::read_to_string(directory.join("recipe.json")).expect("committed recipe");
+        let lock = fs::read(directory.join("profile.lock.json")).expect("committed lock");
+        let text = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&review(&recipe, &lock)).unwrap()
+        );
+        check_file(&directory.join("review.json"), &text);
+        checked += 1;
+    }
+    assert!(checked > 0, "the corpus must contain reviewed recipes");
+}
+
 #[test]
 fn every_corpus_case_produces_its_exact_output() {
     let mut skipped = Vec::new();

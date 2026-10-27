@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod audience;
+pub use audience::resource_audience;
+
 mod root;
 pub use root::{ACTIVATE_ROOT_TOOL, RootEnrollmentProofs, root_enrollment_commitment};
 
@@ -40,7 +43,7 @@ const MAX_ACTION_BYTES: usize = 65_536;
 pub(crate) const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
 
 /// Independent dimensions of one participant ceiling, never fresh root capacity.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParticipantCeilings {
     /// Maximum provider reads across this participant and descendants.
@@ -54,7 +57,16 @@ pub struct ParticipantCeilings {
 }
 
 impl ParticipantCeilings {
-    fn within(self, parent: Self) -> bool {
+    pub(crate) fn checked_add(self, other: Self) -> Option<Self> {
+        Some(Self {
+            provider_reads: self.provider_reads.checked_add(other.provider_reads)?,
+            disclosures: self.disclosures.checked_add(other.disclosures)?,
+            disclosure_bytes: self.disclosure_bytes.checked_add(other.disclosure_bytes)?,
+            writes: self.writes.checked_add(other.writes)?,
+        })
+    }
+
+    pub(crate) fn within(self, parent: Self) -> bool {
         self.provider_reads <= parent.provider_reads
             && self.disclosures <= parent.disclosures
             && self.disclosure_bytes <= parent.disclosure_bytes
@@ -204,6 +216,89 @@ pub(crate) fn identifier(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
+/// Resource identity known now or bound only by verified creation lineage.
+/// A deferred witness is not evidence that a child exists or a runtime target.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum EnrollmentResourceBinding {
+    /// A literal resource from the signed task scope.
+    Exact {
+        /// Opaque, bounded provider handle.
+        handle: String,
+    },
+    /// The sole child of an exact approved create, resolved by the task journal.
+    CreatedChild {
+        /// Exact producer operation from the signed pending-child proposal.
+        create_operation_id: String,
+        /// Compiled producer recipe from that proposal.
+        create_recipe_digest: String,
+        /// Exact signed create scope, including its account and generation.
+        parent_scope_id: String,
+    },
+}
+
+impl EnrollmentResourceBinding {
+    fn valid(&self) -> bool {
+        match self {
+            Self::Exact { handle } => bounded_resource(handle),
+            Self::CreatedChild {
+                create_operation_id,
+                create_recipe_digest,
+                parent_scope_id,
+            } => {
+                !create_operation_id.is_empty()
+                    && create_operation_id.len() <= 128
+                    && !create_operation_id.chars().any(char::is_control)
+                    && canonical_digest(create_recipe_digest)
+                    && canonical_digest(parent_scope_id)
+            }
+        }
+    }
+
+    fn admits_witness(&self, value: &str, branch: &AuthorizedBranch) -> bool {
+        match self {
+            Self::Exact { handle } => value == handle,
+            Self::CreatedChild { .. } => {
+                bounded_resource(value)
+                    && branch.chain.iter().all(|grant| {
+                        matches!(
+                            grant.statement().action_constraint(),
+                            auths_model::ActionConstraint::AnyBody
+                        )
+                    })
+            }
+        }
+    }
+}
+
+fn bounded_resource(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
+}
+
+fn canonical_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn require_resource_witness(
+    scope: &EnrollmentScopePins,
+    command: &McpCommand,
+    branch: &AuthorizedBranch,
+) -> Result<(), ParticipantEnrollmentError> {
+    if command
+        .arguments()
+        .get(&scope.resource_argument)
+        .and_then(Value::as_str)
+        .is_some_and(|value| scope.resource.admits_witness(value, branch))
+    {
+        Ok(())
+    } else {
+        Err(ParticipantEnrollmentError::ResourceAuthority)
+    }
+}
+
 /// Trusted root-scope projection supplied by the operator/engagement store.
 /// These values must come from installed recipe bindings, never agent input.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -211,6 +306,8 @@ pub(crate) fn identifier(value: &str) -> bool {
 pub struct EnrollmentScopePins {
     /// Immutable root scope identifier.
     pub scope_id: String,
+    /// Exact compiled recipe identity; it separates this native resource audience.
+    pub recipe_digest: String,
     /// Parent's exact native resource grant for this scope.
     #[serde(with = "grant_encoding")]
     pub parent_grant: GrantId,
@@ -220,8 +317,8 @@ pub struct EnrollmentScopePins {
     pub tool: String,
     /// Installed exact-resource argument name.
     pub resource_argument: String,
-    /// Root-pinned resource handle; its provider meaning stays recipe-owned.
-    pub resource_handle: String,
+    /// Exact signed resource or deferred verified-create lineage.
+    pub resource: EnrollmentResourceBinding,
 }
 
 /// Operator-owned identity and process instance for one registered channel.
@@ -363,6 +460,17 @@ fn native_invocation(
 ) -> Result<(McpCommand, AuthorizedBranch), ParticipantEnrollmentError> {
     let audience = Audience::parse(&format!("mcp://{service}"))
         .map_err(|_| ParticipantEnrollmentError::Invalid)?;
+    native_invocation_for_audience(context, now, invocation, service, tool, audience)
+}
+
+fn native_invocation_for_audience(
+    context: &TrustedContext,
+    now: u64,
+    invocation: EnrollmentInvocation<'_>,
+    service: &str,
+    tool: &str,
+    audience: Audience,
+) -> Result<(McpCommand, AuthorizedBranch), ParticipantEnrollmentError> {
     let sealed =
         verify_sealed_for_audience(context, audience, now, invocation.proof, invocation.action)
             .map_err(ParticipantEnrollmentError::Native)?;
@@ -457,9 +565,14 @@ fn bounded_parent(parent: &ParentEnrollmentPins) -> Result<(), ParticipantEnroll
                 || !identifier(&scope.service)
                 || crate::control_namespace::is_control_service(&scope.service)
                 || !identifier(&scope.tool)
+                || resource_audience(
+                    &parent.engagement_commitment,
+                    parent.partition_generation,
+                    &scope.recipe_digest,
+                )
+                .is_err()
                 || !identifier(&scope.resource_argument)
-                || scope.resource_handle.is_empty()
-                || scope.resource_handle.len() > 256
+                || !scope.resource.valid()
         })
         || parent
             .scopes
@@ -573,6 +686,20 @@ pub fn verify_participant_enrollment(
     })
 }
 
+fn require_exclusive_resource_audience(
+    branch: &AuthorizedBranch,
+    audience: &Audience,
+) -> Result<(), ParticipantEnrollmentError> {
+    if branch
+        .chain
+        .last()
+        .is_none_or(|grant| grant.statement().audiences().as_slice() != [audience.clone()])
+    {
+        return Err(ParticipantEnrollmentError::ResourceAuthority);
+    }
+    Ok(())
+}
+
 fn verify_resources(
     context: &TrustedContext,
     parent: &ParentEnrollmentPins,
@@ -592,8 +719,20 @@ fn verify_resources(
         if witness.scope_id != scope.scope_id {
             return Err(ParticipantEnrollmentError::ResourceAuthority);
         }
-        let (command, branch) =
-            native_invocation(context, now, witness.invocation, &pins.service, &pins.tool)?;
+        let audience = resource_audience(
+            &parent.engagement_commitment,
+            parent.partition_generation,
+            &pins.recipe_digest,
+        )?;
+        let (command, branch) = native_invocation_for_audience(
+            context,
+            now,
+            witness.invocation,
+            &pins.service,
+            &pins.tool,
+            audience.clone(),
+        )?;
+        require_exclusive_resource_audience(&branch, &audience)?;
         child_link(
             &branch,
             enrollment,
@@ -602,14 +741,7 @@ fn verify_resources(
             pins.parent_grant,
         )
         .map_err(|_| ParticipantEnrollmentError::ResourceAuthority)?;
-        if command
-            .arguments()
-            .get(&pins.resource_argument)
-            .and_then(Value::as_str)
-            != Some(&pins.resource_handle)
-        {
-            return Err(ParticipantEnrollmentError::ResourceAuthority);
-        }
+        require_resource_witness(pins, &command, &branch)?;
     }
     Ok(())
 }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::GatewayObserver;
 use crate::harness::{self, Signer};
-use crate::observed_tests::{Submission, submission_for};
+use crate::observed_tests::{Submission, submission_for_audience};
 use auths_codec::{grant_id, grant_signing_preimage};
 use auths_model::{
     ActionConstraint, AssurancePolicyId, AudienceSet, BundleHeader, CompositionRequirement,
@@ -28,6 +28,45 @@ pub(crate) fn grant(
     parent: Option<GrantId>,
     depth: u16,
 ) -> SignedGrant {
+    grant_for_audiences(
+        issuer,
+        subject,
+        service,
+        tools,
+        parent,
+        depth,
+        vec![Audience::parse(&format!("mcp://{service}")).unwrap()],
+    )
+}
+
+pub(crate) fn grant_for_audiences(
+    issuer: &Signer,
+    subject: &Signer,
+    service: &str,
+    tools: &[&str],
+    parent: Option<GrantId>,
+    depth: u16,
+    audiences: Vec<Audience>,
+) -> SignedGrant {
+    grant_for_audiences_at(
+        issuer, subject, service, tools, parent, depth, audiences, NOW,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "native test authoring states the exact grant and time"
+)]
+pub(crate) fn grant_for_audiences_at(
+    issuer: &Signer,
+    subject: &Signer,
+    service: &str,
+    tools: &[&str],
+    parent: Option<GrantId>,
+    depth: u16,
+    audiences: Vec<Audience>,
+    now: u64,
+) -> SignedGrant {
     let call = McpToolCall::new(service, tools[0], Map::new()).unwrap();
     let permissions = tools
         .iter()
@@ -45,8 +84,8 @@ pub(crate) fn grant(
         PermissionSet::new(permissions).unwrap(),
         // submission_for signs an action with this exact test window. Product
         // enrollment pins are deliberately narrower than native authority.
-        harness::window(NOW - 3_600, NOW + 3_600).unwrap(),
-        AudienceSet::new(vec![Audience::parse(&format!("mcp://{service}")).unwrap()]).unwrap(),
+        harness::window(now - 3_600, now + 3_600).unwrap(),
+        AudienceSet::new(audiences).unwrap(),
         ActionConstraint::AnyBody,
         None,
         depth,
@@ -67,7 +106,7 @@ pub(crate) fn chained(
     tool: &str,
     arguments: &Map<String, Value>,
 ) -> Submission {
-    let mut signed = submission_for(
+    let mut signed = submission_for_audience(
         signers[signers.len() - 2],
         signers[signers.len() - 1],
         grants.last().unwrap(),
@@ -76,6 +115,7 @@ pub(crate) fn chained(
         service,
         tool,
         NOW,
+        grants.last().unwrap().statement().audiences().as_slice()[0].clone(),
     );
     let terminal = auths_codec::decode_bundle(&signed.proof, &VerifierLimits::default()).unwrap();
     let mut bindings: Vec<_> = grants
@@ -147,7 +187,7 @@ impl Fixture {
         let parent = Signer::new(0x22);
         let child = Signer::new(child_seed);
         let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context_for_profiles(
+        let context = harness::context_for_profiles_and_audiences(
             &[&root],
             observer.principal(),
             None,
@@ -161,6 +201,7 @@ impl Fixture {
                 (PARTICIPANT_SERVICE, ACCEPT_PARTICIPANT_TOOL),
                 (RESOURCE_SERVICE, RESOURCE_TOOL),
             ],
+            &[resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
         )
         .unwrap();
         let parent_control = grant(
@@ -179,21 +220,23 @@ impl Fixture {
             Some(grant_id(parent_control.statement()).unwrap()),
             parent_depth - 1,
         );
-        let parent_resource = grant(
+        let parent_resource = grant_for_audiences(
             &root,
             &parent,
             RESOURCE_SERVICE,
             &[RESOURCE_TOOL],
             None,
             parent_depth,
+            vec![resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
         );
-        let child_resource = grant(
+        let child_resource = grant_for_audiences(
             &parent,
             &child,
             RESOURCE_SERVICE,
             &[RESOURCE_TOOL],
             Some(grant_id(parent_resource.statement()).unwrap()),
             parent_depth - 1,
+            vec![resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
         );
         let mut pins = parent_pins(&parent, &child, &parent_control, &parent_resource);
         pins.remaining_depth = parent_depth;
@@ -303,11 +346,14 @@ fn parent_pins(
         )]),
         scopes: vec![EnrollmentScopePins {
             scope_id: "project-a-read".to_owned(),
+            recipe_digest: "ab".repeat(32),
             parent_grant: grant_id(parent_resource.statement()).unwrap(),
             service: RESOURCE_SERVICE.to_owned(),
             tool: RESOURCE_TOOL.to_owned(),
             resource_argument: "record_id".to_owned(),
-            resource_handle: "record-a".to_owned(),
+            resource: EnrollmentResourceBinding::Exact {
+                handle: "record-a".into(),
+            },
         }],
     }
 }
@@ -477,13 +523,14 @@ fn native_enrollment_cannot_widen_ceiling_channel_generation_or_depth() {
 #[test]
 fn native_enrollment_rejects_resource_authority_that_skips_the_enrolled_parent() {
     let mut fixture = Fixture::new();
-    let direct = grant(
+    let direct = grant_for_audiences(
         &fixture.root,
         &fixture.child,
         RESOURCE_SERVICE,
         &[RESOURCE_TOOL],
         None,
         0,
+        vec![resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
     );
     fixture.enrollment.scopes[0].grant_id = *grant_id(direct.statement()).unwrap().as_bytes();
     let resource = chained(
@@ -645,7 +692,12 @@ fn enrollment_tree_derives_exact_native_resource_ancestry() {
     );
     assert_eq!(pins.ceilings, fixture.enrollment.ceilings);
     assert_eq!(pins.remaining_depth, 0);
-    assert_eq!(pins.scopes[0].resource_handle, "record-a");
+    assert_eq!(
+        pins.scopes[0].resource,
+        EnrollmentResourceBinding::Exact {
+            handle: "record-a".into()
+        }
+    );
     assert_eq!(
         tree.resource_grant_path(commitment, "project-a-read", NOW)
             .unwrap(),
@@ -788,7 +840,11 @@ fn enrollment_tree_restores_revocations_and_rejects_changed_installation() {
         match mutation {
             0 => installed.partition_generation += 1,
             1 => installed.engagement_commitment[0] ^= 1,
-            2 => installed.scopes[0].resource_handle = "another-record".into(),
+            2 => {
+                installed.scopes[0].resource = EnrollmentResourceBinding::Exact {
+                    handle: "another-record".into(),
+                }
+            }
             3 => installed.scopes[0].parent_grant = GrantId::new([0x99; 32]),
             _ => {
                 installed.permitted_channels.insert(
@@ -894,13 +950,14 @@ fn enrollment_tree_native_grandchild_keeps_full_scope_path_and_parent_revocation
         Some(grant_id(fixture.child_control.statement()).unwrap()),
         0,
     );
-    let resource = grant(
+    let resource = grant_for_audiences(
         &fixture.child,
         &grandchild,
         RESOURCE_SERVICE,
         &[RESOURCE_TOOL],
         Some(grant_id(fixture.child_resource.statement()).unwrap()),
         0,
+        vec![resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
     );
     let mut descriptor = child_descriptor(&grandchild, &control, &resource, &parent_pins);
     descriptor.enrollment_id = "grandchild".into();
@@ -1091,7 +1148,11 @@ fn root_bootstrap_commitment_covers_every_immutable_installation_dimension() {
             7 => changed.remaining_depth = 0,
             8 => changed.ceilings.disclosure_bytes -= 1,
             9 => changed.scopes[0].parent_grant = GrantId::new([0x99; 32]),
-            10 => changed.scopes[0].resource_handle = "record-b".into(),
+            10 => {
+                changed.scopes[0].resource = EnrollmentResourceBinding::Exact {
+                    handle: "record-b".into(),
+                }
+            }
             11 => changed.scopes[0].resource_argument = "other_id".into(),
             12 => changed.scopes[0].tool = "another_tool".into(),
             13 => {
@@ -1157,13 +1218,14 @@ fn root_bootstrap_refuses_unpinned_resource_authority_and_wrong_resource_handle(
             ParticipantEnrollmentError::ResourceAuthority
         ))
     );
-    let alternate = grant(
+    let alternate = grant_for_audiences(
         &fixture.root,
         &fixture.parent,
         RESOURCE_SERVICE,
         &[RESOURCE_TOOL],
         None,
         0,
+        vec![resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
     );
     let alternate_resource = fixture.root_resource("record-a", &alternate);
     assert_eq!(
@@ -1288,4 +1350,140 @@ fn enrollment_resource_pins_cannot_alias_control_namespaces() {
             Err(ParticipantEnrollmentError::Invalid)
         );
     }
+}
+
+#[test]
+fn root_bootstrap_refuses_resource_grants_reusable_outside_the_engagement() {
+    let fixture = Fixture::new();
+    let audience = resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap();
+    let multi = grant_for_audiences(
+        &fixture.root,
+        &fixture.parent,
+        RESOURCE_SERVICE,
+        &[RESOURCE_TOOL],
+        None,
+        1,
+        vec![
+            audience.clone(),
+            Audience::parse(&format!("mcp://{RESOURCE_SERVICE}")).unwrap(),
+        ],
+    );
+    let mut pins = fixture.committed_root();
+    pins.scopes[0].parent_grant = grant_id(multi.statement()).unwrap();
+    pins.enrollment_commitment = root_enrollment_commitment(&pins).unwrap();
+    let activation = fixture.root_activation(&pins);
+    let resource = submission_for_audience(
+        &fixture.root,
+        &fixture.parent,
+        &multi,
+        json!({"record_id": "record-a"}).as_object().unwrap(),
+        &[],
+        RESOURCE_SERVICE,
+        RESOURCE_TOOL,
+        NOW,
+        audience,
+    );
+    assert_eq!(
+        fixture.bootstrap_with(&pins, &activation, &resource, NOW),
+        Err(EnrollmentTreeError::Verification(
+            ParticipantEnrollmentError::ResourceAuthority
+        ))
+    );
+}
+
+#[test]
+fn resource_audience_is_canonical_and_separates_every_authority_dimension() {
+    let valid = resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap();
+    assert_ne!(
+        valid,
+        resource_audience(&[2; 32], 2, &"ab".repeat(32)).unwrap()
+    );
+    assert_ne!(
+        valid,
+        resource_audience(&[1; 32], 3, &"ab".repeat(32)).unwrap()
+    );
+    assert_ne!(
+        valid,
+        resource_audience(&[1; 32], 2, &"cd".repeat(32)).unwrap()
+    );
+    for generation in [0, MAX_JSON_INTEGER + 1, u64::MAX] {
+        assert!(resource_audience(&[1; 32], generation, &"ab".repeat(32)).is_err());
+    }
+    for digest in [
+        "AB".repeat(32),
+        "ab".repeat(31),
+        "ab".repeat(33),
+        "g".repeat(64),
+    ] {
+        assert!(resource_audience(&[1; 32], 2, &digest).is_err());
+    }
+}
+
+#[test]
+fn deferred_child_witness_is_authority_not_a_resource_binding() {
+    use auths_profile_api::ActionProfile as _;
+    let fixture = Fixture::new();
+    let mut pins = fixture.committed_root();
+    pins.scopes[0].resource = EnrollmentResourceBinding::CreatedChild {
+        create_operation_id: "create-one".into(),
+        create_recipe_digest: "cd".repeat(32),
+        parent_scope_id: "ef".repeat(32),
+    };
+    pins.enrollment_commitment = root_enrollment_commitment(&pins).unwrap();
+    let activation = fixture.root_activation(&pins);
+    let resource = fixture.root_resource("witness-only", &fixture.parent_resource);
+    let tree = fixture
+        .bootstrap_with(&pins, &activation, &resource, NOW)
+        .unwrap();
+    assert_eq!(tree.root().scopes[0].resource, pins.scopes[0].resource);
+    assert!(matches!(
+        tree.root().scopes[0].resource,
+        EnrollmentResourceBinding::CreatedChild { .. }
+    ));
+
+    // This native grant authorizes the sample, but proves nothing about an
+    // unknown future handle. It must not become deferred enrollment authority.
+    let call = McpToolCall::new(
+        RESOURCE_SERVICE,
+        RESOURCE_TOOL,
+        json!({"record_id": "witness-only"})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .unwrap();
+    let canonical = auths_profile_mcp::McpProfile
+        .canonicalize(&call.canonical_bytes().unwrap())
+        .unwrap();
+    let original = fixture.parent_resource.statement();
+    let statement = GrantStatement::new(
+        original.issuer().clone(),
+        original.subject().clone(),
+        original.profile().clone(),
+        original.permissions().clone(),
+        original.validity(),
+        original.audiences().clone(),
+        ActionConstraint::ExactBodyDigest(auths_codec::body_digest(canonical.body())),
+        original.budget_ceiling().cloned(),
+        original.remaining_depth(),
+        original.parent(),
+        original.status_policy().clone(),
+        original.assurance_floor().clone(),
+        original.extensions().clone(),
+    );
+    let descriptor = fixture.root.descriptor();
+    let signature = fixture
+        .root
+        .sign(&grant_signing_preimage(&statement, &descriptor).unwrap());
+    let exact = SignedGrant::new(statement, SignatureEnvelope::new(descriptor, signature));
+    pins.scopes[0].parent_grant = grant_id(exact.statement()).unwrap();
+    pins.enrollment_commitment = root_enrollment_commitment(&pins).unwrap();
+    let activation = fixture.root_activation(&pins);
+    let resource = fixture.root_resource("witness-only", &exact);
+    assert_eq!(
+        fixture.bootstrap_with(&pins, &activation, &resource, NOW),
+        Err(EnrollmentTreeError::Verification(
+            ParticipantEnrollmentError::ResourceAuthority
+        ))
+    );
 }

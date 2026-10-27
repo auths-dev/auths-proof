@@ -10,7 +10,7 @@ use crate::release_channel::{
 };
 use crate::release_commitment::ReleaseCommitmentKey;
 use crate::release_state::FileReleaseTaskLedger;
-use crate::release_verify::{VerifiedReleaseRequest, verify_release_request};
+use crate::release_verify::{VerifiedReleaseRequest, verify_task_release_request};
 use crate::task_activation::{ApprovedAgentTask, TaskActivationPins};
 use crate::transport::GatewayHttpTransport;
 use crate::{
@@ -353,7 +353,8 @@ impl GatewayEngine {
         let task = state
             .activated_task(submission.pins, now)
             .map_err(|_| not_entered("gateway.release.task-inactive"))?;
-        let verified = verify_release_request(
+        let verified = verify_task_release_request(
+            &task,
             submission.recipe,
             &self.trusted_context,
             now,
@@ -577,7 +578,7 @@ mod tests {
     use crate::engine::tests::administration;
     use crate::harness::{self, Signer};
     use crate::release_state::ReleaseStage;
-    use crate::release_verify::tests::{arguments, exact_grant, recipe};
+    use crate::release_verify::tests::{arguments, recipe};
     use crate::task_activation::{
         AgentTaskDescriptor, ApprovedAgentTask, TaskReadScope, TaskWriteVerb,
     };
@@ -1022,6 +1023,10 @@ mod tests {
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("card canonical");
         let commitment =
             auths_codec::domain_commitment("auths.agent-task.v4", &canonical).expect("commitment");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &card,
+        );
         let approved = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let directory = tempfile::tempdir().expect("state root");
         std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))
@@ -1041,6 +1046,21 @@ mod tests {
         let read_floor = GenerationFloor::new(floor_root.clone());
         read_floor.initialize(&bound).expect("read floor");
         ledger.initialize(&approved).expect("activate");
+        let resource_grants = crate::task_enrollment::test_authoring::bootstrap(
+            &ledger,
+            &approved,
+            &crate::TaskEnrollmentRecipes {
+                reads: std::slice::from_ref(&read_recipe),
+                writes: &[],
+            },
+            &engine.trusted_context,
+            &pins,
+            &engine.qualification,
+            &root,
+            &agent,
+            now,
+        );
+
         if materialize {
             engine.materializers.insert(
                 bound.connection_id().as_str().to_owned(),
@@ -1080,11 +1100,11 @@ mod tests {
             "task_commitment".to_owned(),
             json!(hex::encode(commitment.as_bytes())),
         );
-        let grant = exact_grant(&root, &agent, &action_arguments, now);
-        let signed = crate::observed_tests::submission_for(
+        let grant = &resource_grants[&read_recipe.digest_hex()];
+        let signed = crate::task_enrollment::test_authoring::submission(
             &root,
             &agent,
-            &grant,
+            grant,
             &action_arguments,
             &[],
             harness::SERVICE,

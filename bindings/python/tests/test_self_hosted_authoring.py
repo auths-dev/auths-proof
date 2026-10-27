@@ -105,11 +105,10 @@ class ExternalSigner:
         return None
 
 
-def _authority(now: int) -> tuple[_native.DevelopmentEd25519Key, GrantEvidence, bytes]:
+def _authority(now: int, *, audience: str = "mcp://example-service") -> tuple[_native.DevelopmentEd25519Key, GrantEvidence, bytes]:
     key = _native.DevelopmentEd25519Key.generate()
     principal = _native.Principal(key.principal)
-    audience = "mcp://example-service"
-    resource = f"{audience}/tools/set_value"
+    resource = "mcp://example-service/tools/set_value"
     request = _native.GrantRequest(
         principal, "auths.mcp", 2, [("tools/call", resource)], now - 60, now + 600,
         [audience], None, None, 0, None, "raw-key-baseline", [],
@@ -128,7 +127,7 @@ def _authority(now: int) -> tuple[_native.DevelopmentEd25519Key, GrantEvidence, 
     )
     anchor = _native.TrustAnchor(
         principal.value, principal, [key.principal_method], [("auths.mcp", 2)],
-        [("tools/call", resource)], [audience], [audience], now - 60,
+        [("tools/call", resource)], ["mcp://example-service"], [audience], now - 60,
         now + 600, None, 1, "raw-key-baseline", None,
     )
     context = _native.compile_trusted_context(
@@ -348,3 +347,42 @@ def test_prepared_action_validity_is_natively_bounded_and_defaulted() -> None:
             TOOL.prepare(Change("approved"), validity_seconds=validity, **arguments)
     with pytest.raises(TypeError):
         TOOL.prepare(Change("approved"), validity_seconds=True, **arguments)
+
+
+@pytest.mark.asyncio
+async def test_explicit_engagement_audience_uses_native_authority_and_cannot_widen_trust() -> None:
+    from auths.authoring import AuthoringUnsuccessful
+
+    now = int(time.time())
+    audience = "auths-engagement://v1/" + "ab" * 32 + "/7/" + "cd" * 32
+    key, grant, template = _authority(now, audience=audience)
+    challenge = _native.generate_challenge_v1()
+    arguments = dict(contract=TOOL, command=Change("approved"), grants=(grant,),
+                     trusted_context_template=template, signer=ExternalSigner(key),
+                     challenge=challenge, evaluation_time=now)
+    artifacts = await author_mcp_proof(**arguments, audience=audience)
+    assert isinstance(verify_command(contract=TOOL, proof=artifacts.proof, action=artifacts.action,
+                                    trusted_context=artifacts.trusted_context), AuthorizedCommand)
+    ordinary = _native.parse_trusted_context(template).bind_request("mcp://example-service", challenge, now)
+    assert not isinstance(verify_command(contract=TOOL, proof=artifacts.proof, action=artifacts.action,
+                                        trusted_context=bytes(_native.inspect_trusted_context(ordinary))), AuthorizedCommand)
+    for selected in ["mcp://example-service", audience.replace("/7/", "/8/")]:
+        with pytest.raises(AuthoringUnsuccessful):
+            await author_mcp_proof(**arguments, audience=selected)
+
+
+def test_native_mcp_wrappers_share_explicit_audience_and_canonical_action() -> None:
+    now = int(time.time())
+    audience = "auths-engagement://v1/" + "ab" * 32 + "/7/" + "cd" * 32
+    key, grant, _ = _authority(now, audience=audience)
+    terminal = _native.parse_signed("grant", grant.signed_grant)
+    challenge = _native.generate_challenge_v1()
+    call = _native.mcp_call("example-service", "set_value", b'{"value":"approved"}')
+    actor = _native.Principal(key.principal)
+    first = _native.prepare_mcp_call_action(call, actor, terminal, challenge, now, audience=audience)
+    second = TOOL.prepare(Change("approved"), actor=actor, terminal_grant=terminal,
+                          challenge=challenge, evaluation_time=now, audience=audience)
+    assert first.audience == second.audience == audience
+    assert _native.inspect_mcp_action(first) == _native.inspect_mcp_action(second.action)
+    with pytest.raises(ValueError):
+        _native.prepare_mcp_call_action(call, actor, terminal, challenge, now, audience="")

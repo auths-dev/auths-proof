@@ -242,3 +242,27 @@ test("a declining or unbound root custody response issues no grant", async () =>
   await assert.rejects(authorRootGrant(grantRequest(custody(root, { unbound: true }), agent.principal, [])),
     (error) => error instanceof TypeError && /does not bind/.test(error.message));
 });
+
+test("explicit engagement audiences do not expand native grant or anchor authority", async () => {
+  const { root, agent } = await parties();
+  const audience = `auths-engagement://v1/${"ab".repeat(32)}/7/${"cd".repeat(32)}`;
+  const grant = await authorRootGrant({
+    ...grantRequest(custody(root), agent.principal, []), audiences: [audience],
+  });
+  const template = await compileTrustedContext({
+    anchors: [{ ...rootAnchor(root.principal), audiences: [audience] }],
+    assurance: ASSURANCE, evidenceTypes: ["raw-key-v1"],
+  });
+  const signer = custody(agent);
+  const input = { contract, command: { operation_id: "refund-1" }, grants: [grant],
+    trustedContextTemplate: template, signer, challenge: CHALLENGE, evaluationTime: NOW };
+  const authored = await authorMcpProof({ ...input, audience });
+  assert.deepEqual(authored.command, input.command);
+  assert.equal(signer.requests[0].display.find((field) => field.label === "audience").value, audience);
+  for (const foreign of [AUDIENCE, audience.replace("/7/", "/8/")]) {
+    await assert.rejects(authorMcpProof({ ...input, audience: foreign }), AuthoringUnsuccessful);
+  }
+  const ordinaryTrust = await compileTrustedContext({ anchors: [rootAnchor(root.principal)],
+    assurance: ASSURANCE, evidenceTypes: ["raw-key-v1"] });
+  await assert.rejects(authorMcpProof({ ...input, audience, trustedContextTemplate: ordinaryTrust }), AuthoringUnsuccessful);
+});
