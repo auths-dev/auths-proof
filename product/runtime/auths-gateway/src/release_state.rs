@@ -1013,7 +1013,7 @@ impl ReleaseTaskState {
     ) -> Result<(), ReleaseStateError> {
         let request = verified.request();
         if verified.actor().as_str() != request.recipient()
-            || verified.human_issuer().as_str() != self.human_principal
+            || !verified.delegated_by(&self.human_principal)
             || !same_commitment(
                 &self.task_commitment,
                 &hex::encode(request.task_commitment()),

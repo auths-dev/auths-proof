@@ -1692,6 +1692,8 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/property_tests.rs#audit_conditions_agree_with_every_arrival_order",
 ]
 runtime-enforcement-boundary = [
+  "product/runtime/auths-gateway/src/release_verify.rs#delegated_read_requires_task_human_on_the_authorized_path_and_final_recipient",
+  "product/runtime/auths-gateway/src/release_verify.rs#delegated_read_cannot_redelegate_without_depth_or_change_the_approved_source",
   "product/runtime/auths-gateway/src/qualification_tests.rs#an_engine_without_a_configured_gate_leases_nothing",
   "product/runtime/auths-gateway/src/qualification_tests.rs#a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease",
   "product/runtime/auths-gateway/src/qualification_tests.rs#a_drifted_deployment_is_stale_under_the_same_release",

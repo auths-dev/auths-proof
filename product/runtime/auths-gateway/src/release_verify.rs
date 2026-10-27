@@ -10,13 +10,13 @@ use auths_model::{Audience, PrincipalId, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 
-/// A release request whose action, sole agent actor and terminal human grant
-/// came from one native authorized proof. Its private fields prevent callers
+/// A release request whose action, sole agent actor and delegation ancestry
+/// came from one native authorized branch. Its private fields prevent callers
 /// from inventing these facts after verification.
 pub(crate) struct VerifiedReleaseRequest {
     request: ClosedReleaseRequest,
     actor: PrincipalId,
-    human_issuer: PrincipalId,
+    delegators: Vec<PrincipalId>,
 }
 
 impl VerifiedReleaseRequest {
@@ -28,14 +28,19 @@ impl VerifiedReleaseRequest {
         &self.actor
     }
 
-    pub(crate) fn human_issuer(&self) -> &PrincipalId {
-        &self.human_issuer
+    /// Whether this principal issued a grant on the actual authorized path.
+    /// Unused grants and other proof branches cannot establish task authority.
+    pub(crate) fn delegated_by(&self, principal: &str) -> bool {
+        self.delegators
+            .iter()
+            .any(|delegator| delegator.as_str() == principal)
     }
 }
 
-/// Verify a single agent action and its human-issued grant before a release
-/// task can reserve a provider call. Resource, connection and budget limits
-/// are enforced against the activated human-signed task after this check.
+/// Verify a single agent action and its delegation path before a release
+/// task can reserve a provider call. Task admission must establish that its
+/// approving human delegated on that path, including through intermediaries.
+/// The task still pins the final agent, resource, connection and shared budget.
 /// Unsupported critical policy is refused rather than silently ignored.
 pub(crate) fn verify_release_request(
     recipe: &CompiledReleaseRecipe,
@@ -95,7 +100,11 @@ pub(crate) fn verify_release_request(
     Ok(VerifiedReleaseRequest {
         request,
         actor: branch.actor.clone(),
-        human_issuer: terminal.statement().issuer().clone(),
+        delegators: branch
+            .chain
+            .iter()
+            .map(|grant| grant.statement().issuer().clone())
+            .collect(),
     })
 }
 
@@ -106,10 +115,10 @@ pub(crate) mod tests {
     use crate::harness::{self, Signer};
     use crate::observed_tests::submission;
     use crate::release_state::{ReleaseResourceScope, ReleaseTaskPolicy, ReleaseTaskState};
-    use auths_codec::{body_digest, grant_signing_preimage};
+    use auths_codec::{body_digest, grant_id, grant_signing_preimage};
     use auths_model::{
-        ActionConstraint, AssurancePolicyId, AudienceSet, CriticalExtensions, GrantStatement,
-        PermissionSet, SignatureEnvelope, SignedGrant, StatusPolicy,
+        ActionConstraint, AssurancePolicyId, AudienceSet, CriticalExtensions, GrantId,
+        GrantStatement, PermissionSet, SignatureEnvelope, SignedGrant, StatusPolicy,
     };
     use auths_profile_mcp::McpProfile;
     use serde_json::{Map, Value, json};
@@ -194,6 +203,17 @@ pub(crate) mod tests {
         arguments: &Map<String, Value>,
         now: u64,
     ) -> SignedGrant {
+        exact_grant_link(root, agent, arguments, now, 0, None)
+    }
+
+    fn exact_grant_link(
+        root: &Signer,
+        agent: &Signer,
+        arguments: &Map<String, Value>,
+        now: u64,
+        depth: u16,
+        parent: Option<GrantId>,
+    ) -> SignedGrant {
         let call = harness::call(arguments).expect("call");
         let canonical = McpProfile
             .canonicalize(&call.canonical_bytes().expect("body"))
@@ -207,8 +227,8 @@ pub(crate) mod tests {
             AudienceSet::new(vec![harness::audience().expect("audience")]).expect("audiences"),
             ActionConstraint::ExactBodyDigest(body_digest(canonical.body())),
             None,
-            0,
-            None,
+            depth,
+            parent,
             StatusPolicy::ExpiryOnly,
             AssurancePolicyId::parse(harness::ASSURANCE).expect("assurance"),
             CriticalExtensions::empty(),
@@ -219,32 +239,16 @@ pub(crate) mod tests {
         SignedGrant::new(statement, SignatureEnvelope::new(descriptor, signature))
     }
 
-    #[test]
-    fn native_proof_and_task_bind_agent_human_resource_before_charge() {
-        let root = Signer::new(0x11);
-        let agent = Signer::new(0x22);
-        let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
-        let recipe = recipe();
-        let arguments = arguments(&recipe, agent.principal.as_str());
-        let grant = harness::grant(&root, &agent.principal, None, NOW).expect("tool grant");
-        let signed = submission(&root, &agent, &grant, &arguments, &[]);
-        let verified =
-            verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
-                .expect("native authorized proof");
-        assert_eq!(verified.actor(), &agent.principal);
-        assert_eq!(verified.human_issuer(), &root.principal);
-        assert_eq!(verified.request().recipient(), agent.principal.as_str());
-        assert_eq!(
-            verified.request().url(),
-            format!("{}/v0/{}", harness::ORIGIN, harness::RECORD)
-        );
-
-        let policy = ReleaseTaskPolicy {
+    fn task_policy(
+        recipe: &CompiledReleaseRecipe,
+        human: &Signer,
+        agent: &Signer,
+    ) -> ReleaseTaskPolicy {
+        ReleaseTaskPolicy {
             task_id: "task-1".to_owned(),
             task_commitment: [0x11; 32],
             company_id: "atlas".to_owned(),
-            human_principal: root.principal.as_str().to_owned(),
+            human_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             not_before: NOW - 3_600,
             expires_at: NOW + 3_600,
@@ -263,7 +267,213 @@ pub(crate) mod tests {
                 connection_generation: 3,
                 connection_subject: "jules-subject".to_owned(),
             }],
-        };
+        }
+    }
+
+    /// Sign a real bounded chain, preserving the terminal action's proof
+    /// reference and native control bindings for every grant issuer.
+    fn delegated_submission(
+        signers: &[&Signer],
+        arguments: &Map<String, Value>,
+        root_depth: u16,
+    ) -> crate::observed_tests::Submission {
+        use auths_model::{BundleHeader, ControlBinding, ProofBundle, StatementRef};
+
+        let mut grants = Vec::new();
+        let mut parent = None;
+        for (index, pair) in signers.windows(2).enumerate() {
+            let grant = exact_grant_link(
+                pair[0],
+                pair[1],
+                arguments,
+                NOW,
+                root_depth.saturating_sub(u16::try_from(index).expect("test chain length")),
+                parent,
+            );
+            parent = Some(grant_id(grant.statement()).expect("grant ID"));
+            grants.push(grant);
+        }
+        let mut signed = submission(
+            signers[signers.len() - 2],
+            signers[signers.len() - 1],
+            grants.last().expect("terminal grant"),
+            arguments,
+            &[],
+        );
+        let terminal = auths_codec::decode_bundle(&signed.proof, &VerifierLimits::default())
+            .expect("terminal bundle");
+        let mut bindings: Vec<_> = grants
+            .iter()
+            .zip(signers)
+            .map(|(grant, issuer)| {
+                ControlBinding::new(
+                    StatementRef::Grant(grant_id(grant.statement()).expect("grant ID")),
+                    vec![issuer.evidence().id()],
+                )
+                .expect("grant binding")
+            })
+            .collect();
+        bindings.extend(
+            terminal
+                .bindings()
+                .iter()
+                .filter(|binding| matches!(binding.statement(), StatementRef::Action(_)))
+                .cloned(),
+        );
+        let bundle = ProofBundle::new(
+            BundleHeader::v1(),
+            grants,
+            terminal.actions().to_vec(),
+            terminal.plan().clone(),
+            signers.iter().map(|signer| signer.evidence()).collect(),
+            bindings,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            terminal.canonical_body().map(<[u8]>::to_vec),
+        )
+        .expect("delegated bundle");
+        signed.proof = auths_codec::encode_bundle(&bundle).expect("delegated proof");
+        signed
+    }
+
+    #[test]
+    fn delegated_read_requires_task_human_on_the_authorized_path_and_final_recipient() {
+        let service = Signer::new(0x10);
+        let human = Signer::new(0x11);
+        let intermediary = Signer::new(0x21);
+        let agent = Signer::new(0x22);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_with_depth(&service, observer.principal(), None, NOW, 3)
+            .expect("delegation trust");
+        let recipe = recipe();
+        let arguments = arguments(&recipe, agent.principal.as_str());
+        let signed =
+            delegated_submission(&[&service, &human, &intermediary, &agent], &arguments, 2);
+        let verified =
+            verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
+                .expect("native verified delegation");
+
+        let policy = task_policy(&recipe, &human, &agent);
+        let mut state = ReleaseTaskState::from_test_policy(policy.clone()).expect("task policy");
+        state
+            .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
+            .expect("human authorized the final recipient through an intermediary");
+        assert_eq!(state.counts(), (1, 0, 0));
+        assert!(
+            state
+                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
+                .is_err(),
+            "delegation does not create another reservation for the same operation"
+        );
+        assert_eq!(state.counts(), (1, 0, 0));
+
+        let mut next_arguments = arguments.clone();
+        next_arguments.insert("operation_id".to_owned(), json!("read-2"));
+        let next = delegated_submission(
+            &[&service, &human, &intermediary, &agent],
+            &next_arguments,
+            2,
+        );
+        let next_verified =
+            verify_release_request(&recipe, &context, NOW, &next.proof, &next.action)
+                .expect("second native verified delegation");
+        assert!(
+            state
+                .reserve_verified_request(&next_verified, "jules-read", 3, "jules-subject", NOW)
+                .is_err(),
+            "a fresh delegated invocation still consumes the original task budget"
+        );
+        assert_eq!(state.counts(), (1, 0, 0));
+
+        for changed in [
+            ReleaseTaskPolicy {
+                human_principal: Signer::new(0x44).principal.as_str().to_owned(),
+                ..policy.clone()
+            },
+            ReleaseTaskPolicy {
+                agent_principal: intermediary.principal.as_str().to_owned(),
+                ..policy.clone()
+            },
+            ReleaseTaskPolicy {
+                task_commitment: [0x12; 32],
+                ..policy
+            },
+        ] {
+            let mut denied = ReleaseTaskState::from_test_policy(changed).expect("task policy");
+            assert!(
+                denied
+                    .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
+                    .is_err()
+            );
+            assert_eq!(denied.counts(), (0, 0, 0));
+        }
+    }
+
+    #[test]
+    fn delegated_read_cannot_redelegate_without_depth_or_change_the_approved_source() {
+        let human = Signer::new(0x11);
+        let intermediary = Signer::new(0x21);
+        let agent = Signer::new(0x22);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_with_depth(&human, observer.principal(), None, NOW, 2)
+            .expect("delegation trust");
+        let recipe = recipe();
+        let arguments = arguments(&recipe, agent.principal.as_str());
+        let exhausted = delegated_submission(&[&human, &intermediary, &agent], &arguments, 0);
+        assert!(
+            verify_release_request(&recipe, &context, NOW, &exhausted.proof, &exhausted.action)
+                .is_err(),
+            "native attenuation must reject an exhausted parent"
+        );
+
+        let signed = delegated_submission(&[&human, &intermediary, &agent], &arguments, 1);
+        let mut changed = arguments.clone();
+        changed.insert("record_id".to_owned(), json!(harness::OTHER_RECORD));
+        let bundle = auths_codec::decode_bundle(&signed.proof, &VerifierLimits::default())
+            .expect("delegated bundle");
+        let changed_action = submission(
+            &intermediary,
+            &agent,
+            bundle.grants().last().expect("terminal grant"),
+            &changed,
+            &[],
+        );
+        assert!(
+            verify_release_request(
+                &recipe,
+                &context,
+                NOW,
+                &signed.proof,
+                &changed_action.action
+            )
+            .is_err(),
+            "delegation cannot substitute a different source body"
+        );
+    }
+
+    #[test]
+    fn native_proof_and_task_bind_agent_human_resource_before_charge() {
+        let root = Signer::new(0x11);
+        let agent = Signer::new(0x22);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
+        let recipe = recipe();
+        let arguments = arguments(&recipe, agent.principal.as_str());
+        let grant = harness::grant(&root, &agent.principal, None, NOW).expect("tool grant");
+        let signed = submission(&root, &agent, &grant, &arguments, &[]);
+        let verified =
+            verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
+                .expect("native authorized proof");
+        assert_eq!(verified.actor(), &agent.principal);
+        assert!(verified.delegated_by(root.principal.as_str()));
+        assert_eq!(verified.request().recipient(), agent.principal.as_str());
+        assert_eq!(
+            verified.request().url(),
+            format!("{}/v0/{}", harness::ORIGIN, harness::RECORD)
+        );
+
+        let policy = task_policy(&recipe, &root, &agent);
         let mut wrong_human = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
             human_principal: Signer::new(0x44).principal.as_str().to_owned(),
             ..policy.clone()
