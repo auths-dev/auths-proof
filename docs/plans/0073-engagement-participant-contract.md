@@ -217,3 +217,78 @@ revocation on both sides of entry, read-before-disclosure revocation, lost
 acknowledgement, mixed read/write replay and hard limits, scope/grant splicing,
 exact-request mutations, expiry, stale generations, overflow and randomized
 crash/revocation histories. Hosted execution remains pending.
+
+## 9. Native enrollment verification boundary
+
+The Rust `participant_enrollment` module verifies a proposal before the durable
+partition transaction. It is a production-callable verification API, not an
+installed enrollment endpoint or a current-state authority service. Its
+`VerifiedParticipantEnrollment` constructor is private. The parent snapshot
+and root resource/channel pins are trusted inputs selected by the caller from
+authenticated operator state; accepting those pins from an agent would violate
+the API contract.
+
+Before this boundary, the reference assumed authenticated enrollment inputs:
+
+```mermaid
+flowchart LR
+    A[Assumed authenticated enrollment] --> R[Test-only partition reference]
+```
+
+The new boundary establishes specific native facts but leaves persistence and
+current-state ordering to the forthcoming ledger integration:
+
+```mermaid
+flowchart LR
+    P[Parent native enrollment action] --> V[Native enrollment verifier]
+    C[Child native acceptance] --> V
+    S[Child native resource proofs] --> V
+    O[Authenticated parent and installed scope pins] --> V
+    V --> W[Verified enrollment proposal]
+    W --> T[Pending atomic ledger integration]
+    T --> E[Enrolled participant]
+```
+
+The closed service is `auths-participant`, with `enroll_participant_v1` and
+`accept_participant_v1` tools. The parent submits one canonical native MCP
+action containing `{"enrollment": descriptor}` under its enrolled control
+grant. The child submits `{"enrollment_commitment": [32 bytes]}` under a
+child control grant whose issuer, subject and parent ID match the enrolled
+parent and proposed child. Native trust, configured challenge, current evidence,
+validity, permission, signature, holder, parent linkage and attenuation checks
+are not reimplemented. Every control proof must have exactly one action and
+one authorized branch.
+
+The descriptor uses schema `auths.participant-enrollment/1`. Its canonical JSON
+is committed through the existing codec with domain
+`auths.participant-enrollment.v1`. It binds root engagement commitment,
+partition generation, parent enrollment commitment and instance generation,
+fresh enrollment ID, child principal and instance generation, registered
+channel, child control grant, sorted scope-to-resource-grant mappings, validity,
+remaining depth and independent count/byte ceilings. Integer fields must be
+within the exactly representable JSON integer range; canonicalization must not
+round two distinct epochs into the same commitment.
+
+For each listed scope, a separate child-signed native resource invocation must
+use the installed MCP service/tool and exact resource argument. Its terminal
+grant must have the enrolled parent as issuer, the child as subject, the exact
+parent resource grant ID as parent, and the descriptor's child grant ID. Its
+validity and remaining depth must cover the proposed enrollment. These are
+verification witnesses, never provider calls; a witness consumes no operation
+and does not stand in for the future invocation's native verification. The
+resource scope still resolves through the immutable root engagement's recipe
+and connection pins.
+
+Limits: sixteen scopes and registered channels, sixteen native grant links,
+64 KiB per canonical action and 4 MiB total evidence across the parent, child
+and resource invocations. Unsupported action/grant critical extensions and
+grant budget ceilings are refused; the enrollment verifier must not silently
+ignore another stateful budget protocol. Initial product maxima remain 64
+provider reads/disclosures, 32 writes and 16 MiB disclosed bytes.
+
+The consuming ledger must still establish ID non-reuse, participant count,
+current parent ancestry/status/generation, channel ownership, and ancestor
+capacity atomically. A parent revoked between verification and commit must
+prevent enrollment. It must also preserve native grant mappings at operation
+admission and enforce the exact participant/channel and process generation at
+entry. Rust verification tests alone do not establish any of those guarantees.

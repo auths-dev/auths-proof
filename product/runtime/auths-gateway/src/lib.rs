@@ -39,6 +39,7 @@ mod materializer;
 mod observer;
 mod onboarding;
 mod operator;
+pub mod participant_enrollment;
 mod pre_entry;
 mod qualification;
 mod readiness;

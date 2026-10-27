@@ -487,7 +487,7 @@ pub(crate) fn context_for_read_with_write_default(
     clippy::too_many_arguments,
     reason = "test trust includes named MCP profile"
 )]
-fn context_for_profiles(
+pub(crate) fn context_for_profiles(
     roots: &[&Signer],
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,

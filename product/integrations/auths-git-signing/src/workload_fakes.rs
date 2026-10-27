@@ -10,6 +10,7 @@ use crate::workload::{
 use auths_oidc_workload::jws::CompactJws;
 use auths_sigstore_keyless::merkle::leaf_hash;
 use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
+use ed25519_dalek::Signer as _;
 use ed25519_dalek::SigningKey;
 use p256::ecdsa::signature::{Signer as _, Verifier as _};
 use p256::ecdsa::{Signature as P256Signature, SigningKey as P256SigningKey, VerifyingKey};

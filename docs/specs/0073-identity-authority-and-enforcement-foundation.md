@@ -1,6 +1,6 @@
 # AP-SPEC-073: Identity, delegated authority, and enforcement foundation
 
-- **Status:** Draft architecture proposal and implementation program. No new protocol, production path, or security qualification is claimed.
+- **Status:** Architecture and implementation program in progress. Initial verification contracts are implemented; the complete program and new execution paths are not qualified.
 - **Date:** 26 October 2026.
 - **Updated:** 27 October 2026; implementation goal active, first bounded slice defined in the companion assessment. No acceptance criterion is yet closed.
 - **Mission:** Build an authorization and identity layer for human–agent, machine–agent, and agent–agent work.
@@ -99,6 +99,16 @@ commitment, state rejection and fixture obligations. A human-initiated vertical
 may deliberately choose one principal for both roles. Role labels do not prove
 human presence or identity assurance. Participant enrollment, instance generation
 and shared ancestor budgets remain separate implementation work.
+
+### 4.3 Participant enrollment verification
+
+The native enrollment verification boundary now has a closed descriptor and
+separate parent, child-acceptance and resource-authority proofs. The
+[participant contract](../plans/0073-engagement-participant-contract.md#9-native-enrollment-verification-boundary)
+defines exact grant linkage, canonical commitments, bounds and trusted inputs.
+The returned value is a verified proposal; durable enrollment, live ancestry
+checks and participant capacity remain implementation work. Core proof wire
+semantics are retained, and no provider action runs during verification.
 
 ## 5. Portable verification and live admission
 

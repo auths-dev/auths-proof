@@ -462,3 +462,46 @@ rejects them before parsing, along with absent offsets and oversized inputs.
 The earlier revision's Kani job also passed; formal translation was still
 running at the last observation. None of these prior-revision results closes
 current-head acceptance or the remaining F01–F16 work.
+
+
+## 18. Native participant enrollment verification
+
+The next implemented boundary converts native evidence into a privately
+constructed `VerifiedParticipantEnrollment`. The parent authorizes the complete
+proposal under its exact enrolled control grant; the child accepts the
+canonical descriptor commitment under a linked child control grant. Separate
+resource proofs establish the child holder, exact native parent/child grant
+IDs, installed MCP service/tool and pinned resource handle for each scope.
+The implementation reuses the existing sealed native verifier and canonical
+codec. It does not fork identity authentication, grant attenuation or signing.
+
+The new product contract binds parent/child instances, partition and engagement,
+registered channel, resource grants, validity, depth and independent ceilings.
+Bounds are checked before native verification; integer encoding also rejects
+values outside JSON's exact integer range. Unsupported critical policies are
+refused. The protocol and ten focused native/encoding tests are registered in
+compliance under principal evidence integration, not as proof of a functioning
+participant runtime. No core wire fixture or binding ABI changes in this slice.
+
+This public verification API consumes authenticated parent/operator pins. The
+installed task service does not yet call it. Durable activation must atomically
+revalidate the snapshot against current ancestry, prevent ID reuse, enforce the
+participant bound and preserve every ancestor's capacity. SDK authoring,
+installed enrollment, admission/entry wiring, restart/race evidence and F01–F16
+acceptance remain open.
+
+Hosted run [40578407732](https://github.com/auths-dev/auths-proof/actions/runs/40578407732)
+on `6e8e2036` passed generated-artifact classification but failed workspace
+clippy in the Git-signing test fake: P-256's new signature-trait major version
+no longer supplied the Ed25519 signing trait. The fake now explicitly imports
+both maintained traits. Targeted `cargo clippy -p auths-git-signing --all-targets
+--all-features -- -D warnings` passed. Downstream jobs were skipped by the
+preflight gate; their failing aggregate statuses are not new execution
+failures. Formal fast feedback was still running at the last observation.
+
+Enrollment artifact construction passed: the gateway closure generator compiled
+the new native tests while running its one generation test (350 behavioral
+tests filtered out). Proof-coverage reproduction remained byte-identical and
+the semantic-freeze inventory regenerated with explicit protocol/public-surface
+versions. This is construction evidence only; native enrollment behavior and
+full current-revision CI remain unqualified.
