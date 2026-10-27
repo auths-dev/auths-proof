@@ -1,6 +1,6 @@
 # AP-SPEC-073: Initial implementation assessment
 
-- **Status:** M0 source trace and acceptance inventory recorded; first bounded delegation change implemented, verification pending. M0–M4 remain incomplete.
+- **Status:** M0 source trace and acceptance inventory recorded; bounded delegation and temporal-evidence changes implemented, hosted verification pending. M0–M4 remain incomplete.
 - **Date:** 26 October 2026.
 - **Updated:** 27 October 2026.
 - **Spec:** [Identity, authority, and enforcement foundation](../specs/0073-identity-authority-and-enforcement-foundation.md).
@@ -41,12 +41,12 @@ No row currently justifies deleting its subsystem. No claim-to-test coverage is 
 - [x] Trace one AP071 action end to end and record exact types, owners, and commitment checks at each transition (section 6).
 - [x] Make an initial F01–F16 source/test inventory, separating reported historical runs from unverified current-revision evidence (section 7). This does not close any acceptance criterion.
 - [ ] Write the concrete multi-hop authority and cross-engagement composition contract using existing proof-plan semantics where possible.
-- [ ] Write budget conservation and revocation/entry histories before selecting a new admission API.
+- [x] Write budget conservation and revocation/entry histories before selecting a new admission API ([participant contract](0073-engagement-participant-contract.md)).
 - [ ] Inventory time provenance, storage ordering, canonicalization, and configuration-sensitive caching; identify repeated interpretations that deserve central ownership.
 - [ ] Specify the smallest identity lifecycle profile for the representative flow, including compromise/recovery consequences.
 - [ ] Select the initial provider and deployment boundary, reusing an admitted execution family.
 - [ ] Produce a retain/strengthen/replace/remove decision per affected subsystem, with evidence and affected invariants.
-- [ ] Select the first bounded implementation change and its required ADR, fixture, formal, compliance, and hosted CI updates.
+- [x] Select the first bounded implementation change and its required ADR, fixture, formal, compliance, and hosted CI updates (sections 8–10).
 
 ## 4. Required decision record per replacement
 
@@ -162,10 +162,11 @@ Required verification: hosted CI on the pushed revision, including native tests 
 - **27 October 2026:** source trace, initial acceptance inventory and first delegation-path decision recorded. First implementation and tests written; hosted results pending.
 - **27 October 2026:** pushed `afd13814bfd8e50092f285df2b3da03903ff66f1` and opened [draft PR #212](https://github.com/auths-dev/auths-proof/pull/212), stacked on `codex/ap-spec-071`. It includes eight inherited AP071 commits beyond that branch's currently published head; the PR description records this explicitly. Hosted [run 40567547386](https://github.com/auths-dev/auths-proof/actions/runs/40567547386) passed generated-artifact classification but failed repository preflight on semantic-freeze drift. This is not a successful native-test run. The failed gate is being reproduced locally as repository policy permits.
 - **27 October 2026:** recorded the [engagement participant contract](0073-engagement-participant-contract.md): separate initiation and approval, one authority tree and partition, ancestor budget conservation, durable entry/revocation ordering, and explicit rollback limits. Implementation and evidence remain pending.
+- **27 October 2026:** pushed the inventory correction as `81c88b57` and explicitly dispatched hosted [run 40569732610](https://github.com/auths-dev/auths-proof/actions/runs/40569732610). Pushed temporal-evidence correction `211fd87d`; its exact-revision hosted acceptance remains pending. Recorded the [time ownership contract](0073-time-contract.md) for the next source cutover.
 
 Semantic inventory correction for the first slice: `auths.identity.protocol` 137 → 138 and `auths.product.public-sdk-contract` 134 → 135 reflect their ownership of the changed compliance evidence declarations. Freeze version and `auths.release.public-surface` 393 → 394 record the inventory/counter changes. These are inventory identities, not a core wire version change. `cargo xtask semantic-freeze --update` completed after inspecting the hosted failure. Gateway source closure was regenerated through `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib semantic_closure_is_current` (one generation check passed, 307 tests filtered out); this builds the gateway test module but does not establish that its new behavioral tests pass. Prior qualification does not cover the new code digest.
 
-Next: verify the first change, then finish the participant/initiator/approver and atomic budget/revocation contracts before extending the task schema. Continue the time, binding, persistence and cache audit; do not replace those systems by inference from this narrow delegation change.
+Next: inspect hosted results and dispatch CI for the latest revision; resolve concrete failures without weakening checks. Implement the selected gateway clock cutover, then participant roles/schema and atomic ancestor accounting under the recorded contracts. Continue the binding, persistence and cache audit; do not replace those systems by inference from the narrow delegation change. The unused `auths-cache` API still needs an explicit retain/remove decision before adoption; no running cache bypass was established.
 
 ## 11. Cross-cutting ownership findings
 
