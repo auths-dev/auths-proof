@@ -602,6 +602,31 @@ mod tests {
     }
 
     #[test]
+    fn provider_read_recipe_cannot_reinterpret_native_control_authority() {
+        let (source_bytes, lock_bytes) = fixture(false);
+        assert!(CompiledReleaseRecipe::compile(source_bytes, lock_bytes).is_ok());
+        for service in [
+            crate::control_namespace::TASK_SERVICE,
+            crate::control_namespace::PARTICIPANT_SERVICE,
+        ] {
+            let mut source: serde_json::Value = serde_json::from_slice(source_bytes).unwrap();
+            let mut lock: serde_json::Value = serde_json::from_slice(lock_bytes).unwrap();
+            for document in [&mut source, &mut lock] {
+                document["service"] = json!(service);
+                document["tool"] = json!("enroll_participant_v1");
+            }
+            assert_eq!(
+                CompiledReleaseRecipe::compile(
+                    &serde_json::to_vec(&source).unwrap(),
+                    &serde_json::to_vec(&lock).unwrap()
+                )
+                .unwrap_err(),
+                GatewayRecipeError::ProfileMismatch
+            );
+        }
+    }
+
+    #[test]
     fn google_and_airtable_compile_to_the_same_closed_release_mechanism() {
         let (google_source, google_lock) = fixture(true);
         let google = CompiledReleaseRecipe::compile(google_source, google_lock)

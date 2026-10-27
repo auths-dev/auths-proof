@@ -25,6 +25,7 @@ pub use engine::{
 pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
 mod clock;
 mod connection;
+mod control_namespace;
 mod credential_journal;
 mod echo_verify;
 mod engine;

@@ -1610,6 +1610,9 @@ fn exact_keys(object: &Map<String, Value>, keys: &[&str]) -> bool {
 }
 
 fn validate_lock(lock: &ProfileLockFile) -> Result<(), GatewayRecipeError> {
+    if crate::control_namespace::is_control_service(&lock.service) {
+        return Err(GatewayRecipeError::ProfileMismatch);
+    }
     if lock.schema != "auths.self-hosted-profile-lock/1"
         || lock.generator_format != 2
         || lock.version == 0

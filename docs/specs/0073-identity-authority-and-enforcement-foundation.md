@@ -110,6 +110,10 @@ The returned value is a verified proposal; durable enrollment, live ancestry
 checks and participant capacity remain implementation work. Core proof wire
 semantics are retained, and no provider action runs during verification.
 
+Native root bootstrap now proves holder control and separate resource authority
+for an exact immutable root commitment. Pins still require an authenticated
+engagement and operator installation.
+
 A bounded pure enrollment tree now owns immutable ancestry, retained revocation,
 ID/principal non-reuse and canonical state validation against independently
 installed root pins. Enrollment derives its current parent snapshot from this

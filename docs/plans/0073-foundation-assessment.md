@@ -557,3 +557,93 @@ generation also passed; the measured decision closure remains unchanged.
 Final gateway closure construction with all features passed its one generation
 test (359 behavioral tests filtered out). The gateway source closure and
 semantic-freeze inventory were regenerated after the reference/test lint fixes.
+
+
+## 20. Native root authority bootstrap
+
+The previous goal turn made progress: it pushed `e4bcebcb` with the bounded
+enrollment tree and dispatched full CI in
+[40583279847](https://github.com/auths-dev/auths-proof/actions/runs/40583279847).
+Current hosted evidence confirms generated-artifact classification, repository
+preflight and secret scanning passed. Behavioral and formal jobs are live;
+this is neither a blocker nor full qualification.
+
+Ledger integration exposed a prerequisite: trusted root pins cannot substitute
+for proof that the root controls its named grant and resource authority. The
+public tree bootstrap now verifies a root-signed exact activation commitment
+and one native resource witness per scope. Each branch must have the pinned
+holder and exact grant, with validity and native depth covering the root.
+The raw constructor is crate-private. Root and child enrollment share one
+bounded-evidence leaf and the maintained native verifier.
+
+The canonical root commitment covers immutable authority and installation,
+excluding its own ID and mutable revocation. Callers must still independently
+bind the pins to the signed engagement and installed resource/channel policy.
+Bootstrap is not a capacity allocation, persistence transaction, public endpoint
+or proof of independent human approval. Existing journal/admission paths still
+await the direct participant cutover.
+
+Five native bootstrap tests are authored. Gateway closure construction compiled
+them and ran its one generation test (364 behavioral tests filtered out).
+Construction caught a missing field in an oversized-proof fixture, which was
+corrected. No hosted bootstrap behavioral pass is claimed. The next integration must
+persist bootstrap and claims under one lock, prevent repeated initialization
+from reopening root capacity, and apply all-ancestor accounting at reservation
+and entry. Signed root/task association and installed channel enforcement are
+required parts of that integration, not assumptions supplied by these tests.
+
+
+Root bootstrap also exposed a control/resource namespace confusion: a provider
+recipe and its matching profile lock could reuse a control service/tool name.
+One new classification now owns both native control service constants and
+refuses them in the shared recipe-lock validator (covering reads and writes)
+and enrollment resource pins. Three negative tests use matching source/lock
+substitutions and explicit control-grant resource pins. Ordinary provider
+recipes remain positive controls. The existing profile-mismatch code is reused;
+no Python/TypeScript protocol wrapper or ABI shape changes. The gateway semantic closure changes with compiler admission; the portable MCP
+profile contract and its semantic identity remain unchanged. No provider-specific rule is
+introduced. Artifact construction currently compiles all eight new tests while
+running only its generation test (367 behavioral tests filtered out).
+
+
+## 21. First hosted participant behavior and fixture corrections
+
+Run 40583279847 passed preflight, secret/dependency gates, and OpenTofu,
+PostgreSQL and records-API live jobs. The authoritative gateway suite reported
+318 passed, 16 failed and 26 ignored. All eight partition-reference tests
+passed, including randomized histories; that is scoped reference evidence,
+not a production state-machine proof. Formal and compliance jobs remain live
+at the last observation.
+
+Fourteen enrollment/tree failures stopped at `action-outside-validity`: the
+shared signed-action helper uses a two-hour window, while the new fixture's
+grants covered a shorter interval. The fixture now issues grants covering that
+same action window, keeping product participant windows narrower. The native
+verifier's containment rule is unchanged. One child-acceptance test then exposed
+an earlier channel-generation refusal: its operator pins now explicitly permit
+the proposed new instance, so the test reaches and asserts refusal of the old
+child acceptance. Its name now describes its actual generation/ceiling/ID cases.
+
+Two clock failures occurred in the final post-revocation retry assertion. The
+clock fault remained active, so the gateway correctly refused on time before
+reaching the task state. Tests now assert the clock refusal, restore the clock,
+and then assert durable revocation. They additionally verify no new credential
+lease or provider entry across retries and no accounting refund.
+
+After inspecting hosted failures, targeted local reproductions passed: **25
+participant enrollment/tree/root tests** and **two clock-loss tests**. New root
+bootstrap cases share the corrected native fixture and are included in that
+local result. The two new provider-compiler namespace tests are compiled but
+not yet behaviorally verified. Gateway artifact construction and coverage
+reproduction have passed; final source-closure regeneration follows the fixes.
+An intermediate semantic-freeze update refused reuse of the same inventory
+version after additional changes; final versions advance explicitly instead
+of weakening that gate. Full exact-revision CI and all remaining implementation
+milestones are still required.
+
+Final artifact construction after these corrections passed: one gateway closure
+generation test (367 behavioral tests filtered out), byte-identical coverage
+reproduction, and semantic-freeze inventory generation at version 402. Hosted
+run 40583279847 also subsequently passed compliance and formal fast feedback;
+formal translation and Kani were still running. The full run still fails its
+authoritative job, so none of these component successes closes final acceptance.

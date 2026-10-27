@@ -216,7 +216,8 @@ Eight reference tests cover shared sibling capacity, all ancestor charging,
 revocation on both sides of entry, read-before-disclosure revocation, lost
 acknowledgement, mixed read/write replay and hard limits, scope/grant splicing,
 exact-request mutations, expiry, stale generations, overflow and randomized
-crash/revocation histories. Hosted execution remains pending.
+crash/revocation histories. These eight reference tests passed in hosted run 40583279847 on `e4bcebcb`;
+the overall run failed other tests and does not qualify the implementation.
 
 ## 9. Native enrollment verification boundary
 
@@ -298,8 +299,9 @@ entry. Rust verification tests alone do not establish any of those guarantees.
 
 `EnrollmentTree` now provides the pure state transition that the task ledger
 will embed. It is **not yet connected to `FileReleaseTaskLedger` or the installed
-engine**. Its public constructor consumes authenticated root activation pins;
-it does not establish native authority for a caller-created root. This is one
+engine**. Its public bootstrap constructor now verifies native root activation and resource
+authority as specified in §11. Root installation pins remain trusted inputs,
+independently bound to the signed engagement and operator policy. This is one
 concrete engagement contract, not a new generic policy engine or a second store.
 
 Before integration, a caller could verify a proposal against a snapshot and
@@ -363,3 +365,111 @@ adversarial topology/installation mutations. They are authored and compiled by
 artifact construction; hosted behavioral evidence remains pending. An enrollment
 ceiling does not allocate fresh capacity. Ancestor charging and operation entry
 are still the following direct state cutover.
+
+
+## 11. Native root bootstrap before durable initialization
+
+An installed list of grant IDs is not evidence that the root controls those
+grants. `EnrollmentTree::bootstrap` now checks native root possession and
+resource authority before construction; the raw constructor is crate-private.
+
+Before:
+
+```mermaid
+flowchart LR
+    P[Trusted root pins] --> T[Pure enrollment tree]
+```
+
+After:
+
+```mermaid
+flowchart LR
+    I[Signed engagement and installed pins] --> C[Immutable root commitment]
+    C --> A[Root-signed native activation]
+    A --> V[Native bootstrap verification]
+    R[Separate root resource proofs] --> V
+    V --> T[Pure enrollment tree]
+    T --> D[Pending atomic task journal initialization]
+```
+
+`auths.engagement-root/1` commits the engagement, partition generation, root
+principal/instance, control grant, validity, depth, independent ceilings,
+channel owners/instances and every installed scope including native grant,
+service, tool, resource argument and exact handle. The canonical codec uses
+domain `auths.engagement-root.v1`. The existing enrollment ID and mutable
+active/revoked flag are excluded: an ID cannot commit itself, and revocation
+must not change descendant parent links.
+
+The fixed native tool `auths-participant/activate_engagement_root_v1` accepts
+only `{"root_enrollment_commitment": [32 bytes]}`. Its verified actor and
+terminal grant subject must be the pinned root; the exact terminal control
+grant must cover the root's validity and native delegation depth. Separate
+resource invocations prove the same holder and each exact resource grant,
+installed service/tool, handle, validity and depth. These are verification
+witnesses; bootstrap performs no provider calls or private-content access.
+Root and child enrollment share one bounded proof-byte accounting leaf and
+the maintained native verifier. No cryptographic or attenuation rules fork.
+
+Pins still require an authenticated engagement and operator installation.
+Bootstrap neither allocates capacity nor supplies commissioning, role separation,
+channel transport, unique root admission or atomic publication. The journal
+must claim initialization once; repeating a proof must not mint another capacity
+partition. The decoder remains a trusted-store restore boundary, not an
+alternate untrusted activation endpoint. Whole-store rollback remains open.
+
+Control grants must be scoped to the required fixed tools, holder, validity and
+depth. Since acceptance messages commit their control grant IDs, issuers must
+avoid a circular exact-body digest containing its own grant ID. Resource grants
+can retain native body constraints; every later operation must independently
+satisfy them. Grant budget ceilings and unknown critical policies are refused.
+
+Five tests cover native bootstrap followed by child enrollment, all immutable
+root dimensions, other valid grants/holders, resource substitution, insufficient
+depth, missing/oversized evidence, expiry and revocation. Artifact construction
+compiles these tests; behavioral acceptance remains pending hosted CI. This API
+does not close installed activation, ledger or F01–F16 acceptance.
+
+
+## 12. Control namespaces cannot acquire provider meaning
+
+Native control grants name MCP services/tools. Reusing such a name in a
+credential-bearing recipe would let a control permission acquire unrelated
+provider meaning. Matching a source to its profile lock does not prevent this
+when both carry the colliding name.
+
+Before:
+
+```mermaid
+flowchart LR
+    C[Control service and tool] --> G[Native control grant]
+    C --> L[Provider recipe with matching profile lock]
+    G --> L
+    L --> P[Potential provider request]
+```
+
+After:
+
+```mermaid
+flowchart LR
+    N[One control namespace classification] --> W[Write recipe compiler]
+    N --> R[Read recipe compiler]
+    N --> E[Enrollment resource pins]
+    W --> D[Refuse reserved control service]
+    R --> D
+    E --> D
+    G[Native control grant] --> C[Fixed native control handler]
+```
+
+`control_namespace.rs` owns the exact `auths-agent-task` and `auths-participant`
+service constants and classification. Both recipe compilers share the refusal
+in profile-lock validation, using the existing `gateway.recipe.profile-mismatch`
+code; resource pins refuse these services before native evidence work. The rule
+reserves exact service names, without inventing a broad provider naming policy.
+Control handlers still consume the same constants. No provider-specific logic
+enters the shared gateway.
+
+Three tests cover matching source-and-lock substitutions for reads/writes and
+control-grant substitution into enrollment resource pins. Ordinary provider
+recipes remain the positive controls. This changes compiler admission semantics;
+valid provider recipe digest construction, wire result shape and binding ABI
+are unchanged. SDK submission clients still obtain the server's native result.

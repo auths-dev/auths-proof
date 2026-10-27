@@ -72,12 +72,31 @@ struct StoredTree {
 }
 
 impl EnrollmentTree {
+    /// Activate a root with native holder control and exact resource authority.
+    ///
+    /// Root pins must come from the signed engagement and installed bindings.
+    /// This verifies their exact commitment, root possession and every pinned
+    /// resource grant before constructing a tree. The owner must persist this
+    /// together with the engagement journal in one initialization transaction.
+    ///
+    /// # Errors
+    /// Refuses stale, substituted or unsupported evidence and invalid root pins.
+    pub fn bootstrap(
+        context: &TrustedContext,
+        root: &ParentEnrollmentPins,
+        now: u64,
+        proofs: &super::RootEnrollmentProofs<'_>,
+    ) -> Result<Self, EnrollmentTreeError> {
+        super::root::verify_root(context, root, now, proofs)?;
+        Self::new(root.clone())
+    }
+
     /// Initialize from the authenticated root participant's immutable pins.
     ///
     /// # Errors
     /// Refuses malformed, unbounded or inactive root installation. This does
     /// not establish native root authority; activation must already do that.
-    pub fn new(root: ParentEnrollmentPins) -> Result<Self, EnrollmentTreeError> {
+    pub(crate) fn new(root: ParentEnrollmentPins) -> Result<Self, EnrollmentTreeError> {
         bounded_parent(&root).map_err(|_| EnrollmentTreeError::Binding)?;
         if !root.active {
             return Err(EnrollmentTreeError::Inactive);

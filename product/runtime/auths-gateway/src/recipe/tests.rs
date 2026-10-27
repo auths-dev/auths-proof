@@ -2102,3 +2102,38 @@ proptest::proptest! {
         }
     }
 }
+
+#[test]
+fn provider_write_recipe_cannot_reinterpret_native_control_authority() {
+    let (source_bytes, lock_bytes) = fixture("airtable");
+    assert!(CompiledRecipe::compile(source_bytes, lock_bytes).is_ok());
+    for (service, tool) in [
+        (
+            crate::control_namespace::TASK_SERVICE,
+            crate::task_activation::APPROVAL_TOOL,
+        ),
+        (
+            crate::control_namespace::PARTICIPANT_SERVICE,
+            crate::participant_enrollment::ACTIVATE_ROOT_TOOL,
+        ),
+        (
+            crate::control_namespace::PARTICIPANT_SERVICE,
+            crate::participant_enrollment::ENROLL_PARTICIPANT_TOOL,
+        ),
+    ] {
+        let mut source: serde_json::Value = serde_json::from_slice(source_bytes).unwrap();
+        let mut lock: serde_json::Value = serde_json::from_slice(lock_bytes).unwrap();
+        for document in [&mut source, &mut lock] {
+            document["service"] = json!(service);
+            document["tool"] = json!(tool);
+        }
+        assert_eq!(
+            CompiledRecipe::compile(
+                &serde_json::to_vec(&source).unwrap(),
+                &serde_json::to_vec(&lock).unwrap()
+            )
+            .unwrap_err(),
+            GatewayRecipeError::ProfileMismatch
+        );
+    }
+}

@@ -16,11 +16,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod root;
+pub use root::{ACTIVATE_ROOT_TOOL, RootEnrollmentProofs, root_enrollment_commitment};
+
 mod tree;
 pub use tree::{EnrollmentTree, EnrollmentTreeError};
 
 /// Fixed native MCP service for participant control; callers cannot select it.
-pub const PARTICIPANT_SERVICE: &str = "auths-participant";
+pub use crate::control_namespace::PARTICIPANT_SERVICE;
 /// Parent-authorized exact enrollment operation.
 pub const ENROLL_PARTICIPANT_TOOL: &str = "enroll_participant_v1";
 /// Child-authorized acceptance of the enrollment commitment.
@@ -450,6 +453,7 @@ fn bounded_parent(parent: &ParentEnrollmentPins) -> Result<(), ParticipantEnroll
         || parent.scopes.iter().any(|scope| {
             !identifier(&scope.scope_id)
                 || !identifier(&scope.service)
+                || crate::control_namespace::is_control_service(&scope.service)
                 || !identifier(&scope.tool)
                 || !identifier(&scope.resource_argument)
                 || scope.resource_handle.is_empty()
@@ -476,11 +480,18 @@ fn bounded_inputs(
     if proofs.resources.len() > MAX_SCOPES {
         return Err(ParticipantEnrollmentError::Invalid);
     }
+    bounded_invocations(
+        [proofs.parent, proofs.child]
+            .into_iter()
+            .chain(proofs.resources.iter().map(|resource| resource.invocation)),
+    )
+}
+
+fn bounded_invocations<'a>(
+    invocations: impl IntoIterator<Item = EnrollmentInvocation<'a>>,
+) -> Result<(), ParticipantEnrollmentError> {
     let mut total = 0usize;
-    for invocation in [proofs.parent, proofs.child]
-        .into_iter()
-        .chain(proofs.resources.iter().map(|resource| resource.invocation))
-    {
+    for invocation in invocations {
         total = total
             .saturating_add(invocation.proof.len())
             .saturating_add(invocation.action.len());

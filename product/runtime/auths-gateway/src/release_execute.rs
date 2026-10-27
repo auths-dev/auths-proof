@@ -1446,6 +1446,24 @@ mod tests {
                 .expect("redacted status")["revoked"],
             true
         );
+        let before_retry = engine.execution_witness.snapshot();
+        if matches!(
+            race,
+            ReadRace::StaticLeaseClockLost | ReadRace::StaticLeaseClockUntrusted
+        ) {
+            assert_eq!(
+                read_session
+                    .read("task-1", &signed.proof, &signed.action)
+                    .await,
+                ManagedReleaseResult::NotEntered {
+                    code: "gateway.verify.clock-unavailable"
+                }
+            );
+            // Recover the independent clock fault before testing durable
+            // revocation. Restoration must not reopen the charged operation.
+            read_clock.set(now);
+            read_clock.trust_is(true);
+        }
         assert_eq!(
             read_session
                 .read("task-1", &signed.proof, &signed.action)
@@ -1453,6 +1471,24 @@ mod tests {
             ManagedReleaseResult::NotEntered {
                 code: "gateway.release.task-inactive"
             }
+        );
+        let after_retry = engine.execution_witness.snapshot();
+        assert_eq!(
+            before_retry.read_transport_entries,
+            after_retry.read_transport_entries
+        );
+        assert_eq!(
+            before_retry.credential_lease_calls,
+            after_retry.credential_lease_calls
+        );
+        assert_eq!(
+            task_session
+                .ledger
+                .load("task-1")
+                .expect("retry state")
+                .expect("task")
+                .counts(),
+            state.counts()
         );
     }
 }

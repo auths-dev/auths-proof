@@ -15,7 +15,7 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 const TASK_SCHEMA: &str = "auths.agent-task/3";
-pub(crate) const TASK_SERVICE: &str = "auths-agent-task";
+pub(crate) use crate::control_namespace::TASK_SERVICE;
 pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
 const MAX_SCOPES: usize = 16;
 const MAX_TASK_SECONDS: u64 = 86_400;
