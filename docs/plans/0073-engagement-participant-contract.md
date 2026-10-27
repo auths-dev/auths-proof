@@ -880,3 +880,79 @@ bootstrap and handoff of these pins; it cannot run unchanged. No persisted state
 shape changes: task commitment plus immutable principal/enrollment non-reuse binds
 the retained operation to the same instance, including late ACKs after revocation.
 Synthetic transport tests are separated from new native A/B enrollment tests.
+
+## 19. Next cutover: exact approval binds the enrolled writer
+
+**Design contract; not implemented.** `derive_exact_write_intent` currently checks
+that the sole native actor equals the card's initial agent. `ExactWriteIntent`
+binds canonical action and provider request commitments but has no enrolled actor
+or instance. `WriteOperation` consequently attributes every write to the root.
+Simply removing the initial-agent comparison would be unsafe: the canonical
+provider action can be identical when different authorized principals sign its
+native envelope. A human approving B's action must not thereby approve A executing
+the same payload. Root-only accounting must not survive child execution.
+
+Before:
+
+```mermaid
+flowchart LR
+    P["Native command"] --> A["Require initial agent"]
+    A --> I["Exact request and action intent"]
+    I --> H["Human confirmation"]
+    H --> J["Write journal attributed to root"]
+    R["Gateway request review"] --> U["Binding/UI reconstruct approval intent"]
+```
+
+After:
+
+```mermaid
+flowchart LR
+    P["Native command and exact enrolled scope ancestry"] --> A["Sealed enrolled writer projection"]
+    A --> I["Rust-owned exact intent with participant and instance"]
+    I --> R["Task review and canonical approval payload"]
+    R --> H["Independent human signature"]
+    H --> C["Locked comparison to current enrollment"]
+    C --> J["Persist exact writer and charge every ancestor"]
+    J --> E["Existing provider attempt and recovery protocol"]
+```
+
+The enrollment tree remains the identity projection owner. The writer is derived
+from the exact native branch admitted for the selected scope, never from an
+unverified principal string or supplied enrollment ID. An immutable projection
+names task commitment, partition generation, enrollment commitment, principal and
+instance generation. Reuse this projection where its meaning is identical; do
+not reuse the disclosure binding's channel, content commitment or delivery state
+as write semantics.
+
+The Rust exact-intent owner must include the writer projection in the human-signed
+confirmation and applicable effect plans. A task-specific typed review returns
+that same intent and request projection for presentation/authoring. Language
+wrappers must not independently reconstruct request commitments or choose the
+writer. The ordinary non-task review contract remains separate. A preview remains
+non-executable, and its identity snapshot must be rechecked at locked reservation.
+
+Write reservation rederives current native ancestry, compares the complete writer
+projection with the approved intent, checks exact action/request/resource and
+installed connection pins, and charges every ancestor under the existing journal
+lock. Retained write records carry the immutable writer projection. Reopening
+validates it against retained ancestry even after revocation; accounting sums
+those actual writers instead of assigning every write to the initial agent.
+Unknown/no-entry/failed outcomes preserve the currently conservative charges.
+Any persisted shape change advances the journal schema and rejects old state.
+
+Create/populate and reconciliation must preserve the approved writer across the
+pending-child lineage. An unknown create or expired approval cannot change the
+writer during recovery. The first child-write slice requires exact independent
+human approval; bounded-upfront behavior stays explicitly root-only until its
+participant semantics and presentation are separately supported. No ordinary
+provider route or generic callback may stand in for task admission.
+
+Required evidence: native B executes an exact human-approved write; A signing the
+same canonical payload cannot reuse B's confirmation; principal, enrollment,
+instance and partition substitutions fail; unrelated native grant suffixes fail;
+root/B/sibling contention cannot multiply write capacity; revocation and restart
+retain writer attribution; original-time recovery preserves the approved writer;
+and native/binding approval payloads agree byte-for-byte. Existing recipe and
+provider request tests remain unchanged except for explicit task/participant
+fixtures. This design does not establish provider-entry freshness, whole-store
+rollback protection, identity recovery or the complete isolated demonstration.
