@@ -647,3 +647,47 @@ reproduction, and semantic-freeze inventory generation at version 402. Hosted
 run 40583279847 also subsequently passed compliance and formal fast feedback;
 formal translation and Kani were still running. The full run still fails its
 authoritative job, so none of these component successes closes final acceptance.
+
+
+## 22. Signed delegation policy before installed enrollment
+
+The journal integration exposed a missing authorization input: schema-3 cards
+approved one actor/channel without consenting to child enrollment. The new
+schema-4 card requires an explicit delegation envelope, narrowed from operator
+installation schema 5, and stored in task state schema 9. Native activation
+commits it, and restoration reuses the same Rust validation. This is an atomic
+source cutover of Rust fixtures, Python card/commitment producers, installation
+fixtures and the cross-provider conformance setup; no old-schema reader exists.
+
+The envelope binds partition and root instance generations, delegation depth,
+and bounded channel-to-principal/instance mappings. It rejects the independent
+approver as a potential participant and duplicate principal registrations.
+No browser request chooses these pins; the card builder copies the installed
+object. See the participant contract §13 for the exact bounds and before/after
+architecture. Existing single-agent demos explicitly select zero depth.
+
+Five tests are authored for native signed narrowing and proof substitution,
+generation/channel/role/depth mutations, required fields and obsolete formats,
+reopening against replaced installation generations, and exact integer/channel
+limits. The gateway closure generator compiled these tests successfully and
+passed its one artifact-generation check (372 behavioral tests filtered out).
+They have not yet been behaviorally qualified on this revision. The full goal
+remains active: root/child state is not yet in the journal, descendant operations
+remain disabled by the existing initial-agent checks, and no F criterion closes.
+
+Hosted run 40583279847 on `e4bcebcb` subsequently passed formal translation and
+started authoritative Lean. It still has the already diagnosed authoritative
+test failure; its successes are evidence only for that earlier revision.
+
+Final artifact construction for this slice passed: the all-feature gateway
+source-closure generation check (372 behavioral tests filtered out), proof
+coverage reproduction (unchanged: 110/1031 decision functions, 1289/11353 lines,
+15/82 check sites; Study 006 byte-identical), and semantic inventory generation
+at freeze version 404. Formatting and diff checks completed. The native API and
+CLI now share the 16 KiB pre-decode installation bound; the task policy and
+participant verifier share the existing identifier, exact-integer and tree-size
+bounds. These are identical bounded leaves within the concrete engagement
+contract, not a new generic policy or recovery abstraction. Python tests also
+assert exact installed-policy copying and commitment changes when the partition
+generation changes. Behavioral, binding, lint and full-revision CI evidence
+remain pending for this slice.

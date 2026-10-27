@@ -6,7 +6,7 @@
 //! a public endpoint must authenticate them independently.
 
 use super::{
-    ParentEnrollmentPins, ParticipantEnrollment, ParticipantEnrollmentError,
+    MAX_PARTICIPANTS, ParentEnrollmentPins, ParticipantEnrollment, ParticipantEnrollmentError,
     ParticipantEnrollmentProofs, VerifiedParticipantEnrollment, bounded_parent,
     verify_participant_enrollment,
 };
@@ -14,7 +14,6 @@ use auths_model::{GrantId, PrincipalId, TrustedContext};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-const MAX_PARTICIPANTS: usize = 16;
 const MAX_TREE_BYTES: usize = 196_608;
 const SCHEMA: &str = "auths.engagement-enrollment-tree/1";
 

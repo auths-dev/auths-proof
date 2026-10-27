@@ -76,13 +76,17 @@ generation and does not perform a write.
 ## Operator-side development route
 
 `auths-gateway task-configure --state-dir STATE --from PINS.json` accepts one
-canonical JSON object with schema `auths.gateway-task-installation/4`, a
+canonical JSON object with schema `auths.gateway-task-installation/5`, a
 sorted, unique `recipe_digests` list of one to four compiled write recipes,
 and operator-controlled `pins`: `company_id`,
 `initiator_principal`, `approver_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
 `connection_generation`, `connection_subject`, `delivery_channel`,
-`operator_policy_digest`, `allow_bounded_writes`, and
-`permitted_read_scopes`. This employee demo selects the enrolled human for both
+`operator_policy_digest`, `allow_bounded_writes`, `permitted_read_scopes`, and
+`delegation`. The required delegation object contains `partition_generation`,
+`root_instance_generation`, `max_depth`, and `permitted_channels` mapping channel
+IDs to native `principal` and `instance_generation` pins. This single-agent demo
+explicitly installs depth zero and one channel; the card producer copies that
+policy into the signed schema-4 task. No implicit delegation default is applied. This employee demo selects the enrolled human for both
 initiator and approver. The gateway keeps the roles distinct: initiation cannot
 substitute for a separately required exact approval. A write-only task sets
 `permitted_read_scopes` to `[]`; a mixed task lists the reviewed read

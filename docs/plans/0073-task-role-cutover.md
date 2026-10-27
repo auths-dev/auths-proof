@@ -31,10 +31,12 @@ in this initial independently approved task profile. Human or machine category
 is not inferred from an identifier string; configured identity and assurance
 policy determines who may fill a role.
 
-The task/card schema becomes `auths.agent-task/3`; its commitment domain becomes
-`auths.agent-task.v3`. The installed pin schema becomes
-`auths.gateway-task-installation/4`. The durable task state becomes
-`auths.gateway-agent-task-state/8`. Old cards and state are refused. There is no
+The role cutover introduced task/card schema 3, installation schema 4 and
+durable state schema 8. The subsequent signed delegation cutover in
+[the participant contract, §13](0073-engagement-participant-contract.md#13-signed-task-delegation-envelope)
+supersedes them with `auths.agent-task/4`, commitment domain
+`auths.agent-task.v4`, `auths.gateway-task-installation/5` and
+`auths.gateway-agent-task-state/9`. Old cards and state are refused. There is no
 fallback interpretation of `human_principal`, migration, default role, or
 compatibility reader. The native proof encoding and attenuation rules do not
 change.
@@ -55,7 +57,7 @@ flowchart LR
 ```
 
 The existing activation action name remains a versioned native tool contract;
-its exact payload commits schema 3. A name containing `approve` is not evidence
+its exact payload now commits schema 4. A name containing `approve` is not evidence
 of a human ceremony. Documentation and result explanations must identify
 activation by the initiator. Exact write/effect-plan/recovery actions retain the
 separate approver gate.

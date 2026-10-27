@@ -217,7 +217,7 @@ mod tests {
         let descriptor = identity.to_descriptor().expect("descriptor");
         let packet = descriptor.encode().expect("packet");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/3",
+            "schema": "auths.agent-task/4",
             "task_id": "task-1",
             "company_id": "atlas",
             "initiator_principal": human.principal.as_str(),
@@ -234,6 +234,7 @@ mod tests {
             }],
             "write_scopes": [],
             "delivery_channel": "registered-agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "registered-agent-channel"),
             "not_before": 100,
             "expires_at": 200,
             "max_provider_calls": 1,

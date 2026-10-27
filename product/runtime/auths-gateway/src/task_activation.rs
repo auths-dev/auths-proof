@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-const TASK_SCHEMA: &str = "auths.agent-task/3";
+mod delegation;
+pub(crate) use delegation::TaskDelegationPolicy;
+
+const TASK_SCHEMA: &str = "auths.agent-task/4";
 pub(crate) use crate::control_namespace::TASK_SERVICE;
 pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
 const MAX_SCOPES: usize = 16;
@@ -115,6 +118,7 @@ pub(crate) struct AgentTaskDescriptor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) pending_child: Option<TaskPendingChild>,
     pub(crate) delivery_channel: String,
+    pub(crate) delegation: TaskDelegationPolicy,
     pub(crate) not_before: u64,
     pub(crate) expires_at: u64,
     max_provider_calls: u32,
@@ -148,11 +152,20 @@ pub(crate) struct TaskActivationPins {
     /// a subset, but cannot invent a connection or substitute its subject.
     pub(crate) permitted_read_scopes: Vec<TaskReadScope>,
     pub(crate) delivery_channel: String,
+    pub(crate) delegation: TaskDelegationPolicy,
     pub(crate) operator_policy_digest: String,
     pub(crate) allow_bounded_writes: bool,
 }
 
 impl TaskActivationPins {
+    pub(crate) fn valid_delegation(&self) -> bool {
+        self.delegation.valid_for(
+            &self.agent_principal,
+            &self.delivery_channel,
+            &self.approver_principal,
+        )
+    }
+
     pub(crate) fn permits_read_recipe(&self, digest: &str) -> bool {
         self.permitted_read_scopes
             .iter()
@@ -273,7 +286,7 @@ impl AgentTaskDescriptor {
     fn canonical_commitment(&self) -> Result<[u8; 32], GatewaySubmitResult> {
         let canonical = serde_json_canonicalizer::to_vec(self)
             .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-        auths_codec::domain_commitment("auths.agent-task.v3", &canonical)
+        auths_codec::domain_commitment("auths.agent-task.v4", &canonical)
             .map(|commitment| *commitment.as_bytes())
             .map_err(|_| not_entered("gateway.task.invalid-card"))
     }
@@ -343,6 +356,16 @@ impl AgentTaskDescriptor {
                 && self.write_approval_mode != WriteApprovalMode::Exact)
         {
             return Err(not_entered("gateway.task.invalid-card"));
+        }
+        if !pins.valid_delegation()
+            || !self.delegation.valid_for(
+                &self.agent_principal,
+                &self.delivery_channel,
+                &self.approver_principal,
+            )
+            || !self.delegation.narrows(&pins.delegation)
+        {
+            return Err(not_entered("gateway.task.delegation-binding"));
         }
         if !valid_upfront_choices(&self.upfront_allowed_arguments) {
             return Err(not_entered("gateway.task.invalid-upfront-allowance"));
@@ -528,6 +551,10 @@ mod tests {
             }],
             pending_child: None,
             delivery_channel: "registered-agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "registered-agent-channel",
+            ),
             not_before: NOW - 30,
             expires_at: NOW + 900,
             max_provider_calls: 2,
@@ -553,6 +580,7 @@ mod tests {
             connection_subject: card.connection_subject.clone(),
             permitted_read_scopes: card.read_scopes.clone(),
             delivery_channel: card.delivery_channel.clone(),
+            delegation: card.delegation.clone(),
             operator_policy_digest: card.operator_policy_digest.clone(),
             allow_bounded_writes: false,
         }
@@ -590,6 +618,175 @@ mod tests {
             NOW,
         );
         (signed.proof, signed.action)
+    }
+
+    #[test]
+    fn task_delegation_is_signed_and_may_only_narrow_installed_channels() {
+        use crate::participant_enrollment::EnrollmentChannelPins;
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let child = Signer::new(0x55);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context =
+            harness::context_for_agent_and_task(&root, observer.principal(), NOW).expect("context");
+        let mut card = card(&human, &agent);
+        let mut installed = pins(&card);
+        installed.delegation.max_depth = 1;
+        installed.delegation.permitted_channels.insert(
+            "child-channel".into(),
+            EnrollmentChannelPins {
+                principal: child.principal,
+                instance_generation: 2,
+            },
+        );
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let narrow = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("operator superset permits signed zero-depth task");
+        let narrow_commitment = *narrow.commitment();
+        card.delegation = installed.delegation.clone();
+        assert_ne!(
+            card.canonical_commitment().expect("commitment"),
+            narrow_commitment
+        );
+        let (_, changed_action) = signed_card_for_approval(&root, &human, &card);
+        assert!(
+            verify_task_activation(&context, &installed, NOW, &proof, &changed_action).is_err()
+        );
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let approved = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("explicit signed child-channel authorization");
+        assert_eq!(approved.descriptor().delegation, card.delegation);
+        installed
+            .delegation
+            .permitted_channels
+            .remove("child-channel");
+        installed.delegation.max_depth = 0;
+        assert!(verify_task_activation(&context, &installed, NOW, &proof, &action).is_err());
+    }
+
+    #[test]
+    fn task_delegation_refuses_generation_channel_role_and_depth_substitution() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let child = Signer::new(0x55);
+        let original = card(&human, &agent);
+        let installed = pins(&original);
+        let root_channel = "registered-agent-channel";
+        for mutation in 0..10 {
+            let mut changed = original.clone();
+            let delegation = &mut changed.delegation;
+            match mutation {
+                0 => delegation.partition_generation = 0,
+                1 => delegation.partition_generation = 2,
+                2 => delegation.root_instance_generation = 2,
+                3 => delegation.max_depth = 1,
+                4 => {
+                    delegation.permitted_channels.clear();
+                }
+                5 => {
+                    delegation
+                        .permitted_channels
+                        .get_mut(root_channel)
+                        .expect("pin")
+                        .principal = child.principal.clone()
+                }
+                6 => {
+                    delegation
+                        .permitted_channels
+                        .get_mut(root_channel)
+                        .expect("pin")
+                        .instance_generation = 2
+                }
+                7 => delegation.partition_generation = 1 << 53,
+                8 => {
+                    delegation.permitted_channels.insert(
+                        "other".into(),
+                        crate::participant_enrollment::EnrollmentChannelPins {
+                            principal: human.principal.clone(),
+                            instance_generation: 1,
+                        },
+                    );
+                }
+                9 => {
+                    delegation.permitted_channels.insert(
+                        "other".into(),
+                        delegation.permitted_channels[root_channel].clone(),
+                    );
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                changed.validate(&installed, NOW).is_err(),
+                "mutation {mutation}"
+            );
+        }
+    }
+
+    #[test]
+    fn task_delegation_has_no_implicit_or_legacy_decoder() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let original = card(&human, &agent);
+        let mut missing = serde_json::to_value(&original).expect("card");
+        missing
+            .as_object_mut()
+            .expect("object")
+            .remove("delegation");
+        assert!(serde_json::from_value::<AgentTaskDescriptor>(missing).is_err());
+        let mut unknown = serde_json::to_value(&original).expect("card");
+        unknown["delegation"]["fallback_generation"] = json!(1);
+        assert!(serde_json::from_value::<AgentTaskDescriptor>(unknown).is_err());
+        let mut obsolete = original.clone();
+        obsolete.schema = "auths.agent-task/3".into();
+        assert!(obsolete.validate(&pins(&original), NOW).is_err());
+    }
+
+    #[test]
+    fn reopened_task_refuses_a_changed_installed_partition_or_instance() {
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let card = card(&human, &agent);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context =
+            harness::context_for_agent_and_task(&root, observer.principal(), NOW).expect("context");
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let approved = verify_task_activation(&context, &pins(&card), NOW, &proof, &action)
+            .expect("native task");
+        let directory = tempfile::tempdir().expect("directory");
+        let path = fs::canonicalize(directory.path())
+            .expect("path")
+            .join("ledger");
+        FileReleaseTaskLedger::open(&path)
+            .expect("ledger")
+            .initialize(&approved)
+            .expect("durable activation");
+        let reopened = FileReleaseTaskLedger::open(path)
+            .expect("reopen")
+            .load(&card.task_id)
+            .expect("read")
+            .expect("task");
+        assert!(reopened.activated_task(&pins(&card), NOW + 1).is_ok());
+        for change_partition in [true, false] {
+            let mut changed = pins(&card);
+            if change_partition {
+                changed.delegation.partition_generation += 1;
+            } else {
+                changed.delegation.root_instance_generation += 1;
+                changed
+                    .delegation
+                    .permitted_channels
+                    .get_mut(&card.delivery_channel)
+                    .expect("channel")
+                    .instance_generation += 1;
+            }
+            assert!(changed.valid_delegation(), "valid replacement installation");
+            assert_eq!(
+                reopened.activated_task(&changed, NOW + 1).err(),
+                Some(crate::release_state::ReleaseStateError::Binding)
+            );
+        }
     }
 
     #[test]

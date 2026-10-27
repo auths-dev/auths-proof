@@ -31,11 +31,13 @@ pub const ACCEPT_PARTICIPANT_TOOL: &str = "accept_participant_v1";
 /// Direct schema for the new enrollment contract.
 pub const PARTICIPANT_ENROLLMENT_SCHEMA: &str = "auths.participant-enrollment/1";
 const MAX_SCOPES: usize = 16;
+// One bounded tree, including the root, with one registered channel per principal.
+pub(crate) const MAX_PARTICIPANTS: usize = 16;
 const MAX_PROOF_BYTES: usize = 4 * 1_048_576;
 const MAX_ACTION_BYTES: usize = 65_536;
 // Enrollment travels in the canonical MCP JSON profile. Keep every integer
 // exactly representable rather than permitting JCS rounding to alias an epoch.
-const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
+pub(crate) const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
 
 /// Independent dimensions of one participant ceiling, never fresh root capacity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -179,7 +181,7 @@ impl ParticipantEnrollment {
             || self.not_before < parent.not_before
             || self.expires_at > parent.expires_at
             || self.remaining_depth >= parent.remaining_depth
-            || self.remaining_depth >= 16
+            || usize::from(self.remaining_depth) >= MAX_PARTICIPANTS
             || !self.ceilings.within(parent.ceilings)
             || parent
                 .permitted_channels
@@ -195,7 +197,7 @@ impl ParticipantEnrollment {
     }
 }
 
-fn identifier(value: &str) -> bool {
+pub(crate) fn identifier(value: &str) -> bool {
     (1..=64).contains(&value.len())
         && value
             .bytes()
@@ -430,10 +432,10 @@ fn child_link(
 fn bounded_parent(parent: &ParentEnrollmentPins) -> Result<(), ParticipantEnrollmentError> {
     if parent.scopes.is_empty()
         || parent.scopes.len() > MAX_SCOPES
-        || parent.permitted_channels.len() > 16
+        || parent.permitted_channels.len() > MAX_PARTICIPANTS
         || parent.partition_generation == 0
         || parent.instance_generation == 0
-        || parent.remaining_depth >= 16
+        || usize::from(parent.remaining_depth) >= MAX_PARTICIPANTS
         || parent.not_before >= parent.expires_at
         || !parent.ceilings.within(parent.ceilings)
         || parent.permitted_channels.is_empty()

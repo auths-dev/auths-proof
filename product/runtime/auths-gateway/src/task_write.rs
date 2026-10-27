@@ -431,7 +431,7 @@ mod tests {
             CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
                 .expect("task-bound recipe");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/3",
+            "schema": "auths.agent-task/4",
             "task_id": "task-1",
             "company_id": "atlas",
             "initiator_principal": human.principal.as_str(),
@@ -451,6 +451,7 @@ mod tests {
                 "connection_subject": "jules-subject"
             }],
             "delivery_channel": "agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel"),
             "not_before": NOW - 30,
             "expires_at": NOW + 900,
             "max_provider_calls": 0,
@@ -601,7 +602,7 @@ mod tests {
         recipe: &CompiledRecipe,
     ) -> AgentTaskDescriptor {
         serde_json::from_value(json!({
-            "schema": "auths.agent-task/3",
+            "schema": "auths.agent-task/4",
             "task_id": "task-1",
             "company_id": "atlas",
             "initiator_principal": human.principal.as_str(),
@@ -622,6 +623,7 @@ mod tests {
                 "title": "Auths AP-071 Project A handoff",
                 "marker": format!("ap071_{}", "d".repeat(32))},
             "delivery_channel": "agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel"),
             "not_before": NOW - 30,
             "expires_at": NOW + 900,
             "max_provider_calls": 0,

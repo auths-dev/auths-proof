@@ -28,7 +28,7 @@ _PINS = {
     "company_id", "initiator_principal", "approver_principal", "agent_principal",
     "agent_key_fingerprint", "connection_id", "connection_generation",
     "connection_subject", "delivery_channel", "operator_policy_digest",
-    "allow_bounded_writes", "permitted_read_scopes",
+    "allow_bounded_writes", "permitted_read_scopes", "delegation",
 }
 
 
@@ -41,7 +41,7 @@ def _installation(path: Path) -> dict:
     if (type(document) is not dict
             or not {"schema", "recipe_digests", "pins"} <= set(document)
             or not set(document) <= {"schema", "recipe_digests", "pins"} | optional
-            or document["schema"] != "auths.gateway-task-installation/4"
+            or document["schema"] != "auths.gateway-task-installation/5"
             or type(document["recipe_digests"]) is not list
             or not 1 <= len(document["recipe_digests"]) <= 4
             or any(type(value) is not str or _DIGEST.fullmatch(value) is None
@@ -225,7 +225,7 @@ def build_exact_write_card(
                                or upfront_allowed_arguments is not None))):
         raise OperatorDenied("read-only task needs one selected source and no write options")
     card = {
-        "schema": "auths.agent-task/3",
+        "schema": "auths.agent-task/4",
         "task_id": secrets.token_urlsafe(18),
         "company_id": employee.company_id,
         "initiator_principal": employee.principal,
@@ -243,6 +243,7 @@ def build_exact_write_card(
                                                 "connection_generation": pins["connection_generation"],
                                                 "connection_subject": pins["connection_subject"]}],
         "delivery_channel": pins["delivery_channel"],
+        "delegation": pins["delegation"],
         "not_before": now,
         "expires_at": min(now + 1800, authority.expires_at),
         "max_provider_calls": len(read_scopes),

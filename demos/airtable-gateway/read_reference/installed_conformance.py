@@ -457,7 +457,7 @@ def run(env_file: Path, root: Path, binary: Path,
     }
     installation = operator / "task-installation.json"
     _write_json(installation, {
-        "schema": "auths.gateway-task-installation/4",
+        "schema": "auths.gateway-task-installation/5",
         "recipe_digests": [WRITE_DIGEST], "pins": {
             "company_id": "ap071-conformance", "initiator_principal": human_principal, "approver_principal": human_principal,
             "agent_principal": agent_principal,
@@ -467,6 +467,9 @@ def run(env_file: Path, root: Path, binary: Path,
             "connection_subject": ACCOUNT,
             "permitted_read_scopes": [read_scope],
             "delivery_channel": "airtable-agent-local",
+            "delegation": {"partition_generation": 1, "root_instance_generation": 1,
+                           "max_depth": 0, "permitted_channels": {
+                               "airtable-agent-local": {"principal": agent_principal, "instance_generation": 1}}},
             "operator_policy_digest": "d" * 64,
             "allow_bounded_writes": upfront_second_write or concurrent_upfront_writes,
         },

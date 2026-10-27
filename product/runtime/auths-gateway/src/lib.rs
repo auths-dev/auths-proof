@@ -139,7 +139,8 @@ pub use echo_verify::{
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
     GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
-    SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
+    MAX_TASK_INSTALLATION_BYTES, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
+    gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;
 pub use materializer::{

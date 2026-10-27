@@ -169,7 +169,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             agent_digest = hashlib.sha256(agent_packet).hexdigest()
             installed = private / "task-write-installation.json"
             installed.write_text(json.dumps({
-                "schema": "auths.gateway-task-installation/4",
+                "schema": "auths.gateway-task-installation/5",
                 "recipe_digests": [digest],
                 "pins": {
                     "company_id": "atlas-studio", "initiator_principal": human, "approver_principal": human,
@@ -180,6 +180,9 @@ class TaskOperatorCliTests(unittest.TestCase):
                     "connection_subject": "synthetic-subject",
                     "permitted_read_scopes": [],
                     "delivery_channel": "agent-channel",
+                    "delegation": {"partition_generation": 1, "root_instance_generation": 1,
+                                   "max_depth": 0, "permitted_channels": {
+                                       "agent-channel": {"principal": agent_principal, "instance_generation": 1}}},
                     "operator_policy_digest": "c" * 64,
                     "allow_bounded_writes": False,
                 },
@@ -192,7 +195,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             agent = AgentBinding("atlas-studio", "binding-jules",
                                  agent_principal, agent_digest)
             paired_card = {
-                "schema": "auths.agent-task/3", "task_id": "paired-task",
+                "schema": "auths.agent-task/4", "task_id": "paired-task",
                 "initiator_principal": human, "approver_principal": human, "agent_principal": agent_principal,
                 "not_before": 1010, "expires_at": 1300,
                 "write_scopes": [{"handle": "project-a-folder",

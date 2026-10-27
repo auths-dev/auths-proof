@@ -96,7 +96,7 @@ class CrossProviderTaskCardTests(unittest.TestCase):
             record = "recTEST0000000001"
             installed = private / "task-installation.json"
             installed.write_text(json.dumps({
-                "schema": "auths.gateway-task-installation/4",
+                "schema": "auths.gateway-task-installation/5",
                 "recipe_digests": [write_digest],
                 "pins": {
                     "company_id": "example-company",
@@ -113,6 +113,9 @@ class CrossProviderTaskCardTests(unittest.TestCase):
                         "connection_subject": "operator-account",
                     }],
                     "delivery_channel": "agent-channel",
+                    "delegation": {"partition_generation": 1, "root_instance_generation": 1,
+                                   "max_depth": 0, "permitted_channels": {
+                                       "agent-channel": {"principal": agent_principal, "instance_generation": 1}}},
                     "operator_policy_digest": "d" * 64,
                     "allow_bounded_writes": False,
                 },
@@ -137,6 +140,8 @@ class CrossProviderTaskCardTests(unittest.TestCase):
             )
             self.assertEqual(card["read_scopes"][0]["handle"], record)
             self.assertEqual(card["write_scopes"][0]["handle"], record)
+            self.assertEqual(card["delegation"],
+                             json.loads(installed.read_text())["pins"]["delegation"])
             self.assertEqual(card["max_release_bytes"], 64)
             self.assertEqual(card["write_approval_mode"], "exact")
             flow = TaskWriteBrowserFlow(

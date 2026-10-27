@@ -34,7 +34,7 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
         self.text = "Project A handoff from source"
         self.raw = b"\xef\xbb\xbf" + self.text.encode()
         self.card = {
-            "schema": "auths.agent-task/3", "task_id": "task-one",
+            "schema": "auths.agent-task/4", "task_id": "task-one",
             "company_id": "atlas-studio",
             "initiator_principal": "key:sha256:human", "approver_principal": "key:sha256:human",
             "agent_principal": "key:sha256:agent",

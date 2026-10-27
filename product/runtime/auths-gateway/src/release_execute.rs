@@ -996,18 +996,23 @@ mod tests {
                 serde_json::from_value::<TaskReadScope>(read_scope.clone()).expect("scope"),
             ],
             delivery_channel: "agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "agent-channel",
+            ),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/3", "task_id": "task-1", "company_id": "atlas",
+            "schema": "auths.agent-task/4", "task_id": "task-1", "company_id": "atlas",
             "initiator_principal": root.principal.as_str(),
             "approver_principal": root.principal.as_str(), "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": pins.agent_key_fingerprint,
             "connection_id": bound.connection_id().as_str(),
             "connection_generation": bound.generation().get(), "connection_subject": subject,
             "read_scopes": [read_scope], "write_scopes": [],
-            "delivery_channel": "agent-channel", "not_before": now - 10,
+            "delivery_channel": "agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel"), "not_before": now - 10,
             "expires_at": now + 600, "max_provider_calls": 1,
             "max_releases": 1, "max_release_bytes": 64, "max_writes": 0,
             "write_approval_mode": "exact", "operator_policy_digest": "b".repeat(64),
@@ -1016,7 +1021,7 @@ mod tests {
         .expect("card");
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("card canonical");
         let commitment =
-            auths_codec::domain_commitment("auths.agent-task.v3", &canonical).expect("commitment");
+            auths_codec::domain_commitment("auths.agent-task.v4", &canonical).expect("commitment");
         let approved = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let directory = tempfile::tempdir().expect("state root");
         std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))

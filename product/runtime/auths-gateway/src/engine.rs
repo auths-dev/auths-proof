@@ -91,7 +91,10 @@ const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
 #[cfg(unix)]
-const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/4";
+const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/5";
+/// Maximum encoded task installation, checked before JSON decoding by both
+/// the native session boundary and the operator CLI's bounded file reads.
+pub const MAX_TASK_INSTALLATION_BYTES: usize = 16_384;
 /// How often `serve` sweeps expired count and sum slots.
 pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
 /// The most expired slots one sweep deletes.
@@ -1284,12 +1287,16 @@ impl GatewayEngine {
         installation_bytes: &[u8],
         ledger_root: impl Into<PathBuf>,
     ) -> Result<TaskWriteSession<'_>, &'static str> {
+        if installation_bytes.is_empty() || installation_bytes.len() > MAX_TASK_INSTALLATION_BYTES {
+            return Err("gateway.task.invalid-installation");
+        }
         let installation: TaskWriteInstallation = serde_json::from_slice(installation_bytes)
             .map_err(|_| "gateway.task.invalid-installation")?;
         let canonical = serde_json_canonicalizer::to_vec(&installation)
             .map_err(|_| "gateway.task.invalid-installation")?;
         if installation_bytes != canonical
             || installation.schema != TASK_INSTALLATION_SCHEMA
+            || !installation.pins.valid_delegation()
             || installation.recipe_digests.is_empty()
             || installation.recipe_digests.len() > 4
             || installation.recipe_digests.iter().any(|digest| {
@@ -3824,6 +3831,10 @@ pub(crate) mod tests {
                 .expect("read scope"),
             ],
             delivery_channel: "agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "agent-channel",
+            ),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
@@ -3839,6 +3850,23 @@ pub(crate) mod tests {
         let task_root = std::fs::canonicalize(directory.path())
             .expect("canonical root")
             .join("task-state");
+        assert_eq!(
+            engine
+                .task_write_session(&vec![b' '; MAX_TASK_INSTALLATION_BYTES + 1], &task_root)
+                .err(),
+            Some("gateway.task.invalid-installation")
+        );
+        let mut invalid = serde_json::to_value(&config).expect("config");
+        invalid["pins"]["delegation"]["root_instance_generation"] = serde_json::json!(2);
+        let invalid = serde_json_canonicalizer::to_vec(&invalid).expect("canonical config");
+        assert_eq!(
+            engine.task_write_session(&invalid, &task_root).err(),
+            Some("gateway.task.invalid-installation")
+        );
+        assert!(
+            !task_root.exists(),
+            "invalid installation must precede journal creation"
+        );
         assert_eq!(
             engine.task_write_session(&bytes, &task_root).err(),
             Some("gateway.task.trust-profile-unavailable")
@@ -4164,11 +4192,15 @@ pub(crate) mod tests {
             connection_subject: subject.to_owned(),
             permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "agent-channel",
+            ),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/3",
+            "schema": "auths.agent-task/4",
             "task_id": "task-installed-1",
             "company_id": pins.company_id,
             "initiator_principal": pins.initiator_principal,
@@ -4185,6 +4217,7 @@ pub(crate) mod tests {
                               "connection_generation": pins.connection_generation,
                               "connection_subject": pins.connection_subject}],
             "delivery_channel": pins.delivery_channel,
+            "delegation": pins.delegation,
             "not_before": now - 30,
             "expires_at": now + 600,
             "max_provider_calls": 0,
@@ -4811,12 +4844,16 @@ pub(crate) mod tests {
             connection_subject: subject.to_owned(),
             permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "agent-channel",
+            ),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
         let marker = format!("ap071_{}", "d".repeat(32));
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/3", "task_id": "task-create-reconcile",
+            "schema": "auths.agent-task/4", "task_id": "task-create-reconcile",
             "company_id": pins.company_id,
             "initiator_principal": pins.initiator_principal,
             "approver_principal": pins.approver_principal,
@@ -4837,6 +4874,7 @@ pub(crate) mod tests {
                 "parent_handle": "project-a-folder",
                 "title": "Auths AP-071 Project A handoff", "marker": marker},
             "delivery_channel": pins.delivery_channel,
+            "delegation": pins.delegation,
             "not_before": now - 30, "expires_at": now + 600,
             "max_provider_calls": 0, "max_releases": 0,
             "max_release_bytes": 0, "max_writes": 2,
@@ -4846,7 +4884,7 @@ pub(crate) mod tests {
         }))
         .expect("task card");
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("canonical card");
-        let commitment = auths_codec::domain_commitment("auths.agent-task.v3", &canonical)
+        let commitment = auths_codec::domain_commitment("auths.agent-task.v4", &canonical)
             .expect("card commitment");
         let task = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let mut digests = vec![engine.recipe.digest_hex(), populate.digest_hex()];
@@ -5524,7 +5562,7 @@ pub(crate) mod tests {
         let unknown_card_bytes =
             serde_json_canonicalizer::to_vec(&unknown_card).expect("second card bytes");
         let unknown_commitment =
-            auths_codec::domain_commitment("auths.agent-task.v3", &unknown_card_bytes)
+            auths_codec::domain_commitment("auths.agent-task.v4", &unknown_card_bytes)
                 .expect("second card commitment");
         let unknown_task =
             ApprovedAgentTask::from_test_card(unknown_card, *unknown_commitment.as_bytes());

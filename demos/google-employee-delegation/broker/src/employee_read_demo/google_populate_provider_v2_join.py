@@ -96,7 +96,7 @@ def join_populate_provider_final_v2(
             or provider.get("retry_authorized") is not False
             or type(provider.get("source_raw_byte_count")) is not int
             or type(card) is not dict
-            or card.get("schema") != "auths.agent-task/3"
+            or card.get("schema") != "auths.agent-task/4"
             or card.get("task_id") != task_id
             or card.get("company_id") != provider.get("company_id")
             or card.get("write_approval_mode") != "exact"

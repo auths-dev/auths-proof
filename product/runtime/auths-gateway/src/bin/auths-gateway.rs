@@ -3487,7 +3487,11 @@ mod unix {
     }
 
     fn task_installation(state_dir: &Path) -> Result<Vec<u8>, Failure> {
-        task_private_file(state_dir, TASK_WRITE_INSTALLATION_FILE, 16 * 1024)
+        task_private_file(
+            state_dir,
+            TASK_WRITE_INSTALLATION_FILE,
+            auths_gateway::MAX_TASK_INSTALLATION_BYTES,
+        )
     }
 
     fn task_read_installation(state_dir: &Path) -> Result<TaskReadInstallation, Failure> {
@@ -3540,7 +3544,7 @@ mod unix {
 
     async fn task_configure(state_dir: PathBuf, from: PathBuf) -> Result<(), Failure> {
         let engine = task_engine(&state_dir).await?;
-        let bytes = read_bounded(&from, 16 * 1024)?;
+        let bytes = read_bounded(&from, auths_gateway::MAX_TASK_INSTALLATION_BYTES)?;
         engine.task_write_session(&bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
         private_file(&state_dir.join(TASK_WRITE_INSTALLATION_FILE), &bytes)?;
         println!("{{\"outcome\":\"task-installation-configured\"}}");

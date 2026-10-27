@@ -473,3 +473,76 @@ control-grant substitution into enrollment resource pins. Ordinary provider
 recipes remain the positive controls. This changes compiler admission semantics;
 valid provider recipe digest construction, wire result shape and binding ABI
 are unchanged. SDK submission clients still obtain the server's native result.
+
+
+## 13. Signed task delegation envelope
+
+The former task format approved one actor and channel but did not say whether
+that actor could enroll another. Treating a valid native delegation chain as
+consent to expand the task's participants would exceed that card. Delegation
+permission must therefore be explicit before installed enrollment is enabled.
+
+Before this change:
+
+```mermaid
+flowchart LR
+    O[Operator pins one agent and channel] --> C[Signed task card]
+    C --> A[Initial actor admission]
+    E[Native child enrollment verifier] --> U[No signed task delegation policy]
+```
+
+The source cutover adds one mandatory policy object, validated in Rust:
+
+```mermaid
+flowchart LR
+    O[Operator delegation envelope] --> N[Validate selected narrowing]
+    C[Signed task delegation envelope] --> N
+    N --> J[Existing durable activated card]
+    J --> R[Recheck current installation on reopening]
+    J --> E[Future atomic root and child enrollment]
+```
+
+The task is now `auths.agent-task/4`, committed with domain
+`auths.agent-task.v4`; installation is `auths.gateway-task-installation/5` and
+task state is `auths.gateway-agent-task-state/9`. Old formats and a missing
+`delegation` field are refused. There is no legacy decoder or default policy.
+The object contains:
+
+- `partition_generation`: the nonzero commissioned partition generation.
+- `root_instance_generation`: the nonzero instance of the card's initial agent.
+- `max_depth`: at most fifteen child edges from that agent.
+- `permitted_channels`: one to sixteen opaque registered channel IDs, each
+  binding a native principal and exact instance generation.
+
+The native session boundary and CLI share a 16 KiB encoded installation limit,
+checked before JSON decoding or journal creation.
+Generations must be exact canonical JSON integers, at most 2^53 − 1. Channel
+IDs contain one to sixty-four ASCII alphanumeric, hyphen or underscore bytes.
+One principal has one registered channel in this first tree contract; duplicate
+principals are refused. The root's signed channel must name its exact principal
+and instance. The independent approver cannot be an acting participant, so its
+principal is forbidden in every channel entry. Depth is strictly smaller than
+the number of registered channels, including the root. The task may remove
+channels or lower depth from the installed policy, but cannot change the
+partition, root instance, channel principal or channel instance.
+
+`TaskDelegationPolicy` owns this validation. Installation, signed activation,
+and reopening a durable task use the same predicate. Python card production
+copies the operator-controlled policy and uses the native canonical commitment;
+it does not implement another authority evaluator. Existing demonstrations
+explicitly author a zero-depth, one-channel policy. Generation one in those
+synthetic installations is a fixture value, not a production default.
+
+The initial agent is the root participant; a machine can remain the independent
+initiator and native issuer to that agent. The future root bootstrap will bind
+this task commitment, its ceilings and resource projection to the exact native
+control/resource grant IDs. Those IDs need not be self-referential fields in
+the task commitment: the native root activation commits them together with the
+already signed task. This requires the bootstrap caller to derive and compare
+all task/operator pins, not accept a caller-supplied root policy as trusted.
+
+This change does **not** enroll any channel member or permit a child operation.
+The current read/write and acknowledgement paths still require the initial
+agent. Root/child persistence and ancestor accounting remain the next integration
+step. Reopening refuses a changed installed generation, but restoring both
+journal and installation remains outside this guarantee; F15 is still open.
