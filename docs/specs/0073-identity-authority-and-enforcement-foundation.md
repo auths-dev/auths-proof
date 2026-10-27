@@ -110,6 +110,15 @@ The returned value is a verified proposal; durable enrollment, live ancestry
 checks and participant capacity remain implementation work. Core proof wire
 semantics are retained, and no provider action runs during verification.
 
+A bounded pure enrollment tree now owns immutable ancestry, retained revocation,
+ID/principal non-reuse and canonical state validation against independently
+installed root pins. Enrollment derives its current parent snapshot from this
+tree before native verification. Registered channels bind both child principal
+and instance generation. These transitions are not yet connected to the task
+ledger or installed admission/dispatch; no durable activation or shared-budget
+claim follows from the state component alone. See the
+[transaction-owned tree contract](../plans/0073-engagement-participant-contract.md#10-transaction-owned-enrollment-tree).
+
 ## 5. Portable verification and live admission
 
 Portable verification answers whether exact action bytes are covered by the supplied authority under explicit trust, evidence, time, and configuration inputs. It does not promise current global state.

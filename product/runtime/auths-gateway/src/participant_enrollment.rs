@@ -14,7 +14,10 @@ use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpCommand, McpProfile};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+mod tree;
+pub use tree::{EnrollmentTree, EnrollmentTreeError};
 
 /// Fixed native MCP service for participant control; callers cannot select it.
 pub const PARTICIPANT_SERVICE: &str = "auths-participant";
@@ -175,7 +178,13 @@ impl ParticipantEnrollment {
             || self.remaining_depth >= parent.remaining_depth
             || self.remaining_depth >= 16
             || !self.ceilings.within(parent.ceilings)
-            || !parent.permitted_channels.contains(&self.delivery_channel)
+            || parent
+                .permitted_channels
+                .get(&self.delivery_channel)
+                .is_none_or(|channel| {
+                    channel.principal.as_str() != self.child_principal
+                        || channel.instance_generation != self.child_instance_generation
+                })
         {
             return Err(ParticipantEnrollmentError::ParentBinding);
         }
@@ -192,11 +201,13 @@ fn identifier(value: &str) -> bool {
 
 /// Trusted root-scope projection supplied by the operator/engagement store.
 /// These values must come from installed recipe bindings, never agent input.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnrollmentScopePins {
     /// Immutable root scope identifier.
     pub scope_id: String,
     /// Parent's exact native resource grant for this scope.
+    #[serde(with = "grant_encoding")]
     pub parent_grant: GrantId,
     /// Installed MCP service, whose audience is checked by native verification.
     pub service: String,
@@ -208,10 +219,23 @@ pub struct EnrollmentScopePins {
     pub resource_handle: String,
 }
 
+/// Operator-owned identity and process instance for one registered channel.
+/// Channel transport resolution must preserve this binding at disclosure entry.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnrollmentChannelPins {
+    /// Native recipient identity authenticated by the channel.
+    #[serde(with = "principal_encoding")]
+    pub principal: PrincipalId,
+    /// Exact commissioned process instance; zero and rounded epochs are refused.
+    pub instance_generation: u64,
+}
+
 /// Authenticated parent snapshot plus separately installed channel/resource pins.
 /// Success against this snapshot does not prove it is still current: durable
 /// enrollment must compare its commitment and generation under the ledger lock.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ParentEnrollmentPins {
     /// Parent is live in the authenticated snapshot.
     pub active: bool,
@@ -222,10 +246,12 @@ pub struct ParentEnrollmentPins {
     /// Exact existing parent enrollment commitment.
     pub enrollment_commitment: [u8; 32],
     /// Parent's enrolled canonical native principal.
+    #[serde(with = "principal_encoding")]
     pub principal: PrincipalId,
     /// Parent's enrolled instance generation.
     pub instance_generation: u64,
     /// Parent's enrolled native control grant, not its resource grant.
+    #[serde(with = "grant_encoding")]
     pub control_grant: GrantId,
     /// Parent's validity start.
     pub not_before: u64,
@@ -236,7 +262,7 @@ pub struct ParentEnrollmentPins {
     /// Parent ceilings; actual remaining usage is checked by the transaction.
     pub ceilings: ParticipantCeilings,
     /// Operator-approved child delivery channels inside this engagement.
-    pub permitted_channels: BTreeSet<String>,
+    pub permitted_channels: BTreeMap<String, EnrollmentChannelPins>,
     /// Root scope pins, at most sixteen, with unique identifiers.
     pub scopes: Vec<EnrollmentScopePins>,
 }
@@ -398,15 +424,29 @@ fn child_link(
     Ok(())
 }
 
-fn bounded_inputs(
-    parent: &ParentEnrollmentPins,
-    proofs: &ParticipantEnrollmentProofs<'_>,
-) -> Result<(), ParticipantEnrollmentError> {
-    if proofs.resources.len() > MAX_SCOPES
+fn bounded_parent(parent: &ParentEnrollmentPins) -> Result<(), ParticipantEnrollmentError> {
+    if parent.scopes.is_empty()
         || parent.scopes.len() > MAX_SCOPES
         || parent.permitted_channels.len() > 16
         || parent.partition_generation == 0
         || parent.instance_generation == 0
+        || parent.remaining_depth >= 16
+        || parent.not_before >= parent.expires_at
+        || !parent.ceilings.within(parent.ceilings)
+        || parent.permitted_channels.is_empty()
+        || parent.permitted_channels.iter().any(|(id, channel)| {
+            !identifier(id)
+                || channel.instance_generation == 0
+                || channel.instance_generation > MAX_JSON_INTEGER
+        })
+        || [
+            parent.partition_generation,
+            parent.instance_generation,
+            parent.not_before,
+            parent.expires_at,
+        ]
+        .into_iter()
+        .any(|value| value > MAX_JSON_INTEGER)
         || parent.scopes.iter().any(|scope| {
             !identifier(&scope.scope_id)
                 || !identifier(&scope.service)
@@ -423,6 +463,17 @@ fn bounded_inputs(
             .len()
             != parent.scopes.len()
     {
+        return Err(ParticipantEnrollmentError::Invalid);
+    }
+    Ok(())
+}
+
+fn bounded_inputs(
+    parent: &ParentEnrollmentPins,
+    proofs: &ParticipantEnrollmentProofs<'_>,
+) -> Result<(), ParticipantEnrollmentError> {
+    bounded_parent(parent)?;
+    if proofs.resources.len() > MAX_SCOPES {
         return Err(ParticipantEnrollmentError::Invalid);
     }
     let mut total = 0usize;
@@ -552,3 +603,41 @@ fn verify_resources(
 
 #[cfg(test)]
 mod tests;
+
+// Storage projections preserve native semantic types. Deserialization is only
+// representation validation; it cannot authenticate a trusted installation.
+mod grant_encoding {
+    use auths_model::GrantId;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        grant: &GrantId,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        grant.as_bytes().serialize(serializer)
+    }
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<GrantId, D::Error> {
+        <[u8; 32]>::deserialize(deserializer).map(GrantId::new)
+    }
+}
+
+mod principal_encoding {
+    use auths_model::PrincipalId;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        principal: &PrincipalId,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        principal.as_str().serialize(serializer)
+    }
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<PrincipalId, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        PrincipalId::parse(&value)
+            .map_err(|_| serde::de::Error::custom("invalid principal encoding"))
+    }
+}

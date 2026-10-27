@@ -153,12 +153,11 @@ impl Partition {
             }
             path.push(id);
             let node = self.participants.get(&id).ok_or(Refusal::Binding)?;
-            match node.parent {
-                Some(parent) => id = parent,
-                None => {
-                    path.reverse();
-                    return Ok(path);
-                }
+            if let Some(parent) = node.parent {
+                id = parent;
+            } else {
+                path.reverse();
+                return Ok(path);
             }
         }
     }
@@ -235,14 +234,14 @@ impl Partition {
             if operation.provider_charge == category {
                 used = used.checked_add(operation.binding.effect.debit())?;
             }
-            if let Some((bytes, charge)) = operation.disclosure {
-                if charge == category {
-                    used = used.checked_add(Units {
-                        disclosures: 1,
-                        disclosure_bytes: bytes,
-                        ..Units::default()
-                    })?;
-                }
+            if let Some((bytes, charge)) = operation.disclosure
+                && charge == category
+            {
+                used = used.checked_add(Units {
+                    disclosures: 1,
+                    disclosure_bytes: bytes,
+                    ..Units::default()
+                })?;
             }
         }
         Ok(used)

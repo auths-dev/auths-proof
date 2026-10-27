@@ -1,7 +1,7 @@
 # AP073 engagement and participant contract
 
-**Status:** implementation contract, 27 October 2026. Participant enrollment is
-not yet implemented or qualified. This document resolves the next bounded
+**Status:** implementation contract, 27 October 2026. Native enrollment verification and a pure bounded enrollment tree are implemented.
+Installed enrollment, shared accounting and qualification remain incomplete. This document resolves the next bounded
 design decisions under [AP-SPEC-073](../specs/0073-identity-authority-and-enforcement-foundation.md).
 The [assessment](0073-foundation-assessment.md) records actual evidence.
 
@@ -286,9 +286,80 @@ grant budget ceilings are refused; the enrollment verifier must not silently
 ignore another stateful budget protocol. Initial product maxima remain 64
 provider reads/disclosures, 32 writes and 16 MiB disclosed bytes.
 
-The consuming ledger must still establish ID non-reuse, participant count,
+The consuming ledger must still establish durable ID non-reuse, participant count,
 current parent ancestry/status/generation, channel ownership, and ancestor
 capacity atomically. A parent revoked between verification and commit must
 prevent enrollment. It must also preserve native grant mappings at operation
 admission and enforce the exact participant/channel and process generation at
 entry. Rust verification tests alone do not establish any of those guarantees.
+
+
+## 10. Transaction-owned enrollment tree
+
+`EnrollmentTree` now provides the pure state transition that the task ledger
+will embed. It is **not yet connected to `FileReleaseTaskLedger` or the installed
+engine**. Its public constructor consumes authenticated root activation pins;
+it does not establish native authority for a caller-created root. This is one
+concrete engagement contract, not a new generic policy engine or a second store.
+
+Before integration, a caller could verify a proposal against a snapshot and
+then implement current-state checks separately:
+
+```mermaid
+flowchart LR
+    S[Parent snapshot] --> V[Native verifier]
+    V --> P[Verified proposal]
+    P --> C[Caller implements current-state checks]
+    C --> D[Pending durable publication]
+```
+
+The pure tree owns ancestry projection and verification together. The planned
+ledger transaction owns serialization and publication of the tree **and** the
+operation journal; no lock may cross provider or channel I/O:
+
+```mermaid
+flowchart LR
+    L[Existing partition transaction] --> T[Current enrollment tree]
+    T --> P[Derive exact parent and root pins]
+    P --> V[Offline native verification]
+    V --> U[Unique retained child insertion]
+    U --> J[Atomic tree and operation journal publication]
+    R[Authenticated revocation] --> L
+```
+
+The root and every child count against sixteen retained slots. Each child has
+one immutable parent, unique enrollment ID, unique principal and descriptor
+commitment. Records cannot be deleted, reparented or reactivated. Revocation of
+any ancestor blocks both later enrollment and resource-grant-path projection.
+Repeated revocation is harmless; repeated enrollment refuses rather than
+minting another record. Each scope projection returns exact native grant IDs
+from root participant to acting leaf, ready for comparison with the native
+operation branch. This projection is not an execution permit.
+
+Registered channels now map to the exact recipient principal and process
+instance generation, not just a set of approved names. Both fields must match
+the signed child descriptor. Installed transport resolution and acknowledgement
+verification must preserve this same binding at disclosure; those integrations
+remain open. Channel addresses and credentials are never enrollment arguments.
+
+Canonical tree storage uses `auths.engagement-enrollment-tree/1`, bounded to
+192 KiB. Decode requires separately authenticated root installation and checks
+all immutable root pins, exact schema/canonical bytes, bounds, unique IDs and
+principals, commitment integrity, acyclic complete ancestry and attenuation.
+Expired and revoked records remain decodable. A persisted root revocation may
+be stricter than activation; an externally revoked root cannot be reactivated
+by decoding an active record. No legacy reader is added.
+
+The decoder assumes a trusted protected journal. It cannot authenticate a
+forged state file, reconstruct native proofs, detect restoring both journal
+and commissioning state, or make `clone()` a distributed authority partition.
+The owner must supply integrity, rollback protection and a single transaction.
+There is no standalone file-store implementation for this tree.
+
+Nine additional tests cover real native three-edge authority, channel owner
+and instance substitution, revoke-after-verification ordering, full retained
+slots, replay across revocation, exact grant ancestry, canonical restore and
+adversarial topology/installation mutations. They are authored and compiled by
+artifact construction; hosted behavioral evidence remains pending. An enrollment
+ceiling does not allocate fresh capacity. Ancestor charging and operation entry
+are still the following direct state cutover.

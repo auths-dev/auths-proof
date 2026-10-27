@@ -505,3 +505,55 @@ tests filtered out). Proof-coverage reproduction remained byte-identical and
 the semantic-freeze inventory regenerated with explicit protocol/public-surface
 versions. This is construction evidence only; native enrollment behavior and
 full current-revision CI remain unqualified.
+
+
+## 19. Bounded enrollment state and channel ownership
+
+Native enrollment verification was pushed as `1e9dd198` and full CI dispatched
+in [40581199216](https://github.com/auths-dev/auths-proof/actions/runs/40581199216).
+At the last observation, generated-artifact classification passed; preflight
+and formal feedback remained running. No behavioral qualification is inferred.
+
+The next state component is `participant_enrollment/tree.rs`. It derives parent
+pins from current immutable ancestry inside the enrollment transition and then
+runs the maintained native verifier. Root/child revocation, ID/principal
+non-reuse, retained-slot bounds and exact per-resource grant paths have one
+owner. Canonical decoding checks independently supplied installation pins and
+structural invariants; it preserves revoked/expired records. This is pure state
+for the existing partition, not a separate store or installed enrollment API.
+
+While connecting the tree, a channel-name allowlist proved insufficient:
+a registered name alone did not establish that the channel belongs to the
+proposed child. Trusted channel pins now bind recipient principal and instance
+generation, checked against the signed descriptor. Transport dispatch must
+later consume the same pins. No runtime destinations or provider semantics are
+added to the protocol.
+
+Nine new tests include native root → A → B → C enrollment, stale snapshot
+revocation, replay/principal reuse, all retained slots, exact resource ancestry,
+channel ownership and hostile serialized-state mutations. Artifact generation
+compiled them and passed its one generation test (341 behavioral tests filtered
+out in this invocation). The first construction attempt caught two invalid
+JSON test-macro expressions, which were corrected. No behavioral test was run
+locally or claimed passing. No new formal theorem or full-system guarantee is
+claimed.
+
+Remaining immediate work: authenticate initial root enrollment during activation;
+embed this tree in the existing locked task state and bind its channels/resources
+to installed recipes; cut over read/write admission and entry to the participant
+and all-ancestor journal; expose enrollment through native SDKs and exercise
+isolated machine/A/B processes. Complete M0–M4 and F01–F16 acceptance remains open.
+
+
+Run 40581199216 subsequently failed repository preflight on two Clippy findings
+in the test-only partition reference (`single_match_else`, `collapsible_if`).
+The reference control flow was corrected without changing its transitions.
+Targeted `cargo clippy -p auths-gateway --all-targets --all-features -- -D warnings`
+passed after also correcting three semicolon diagnostics in the new tree tests.
+Downstream execution jobs were skipped by preflight. This is a lint result,
+not behavioral acceptance. Proof-coverage reproduction and semantic-inventory
+generation also passed; the measured decision closure remains unchanged.
+
+Final gateway closure construction with all features passed its one generation
+test (359 behavioral tests filtered out). The gateway source closure and
+semantic-freeze inventory were regenerated after the reference/test lint fixes.

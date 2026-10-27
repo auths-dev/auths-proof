@@ -129,16 +129,24 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::with_child(0x44)
+    }
+
+    fn with_child(child_seed: u8) -> Self {
+        Self::with_depth(child_seed, 1)
+    }
+
+    fn with_depth(child_seed: u8, parent_depth: u16) -> Self {
         let root = Signer::new(0x11);
         let parent = Signer::new(0x22);
-        let child = Signer::new(0x44);
+        let child = Signer::new(child_seed);
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = harness::context_for_profiles(
             &[&root],
             observer.principal(),
             None,
             NOW,
-            2,
+            parent_depth + 1,
             CompositionRequirement::new(None, 1, 1, 1).unwrap(),
             &[auths_raw_key::RAW_KEY_V1],
             &[
@@ -148,26 +156,42 @@ impl Fixture {
             ],
         )
         .unwrap();
-        let parent_control = grant(&root, &parent, PARTICIPANT_SERVICE, CONTROL_TOOLS, None, 1);
+        let parent_control = grant(
+            &root,
+            &parent,
+            PARTICIPANT_SERVICE,
+            CONTROL_TOOLS,
+            None,
+            parent_depth,
+        );
         let child_control = grant(
             &parent,
             &child,
             PARTICIPANT_SERVICE,
             CONTROL_TOOLS,
             Some(grant_id(parent_control.statement()).unwrap()),
-            0,
+            parent_depth - 1,
         );
-        let parent_resource = grant(&root, &parent, RESOURCE_SERVICE, &[RESOURCE_TOOL], None, 1);
+        let parent_resource = grant(
+            &root,
+            &parent,
+            RESOURCE_SERVICE,
+            &[RESOURCE_TOOL],
+            None,
+            parent_depth,
+        );
         let child_resource = grant(
             &parent,
             &child,
             RESOURCE_SERVICE,
             &[RESOURCE_TOOL],
             Some(grant_id(parent_resource.statement()).unwrap()),
-            0,
+            parent_depth - 1,
         );
-        let pins = parent_pins(&parent, &parent_control, &parent_resource);
-        let enrollment = child_descriptor(&child, &child_control, &child_resource, &pins);
+        let mut pins = parent_pins(&parent, &child, &parent_control, &parent_resource);
+        pins.remaining_depth = parent_depth;
+        let mut enrollment = child_descriptor(&child, &child_control, &child_resource, &pins);
+        enrollment.remaining_depth = parent_depth - 1;
         Self {
             root,
             parent,
@@ -241,6 +265,7 @@ impl Fixture {
 
 fn parent_pins(
     parent: &Signer,
+    child: &Signer,
     parent_control: &SignedGrant,
     parent_resource: &SignedGrant,
 ) -> ParentEnrollmentPins {
@@ -262,7 +287,13 @@ fn parent_pins(
         expires_at: NOW + 900,
         remaining_depth: 1,
         ceilings,
-        permitted_channels: BTreeSet::from(["agent-b-channel".to_owned()]),
+        permitted_channels: BTreeMap::from([(
+            "agent-b-channel".to_owned(),
+            EnrollmentChannelPins {
+                principal: child.principal.clone(),
+                instance_generation: 1,
+            },
+        )]),
         scopes: vec![EnrollmentScopePins {
             scope_id: "project-a-read".to_owned(),
             parent_grant: grant_id(parent_resource.statement()).unwrap(),
@@ -551,5 +582,393 @@ fn enrollment_commitment_refuses_integer_rounding_and_oversized_names() {
     assert_eq!(
         enrollment.commitment(),
         Err(ParticipantEnrollmentError::Invalid)
+    );
+}
+
+impl Fixture {
+    fn enroll_tree(&self, tree: &mut EnrollmentTree) -> Result<[u8; 32], EnrollmentTreeError> {
+        let parent = self.parent_proof(&self.enrollment);
+        let child = self.child_proof(&self.enrollment);
+        let resource = self.resource_proof("record-a");
+        let resources = [EnrollmentResourceWitness {
+            scope_id: "project-a-read",
+            invocation: invocation(&resource),
+        }];
+        tree.enroll(
+            &self.context,
+            self.pins.enrollment_commitment,
+            NOW,
+            &ParticipantEnrollmentProofs {
+                parent: invocation(&parent),
+                child: invocation(&child),
+                resources: &resources,
+            },
+        )
+    }
+}
+
+#[test]
+fn enrollment_tree_derives_exact_native_resource_ancestry() {
+    let fixture = Fixture::new();
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    let commitment = fixture.enroll_tree(&mut tree).unwrap();
+    let pins = tree.parent_pins(commitment, NOW).unwrap();
+    assert_eq!(pins.principal, fixture.child.principal);
+    assert_eq!(
+        pins.instance_generation,
+        fixture.enrollment.child_instance_generation
+    );
+    assert_eq!(
+        pins.control_grant.as_bytes(),
+        &fixture.enrollment.control_grant
+    );
+    assert_eq!(pins.ceilings, fixture.enrollment.ceilings);
+    assert_eq!(pins.remaining_depth, 0);
+    assert_eq!(pins.scopes[0].resource_handle, "record-a");
+    assert_eq!(
+        tree.resource_grant_path(commitment, "project-a-read", NOW)
+            .unwrap(),
+        vec![
+            grant_id(fixture.parent_resource.statement()).unwrap(),
+            grant_id(fixture.child_resource.statement()).unwrap()
+        ]
+    );
+    assert_eq!(
+        tree.resource_grant_path(commitment, "other-scope", NOW),
+        Err(EnrollmentTreeError::Binding)
+    );
+    assert_eq!(tree.participant_count(), 2);
+}
+
+#[test]
+fn enrollment_tree_rechecks_revocation_after_a_valid_native_snapshot() {
+    let fixture = Fixture::new();
+    let resource = fixture.resource_proof("record-a");
+    assert!(
+        fixture
+            .verify(&fixture.enrollment, &fixture.enrollment, &resource)
+            .is_ok()
+    );
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    tree.revoke(fixture.pins.enrollment_commitment).unwrap();
+    let before = tree.clone();
+    assert_eq!(
+        fixture.enroll_tree(&mut tree),
+        Err(EnrollmentTreeError::Inactive)
+    );
+    assert_eq!(tree, before);
+    assert_eq!(tree.participant_count(), 1);
+}
+
+#[test]
+fn enrollment_tree_revocation_retains_ids_principals_and_descendant_denials() {
+    let mut fixture = Fixture::new();
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    let commitment = fixture.enroll_tree(&mut tree).unwrap();
+    tree.revoke(commitment).unwrap();
+    tree.revoke(commitment).unwrap();
+    let before = tree.clone();
+    assert_eq!(
+        fixture.enroll_tree(&mut tree),
+        Err(EnrollmentTreeError::Replay)
+    );
+    fixture.enrollment.enrollment_id = "fresh-id-same-revoked-principal".into();
+    assert_eq!(
+        fixture.enroll_tree(&mut tree),
+        Err(EnrollmentTreeError::Replay)
+    );
+    assert_eq!(tree, before);
+    assert!(matches!(
+        tree.parent_pins(commitment, NOW),
+        Err(EnrollmentTreeError::Inactive)
+    ));
+    assert_eq!(
+        tree.resource_grant_path(commitment, "project-a-read", NOW),
+        Err(EnrollmentTreeError::Inactive)
+    );
+    assert_eq!(tree.participant_count(), 2);
+}
+
+#[test]
+fn enrollment_tree_bounds_include_root_and_revoked_records() {
+    let fixture = Fixture::new();
+    let mut pins = fixture.pins.clone();
+    for index in 0..15_u8 {
+        pins.permitted_channels.insert(
+            format!("channel-{index}"),
+            EnrollmentChannelPins {
+                principal: Signer::new(0x50 + index).principal,
+                instance_generation: 1,
+            },
+        );
+    }
+    let mut tree = EnrollmentTree::new(pins).unwrap();
+    for index in 0..15_u8 {
+        let mut child = Fixture::with_child(0x50 + index);
+        child.enrollment.enrollment_id = format!("member-{index}");
+        child.enrollment.delivery_channel = format!("channel-{index}");
+        let commitment = child.enroll_tree(&mut tree).unwrap();
+        tree.revoke(commitment).unwrap();
+    }
+    assert_eq!(tree.participant_count(), 16);
+    let before = tree.clone();
+    assert_eq!(
+        fixture.enroll_tree(&mut tree),
+        Err(EnrollmentTreeError::Full)
+    );
+    assert_eq!(tree, before);
+}
+
+#[test]
+fn enrollment_tree_refusals_are_atomic_and_root_pins_are_bounded() {
+    let mut fixture = Fixture::new();
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    let before = tree.clone();
+    fixture.enrollment.partition_generation += 1;
+    assert!(matches!(
+        fixture.enroll_tree(&mut tree),
+        Err(EnrollmentTreeError::Verification(_))
+    ));
+    assert_eq!(tree, before);
+    assert_eq!(tree.revoke([0x99; 32]), Err(EnrollmentTreeError::Binding));
+    assert_eq!(tree, before);
+    for mutation in 0..5 {
+        let mut pins = fixture.pins.clone();
+        match mutation {
+            0 => pins.scopes.clear(),
+            1 => pins.permitted_channels.clear(),
+            2 => pins.remaining_depth = 16,
+            3 => pins.partition_generation = MAX_JSON_INTEGER + 1,
+            _ => pins.ceilings.provider_reads = 65,
+        }
+        assert_eq!(EnrollmentTree::new(pins), Err(EnrollmentTreeError::Binding));
+    }
+    assert!(matches!(
+        tree.parent_pins(fixture.pins.enrollment_commitment, fixture.pins.expires_at),
+        Err(EnrollmentTreeError::Inactive)
+    ));
+}
+
+#[test]
+fn enrollment_tree_restores_revocations_and_rejects_changed_installation() {
+    let fixture = Fixture::new();
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    let child = fixture.enroll_tree(&mut tree).unwrap();
+    tree.revoke(child).unwrap();
+    let bytes = tree.encode().unwrap();
+    let restored = EnrollmentTree::decode(&bytes, &fixture.pins).unwrap();
+    assert_eq!(tree, restored);
+    assert!(matches!(
+        restored.parent_pins(child, NOW),
+        Err(EnrollmentTreeError::Inactive)
+    ));
+    for mutation in 0..5 {
+        let mut installed = fixture.pins.clone();
+        match mutation {
+            0 => installed.partition_generation += 1,
+            1 => installed.engagement_commitment[0] ^= 1,
+            2 => installed.scopes[0].resource_handle = "another-record".into(),
+            3 => installed.scopes[0].parent_grant = GrantId::new([0x99; 32]),
+            _ => {
+                installed.permitted_channels.insert(
+                    "another-channel".into(),
+                    EnrollmentChannelPins {
+                        principal: fixture.child.principal.clone(),
+                        instance_generation: 1,
+                    },
+                );
+            }
+        }
+        assert_eq!(
+            EnrollmentTree::decode(&bytes, &installed),
+            Err(EnrollmentTreeError::Corrupt)
+        );
+    }
+    tree.revoke(fixture.pins.enrollment_commitment).unwrap();
+    let revoked_root = tree.encode().unwrap();
+    assert_eq!(
+        EnrollmentTree::decode(&revoked_root, &fixture.pins).unwrap(),
+        tree
+    );
+    let mut revoked_installation = fixture.pins.clone();
+    revoked_installation.active = false;
+    assert_eq!(
+        EnrollmentTree::decode(&bytes, &revoked_installation),
+        Err(EnrollmentTreeError::Corrupt)
+    );
+}
+
+#[test]
+fn enrollment_tree_decoder_refuses_malformed_widened_and_noncanonical_state() {
+    let fixture = Fixture::new();
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    fixture.enroll_tree(&mut tree).unwrap();
+    let bytes = tree.encode().unwrap();
+    for mutation in 0..8 {
+        let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+        let child_id = &fixture.enrollment.enrollment_id;
+        match mutation {
+            0 => value["schema"] = json!("auths.engagement-enrollment-tree/0"),
+            1 => value["children"][child_id]["descriptor"]["ceilings"]["writes"] = json!(2),
+            2 => {
+                value["children"][child_id]["descriptor"]["parent_enrollment"] = json!(vec![9; 32]);
+            }
+            3 => value["children"][child_id]["commitment"] = json!(vec![8; 32]),
+            4 => value["children"][child_id]["descriptor"]["enrollment_id"] = json!("other-id"),
+            5 => value["unknown"] = json!(true),
+            6 => {
+                value["children"][child_id]["descriptor"]["scopes"][0]["scope_id"] =
+                    json!("another-scope");
+            }
+            _ => {
+                value["children"][child_id]["descriptor"]["child_principal"] =
+                    json!(fixture.parent.principal.as_str());
+            }
+        }
+        // Recompute the commitment for structural mutations to prove the
+        // decoder checks narrowing and topology, not merely content hashing.
+        if matches!(mutation, 1 | 2 | 4 | 6 | 7) {
+            let descriptor: ParticipantEnrollment =
+                serde_json::from_value(value["children"][child_id]["descriptor"].clone()).unwrap();
+            value["children"][child_id]["commitment"] = json!(descriptor.commitment().unwrap());
+        }
+        let changed = serde_json_canonicalizer::to_vec(&value).unwrap();
+        assert_eq!(
+            EnrollmentTree::decode(&changed, &fixture.pins),
+            Err(EnrollmentTreeError::Corrupt),
+            "mutation {mutation}"
+        );
+    }
+    let mut padded = bytes.clone();
+    padded.push(b' ');
+    assert_eq!(
+        EnrollmentTree::decode(&padded, &fixture.pins),
+        Err(EnrollmentTreeError::Corrupt)
+    );
+    assert_eq!(
+        EnrollmentTree::decode(&vec![b' '; 196_609], &fixture.pins),
+        Err(EnrollmentTreeError::Corrupt)
+    );
+}
+
+#[test]
+fn enrollment_tree_native_grandchild_keeps_full_scope_path_and_parent_revocation() {
+    let mut fixture = Fixture::with_depth(0x44, 2);
+    fixture.pins.permitted_channels.insert(
+        "grandchild-channel".into(),
+        EnrollmentChannelPins {
+            principal: Signer::new(0x55).principal,
+            instance_generation: 1,
+        },
+    );
+    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    let parent_id = fixture.enroll_tree(&mut tree).unwrap();
+    let parent_pins = tree.parent_pins(parent_id, NOW).unwrap();
+    let grandchild = Signer::new(0x55);
+    let control = grant(
+        &fixture.child,
+        &grandchild,
+        PARTICIPANT_SERVICE,
+        CONTROL_TOOLS,
+        Some(grant_id(fixture.child_control.statement()).unwrap()),
+        0,
+    );
+    let resource = grant(
+        &fixture.child,
+        &grandchild,
+        RESOURCE_SERVICE,
+        &[RESOURCE_TOOL],
+        Some(grant_id(fixture.child_resource.statement()).unwrap()),
+        0,
+    );
+    let mut descriptor = child_descriptor(&grandchild, &control, &resource, &parent_pins);
+    descriptor.enrollment_id = "grandchild".into();
+    descriptor.delivery_channel = "grandchild-channel".into();
+    let parent_signed = chained(
+        &[&fixture.root, &fixture.parent, &fixture.child],
+        &[&fixture.parent_control, &fixture.child_control],
+        PARTICIPANT_SERVICE,
+        ENROLL_PARTICIPANT_TOOL,
+        json!({"enrollment": descriptor}).as_object().unwrap(),
+    );
+    let signers = [&fixture.root, &fixture.parent, &fixture.child, &grandchild];
+    let child_signed = chained(
+        &signers,
+        &[&fixture.parent_control, &fixture.child_control, &control],
+        PARTICIPANT_SERVICE,
+        ACCEPT_PARTICIPANT_TOOL,
+        json!({"enrollment_commitment": descriptor.commitment().unwrap()})
+            .as_object()
+            .unwrap(),
+    );
+    let resource_signed = chained(
+        &signers,
+        &[&fixture.parent_resource, &fixture.child_resource, &resource],
+        RESOURCE_SERVICE,
+        RESOURCE_TOOL,
+        json!({"record_id": "record-a"}).as_object().unwrap(),
+    );
+    let resources = [EnrollmentResourceWitness {
+        scope_id: "project-a-read",
+        invocation: invocation(&resource_signed),
+    }];
+    let proofs = ParticipantEnrollmentProofs {
+        parent: invocation(&parent_signed),
+        child: invocation(&child_signed),
+        resources: &resources,
+    };
+    let grandchild_id = tree
+        .enroll(&fixture.context, parent_id, NOW, &proofs)
+        .unwrap();
+    assert_eq!(
+        tree.resource_grant_path(grandchild_id, "project-a-read", NOW)
+            .unwrap(),
+        vec![
+            grant_id(fixture.parent_resource.statement()).unwrap(),
+            grant_id(fixture.child_resource.statement()).unwrap(),
+            grant_id(resource.statement()).unwrap()
+        ]
+    );
+    tree.revoke(parent_id).unwrap();
+    let restored = EnrollmentTree::decode(&tree.encode().unwrap(), &fixture.pins).unwrap();
+    assert_eq!(
+        restored.resource_grant_path(grandchild_id, "project-a-read", NOW),
+        Err(EnrollmentTreeError::Inactive)
+    );
+    assert_eq!(restored.participant_count(), 3);
+}
+
+#[test]
+fn native_enrollment_registered_channel_must_match_child_identity_and_instance() {
+    let mut fixture = Fixture::new();
+    let resource = fixture.resource_proof("record-a");
+    let original = fixture.pins.permitted_channels["agent-b-channel"].clone();
+    fixture
+        .pins
+        .permitted_channels
+        .get_mut("agent-b-channel")
+        .unwrap()
+        .principal = fixture.parent.principal.clone();
+    assert_eq!(
+        fixture
+            .verify(&fixture.enrollment, &fixture.enrollment, &resource)
+            .unwrap_err(),
+        ParticipantEnrollmentError::ParentBinding
+    );
+    fixture
+        .pins
+        .permitted_channels
+        .insert("agent-b-channel".into(), original);
+    fixture
+        .pins
+        .permitted_channels
+        .get_mut("agent-b-channel")
+        .unwrap()
+        .instance_generation += 1;
+    assert_eq!(
+        fixture
+            .verify(&fixture.enrollment, &fixture.enrollment, &resource)
+            .unwrap_err(),
+        ParticipantEnrollmentError::ParentBinding
     );
 }
