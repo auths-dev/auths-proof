@@ -613,6 +613,10 @@ impl CompiledRecipe {
             .map(|binding| (binding.resource_field.as_str(), binding.verb.clone()))
     }
 
+    pub(crate) fn enrollment_tool(&self) -> &str {
+        &self.source.tool
+    }
+
     /// Returns the operator-controlled replay namespace.
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {

@@ -1889,6 +1889,139 @@ pub struct TaskWriteProofs<'a> {
 
 #[cfg(unix)]
 impl TaskWriteSession<'_> {
+    fn enrollment_transaction(&self) -> crate::release_state::EnrollmentTransaction<'_> {
+        crate::release_state::EnrollmentTransaction {
+            context: &self.engine.trusted_context,
+            pins: &self.pins,
+            time: &self.engine.qualification,
+        }
+    }
+
+    /// Derive exact scope IDs and native witness fields from the activated
+    /// card and operator-supplied compiled recipes. Preparation grants no entry.
+    ///
+    /// # Errors
+    /// Refuses stale tasks, substituted recipes and unresolved created-child scopes.
+    pub fn participant_scopes(
+        &self,
+        task_id: &str,
+        recipes: &crate::TaskEnrollmentRecipes<'_>,
+    ) -> Result<Vec<crate::TaskEnrollmentScope>, &'static str> {
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.verify.clock-unavailable")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.enrollment-unavailable")?
+            .ok_or("gateway.task.enrollment-unavailable")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.enrollment-refused")?;
+        crate::task_enrollment::scopes(task.descriptor(), recipes)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Prepare the exact root commitment the initial participant must sign.
+    /// Proposed grant IDs are untrusted until native bootstrap succeeds.
+    ///
+    /// # Errors
+    /// Refuses a stale task, changed recipe set or incomplete scope-to-grant map.
+    pub fn participant_root(
+        &self,
+        task_id: &str,
+        recipes: &crate::TaskEnrollmentRecipes<'_>,
+        authority: &crate::TaskRootAuthority,
+    ) -> Result<crate::participant_enrollment::ParentEnrollmentPins, &'static str> {
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.verify.clock-unavailable")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.enrollment-unavailable")?
+            .ok_or("gateway.task.enrollment-unavailable")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.enrollment-refused")?;
+        crate::task_enrollment::root_pins(&task, recipes, authority)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Verify root possession and resource authority, then atomically publish
+    /// its tree in the existing task journal before any operation is reserved.
+    /// No credential or provider call occurs. Publication is single-use.
+    ///
+    /// # Errors
+    /// Refuses replay, prior task use, changed task/operator pins or invalid proofs.
+    pub fn bootstrap_participants(
+        &self,
+        task_id: &str,
+        recipes: &crate::TaskEnrollmentRecipes<'_>,
+        authority: &crate::TaskRootAuthority,
+        proofs: &crate::participant_enrollment::RootEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], &'static str> {
+        self.ledger
+            .bootstrap_participants(
+                task_id,
+                &self.enrollment_transaction(),
+                recipes,
+                authority,
+                proofs,
+            )
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Enroll a child under current native parent authority and child acceptance
+    /// in the same locked record as task replay, revocation and accounting.
+    /// Enrollment does not itself admit an operation or disclose content.
+    ///
+    /// # Errors
+    /// Refuses invalid, stale, revoked, duplicate or over-capacity enrollment.
+    pub fn enroll_participant(
+        &self,
+        task_id: &str,
+        parent: [u8; 32],
+        proofs: &crate::participant_enrollment::ParticipantEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], &'static str> {
+        self.ledger
+            .enroll_participant(task_id, &self.enrollment_transaction(), parent, proofs)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Current active participant snapshot for authoring a child proposal.
+    /// Enrollment rederives its own pins under its exclusive transaction.
+    ///
+    /// # Errors
+    /// Refuses unknown, revoked, expired or changed task/participant bindings.
+    pub fn participant_pins(
+        &self,
+        task_id: &str,
+        participant: [u8; 32],
+    ) -> Result<crate::participant_enrollment::ParentEnrollmentPins, &'static str> {
+        self.ledger
+            .participant_pins(task_id, &self.enrollment_transaction(), participant)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Operator-only revocation of a participant and all descendant eligibility.
+    /// The caller must authenticate administrative authority. The task journal
+    /// retains records and charges; root revocation also revokes the whole task.
+    ///
+    /// # Errors
+    /// Refuses an unknown task/participant or unavailable protected journal.
+    pub fn revoke_participant(
+        &self,
+        task_id: &str,
+        participant: [u8; 32],
+    ) -> Result<(), &'static str> {
+        self.ledger
+            .revoke_participant(task_id, participant)
+            .map_err(|_| "gateway.task.revoke-unavailable")
+    }
+
     /// Development fault for the durable task-write/attempt-journal boundary.
     #[cfg(feature = "loopback-provider")]
     #[must_use]

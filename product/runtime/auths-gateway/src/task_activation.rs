@@ -6,6 +6,7 @@ use crate::bounds::authorized_chains;
 use crate::engine::{
     GatewaySubmitResult, authorized_action, not_entered, verify_sealed_for_audience,
 };
+use crate::participant_enrollment::MAX_SCOPES;
 use crate::release_state::{ReleaseResourceScope, ReleaseTaskPolicy};
 use auths_model::{Audience, PrincipalId, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
@@ -20,18 +21,17 @@ pub(crate) use delegation::TaskDelegationPolicy;
 const TASK_SCHEMA: &str = "auths.agent-task/4";
 pub(crate) use crate::control_namespace::TASK_SERVICE;
 pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
-const MAX_SCOPES: usize = 16;
 const MAX_TASK_SECONDS: u64 = 86_400;
 const MAX_WRITES: u32 = 32;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskReadScope {
-    handle: String,
-    recipe_digest: String,
-    connection_id: String,
-    connection_generation: u64,
-    connection_subject: String,
+    pub(crate) handle: String,
+    pub(crate) recipe_digest: String,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -113,7 +113,7 @@ pub(crate) struct AgentTaskDescriptor {
     pub(crate) connection_id: String,
     pub(crate) connection_generation: u64,
     pub(crate) connection_subject: String,
-    read_scopes: Vec<TaskReadScope>,
+    pub(crate) read_scopes: Vec<TaskReadScope>,
     pub(crate) write_scopes: Vec<TaskWriteScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) pending_child: Option<TaskPendingChild>,
@@ -121,9 +121,9 @@ pub(crate) struct AgentTaskDescriptor {
     pub(crate) delegation: TaskDelegationPolicy,
     pub(crate) not_before: u64,
     pub(crate) expires_at: u64,
-    max_provider_calls: u32,
-    max_releases: u32,
-    max_release_bytes: u64,
+    pub(crate) max_provider_calls: u32,
+    pub(crate) max_releases: u32,
+    pub(crate) max_release_bytes: u64,
     pub(crate) max_writes: u32,
     pub(crate) write_approval_mode: WriteApprovalMode,
     /// Complete profile arguments the human allows in upfront mode, except
@@ -283,7 +283,7 @@ fn valid_upfront_choices(choices: &[BTreeMap<String, Value>]) -> bool {
 
 impl AgentTaskDescriptor {
     /// One owner for task canonicalization and its versioned commitment domain.
-    fn canonical_commitment(&self) -> Result<[u8; 32], GatewaySubmitResult> {
+    pub(crate) fn canonical_commitment(&self) -> Result<[u8; 32], GatewaySubmitResult> {
         let canonical = serde_json_canonicalizer::to_vec(self)
             .map_err(|_| not_entered("gateway.task.invalid-card"))?;
         auths_codec::domain_commitment("auths.agent-task.v4", &canonical)
@@ -315,6 +315,13 @@ impl AgentTaskDescriptor {
                 || self.initiator_principal == self.approver_principal)
     }
 
+    fn resource_count(&self) -> usize {
+        self.read_scopes
+            .len()
+            .saturating_add(self.write_scopes.len())
+            .saturating_add(usize::from(self.pending_child.is_some()))
+    }
+
     fn validate(&self, pins: &TaskActivationPins, now: u64) -> Result<(), GatewaySubmitResult> {
         if self.schema != TASK_SCHEMA
             || !bounded_text(&self.task_id, 128)
@@ -330,8 +337,7 @@ impl AgentTaskDescriptor {
             || self.not_before > now
             || now >= self.expires_at
             || self.expires_at - self.not_before > MAX_TASK_SECONDS
-            || self.read_scopes.len() > MAX_SCOPES
-            || self.write_scopes.len() > MAX_SCOPES
+            || self.resource_count() > MAX_SCOPES
             || (self.read_scopes.is_empty() && self.write_scopes.is_empty())
             || self.max_provider_calls > 64
             || self.max_releases > self.max_provider_calls
@@ -689,14 +695,14 @@ mod tests {
                         .permitted_channels
                         .get_mut(root_channel)
                         .expect("pin")
-                        .principal = child.principal.clone()
+                        .principal = child.principal.clone();
                 }
                 6 => {
                     delegation
                         .permitted_channels
                         .get_mut(root_channel)
                         .expect("pin")
-                        .instance_generation = 2
+                        .instance_generation = 2;
                 }
                 7 => delegation.partition_generation = 1 << 53,
                 8 => {
@@ -740,6 +746,43 @@ mod tests {
         let mut obsolete = original.clone();
         obsolete.schema = "auths.agent-task/3".into();
         assert!(obsolete.validate(&pins(&original), NOW).is_err());
+    }
+
+    #[test]
+    fn task_resource_limit_is_shared_by_reads_writes_and_pending_children() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut card = card(&human, &agent);
+        let source = card.read_scopes[0].clone();
+        card.read_scopes = (0..15)
+            .map(|index| TaskReadScope {
+                handle: format!("source-{index}"),
+                ..source.clone()
+            })
+            .collect();
+        assert!(card.validate(&pins(&card), NOW).is_ok());
+        card.read_scopes.push(TaskReadScope {
+            handle: "source-16".into(),
+            ..source
+        });
+        assert!(card.validate(&pins(&card), NOW).is_err());
+        card.read_scopes.truncate(14);
+        card.write_scopes[0].verb = TaskWriteVerb::Create;
+        card.max_writes = 2;
+        card.pending_child = Some(TaskPendingChild {
+            create_operation_id: "create-1".into(),
+            create_recipe_digest: "c".repeat(64),
+            populate_recipe_digest: "e".repeat(64),
+            parent_handle: "working-doc".into(),
+            title: "Scoped child".into(),
+            marker: "synthetic-child-marker".into(),
+        });
+        assert!(card.validate(&pins(&card), NOW).is_ok());
+        card.read_scopes.push(TaskReadScope {
+            handle: "source-15".into(),
+            ..card.read_scopes[0].clone()
+        });
+        assert!(card.validate(&pins(&card), NOW).is_err());
     }
 
     #[test]

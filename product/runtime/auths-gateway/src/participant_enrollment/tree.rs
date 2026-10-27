@@ -71,6 +71,41 @@ struct StoredTree {
 }
 
 impl EnrollmentTree {
+    pub(crate) const fn root(&self) -> &ParentEnrollmentPins {
+        &self.root
+    }
+
+    pub(crate) fn revoke_root(&mut self) {
+        self.root.active = false;
+    }
+
+    /// Structural decoding inside a byte-bounded protected task journal.
+    /// Its owner must independently recheck the signed card/root association.
+    pub(crate) fn deserialize_stored<'de, D>(deserializer: D) -> Result<Box<Self>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let stored = StoredTree::deserialize(deserializer)?;
+        Self::from_stored(stored)
+            .map(Box::new)
+            .map_err(serde::de::Error::custom)
+    }
+
+    fn from_stored(stored: StoredTree) -> Result<Self, EnrollmentTreeError> {
+        let tree = Self {
+            schema: stored.schema,
+            root: stored.root,
+            children: stored.children,
+        };
+        if tree.schema != SCHEMA || tree.participant_count() > MAX_PARTICIPANTS {
+            return Err(EnrollmentTreeError::Corrupt);
+        }
+        bounded_parent(&tree.root).map_err(|_| EnrollmentTreeError::Corrupt)?;
+        tree.encode()?;
+        tree.validate_records()?;
+        Ok(tree)
+    }
+
     /// Activate a root with native holder control and exact resource authority.
     ///
     /// Root pins must come from the signed engagement and installed bindings.
@@ -340,15 +375,8 @@ impl EnrollmentTree {
         bounded_parent(installed).map_err(|_| EnrollmentTreeError::Corrupt)?;
         let stored: StoredTree =
             serde_json::from_slice(bytes).map_err(|_| EnrollmentTreeError::Corrupt)?;
-        let tree = Self {
-            schema: stored.schema,
-            root: stored.root,
-            children: stored.children,
-        };
-        if tree.schema != SCHEMA
-            || tree.participant_count() > MAX_PARTICIPANTS
-            || tree.encode()? != bytes
-        {
+        let tree = Self::from_stored(stored)?;
+        if tree.encode()? != bytes {
             return Err(EnrollmentTreeError::Corrupt);
         }
         let mut recorded = tree.root.clone();
@@ -363,7 +391,6 @@ impl EnrollmentTree {
         if recorded != expected {
             return Err(EnrollmentTreeError::Corrupt);
         }
-        tree.validate_records()?;
         Ok(tree)
     }
 

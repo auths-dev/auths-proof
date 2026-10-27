@@ -691,3 +691,73 @@ contract, not a new generic policy or recovery abstraction. Python tests also
 assert exact installed-policy copying and commitment changes when the partition
 generation changes. Behavioral, binding, lint and full-revision CI evidence
 remain pending for this slice.
+
+
+## 23. Task-journal enrollment and formal evidence repair
+
+The operator-owned Rust task session now derives exact resource scopes from the
+signed card and compiled recipes, verifies root possession/resource grants, and
+publishes the root in `FileReleaseTaskLedger`. Child enrollment and operator
+revocation use that same lock/record. Native verification and before/after time
+checks occur inside the transaction; there is no second enrollment/budget store
+or provider I/O under the lock. Reopening structurally validates ancestry and
+rechecks root/card/installation association. Root publication cannot repeat or
+follow existing task operation claims. All retained accounting survives it.
+
+Schema 10 replaces the task journal shape directly. A mandatory explicit
+pending/active participant lifecycle and a 512 KiB total journal bound include
+the existing 192 KiB tree bound. Mixed read/write claims share the sixty-four
+operation limit. Reads, writes and a pending child share sixteen resource slots.
+See the participant contract §14 for exact mechanics and before/after diagrams.
+
+Seven journal/projection tests and two combined-bound tests are authored. They
+cover native company → machine → agent A → agent B authority, restart and
+single-publication replay, stale child acceptance with unchanged state,
+retained revocation, clock expiry while waiting on the file lock, concurrent
+root/child publication, concurrent revocation, changed signed-root association,
+missing lifecycle fields, scope/account/recipe binding and shared finite limits.
+They are not yet hosted behavioral evidence. Initial artifact construction
+found and corrected a Serde enum-field bound and a scoped-thread ownership error;
+no decoder check was weakened and the tree still has no public unchecked
+Deserialize implementation.
+
+This is still an incomplete runtime cutover. Current operation admission and
+ACK/channel selection only accept the original agent; pending-root tasks still
+use that existing gate. Child execution, mandatory active-root admission,
+all-ancestor charges, exact native grant-suffix matching, created-child scope
+projection, CLI/bindings and end-to-end isolation remain open. No F criterion
+closes from these journal methods alone.
+
+Earlier run 40583279847 on `e4bcebcb` completed with failures. Translation and
+Kani passed. Authoritative Lean rebuilt all 3270 jobs, then its assurance audit
+refused stale source-closure evidence references. A complete manifest search
+found **59** references to the same old digest (the first inspection displayed
+only five). Each now binds the actual committed source-closure digest
+`c48b0d96fd6324523e9e74f1770db126a4b4448842500fdd1c0dcc06bf58651d`, identical to the
+artifact reported by hosted translation. This targeted repair changes only
+those hashes, preserving theorem statements, axiom policy, review inventory and
+all other manifest fields. A read-only digest comparison found no other stale
+cited file. This corrects the failed evidence linkage; it is not a passing formal
+qualification claim. A fresh hosted audit must confirm it.
+
+Full CI run 40592266824 was dispatched on committed `689c3584` after the previous
+run became terminal. It does not include this uncommitted journal/manifest work.
+
+Run 40592266824 is now terminal: fast formal feedback passed, but repository
+preflight refused four missing-semicolon lints in the preceding commit, so the
+downstream implementation jobs did not execute. Those four lints are corrected.
+Targeted all-target/all-feature gateway Clippy reproduction passed after also
+extracting root/card validation and resource counting into focused helpers and
+making the new fixture's default type explicit. No lint policy was weakened.
+Final gateway source-closure generation passed (one artifact check, 381 behavioral
+tests filtered out). Coverage generation initially failed when the linker ran
+out of disk; only this worktree's regenerable incremental build cache was removed
+before retrying. Behavioral and exact-revision hosted evidence remain pending.
+
+Artifact construction completed: proof coverage reproduced byte-identically
+(110/1031 decision functions, 1289/11353 lines, 15/82 check sites; Study 006
+unchanged), and semantic inventory generation passed at freeze 405. Identity
+protocol 148, public SDK 145, public surface 405 and frozen assurance manifest
+61 explicitly identify this source change. These generated reports do not add
+formal coverage for the journal integration. All nine new behavioral tests
+remain pending hosted execution; no acceptance criterion closes.

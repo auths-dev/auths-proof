@@ -1,7 +1,7 @@
 # AP073 engagement and participant contract
 
-**Status:** implementation contract, 27 October 2026. Native enrollment verification and a pure bounded enrollment tree are implemented.
-Installed enrollment, shared accounting and qualification remain incomplete. This document resolves the next bounded
+**Status:** implementation contract, 27 October 2026. Native enrollment verification, a bounded tree and operator-session publication into the task journal are implemented.
+CLI/binding enrollment, shared ancestor accounting, operation admission and qualification remain incomplete. This document resolves the next bounded
 design decisions under [AP-SPEC-073](../specs/0073-identity-authority-and-enforcement-foundation.md).
 The [assessment](0073-foundation-assessment.md) records actual evidence.
 
@@ -297,9 +297,9 @@ entry. Rust verification tests alone do not establish any of those guarantees.
 
 ## 10. Transaction-owned enrollment tree
 
-`EnrollmentTree` now provides the pure state transition that the task ledger
-will embed. It is **not yet connected to `FileReleaseTaskLedger` or the installed
-engine**. Its public bootstrap constructor now verifies native root activation and resource
+`EnrollmentTree` initially supplied only a pure state transition. Section 14
+now connects it to `FileReleaseTaskLedger` and operator-owned Rust task-session
+methods. Descendant operation admission and dispatch remain incomplete. Its public bootstrap constructor now verifies native root activation and resource
 authority as specified in §11. Root installation pins remain trusted inputs,
 independently bound to the signed engagement and operator policy. This is one
 concrete engagement contract, not a new generic policy engine or a second store.
@@ -504,7 +504,8 @@ flowchart LR
 
 The task is now `auths.agent-task/4`, committed with domain
 `auths.agent-task.v4`; installation is `auths.gateway-task-installation/5` and
-task state is `auths.gateway-agent-task-state/9`. Old formats and a missing
+task state initially became `auths.gateway-agent-task-state/9`; section 14
+now supersedes it with schema 10. Old formats and a missing
 `delegation` field are refused. There is no legacy decoder or default policy.
 The object contains:
 
@@ -546,3 +547,79 @@ The current read/write and acknowledgement paths still require the initial
 agent. Root/child persistence and ancestor accounting remain the next integration
 step. Reopening refuses a changed installed generation, but restoring both
 journal and installation remains outside this guarantee; F15 is still open.
+
+
+## 14. Native root and enrollment in the existing task journal
+
+The concrete `TaskWriteSession` API now offers scope/root preparation,
+`bootstrap_participants`, `enroll_participant`, active participant snapshots,
+and authenticated operator revocation. These are Rust operator-session methods;
+there is no new public HTTP endpoint, CLI command or language wrapper yet.
+
+Before this integration, verified root/child state and task replay were separate:
+
+```mermaid
+flowchart LR
+    B[Native bootstrap and enrollment] --> T[Pure enrollment tree]
+    A[Task activation] --> J[File task journal and operation claims]
+```
+
+The existing file transaction now owns durable tree publication and revocation:
+
+```mermaid
+flowchart LR
+    C[Signed task card and installed pins] --> L[Existing exclusive task-journal lock]
+    P[Exact compiled recipe set] --> L
+    N[Native root or child proofs] --> L
+    L --> T[Fresh trusted time and current ancestry]
+    T --> V[Bounded offline native verification]
+    V --> F[Final trusted-time check]
+    F --> J[One atomic tree and operation record]
+    R[Authenticated operator revocation] --> L
+```
+
+Root scope IDs are domain-separated canonical commitments with domain
+`auths.engagement-resource-scope.v1`. They commit the scope kind and **all**
+signed scope fields: resource, recipe, connection ID/generation/account, and
+write verb where present. The root preparation API derives service, tool and
+resource argument from compiled recipes whose digest set must exactly match
+the task. Extra, duplicate, missing or substituted recipes are refused. The
+participant proposes only native grant IDs for the derived scopes and its
+control grant. Native bootstrap verifies them and the root's acceptance of the
+complete root commitment. A proposed ID never establishes authority by itself.
+
+Task state schema 10 requires an explicit `participants` lifecycle field,
+`pending` or `active` with a structurally validated tree. It has no legacy reader
+or implicit default. Root publication is single-use and refused after any
+existing read/write claim, preventing a fresh tree from restarting a used task's
+accounting. The bootstrap transaction re-derives pins from the current activated
+card. Child publication re-derives parent pins from the current tree. Both sample
+trusted deployment time **inside** the lock and again after native verification.
+There is no network, custody or provider call under this transaction.
+
+Canonical decoding checks the tree's bounded retained ancestry, the root's
+commitment, and its association with the signed card and task commitment. A
+reopened task additionally revalidates current installation pins. Root revocation
+also revokes the task; task revocation also marks its root revoked. Child records,
+IDs and charges remain retained. Publication acknowledges only after the existing
+file fsync, atomic rename and directory fsync sequence. Uncertain publication
+can be inspected by its known commitment; repeating it never creates capacity.
+The protected journal assumption remains: this is not cryptographic authentication
+of an arbitrary imported database or whole-store rollback detection.
+
+The encoded journal limit is 512 KiB, including the separately bounded 192 KiB
+tree. The operation limit is now sixty-four **combined** read/write claims,
+checked at both reservation and decode. Task resource limits similarly count
+reads, writes and a pending created-child scope together against sixteen.
+
+Important incomplete integration: current read/write execution still uses the
+initial-agent-only gate, including tasks in the pending root lifecycle. An
+enrolled child does not gain execution or disclosure through these new methods.
+The remaining direct cutover must require active root/participant authority at
+every operation, bind the exact native grant suffix, and atomically charge every
+ancestor. Current operator-session enrollment does not satisfy those obligations.
+It also refuses root projection for a task with an unresolved created child,
+rather than guessing a future handle or treating the parent as that child.
+The profile-owned created-child lineage contract must be integrated before this
+becomes the mandatory operation path. CLI/bindings, channel/ACK selection,
+resource-entry fencing and the full isolated machine/A/B flow remain open.

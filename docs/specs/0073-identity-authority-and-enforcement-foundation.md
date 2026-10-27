@@ -106,8 +106,9 @@ The native enrollment verification boundary now has a closed descriptor and
 separate parent, child-acceptance and resource-authority proofs. The
 [participant contract](../plans/0073-engagement-participant-contract.md#9-native-enrollment-verification-boundary)
 defines exact grant linkage, canonical commitments, bounds and trusted inputs.
-The returned value is a verified proposal; durable enrollment, live ancestry
-checks and participant capacity remain implementation work. Core proof wire
+The returned value is a verified proposal; the task journal now durably publishes
+it under its transaction lock. Operation admission and participant capacity
+remain implementation work. Core proof wire
 semantics are retained, and no provider action runs during verification.
 
 Native root bootstrap now proves holder control and separate resource authority
@@ -118,10 +119,13 @@ A bounded pure enrollment tree now owns immutable ancestry, retained revocation,
 ID/principal non-reuse and canonical state validation against independently
 installed root pins. Enrollment derives its current parent snapshot from this
 tree before native verification. Registered channels bind both child principal
-and instance generation. These transitions are not yet connected to the task
-ledger or installed admission/dispatch; no durable activation or shared-budget
-claim follows from the state component alone. See the
-[transaction-owned tree contract](../plans/0073-engagement-participant-contract.md#10-transaction-owned-enrollment-tree).
+and instance generation. The task journal now owns root bootstrap, child enrollment
+and retained operator revocation in one protected record and transaction. It
+rechecks trusted time inside the lock and root association on reopening. This
+source integration still awaits hosted behavioral evidence. Operation admission,
+ancestor charging and child dispatch remain incomplete; pending-root tasks still
+use the existing initial-agent gate. See the
+[task-journal contract](../plans/0073-engagement-participant-contract.md#14-native-root-and-enrollment-in-the-existing-task-journal).
 
 ## 5. Portable verification and live admission
 

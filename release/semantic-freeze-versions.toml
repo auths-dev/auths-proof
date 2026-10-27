@@ -1,4 +1,4 @@
-freeze_version = 404
+freeze_version = 405
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -16,7 +16,7 @@ freeze_version = 404
 "auths.frozen-bytes/core/fixtures/v1/manifest.json" = 16
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 60
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 61
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 19
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 16
 "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 105
@@ -45,7 +45,7 @@ freeze_version = 404
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 147
+"auths.identity.protocol" = 148
 "auths.modular-components" = 22
 "auths.portable-abi-bindings" = 124
 "auths.product.bounded-domains" = 19
@@ -60,11 +60,11 @@ freeze_version = 404
 "auths.product.mcp-closed-execution" = 32
 "auths.product.mechanism-profile-conformance" = 12
 "auths.product.operations" = 5
-"auths.product.public-sdk-contract" = 144
+"auths.product.public-sdk-contract" = 145
 "auths.product.receipts" = 13
 "auths.product.release-assurance" = 7
 "auths.product.simplified-waist" = 19
 "auths.product.vocabulary" = 26
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 80
-"auths.release.public-surface" = 404
+"auths.release.public-surface" = 405

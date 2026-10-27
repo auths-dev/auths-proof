@@ -30,7 +30,7 @@ pub const ENROLL_PARTICIPANT_TOOL: &str = "enroll_participant_v1";
 pub const ACCEPT_PARTICIPANT_TOOL: &str = "accept_participant_v1";
 /// Direct schema for the new enrollment contract.
 pub const PARTICIPANT_ENROLLMENT_SCHEMA: &str = "auths.participant-enrollment/1";
-const MAX_SCOPES: usize = 16;
+pub(crate) const MAX_SCOPES: usize = 16;
 // One bounded tree, including the root, with one registered channel per principal.
 pub(crate) const MAX_PARTICIPANTS: usize = 16;
 const MAX_PROOF_BYTES: usize = 4 * 1_048_576;
@@ -615,7 +615,7 @@ fn verify_resources(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 // Storage projections preserve native semantic types. Deserialization is only
 // representation validation; it cannot authenticate a trusted installation.

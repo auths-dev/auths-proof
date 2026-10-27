@@ -20,7 +20,7 @@ const CONTROL_TOOLS: &[&str] = &[
     ACCEPT_PARTICIPANT_TOOL,
 ];
 
-fn grant(
+pub(crate) fn grant(
     issuer: &Signer,
     subject: &Signer,
     service: &str,
@@ -60,7 +60,7 @@ fn grant(
     SignedGrant::new(statement, SignatureEnvelope::new(descriptor, signature))
 }
 
-fn chained(
+pub(crate) fn chained(
     signers: &[&Signer],
     grants: &[&SignedGrant],
     service: &str,
@@ -113,7 +113,7 @@ fn chained(
     signed
 }
 
-fn invocation(signed: &Submission) -> EnrollmentInvocation<'_> {
+pub(crate) fn invocation(signed: &Submission) -> EnrollmentInvocation<'_> {
     EnrollmentInvocation {
         proof: &signed.proof,
         action: &signed.action,
@@ -1099,7 +1099,7 @@ fn root_bootstrap_commitment_covers_every_immutable_installation_dimension() {
                     .permitted_channels
                     .get_mut("agent-b-channel")
                     .unwrap()
-                    .instance_generation += 1
+                    .instance_generation += 1;
             }
             14 => changed.ceilings.provider_reads -= 1,
             15 => changed.ceilings.disclosures -= 1,
@@ -1111,7 +1111,7 @@ fn root_bootstrap_commitment_covers_every_immutable_installation_dimension() {
                     .permitted_channels
                     .get_mut("agent-b-channel")
                     .unwrap()
-                    .principal = fixture.parent.principal.clone()
+                    .principal = fixture.parent.principal.clone();
             }
             _ => {
                 let channel = changed

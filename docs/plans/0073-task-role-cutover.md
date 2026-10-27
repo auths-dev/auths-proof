@@ -36,7 +36,7 @@ durable state schema 8. The subsequent signed delegation cutover in
 [the participant contract, §13](0073-engagement-participant-contract.md#13-signed-task-delegation-envelope)
 supersedes them with `auths.agent-task/4`, commitment domain
 `auths.agent-task.v4`, `auths.gateway-task-installation/5` and
-`auths.gateway-agent-task-state/9`. Old cards and state are refused. There is no
+`auths.gateway-agent-task-state/10` (including journal enrollment in §14). Old cards and state are refused. There is no
 fallback interpretation of `human_principal`, migration, default role, or
 compatibility reader. The native proof encoding and attenuation rules do not
 change.

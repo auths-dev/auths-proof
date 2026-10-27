@@ -5,11 +5,15 @@
 
 #[cfg(test)]
 use crate::ClosedReleaseRequest;
+use crate::participant_enrollment::{
+    EnrollmentTree, EnrollmentTreeError, ParticipantEnrollmentProofs, RootEnrollmentProofs,
+};
 use crate::recipe::VerifiedCreatedChild;
 use crate::release_verify::VerifiedReleaseRequest;
 use crate::task_activation::TaskWriteScope;
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
 use crate::task_effect_plan::VerifiedEffectPlan;
+use crate::task_enrollment::{TaskEnrollmentRecipes, TaskRootAuthority};
 use crate::task_populate_attestation::{ExpectedPopulatePreflight, VerifiedPopulatePreflight};
 use crate::task_recovery_attestation::VerifiedRecoveryAttestation;
 use crate::task_write::ApprovedTaskWrite;
@@ -26,11 +30,12 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/9";
+const SCHEMA: &str = "auths.gateway-agent-task-state/10";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
-const MAX_STATE_BYTES: usize = 262_144;
+// Includes the bounded 192 KiB participant tree and existing operation/card records.
+const MAX_STATE_BYTES: usize = 524_288;
 const KEY_DOMAIN: &[u8] = b"auths.gateway-release-task/1\0";
 const LOCK_FILE: &str = ".release.lock";
 
@@ -210,6 +215,50 @@ struct ReleaseOperation {
     content_commitment: Option<String>,
 }
 
+/// A task activation precedes native root possession. There is no legacy tree
+/// decoder; absence of this explicit lifecycle field is a corrupt state.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "kebab-case", deny_unknown_fields)]
+enum TaskParticipants {
+    Pending,
+    Active {
+        #[serde(deserialize_with = "EnrollmentTree::deserialize_stored")]
+        tree: Box<EnrollmentTree>,
+    },
+}
+
+impl TaskParticipants {
+    fn tree(&self) -> Result<&EnrollmentTree, ReleaseStateError> {
+        match self {
+            Self::Active { tree } => Ok(tree),
+            Self::Pending => Err(ReleaseStateError::Inactive),
+        }
+    }
+
+    fn tree_mut(&mut self) -> Result<&mut EnrollmentTree, ReleaseStateError> {
+        match self {
+            Self::Active { tree } => Ok(tree),
+            Self::Pending => Err(ReleaseStateError::Inactive),
+        }
+    }
+}
+
+/// Installed trust and time, sampled within the existing exclusive transaction.
+pub(crate) struct EnrollmentTransaction<'a> {
+    pub(crate) context: &'a auths_model::TrustedContext,
+    pub(crate) pins: &'a TaskActivationPins,
+    pub(crate) time: &'a crate::QualificationGate,
+}
+
+impl EnrollmentTransaction<'_> {
+    fn now(&self) -> Result<u64, ReleaseStateError> {
+        self.time
+            .execution_time()
+            .map(crate::DeploymentTime::unix_seconds)
+            .ok_or(ReleaseStateError::Inactive)
+    }
+}
+
 /// One task's release accounting. A single CAS record keeps replay claims,
 /// call count, release count and byte sum atomic even under competing agents.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -235,6 +284,7 @@ pub(crate) struct ReleaseTaskState {
     /// Production activation writes the verified card. Policy-only synthetic
     /// states use null and cannot authorize a task submission.
     activated_card: Option<AgentTaskDescriptor>,
+    participants: TaskParticipants,
     revoked: bool,
     provider_calls: u32,
     releases: u32,
@@ -307,6 +357,18 @@ impl ReleaseStateError {
             Self::Replay => "gateway.task.write-replay",
             Self::Exhausted => "gateway.task.write-budget",
             Self::Exists | Self::Corrupt | Self::Unavailable => "gateway.task.store-unavailable",
+        }
+    }
+}
+
+impl From<EnrollmentTreeError> for ReleaseStateError {
+    fn from(error: EnrollmentTreeError) -> Self {
+        match error {
+            EnrollmentTreeError::Binding | EnrollmentTreeError::Verification(_) => Self::Binding,
+            EnrollmentTreeError::Inactive => Self::Inactive,
+            EnrollmentTreeError::Full => Self::Exhausted,
+            EnrollmentTreeError::Replay => Self::Replay,
+            EnrollmentTreeError::Corrupt => Self::Corrupt,
         }
     }
 }
@@ -449,6 +511,7 @@ impl ReleaseTaskState {
             connection_generation: policy.connection_generation,
             connection_subject: policy.connection_subject,
             activated_card: None,
+            participants: TaskParticipants::Pending,
             revoked: false,
             provider_calls: 0,
             releases: 0,
@@ -579,8 +642,16 @@ impl ReleaseTaskState {
         Self::new(policy)
     }
 
+    fn operation_count(&self) -> Option<usize> {
+        self.operations.len().checked_add(self.writes.len())
+    }
+
     fn active(&self, now: u64) -> Result<(), ReleaseStateError> {
-        if self.revoked || now < self.not_before || now >= self.expires_at {
+        if self.revoked
+            || now < self.not_before
+            || now >= self.expires_at
+            || matches!(&self.participants, TaskParticipants::Active { tree } if !tree.root().active)
+        {
             Err(ReleaseStateError::Inactive)
         } else {
             Ok(())
@@ -627,6 +698,11 @@ impl ReleaseTaskState {
         if approved.task_policy() != policy {
             return Err(ReleaseStateError::Corrupt);
         }
+        if let TaskParticipants::Active { tree } = &self.participants
+            && !crate::task_enrollment::root_matches_task(tree.root(), &approved)
+        {
+            return Err(ReleaseStateError::Corrupt);
+        }
         Ok(approved)
     }
 
@@ -657,7 +733,10 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Replay);
         }
-        if self.provider_calls >= self.max_provider_calls || self.operations.len() >= MAX_OPERATIONS
+        if self.provider_calls >= self.max_provider_calls
+            || self
+                .operation_count()
+                .is_none_or(|count| count >= MAX_OPERATIONS)
         {
             return Err(ReleaseStateError::Exhausted);
         }
@@ -743,7 +822,11 @@ impl ReleaseTaskState {
         ) {
             return Err(ReleaseStateError::Replay);
         }
-        if self.writes.len() >= self.max_writes as usize {
+        if self.writes.len() >= self.max_writes as usize
+            || self
+                .operation_count()
+                .is_none_or(|count| count >= MAX_OPERATIONS)
+        {
             return Err(ReleaseStateError::Exhausted);
         }
         self.writes.insert(
@@ -1211,6 +1294,9 @@ impl ReleaseTaskState {
     /// it cannot undo a prior entered release.
     pub(crate) fn revoke(&mut self) {
         self.revoked = true;
+        if let TaskParticipants::Active { tree } = &mut self.participants {
+            tree.revoke_root();
+        }
     }
 
     pub(crate) fn stage(&self, operation_id: &str) -> Option<ReleaseStage> {
@@ -1358,15 +1444,45 @@ impl ReleaseTaskState {
         Ok(())
     }
 
+    fn validate_participant_root(
+        &self,
+        policy: &ReleaseTaskPolicy,
+    ) -> Result<(), ReleaseStateError> {
+        if let TaskParticipants::Active { tree } = &self.participants {
+            let card = self
+                .activated_card
+                .as_ref()
+                .ok_or(ReleaseStateError::Corrupt)?;
+            if card.canonical_commitment().ok() != Some(policy.task_commitment)
+                || !crate::task_enrollment::root_matches_card(
+                    tree.root(),
+                    card,
+                    &policy.task_commitment,
+                )
+                || (self.revoked && tree.root().active)
+            {
+                return Err(ReleaseStateError::Corrupt);
+            }
+        }
+        Ok(())
+    }
+
     fn decode(bytes: &[u8]) -> Result<Self, ReleaseStateError> {
         if bytes.is_empty() || bytes.len() > MAX_STATE_BYTES {
             return Err(ReleaseStateError::Corrupt);
         }
         let state: Self = serde_json::from_slice(bytes).map_err(|_| ReleaseStateError::Corrupt)?;
-        if state.schema != SCHEMA || state.encode()?.as_slice() != bytes {
+        if state.schema != SCHEMA
+            || state.encode()?.as_slice() != bytes
+            || state
+                .operation_count()
+                .is_none_or(|count| count > MAX_OPERATIONS)
+        {
             return Err(ReleaseStateError::Corrupt);
         }
-        Self::new(state.policy()?).map_err(|_| ReleaseStateError::Corrupt)?;
+        let policy = state.policy()?;
+        Self::new(policy.clone()).map_err(|_| ReleaseStateError::Corrupt)?;
+        state.validate_participant_root(&policy)?;
         let mut releases = 0_u32;
         let mut released_bytes = 0_u64;
         state.validate_writes()?;
@@ -1563,6 +1679,93 @@ impl FileReleaseTaskLedger {
         let mut state = ReleaseTaskState::new(approved.task_policy())?;
         state.activated_card = Some(approved.descriptor().clone());
         self.initialize_state(state)
+    }
+
+    pub(crate) fn bootstrap_participants(
+        &self,
+        task_id: &str,
+        transaction: &EnrollmentTransaction<'_>,
+        recipes: &TaskEnrollmentRecipes<'_>,
+        authority: &TaskRootAuthority,
+        proofs: &RootEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], ReleaseStateError> {
+        let state = self.update(task_id, |state| {
+            let now = transaction.now()?;
+            let task = state.activated_task(transaction.pins, now)?;
+            if !matches!(state.participants, TaskParticipants::Pending)
+                || !state.operations.is_empty()
+                || !state.writes.is_empty()
+            {
+                return Err(ReleaseStateError::Replay);
+            }
+            let root = crate::task_enrollment::root_pins(&task, recipes, authority)?;
+            let tree = EnrollmentTree::bootstrap(transaction.context, &root, now, proofs)?;
+            tree.parent_pins(root.enrollment_commitment, transaction.now()?)?;
+            state.participants = TaskParticipants::Active {
+                tree: Box::new(tree),
+            };
+            Ok(())
+        })?;
+        Ok(state.participants.tree()?.root().enrollment_commitment)
+    }
+
+    pub(crate) fn enroll_participant(
+        &self,
+        task_id: &str,
+        transaction: &EnrollmentTransaction<'_>,
+        parent: [u8; 32],
+        proofs: &ParticipantEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], ReleaseStateError> {
+        let mut enrolled = None;
+        self.update(task_id, |state| {
+            let now = transaction.now()?;
+            state.activated_task(transaction.pins, now)?;
+            let tree = state.participants.tree_mut()?;
+            let commitment = tree.enroll(transaction.context, parent, now, proofs)?;
+            tree.parent_pins(commitment, transaction.now()?)?;
+            enrolled = Some(commitment);
+            Ok(())
+        })?;
+        enrolled.ok_or(ReleaseStateError::Corrupt)
+    }
+
+    /// Authenticated operator revocation; no proof, clock or provider I/O is
+    /// needed to remove eligibility. Records and all charges remain retained.
+    pub(crate) fn revoke_participant(
+        &self,
+        task_id: &str,
+        participant: [u8; 32],
+    ) -> Result<(), ReleaseStateError> {
+        self.update(task_id, |state| {
+            let tree = state.participants.tree_mut()?;
+            tree.revoke(participant)?;
+            if participant == tree.root().enrollment_commitment {
+                state.revoked = true;
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    pub(crate) fn participant_pins(
+        &self,
+        task_id: &str,
+        transaction: &EnrollmentTransaction<'_>,
+        participant: [u8; 32],
+    ) -> Result<crate::participant_enrollment::ParentEnrollmentPins, ReleaseStateError> {
+        let path = self.key_path(task_id)?;
+        let _lock = self.lock(rustix::fs::FlockOperation::LockShared)?;
+        let state = Self::read(&path)?.ok_or(ReleaseStateError::Corrupt)?;
+        if state.task_id != task_id {
+            return Err(ReleaseStateError::Corrupt);
+        }
+        let now = transaction.now()?;
+        state.activated_task(transaction.pins, now)?;
+        state
+            .participants
+            .tree()?
+            .parent_pins(participant, now)
+            .map_err(Into::into)
     }
 
     #[cfg(test)]
@@ -2432,6 +2635,37 @@ mod tests {
             state.reserve_provider_call(call("new-read"), 101),
             Err(ReleaseStateError::Inactive)
         );
+    }
+
+    #[test]
+    fn mixed_reads_and_writes_share_the_hard_operation_bound() {
+        let mut policy = policy();
+        policy.max_provider_calls = 64;
+        policy.max_writes = 32;
+        policy.write_scopes = write_policy().write_scopes;
+        let mut state = ReleaseTaskState::from_test_policy(policy).unwrap();
+        for index in 0..33 {
+            state
+                .reserve_provider_call(call(&format!("read-{index}")), 101)
+                .unwrap();
+        }
+        for index in 0..31 {
+            state
+                .reserve_write(&write_intent(&format!("write-{index}")), 101)
+                .unwrap();
+        }
+        assert_eq!(state.operation_count(), Some(64));
+        let encoded = state.encode().unwrap();
+        let mut reopened = ReleaseTaskState::decode(&encoded).unwrap();
+        assert_eq!(
+            reopened.reserve_provider_call(call("read-extra"), 101),
+            Err(ReleaseStateError::Exhausted)
+        );
+        assert_eq!(
+            reopened.reserve_write(&write_intent("write-extra"), 101),
+            Err(ReleaseStateError::Exhausted)
+        );
+        assert_eq!(reopened.encode().unwrap(), encoded);
     }
 
     #[test]

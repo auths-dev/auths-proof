@@ -168,6 +168,10 @@ impl CompiledReleaseRecipe {
         &self.source.service
     }
 
+    pub(crate) fn enrollment_binding(&self) -> (&str, &str) {
+        (&self.source.tool, &self.source.resource_field)
+    }
+
     /// Compile closed source against one exact generated profile lock.
     ///
     /// # Errors
