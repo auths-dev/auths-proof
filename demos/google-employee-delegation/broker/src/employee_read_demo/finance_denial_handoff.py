@@ -11,10 +11,11 @@ import os
 import re
 import stat
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load
 
 
@@ -95,8 +96,8 @@ def validate_finance_denial(path: Path, pins: FinanceDenialPins, *, now: int,
             or observation["export_response_leaked_fixture"] is not False):
         raise ContractRejected("finance denial probe differs from pinned fixture")
     try:
-        observed = datetime.fromisoformat(
-            observation["observed_at"].replace("Z", "+00:00"))
+        observed = parse_aware_timestamp(
+            observation["observed_at"])
     except (TypeError, ValueError) as error:
         raise ContractRejected("finance denial observation time is malformed") from error
     if observed.tzinfo is None or observed.utcoffset() is None:

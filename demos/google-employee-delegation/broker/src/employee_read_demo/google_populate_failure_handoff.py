@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .contracts import commitment
 from .demo_co_contract import ContractRejected, _load, _unique_pairs
 from .google_create_handoff import CHILD_TITLE, MARKER
@@ -60,7 +61,7 @@ def _timestamp(value: object) -> datetime:
     if type(value) is not str:
         raise ContractRejected("populate setup time is invalid")
     try:
-        result = datetime.fromisoformat(value)
+        result = parse_aware_timestamp(value)
     except ValueError as error:
         raise ContractRejected("populate setup time is invalid") from error
     if result.tzinfo is None or result.utcoffset() is None:

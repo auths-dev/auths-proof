@@ -431,3 +431,34 @@ the eight new tests while running only its generation test (340 behavioral
 tests filtered out); proof-coverage and semantic-inventory generators also
 passed. The reference is excluded from production and did not change the
 measured decision closure or require a new frozen semantic identity.
+
+
+## 17. Python producer timestamp boundary
+
+The partition reference was pushed as `62daf644`. The earlier hosted compliance
+job completed with four errors among 194 broker tests: Python 3.10 rejected
+UTC `Z` timestamps in create/populate handoff consumers. The existing consumers
+used several independent timestamp parsers; some normalized UTC and others
+did not.
+
+One demo-local `timestamps.parse_aware_timestamp` now owns bounded timestamp
+syntax and timezone presence for all 16 producer/credential consumers. Its
+accepted representation is an extended date/time with seconds, an optional
+1–9 digit fraction, and either terminal uppercase `Z` or a signed hour/minute
+offset. Invalid calendar/offset values are refused. Only terminal `Z` is
+normalized for Python 3.10. Errors do not echo metadata. The parser neither
+reads a clock nor assigns freshness, expiry or trusted-time meaning; those
+policies remain at their existing callers. No Google logic enters the gateway.
+
+An initial local broker-suite reproduction could not load the absent native
+Python package and external dependencies. The focused Python 3.10 reproduction
+then ran the four exact hosted failures plus three parser regressions in an
+isolated environment with JSON Schema support: **seven tests passed**. The
+whole broker/binding suite is still delegated to hosted CI with the freshly
+built native wheel. Malformed double UTC designators exposed permissive
+`fromisoformat` behavior during diagnosis; the shared lexical boundary now
+rejects them before parsing, along with absent offsets and oversized inputs.
+
+The earlier revision's Kani job also passed; formal translation was still
+running at the last observation. None of these prior-revision results closes
+current-head acceptance or the remaining F01–F16 work.

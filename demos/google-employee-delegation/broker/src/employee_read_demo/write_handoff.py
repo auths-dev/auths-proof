@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load, _unique_pairs
 
 
@@ -133,7 +134,7 @@ def validate_current_write_observation(
         raise ContractRejected("current write observation digest disagrees with pin")
     try:
         observation = json.loads(raw, object_pairs_hook=_unique_pairs)
-        observed = datetime.fromisoformat(observation["observed_at"])
+        observed = parse_aware_timestamp(observation["observed_at"])
     except (UnicodeDecodeError, ValueError, KeyError, TypeError) as error:
         raise ContractRejected("current write observation is malformed") from error
     if (type(observation) is not dict

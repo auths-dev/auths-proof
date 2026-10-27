@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load, _unique_pairs
 from .google_create_handoff import CHILD_TITLE, MARKER, MAX_RECOVERY_PAGES
 
@@ -161,7 +162,7 @@ def _checked(path: Path, schema_name: str, digest: str) -> dict:
 
 def _at(document: dict, name: str) -> datetime:
     try:
-        value = datetime.fromisoformat(document[name])
+        value = parse_aware_timestamp(document[name])
     except (KeyError, TypeError, ValueError) as error:
         raise ContractRejected("v4 producer time is invalid") from error
     if value.tzinfo is None or value.utcoffset() is None:

@@ -7,10 +7,11 @@ import os
 import re
 import stat
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load
 from .edit_rerun_handoff import EditRerunTarget, OPTION_A, OPTION_B
 from .write_handoff import WriteHandoffPins
@@ -73,7 +74,7 @@ def _private_generation(path: Path, filename: str) -> int:
 
 def _observed_time(value: object, now: int) -> int:
     try:
-        observed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        observed = parse_aware_timestamp(value)
     except (AttributeError, ValueError) as error:
         raise ContractRejected("bounded negative observation time is invalid") from error
     if observed.tzinfo is None or observed.utcoffset() is None:

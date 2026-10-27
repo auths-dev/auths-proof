@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load, _unique_pairs
 from .google_create_handoff import CHILD_TITLE, MARKER
 from .google_create_v4_handoff import (
@@ -260,7 +261,7 @@ def validate_negative_precreate_baseline(
 
 def _timestamp(document: dict, field: str) -> datetime:
     try:
-        result = datetime.fromisoformat(document[field])
+        result = parse_aware_timestamp(document[field])
     except (KeyError, TypeError, ValueError) as error:
         raise ContractRejected("negative producer time is invalid") from error
     if result.tzinfo is None or result.utcoffset() is None:
