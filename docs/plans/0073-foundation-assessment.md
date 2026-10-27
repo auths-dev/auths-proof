@@ -882,3 +882,11 @@ changed contracts. The gateway all-target/all-feature Clippy reproduction and
 format/diff checks passed. The binding tests and new admission behavior have not
 yet run. Generated coverage remains 110/1031 decision functions, 1289/11353 lines,
 15/82 check sites and does not establish a new journal refinement proof.
+
+Admission cutover `4c09df12a53a80c0cef03e8fdb3ed2b0e28b91f0` is pushed to draft
+PR #212. The earlier journal revision's authoritative Lean job 122526923346 has
+now passed; its final formal evidence packaging is running. A new full run is
+still pending so that the previous run's terminal evidence is not cancelled.
+The participant contract §18 records the next child-delivery/entered-permit
+cutover before implementation. It is explicitly a design contract, not completed
+channel behavior or evidence for F01/F08/F11.

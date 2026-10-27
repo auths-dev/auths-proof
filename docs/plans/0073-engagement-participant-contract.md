@@ -784,3 +784,80 @@ scope or verified child lineage. It uses the same request-review projection as
 ordinary submission review. It cannot take an audience override, widen trust,
 consume an approval, or reserve an operation. The ordinary review API remains
 ordinary-audience-only; full offline audit of task evidence remains separate work.
+
+## 18. Next cutover: enrolled delivery binding and entered-release permit
+
+**Design contract, not yet implemented.** Native read admission now recognizes an
+enrolled B, while `TaskReadSession`, `release_channel` and `release_ack` still
+select A from the task card. Replacing only that principal comparison would leave
+challenge, content delivery and acknowledgement with independently supplied
+identities. The next change centralizes this concrete disclosure protocol.
+
+Before:
+
+```mermaid
+flowchart LR
+    P["Native B proof and enrolled journal"] --> R["Read reservation"]
+    A["Initial agent from task card"] --> C["Channel challenge"]
+    R --> E["Durable release charge"]
+    C --> S["Send: task and operation supplied again"]
+    E --> S
+    S --> K["ACK verifier selects initial agent again"]
+```
+
+After:
+
+```mermaid
+flowchart LR
+    P["Verified read and protected enrollment tree"] --> B["Sealed delivery binding"]
+    I["Operator channel registry"] --> B
+    B --> C["Authenticate exact recipient and instance"]
+    C --> E["Locked disclosure admission"]
+    E --> T["Single-use entered-release permit"]
+    C --> S["Authenticated channel consumes matching permit"]
+    T --> S
+    S --> K["ACK authenticates same binding and exact bytes"]
+    K --> J["Retain outcome and all ancestor charges"]
+```
+
+The binding is private Rust data derived from the signed task, the exact native
+resource branch and current protected participant ancestry. It names task ID and
+commitment, partition generation, enrollment commitment, recipient principal,
+instance generation, registered logical channel and operation ID. No action,
+caller-selected socket or public metadata can mint it. The operator resolves a
+registered channel to a private local socket and canonical public identity. Root
+identity fingerprint checks remain; child identities must agree with their
+registered self-certifying principal. Instance binding is a commissioned logical
+instance, not hardware/process attestation or proof that a key was never copied.
+
+Channel authentication binds one fresh challenge to the complete tuple and
+retains it. It does not take a replacement task or operation at delivery. Locked
+disclosure admission rechecks active ancestry, time and capacity before charging,
+then returns a non-cloneable entered-release permit for that tuple and the exact
+keyed content commitment, byte count and resource. Delivery consumes that permit
+and compares it with the authenticated channel and actual bytes. A review or
+verification value cannot stand in for durable release entry. Neither a dropped
+permit nor a known no-send failure refunds capacity.
+
+The lock orders revocation against disclosure entry. Revocation that wins first
+refuses new entry. Entry that wins first may complete or become unknown; later
+revocation cannot retroactively retract plaintext or make it safe to retry. The
+lock must not remain held during socket I/O. Receipt acknowledgement remains
+recordable after expiry/revocation because it describes a previously charged
+entry. It cannot authorize another disclosure.
+
+Challenge and acknowledgement schemas must change together in native code and
+agent bindings. Both sign the complete delivery tuple; the ACK additionally
+binds resource, exact bytes and keyed commitment. Old schemas are refused.
+Immutable principal/enrollment non-reuse within a task prevents a retained
+operation from being reassigned to a later participant. If the new persisted
+record changes shape, increment its version directly; do not add a legacy reader.
+
+Required evidence includes real native root/A/B enrollment, delivery to B with
+A receiving no content, wrong key/channel/instance/task/operation refusal,
+replayed challenge/ACK refusal, matching permit consumption, changed content
+refusal, revocation on either side of locked entry, lost ACK, no-send and restart
+with retained ancestor charges. Existing pure channel tests may use explicit
+synthetic bindings but cannot be cited as native enrollment evidence. Provider
+entry and native evidence freshness remain separate obligations; this disclosure
+permit must not be generalized into a universal write/recovery state machine.
