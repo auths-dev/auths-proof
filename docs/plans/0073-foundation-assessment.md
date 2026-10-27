@@ -890,3 +890,38 @@ still pending so that the previous run's terminal evidence is not cancelled.
 The participant contract §18 records the next child-delivery/entered-permit
 cutover before implementation. It is explicitly a design contract, not completed
 channel behavior or evidence for F01/F08/F11.
+
+
+## 26. Enrolled delivery and durable entry permits
+
+Run 40594932593 on `5a71adc8` completed. Formal translation, authoritative Lean,
+Kani and final formal evidence passed. Its overall failure is the OpenAPI review
+fixture mismatch repaired in `4c09df12`. Full CI 40604087805 now runs on
+`c79e5b1dcffd8a3155f65a50e94b5c38f414d014`, which contains that admission/binding
+cutover plus the disclosure design contract. It does not include this new work.
+
+One protected journal projection now binds enrolled recipient, instance,
+partition, channel, task and operation across the challenge, content delivery and
+ACK. Locked entry returns a non-cloneable permit only after durable publication;
+the channel must consume it and match the exact bytes/keyed commitment. A wrong
+permit yields no content and no unrelated no-send receipt. Read-session identity
+validation shares the same canonical identity owner as challenge/ACK validation.
+
+New native tests cover B's actual signed enrollment, bound permit/content/key
+substitutions, per-field ACK substitutions, revocation before a second entry,
+late ACK after the first entry, and a real private Unix channel to B while A's
+channel is refused. A transport-only test checks permit mismatch. The Python
+agent/loss-injection agent cut over together to challenge/ACK schema 2 with
+explicit expected enrollment and generations. Their bounds tests are registered.
+All-target/all-feature gateway Clippy reproduction passed including all three new
+native/channel tests; no new behavioral tests have run. Artifact regeneration and
+exact-revision hosted results remain pending. Existing external authoring and
+installed-conformance orchestration still need the full native enrollment/pin
+handoff. F01–F16 and the complete representative flow remain open.
+
+Construction subsequently regenerated the gateway source closure (one construction
+check passed, 395 behavioral tests filtered out) and semantic inventory 408,
+with identity protocol 151, public SDK 148 and public surface 408. This does not
+qualify the new disclosure protocol. Python delivery-pin checks also reject
+boolean/floating generation substitutions instead of accepting Python's numeric
+equality. The current hosted run covers only the preceding admission revision.

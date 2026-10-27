@@ -1363,3 +1363,259 @@ fn pending_child_projection_commits_lineage_without_substituting_parent_handle()
     changed.pending_child.as_mut().unwrap().parent_handle = "other-parent".into();
     assert!(scopes(&changed, &recipes).is_err());
 }
+
+#[test]
+fn enrolled_delivery_permit_binds_child_bytes_and_retains_late_ack_after_revocation() {
+    let fixture = Fixture::new();
+    let read = fixture.read(true, "child-delivery");
+    assert!(
+        fixture
+            .ledger()
+            .load(TASK)
+            .unwrap()
+            .unwrap()
+            .read_delivery_binding(&read, NOW)
+            .is_err()
+    );
+    fixture.bootstrap().unwrap();
+    let enrollment = fixture.enroll(&fixture.enrollment()).unwrap();
+    let state = fixture.ledger().load(TASK).unwrap().unwrap();
+    let binding = state.read_delivery_binding(&read, NOW).unwrap();
+    let other = state
+        .read_delivery_binding(&fixture.read(true, "another-operation"), NOW)
+        .unwrap();
+    let fields = binding.message_fields().unwrap();
+    assert_eq!(fields["recipient"], fixture.child.principal.as_str());
+    assert_eq!(fields["delivery_channel"], "agent-b");
+    assert_eq!(fields["enrollment_commitment"], hex::encode(enrollment));
+    assert_eq!(fields["partition_generation"], 7);
+    assert_eq!(fields["instance_generation"], 5);
+    fixture.reserve_read(&read).unwrap();
+    fixture
+        .reserve_read(&fixture.read(true, "another-operation"))
+        .unwrap();
+    let key = crate::ReleaseCommitmentKey::new(2, zeroize::Zeroizing::new([0x93; 32])).unwrap();
+    let (entered, permit) = fixture
+        .ledger()
+        .enter_release(TASK, "child-delivery", b"Hello", &key, &fixture.time)
+        .unwrap();
+    assert_eq!(
+        permit.validate_content(&binding, b"Hello", &key).unwrap(),
+        read.request().resource_handle()
+    );
+    assert!(permit.validate_content(&other, b"Hello", &key).is_err());
+    assert!(permit.validate_content(&binding, b"Other", &key).is_err());
+    let rotated = crate::ReleaseCommitmentKey::new(3, zeroize::Zeroizing::new([0x93; 32])).unwrap();
+    assert!(
+        permit
+            .validate_content(&binding, b"Hello", &rotated)
+            .is_err()
+    );
+    fixture
+        .ledger()
+        .revoke_participant(TASK, fixture.root.enrollment_commitment)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .ledger()
+            .enter_release(TASK, "another-operation", b"Hello", &key, &fixture.time)
+            .err(),
+        Some(ReleaseStateError::Inactive)
+    );
+    assert!(
+        fixture
+            .ledger()
+            .load(TASK)
+            .unwrap()
+            .unwrap()
+            .read_delivery_binding(&read, NOW)
+            .is_err()
+    );
+    // The already entered permit describes a charged effect, even after revocation.
+    assert!(permit.validate_content(&binding, b"Hello", &key).is_ok());
+    let ack = child_delivery_ack(
+        &fixture.child,
+        &binding,
+        read.request().resource_handle(),
+        &key,
+    );
+    let retained = fixture.ledger().acknowledge(&ack).unwrap();
+    assert_eq!(retained.counts(), entered.counts());
+    assert_eq!(
+        retained.stage("child-delivery"),
+        Some(crate::release_state::ReleaseStage::AgentAcknowledged)
+    );
+    assert!(fixture.ledger().acknowledge(&ack).is_err());
+}
+
+fn child_delivery_ack(
+    child: &Signer,
+    binding: &crate::release_state::ReleaseDeliveryBinding,
+    resource: &str,
+    key: &crate::ReleaseCommitmentKey,
+) -> crate::release_state::VerifiedAgentAcknowledgement {
+    use crate::release_ack::{acknowledgement_message, verify_agent_acknowledgement};
+    use auths_identity_raw_key::RawKeyIdentityMethod;
+    use ed25519_dalek::Signer as _;
+
+    let identity = RawKeyIdentityMethod::identity(
+        auths_signature_ed25519::ED25519_V1,
+        child.key.verifying_key().to_bytes().to_vec(),
+    )
+    .unwrap()
+    .into_public_identity()
+    .to_descriptor()
+    .unwrap();
+    let packet = identity.encode().unwrap();
+    let message = acknowledgement_message(binding, resource, b"Hello", key).unwrap();
+    let signature = child
+        .key
+        .sign(
+            &identity
+                .signing_preimage("default-signing", &message)
+                .unwrap(),
+        )
+        .to_bytes();
+    for name in [
+        "task_commitment",
+        "operation_id",
+        "recipient",
+        "delivery_channel",
+        "enrollment_commitment",
+        "partition_generation",
+        "instance_generation",
+    ] {
+        let mut altered: serde_json::Value = serde_json::from_slice(&message).unwrap();
+        altered[name] = json!("substituted");
+        let bytes = serde_json_canonicalizer::to_vec(&altered).unwrap();
+        let changed = child
+            .key
+            .sign(
+                &identity
+                    .signing_preimage("default-signing", &bytes)
+                    .unwrap(),
+            )
+            .to_bytes();
+        assert!(
+            verify_agent_acknowledgement(binding, resource, b"Hello", key, &packet, &changed)
+                .is_err(),
+            "{name}"
+        );
+    }
+    verify_agent_acknowledgement(binding, resource, b"Hello", key, &packet, &signature).unwrap()
+}
+
+async fn child_channel_peer(
+    listener: tokio::net::UnixListener,
+    key: ed25519_dalek::SigningKey,
+    identity: auths_identity::IdentityDescriptor,
+    fields: serde_json::Map<String, serde_json::Value>,
+) -> Vec<u8> {
+    use ed25519_dalek::Signer as _;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let (mut stream, _) = listener.accept().await.unwrap();
+    let length = stream.read_u32().await.unwrap() as usize;
+    assert!(length <= 4096);
+    let mut challenge = vec![0; length];
+    stream.read_exact(&mut challenge).await.unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&challenge).unwrap();
+    assert_eq!(parsed["schema"], "auths.agent-release-channel-challenge/2");
+    for (name, expected) in &fields {
+        assert_eq!(&parsed[name], expected);
+    }
+    let signature = key
+        .sign(
+            &identity
+                .signing_preimage("default-signing", &challenge)
+                .unwrap(),
+        )
+        .to_bytes();
+    stream.write_u32(64).await.unwrap();
+    stream.write_all(&signature).await.unwrap();
+    let length = stream.read_u32().await.unwrap() as usize;
+    assert!(length <= 262_144);
+    let mut content = vec![0; length];
+    stream.read_exact(&mut content).await.unwrap();
+    let length = stream.read_u32().await.unwrap() as usize;
+    assert!(length <= 4096);
+    let mut message = vec![0; length];
+    stream.read_exact(&mut message).await.unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&message).unwrap();
+    assert_eq!(parsed["schema"], "auths.agent-release-ack/2");
+    for (name, expected) in &fields {
+        assert_eq!(&parsed[name], expected);
+    }
+    let signature = key
+        .sign(
+            &identity
+                .signing_preimage("default-signing", &message)
+                .unwrap(),
+        )
+        .to_bytes();
+    stream.write_u32(64).await.unwrap();
+    stream.write_all(&signature).await.unwrap();
+    content
+}
+
+#[tokio::test]
+async fn enrolled_child_channel_consumes_its_durable_permit_and_acknowledges_after_revocation() {
+    use crate::release_channel::{ReleaseChannelError, UnixAgentReleaseChannel};
+    use auths_identity_raw_key::RawKeyIdentityMethod;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let fixture = Fixture::new();
+    fixture.bootstrap().unwrap();
+    fixture.enroll(&fixture.enrollment()).unwrap();
+    let read = fixture.read(true, "child-channel");
+    let binding = fixture
+        .ledger()
+        .load(TASK)
+        .unwrap()
+        .unwrap()
+        .read_delivery_binding(&read, NOW)
+        .unwrap();
+    let fields = binding.message_fields().unwrap();
+    let identity = RawKeyIdentityMethod::identity(
+        auths_signature_ed25519::ED25519_V1,
+        fixture.child.key.verifying_key().to_bytes().to_vec(),
+    )
+    .unwrap()
+    .into_public_identity()
+    .to_descriptor()
+    .unwrap();
+    let packet = identity.encode().unwrap();
+    let socket = fixture.path.join("child.sock");
+    let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+    std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let wrong = UnixAgentReleaseChannel::new(&socket, "agent-a".into(), packet.clone()).unwrap();
+    assert!(matches!(
+        wrong.authenticate(binding.clone()).await,
+        Err(ReleaseChannelError::Binding)
+    ));
+    let peer = tokio::spawn(child_channel_peer(
+        listener,
+        fixture.child.key.clone(),
+        identity,
+        fields,
+    ));
+    let channel = UnixAgentReleaseChannel::new(&socket, "agent-b".into(), packet).unwrap();
+    let authenticated = channel.authenticate(binding).await.unwrap();
+    fixture.reserve_read(&read).unwrap();
+    let key = crate::ReleaseCommitmentKey::new(2, zeroize::Zeroizing::new([0x93; 32])).unwrap();
+    let (entered, permit) = fixture
+        .ledger()
+        .enter_release(TASK, "child-channel", b"Hello", &key, &fixture.time)
+        .unwrap();
+    fixture
+        .ledger()
+        .revoke_participant(TASK, fixture.root.enrollment_commitment)
+        .unwrap();
+    let evidence = authenticated.deliver(permit, b"Hello", &key).await.unwrap();
+    let retained = fixture.ledger().acknowledge(&evidence).unwrap();
+    assert_eq!(retained.counts(), entered.counts());
+    assert_eq!(
+        retained.stage("child-channel"),
+        Some(crate::release_state::ReleaseStage::AgentAcknowledged)
+    );
+    assert_eq!(peer.await.unwrap(), b"Hello");
+}

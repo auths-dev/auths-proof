@@ -102,6 +102,13 @@ impl EnrollmentTree {
             .collect()
     }
 
+    pub(crate) fn retained_principal_pins(
+        &self,
+        principal: &str,
+    ) -> Result<ParentEnrollmentPins, EnrollmentTreeError> {
+        self.pins_for(self.principal_commitment(principal)?)
+    }
+
     pub(crate) fn retained_ceilings(
         &self,
     ) -> Result<Vec<ParentEnrollmentPins>, EnrollmentTreeError> {

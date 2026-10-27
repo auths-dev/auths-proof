@@ -30,7 +30,9 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
+mod delivery;
 mod participants;
+pub(crate) use delivery::{EnteredRelease, ReleaseDeliveryBinding};
 
 const SCHEMA: &str = "auths.gateway-agent-task-state/11";
 const MAX_RESOURCES: usize = 16;
@@ -2007,20 +2009,6 @@ impl FileReleaseTaskLedger {
         self.update(task_id, |state| state.release_refused(operation_id))
     }
 
-    pub(crate) fn enter_release(
-        &self,
-        task_id: &str,
-        operation_id: &str,
-        content: &[u8],
-        key: &ReleaseCommitmentKey,
-        time: &crate::QualificationGate,
-    ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update_timed(task_id, time, |state, now| {
-            state.admit_disclosure_participant(operation_id, content.len(), now)?;
-            state.enter_release(operation_id, content, key, now)
-        })
-    }
-
     pub(crate) fn acknowledge(
         &self,
         evidence: &VerifiedAgentAcknowledgement,
@@ -2205,7 +2193,7 @@ mod tests {
             .reserve_provider_call(call("read-1"), 101)
             .expect("claim");
         let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).expect("key");
-        let entered = ledger
+        let (entered, _permit) = ledger
             .enter_release(
                 "task-1",
                 "read-1",
@@ -2406,7 +2394,7 @@ mod tests {
             .reserve_read(&fixture.read(false, "read-1"))
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
-        let entered = ledger
+        let (entered, _permit) = ledger
             .enter_release(
                 crate::task_enrollment::tests::TASK,
                 "read-1",
@@ -2729,7 +2717,7 @@ mod tests {
             before
         );
         clock.trust_is(true);
-        let entered = enter().unwrap();
+        let (entered, _permit) = enter().unwrap();
         let evidence = acknowledgement(&entered, "read-1");
         clock.set(crate::task_enrollment::tests::NOW + 600);
         clock.trust_is(false);

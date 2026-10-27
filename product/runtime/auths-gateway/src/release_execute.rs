@@ -20,7 +20,6 @@ use crate::{
 use auths_connections::ConnectionCredentialStore;
 use auths_connections::{ConnectionAlias, ProviderKind};
 use serde::Serialize;
-use sha2::{Digest as _, Sha256};
 use std::{
     path::PathBuf,
     sync::Arc,
@@ -95,12 +94,20 @@ impl<'e> TaskWriteSession<'e> {
         if !self.pins.permits_read_recipe(&inputs.recipe.digest_hex()) {
             return Err("gateway.release.recipe-not-installed");
         }
-        if inputs.channel_name != self.pins.delivery_channel
-            || hex::encode(Sha256::digest(&inputs.agent_identity_packet))
-                != self.pins.agent_key_fingerprint
-        {
-            return Err("gateway.release.recipient-not-installed");
-        }
+        let recipient = self
+            .pins
+            .delegation
+            .permitted_channels
+            .get(&inputs.channel_name)
+            .ok_or("gateway.release.recipient-not-installed")?;
+        let fingerprint = (inputs.channel_name == self.pins.delivery_channel)
+            .then_some(self.pins.agent_key_fingerprint.as_str());
+        crate::release_ack::registered_agent_identity(
+            recipient.principal.as_str(),
+            fingerprint,
+            &inputs.agent_identity_packet,
+        )
+        .map_err(|_| "gateway.release.recipient-not-installed")?;
         let channel = UnixAgentReleaseChannel::new(
             inputs.channel_socket,
             inputs.channel_name,
@@ -288,19 +295,22 @@ impl GatewayEngine {
                 "gateway.verify.clock-unavailable",
             );
         };
-        if submission
-            .ledger
-            .enter_release(
-                submission.task_id,
-                operation_id,
-                &content,
-                submission.commitment_key,
-                submission.read_qualification,
-            )
-            .is_err()
-        {
-            return refuse_release(&submission, operation_id, "gateway.release.release-refused");
-        }
+        let permit = match submission.ledger.enter_release(
+            submission.task_id,
+            operation_id,
+            &content,
+            submission.commitment_key,
+            submission.read_qualification,
+        ) {
+            Ok((_, permit)) => permit,
+            Err(_) => {
+                return refuse_release(
+                    &submission,
+                    operation_id,
+                    "gateway.release.release-refused",
+                );
+            }
+        };
         #[cfg(feature = "loopback-provider")]
         if submission.exit_after_release_entry {
             // Deliberately bypass destructors and the reply path. The
@@ -309,13 +319,7 @@ impl GatewayEngine {
         }
         let evidence = match prepared
             .channel
-            .deliver(
-                &prepared.task,
-                operation_id,
-                request.resource_handle(),
-                &content,
-                submission.commitment_key,
-            )
+            .deliver(permit, &content, submission.commitment_key)
             .await
         {
             Ok(evidence) => evidence,
@@ -412,9 +416,12 @@ impl GatewayEngine {
         let transport = transport
             .map_err(|_| not_entered("gateway.release.transport-preparation"))?
             .with_witness(Arc::clone(&self.execution_witness));
+        let binding = state
+            .read_delivery_binding(&verified, now)
+            .map_err(|_| not_entered("gateway.release.recipient-not-enrolled"))?;
         let channel = submission
             .channel
-            .authenticate(&task, request.operation_id().as_str())
+            .authenticate(binding)
             .await
             .map_err(|_| not_entered("gateway.release.agent-channel"))?;
         Ok(PreparedRead {
@@ -591,6 +598,7 @@ mod tests {
     use auths_identity_raw_key::RawKeyIdentityMethod;
     use ed25519_dalek::Signer as _;
     use serde_json::json;
+    use sha2::{Digest as _, Sha256};
     use std::{
         os::unix::fs::PermissionsExt as _,
         sync::atomic::{AtomicBool, AtomicU64, Ordering},

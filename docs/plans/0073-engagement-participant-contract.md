@@ -785,13 +785,14 @@ ordinary submission review. It cannot take an audience override, widen trust,
 consume an approval, or reserve an operation. The ordinary review API remains
 ordinary-audience-only; full offline audit of task evidence remains separate work.
 
-## 18. Next cutover: enrolled delivery binding and entered-release permit
+## 18. Enrolled delivery binding and entered-release permit
 
-**Design contract, not yet implemented.** Native read admission now recognizes an
-enrolled B, while `TaskReadSession`, `release_channel` and `release_ack` still
-select A from the task card. Replacing only that principal comparison would leave
+**Source implementation in progress; behavioral verification pending.** Native
+read admission recognizes an enrolled B. The preceding channel implementation
+selected A from the task card in `TaskReadSession`, `release_channel` and
+`release_ack`. Replacing only that principal comparison would leave
 challenge, content delivery and acknowledgement with independently supplied
-identities. The next change centralizes this concrete disclosure protocol.
+identities. This change centralizes this concrete disclosure protocol.
 
 Before:
 
@@ -861,3 +862,21 @@ with retained ancestor charges. Existing pure channel tests may use explicit
 synthetic bindings but cannot be cited as native enrollment evidence. Provider
 entry and native evidence freshness remain separate obligations; this disclosure
 permit must not be generalized into a universal write/recovery state machine.
+
+The source cutover now places binding and permit construction inside the journal's
+`delivery` module. The live channel consumes a matching non-cloneable permit,
+checks actual bytes against the retained keyed commitment, and never accepts a
+replacement task or operation. Permit mismatch sends nothing and returns unknown;
+it cannot mint a no-send receipt for an unrelated channel operation. Public
+identity validation is shared between operator read-session installation and
+challenge/ACK verification. The operator may select any explicitly registered
+channel; the signed task/enrollment must independently permit that recipient.
+
+Challenge and ACK now use schema 2. The Python agent and loss-injection agent
+require explicit enrollment commitment and exact nonzero partition/instance
+generations from operator inputs. They do not echo untrusted challenge pins as
+authority. Existing installed-conformance orchestration still needs native
+bootstrap and handoff of these pins; it cannot run unchanged. No persisted state
+shape changes: task commitment plus immutable principal/enrollment non-reuse binds
+the retained operation to the same instance, including late ACKs after revocation.
+Synthetic transport tests are separated from new native A/B enrollment tests.
