@@ -457,9 +457,9 @@ def run(env_file: Path, root: Path, binary: Path,
     }
     installation = operator / "task-installation.json"
     _write_json(installation, {
-        "schema": "auths.gateway-task-installation/3",
+        "schema": "auths.gateway-task-installation/4",
         "recipe_digests": [WRITE_DIGEST], "pins": {
-            "company_id": "ap071-conformance", "human_principal": human_principal,
+            "company_id": "ap071-conformance", "initiator_principal": human_principal, "approver_principal": human_principal,
             "agent_principal": agent_principal,
             "agent_key_fingerprint": agent_digest,
             "connection_id": write_connection["connection_id"],

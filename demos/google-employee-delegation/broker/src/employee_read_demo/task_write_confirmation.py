@@ -202,7 +202,7 @@ class TaskWriteConfirmationFlow:
         except (OSError, PermissionError, ValueError, UnicodeDecodeError) as error:
             raise OperatorDenied("staged agent proposal is unavailable") from error
         if (type(card) is not dict or card.get("task_id") != task_id
-                or card.get("human_principal") != employee.principal
+                or card.get("approver_principal") != employee.principal
                 or card.get("agent_principal") != agent.agent_principal
                 or type(card.get("not_before")) is not int
                 or type(card.get("expires_at")) is not int
@@ -743,7 +743,7 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied("signed task card is unavailable") from error
         if (type(card) is not dict or card.get("task_id") != task_id
                 or card.get("company_id") != employee.company_id
-                or card.get("human_principal") != employee.principal):
+                or card.get("approver_principal") != employee.principal):
             raise OperatorDenied("task is not owned by this employee")
         return card
 

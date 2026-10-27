@@ -96,13 +96,15 @@ def join_populate_provider_final_v2(
             or provider.get("retry_authorized") is not False
             or type(provider.get("source_raw_byte_count")) is not int
             or type(card) is not dict
-            or card.get("schema") != "auths.agent-task/2"
+            or card.get("schema") != "auths.agent-task/3"
             or card.get("task_id") != task_id
             or card.get("company_id") != provider.get("company_id")
             or card.get("write_approval_mode") != "exact"
-            or not _identifier(card.get("human_principal"))
+            or not _identifier(card.get("initiator_principal"))
+            or not _identifier(card.get("approver_principal"))
             or not _identifier(card.get("agent_principal"))
-            or card.get("human_principal") == card.get("agent_principal")
+            or card.get("initiator_principal") == card.get("agent_principal")
+            or card.get("approver_principal") == card.get("agent_principal")
             or card.get("max_provider_calls") != 1
             or card.get("max_releases") != 1
             or card.get("max_writes") != 2

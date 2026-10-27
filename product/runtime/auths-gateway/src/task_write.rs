@@ -319,7 +319,7 @@ fn verify_exact_write_confirmation_for_profile(
     let [branch] = branches.as_slice() else {
         return Err(not_entered("gateway.task.single-human-action-required"));
     };
-    if branch.actor.as_str() != card.human_principal
+    if branch.actor.as_str() != card.approver_principal
         || branch.chain.is_empty()
         || branch
             .chain
@@ -431,10 +431,11 @@ mod tests {
             CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
                 .expect("task-bound recipe");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
+            "schema": "auths.agent-task/3",
             "task_id": "task-1",
             "company_id": "atlas",
-            "human_principal": human.principal.as_str(),
+            "initiator_principal": human.principal.as_str(),
+            "approver_principal": human.principal.as_str(),
             "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": "a".repeat(64),
             "connection_id": "jules-google",
@@ -600,10 +601,11 @@ mod tests {
         recipe: &CompiledRecipe,
     ) -> AgentTaskDescriptor {
         serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
+            "schema": "auths.agent-task/3",
             "task_id": "task-1",
             "company_id": "atlas",
-            "human_principal": human.principal.as_str(),
+            "initiator_principal": human.principal.as_str(),
+            "approver_principal": human.principal.as_str(),
             "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": "a".repeat(64),
             "connection_id": "jules-google",

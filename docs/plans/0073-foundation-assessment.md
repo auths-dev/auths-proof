@@ -288,3 +288,59 @@ Generation completed: gateway semantic closure through
 tests filtered out), followed by `cargo xtask semantic-freeze --update`. The
 latter refreshed formal source and semantic inventory bytes. These are artifact
 construction results, not a successful authoritative run.
+
+
+## 14. Task initiation and independent approval
+
+The clock cutover was pushed as `5fb478021edd961a5aa2d179b1b52efbf3fa506f`.
+Hosted [run 40573770464](https://github.com/auths-dev/auths-proof/actions/runs/40573770464)
+passed generated-artifact classification; repository preflight and formal
+feedback were still running at the last observation. No behavioral acceptance
+is inferred from that status.
+
+The next source cutover follows the [task-role contract](0073-task-role-cutover.md).
+Required initiator and approver principals replace the overloaded task/pin human
+field. Task schema/domain 3, installation schema 4 and state schema 8 reject old
+disposable representations. Activation and read ancestry use the initiator;
+exact write, effect-plan and recovery approval use the approver. Distinct roles
+cannot use bounded-upfront approval. The existing native verifier, task budget,
+closed provider request, final agent and channel remain authoritative.
+
+The Google employee vertical explicitly assigns its employee to both roles. Its
+separate employee authority-package identity stays named `human_principal`;
+renaming that unrelated identity would erase the vertical's meaning. Native
+schema consumers, Python card/pin producers and commitment inputs cut over
+together. No old-schema reader or default role is introduced.
+
+Prepared native evidence includes a machine activation test with role/key
+substitution and committed-role mutation negatives, same-role versus independent
+upfront policy, obsolete card refusal, and an installed gateway write scenario
+with different machine/human/agent keys. The installed scenario retains the
+existing direct-human variant and checks that machine/agent confirmations fail
+before a write charge or credential lease. With the loopback feature, the exact
+human confirmation follows the real installed execution path and one bounded
+provider effect. These are written tests, not yet passing evidence.
+
+Compliance evidence changes advance identity protocol 139 → 140, public SDK
+contract 136 → 137, and freeze/public surface 396 → 397. Native wire formats and
+core fixture versions are unchanged. Participant enrollment, shared ancestry
+accounting, isolation, lifecycle and all final F01–F16 acceptance remain open.
+
+The installed machine-initiation regression still uses the existing root-issued
+agent operation grant; it is not evidence for machine → A → B enrollment or
+attenuation. Operator resource pins, native agent authority and separate exact
+approval remain conjunctive. The forthcoming participant protocol must bind its
+native parent/child grant commitments and ancestor accounting explicitly rather
+than treating this role split as a delegation implementation.
+
+Hosted run 40573770464 subsequently **passed repository preflight** on
+`5fb47802`; the authoritative implementation suite started. This establishes
+that revision's deterministic preflight, not passing behavioral, formal or
+binding acceptance. Keep that run alive for feedback while publishing the role
+slice, then run the complete gate on the new head.
+
+Role-slice artifact construction completed through the gateway closure generator
+(one generation test passed, 332 tests filtered out). The task descriptor now
+owns one canonical commitment routine used by activation and reconstruction;
+Python continues using the native canonicalization/commitment ABI with the new
+domain. Full behavioral and cross-language acceptance remain pending.

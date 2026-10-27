@@ -83,6 +83,23 @@ Initially retain the current task/card format and its explicitly named final age
 
 This slice does not admit runtime-selected recipients, new participant enrollment, machine task activation, or independent child budgets. Those require the subsequent role and participant protocol. The [assessment's D1–D3 decisions](../plans/0073-foundation-assessment.md) define the scope and pending verification.
 
+### 4.2 Task roles: initiation is separate from exact approval
+
+The next direct source cutover uses task schema 3 with required
+`initiator_principal` and `approver_principal` fields, both pinned by the
+operator. Native task activation authenticates the initiator; read ancestry
+must include that initiator. Exact write, effect-plan and recovery approvals
+authenticate the approver. Bounded-upfront mode cannot stand in for an independent
+approver: it is supported only when both roles are the same principal and the
+operator permits the mode. Neither role may equal the acting agent in this
+initial independently approved task profile.
+
+The [role cutover contract](../plans/0073-task-role-cutover.md) records schema,
+commitment, state rejection and fixture obligations. A human-initiated vertical
+may deliberately choose one principal for both roles. Role labels do not prove
+human presence or identity assurance. Participant enrollment, instance generation
+and shared ancestor budgets remain separate implementation work.
+
 ## 5. Portable verification and live admission
 
 Portable verification answers whether exact action bytes are covered by the supplied authority under explicit trust, evidence, time, and configuration inputs. It does not promise current global state.

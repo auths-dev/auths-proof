@@ -25,7 +25,7 @@ from .task_write_package import LoadedTaskWritePackage
 
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _PINS = {
-    "company_id", "human_principal", "agent_principal",
+    "company_id", "initiator_principal", "approver_principal", "agent_principal",
     "agent_key_fingerprint", "connection_id", "connection_generation",
     "connection_subject", "delivery_channel", "operator_policy_digest",
     "allow_bounded_writes", "permitted_read_scopes",
@@ -41,7 +41,7 @@ def _installation(path: Path) -> dict:
     if (type(document) is not dict
             or not {"schema", "recipe_digests", "pins"} <= set(document)
             or not set(document) <= {"schema", "recipe_digests", "pins"} | optional
-            or document["schema"] != "auths.gateway-task-installation/3"
+            or document["schema"] != "auths.gateway-task-installation/4"
             or type(document["recipe_digests"]) is not list
             or not 1 <= len(document["recipe_digests"]) <= 4
             or any(type(value) is not str or _DIGEST.fullmatch(value) is None
@@ -114,7 +114,8 @@ def build_exact_write_card(
             or agent.employee_binding_ref != employee.binding_ref
             or agent.agent_principal == employee.principal
             or pins["company_id"] != employee.company_id
-            or pins["human_principal"] != employee.principal
+            or pins["initiator_principal"] != employee.principal
+            or pins["approver_principal"] != employee.principal
             or pins["agent_principal"] != agent.agent_principal
             or pins["agent_key_fingerprint"] != agent.identity_packet_sha256
             or type(pins["allow_bounded_writes"]) is not bool
@@ -224,10 +225,11 @@ def build_exact_write_card(
                                or upfront_allowed_arguments is not None))):
         raise OperatorDenied("read-only task needs one selected source and no write options")
     card = {
-        "schema": "auths.agent-task/2",
+        "schema": "auths.agent-task/3",
         "task_id": secrets.token_urlsafe(18),
         "company_id": employee.company_id,
-        "human_principal": employee.principal,
+        "initiator_principal": employee.principal,
+        "approver_principal": employee.principal,
         "agent_principal": agent.agent_principal,
         "agent_key_fingerprint": agent.identity_packet_sha256,
         "connection_id": pins["connection_id"],

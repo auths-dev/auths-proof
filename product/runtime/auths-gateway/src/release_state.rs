@@ -26,7 +26,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/7";
+const SCHEMA: &str = "auths.gateway-agent-task-state/8";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -53,7 +53,7 @@ pub(crate) struct ReleaseTaskPolicy {
     pub(crate) task_id: String,
     pub(crate) task_commitment: [u8; 32],
     pub(crate) company_id: String,
-    pub(crate) human_principal: String,
+    pub(crate) initiator_principal: String,
     pub(crate) agent_principal: String,
     pub(crate) not_before: u64,
     pub(crate) expires_at: u64,
@@ -219,7 +219,7 @@ pub(crate) struct ReleaseTaskState {
     task_id: String,
     task_commitment: String,
     company_id: String,
-    human_principal: String,
+    initiator_principal: String,
     agent_principal: String,
     not_before: u64,
     expires_at: u64,
@@ -382,7 +382,7 @@ impl ReleaseTaskState {
     fn new(policy: ReleaseTaskPolicy) -> Result<Self, ReleaseStateError> {
         if !bounded_text(&policy.task_id, 128)
             || !bounded_text(&policy.company_id, 128)
-            || !bounded_text(&policy.human_principal, 256)
+            || !bounded_text(&policy.initiator_principal, 256)
             || !bounded_text(&policy.agent_principal, 256)
             || !bounded_text(&policy.connection_id, 128)
             || policy.connection_generation == 0
@@ -435,7 +435,7 @@ impl ReleaseTaskState {
             task_id: policy.task_id,
             task_commitment: hex::encode(policy.task_commitment),
             company_id: policy.company_id,
-            human_principal: policy.human_principal,
+            initiator_principal: policy.initiator_principal,
             agent_principal: policy.agent_principal,
             not_before: policy.not_before,
             expires_at: policy.expires_at,
@@ -594,7 +594,7 @@ impl ReleaseTaskState {
             task_id: self.task_id.clone(),
             task_commitment,
             company_id: self.company_id.clone(),
-            human_principal: self.human_principal.clone(),
+            initiator_principal: self.initiator_principal.clone(),
             agent_principal: self.agent_principal.clone(),
             not_before: self.not_before,
             expires_at: self.expires_at,
@@ -1013,7 +1013,7 @@ impl ReleaseTaskState {
     ) -> Result<(), ReleaseStateError> {
         let request = verified.request();
         if verified.actor().as_str() != request.recipient()
-            || !verified.delegated_by(&self.human_principal)
+            || !verified.delegated_by(&self.initiator_principal)
             || !same_commitment(
                 &self.task_commitment,
                 &hex::encode(request.task_commitment()),
@@ -1802,7 +1802,7 @@ mod tests {
             task_id: "task-1".to_owned(),
             task_commitment: [0x11; 32],
             company_id: "atlas".to_owned(),
-            human_principal: "jules-principal".to_owned(),
+            initiator_principal: "jules-principal".to_owned(),
             agent_principal: "agent-principal".to_owned(),
             not_before: 100,
             expires_at: 200,

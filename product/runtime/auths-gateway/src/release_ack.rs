@@ -217,10 +217,11 @@ mod tests {
         let descriptor = identity.to_descriptor().expect("descriptor");
         let packet = descriptor.encode().expect("packet");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
+            "schema": "auths.agent-task/3",
             "task_id": "task-1",
             "company_id": "atlas",
-            "human_principal": human.principal.as_str(),
+            "initiator_principal": human.principal.as_str(),
+            "approver_principal": human.principal.as_str(),
             "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": hex::encode(Sha256::digest(&packet)),
             "connection_id": "jules-write",

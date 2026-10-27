@@ -223,7 +223,7 @@ pub(crate) fn verify_effect_plan(
     let [branch] = branches.as_slice() else {
         return Err(not_entered("gateway.task.single-human-action-required"));
     };
-    if branch.actor.as_str() != card.human_principal
+    if branch.actor.as_str() != card.approver_principal
         || branch.chain.is_empty()
         || branch
             .chain

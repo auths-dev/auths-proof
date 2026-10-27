@@ -76,13 +76,15 @@ generation and does not perform a write.
 ## Operator-side development route
 
 `auths-gateway task-configure --state-dir STATE --from PINS.json` accepts one
-canonical JSON object with schema `auths.gateway-task-installation/3`, a
+canonical JSON object with schema `auths.gateway-task-installation/4`, a
 sorted, unique `recipe_digests` list of one to four compiled write recipes,
 and operator-controlled `pins`: `company_id`,
-`human_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
+`initiator_principal`, `approver_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
 `connection_generation`, `connection_subject`, `delivery_channel`,
 `operator_policy_digest`, `allow_bounded_writes`, and
-`permitted_read_scopes`. A write-only task sets
+`permitted_read_scopes`. This employee demo selects the enrolled human for both
+initiator and approver. The gateway keeps the roles distinct: initiation cannot
+substitute for a separately required exact approval. A write-only task sets
 `permitted_read_scopes` to `[]`; a mixed task lists the reviewed read
 connection and source. Each signed task scope carries its own
 connection ID, generation, subject, and recipe digest; the write scope must

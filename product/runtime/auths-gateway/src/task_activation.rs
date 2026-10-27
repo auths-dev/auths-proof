@@ -1,6 +1,6 @@
-//! Provider-neutral, human-signed task envelope. Native verification proves
-//! who signed the exact card; operator pins still decide whether that human,
-//! agent and connection are installed. Provider access remains a later check.
+//! Provider-neutral task envelope with distinct initiator and approver roles.
+//! Native verification authenticates activation by the pinned initiator; exact
+//! effects require the independent approver. Provider access is a later check.
 
 use crate::bounds::authorized_chains;
 use crate::engine::{
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-const TASK_SCHEMA: &str = "auths.agent-task/2";
+const TASK_SCHEMA: &str = "auths.agent-task/3";
 pub(crate) const TASK_SERVICE: &str = "auths-agent-task";
 pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
 const MAX_SCOPES: usize = 16;
@@ -95,7 +95,7 @@ pub(crate) enum WriteApprovalMode {
     BoundedUpfront,
 }
 
-/// Exact structured card the employee reviews and signs as one native MCP
+/// Exact structured card the initiator signs as one native MCP
 /// action. Handles and recipe digests are opaque to this shared contract.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -103,7 +103,8 @@ pub(crate) struct AgentTaskDescriptor {
     schema: String,
     pub(crate) task_id: String,
     company_id: String,
-    pub(crate) human_principal: String,
+    pub(crate) initiator_principal: String,
+    pub(crate) approver_principal: String,
     pub(crate) agent_principal: String,
     pub(crate) agent_key_fingerprint: String,
     pub(crate) connection_id: String,
@@ -130,13 +131,14 @@ pub(crate) struct AgentTaskDescriptor {
 }
 
 /// Operator-installed values re-read at activation. These are independent of
-/// the human's submitted action and must come from active company, agent and
+/// the initiator's submitted action and must come from active company, agent and
 /// connection records, including the provider's stable account subject.
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskActivationPins {
     pub(crate) company_id: String,
-    pub(crate) human_principal: String,
+    pub(crate) initiator_principal: String,
+    pub(crate) approver_principal: String,
     pub(crate) agent_principal: String,
     pub(crate) agent_key_fingerprint: String,
     pub(crate) connection_id: String,
@@ -158,7 +160,7 @@ impl TaskActivationPins {
     }
 }
 
-/// A verified human approval of the exact task card. No public constructor
+/// A verified activation of the exact task card by its initiator. No public constructor
 /// exists; the read ledger can derive its policy only from this value.
 pub(crate) struct ApprovedAgentTask {
     descriptor: AgentTaskDescriptor,
@@ -175,11 +177,7 @@ impl ApprovedAgentTask {
         now: u64,
     ) -> Result<Self, GatewaySubmitResult> {
         descriptor.validate(pins, now)?;
-        let canonical = serde_json_canonicalizer::to_vec(&descriptor)
-            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-        let actual = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
-            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-        if actual.as_bytes() != &commitment {
+        if descriptor.canonical_commitment()? != commitment {
             return Err(not_entered("gateway.task.activation-changed"));
         }
         Ok(Self {
@@ -200,7 +198,7 @@ impl ApprovedAgentTask {
             task_id: self.descriptor.task_id.clone(),
             task_commitment: self.commitment,
             company_id: self.descriptor.company_id.clone(),
-            human_principal: self.descriptor.human_principal.clone(),
+            initiator_principal: self.descriptor.initiator_principal.clone(),
             agent_principal: self.descriptor.agent_principal.clone(),
             not_before: self.descriptor.not_before,
             expires_at: self.descriptor.expires_at,
@@ -271,6 +269,15 @@ fn valid_upfront_choices(choices: &[BTreeMap<String, Value>]) -> bool {
 }
 
 impl AgentTaskDescriptor {
+    /// One owner for task canonicalization and its versioned commitment domain.
+    fn canonical_commitment(&self) -> Result<[u8; 32], GatewaySubmitResult> {
+        let canonical = serde_json_canonicalizer::to_vec(self)
+            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
+        auths_codec::domain_commitment("auths.agent-task.v3", &canonical)
+            .map(|commitment| *commitment.as_bytes())
+            .map_err(|_| not_entered("gateway.task.invalid-card"))
+    }
+
     pub(crate) fn recipes_installed(&self, digests: &[String]) -> bool {
         self.write_scopes
             .iter()
@@ -279,6 +286,20 @@ impl AgentTaskDescriptor {
                 digests.contains(&pending.create_recipe_digest)
                     && digests.contains(&pending.populate_recipe_digest)
             })
+    }
+
+    fn roles_valid(&self) -> bool {
+        [
+            &self.initiator_principal,
+            &self.approver_principal,
+            &self.agent_principal,
+        ]
+        .into_iter()
+        .all(|principal| PrincipalId::parse(principal).is_ok())
+            && self.initiator_principal != self.agent_principal
+            && self.approver_principal != self.agent_principal
+            && (self.write_approval_mode != WriteApprovalMode::BoundedUpfront
+                || self.initiator_principal == self.approver_principal)
     }
 
     fn validate(&self, pins: &TaskActivationPins, now: u64) -> Result<(), GatewaySubmitResult> {
@@ -291,9 +312,7 @@ impl AgentTaskDescriptor {
             || !bounded_text(&self.purpose, 512)
             || !digest(&self.agent_key_fingerprint)
             || !digest(&self.operator_policy_digest)
-            || PrincipalId::parse(&self.human_principal).is_err()
-            || PrincipalId::parse(&self.agent_principal).is_err()
-            || self.human_principal == self.agent_principal
+            || !self.roles_valid()
             || self.connection_generation == 0
             || self.not_before > now
             || now >= self.expires_at
@@ -361,7 +380,8 @@ impl AgentTaskDescriptor {
             return Err(not_entered("gateway.task.invalid-pending-child"));
         }
         if self.company_id != pins.company_id
-            || self.human_principal != pins.human_principal
+            || self.initiator_principal != pins.initiator_principal
+            || self.approver_principal != pins.approver_principal
             || self.agent_principal != pins.agent_principal
             || self.agent_key_fingerprint != pins.agent_key_fingerprint
             || self.connection_id != pins.connection_id
@@ -382,7 +402,7 @@ struct TaskApprovalArguments {
     task: AgentTaskDescriptor,
 }
 
-/// Verify the human's exact structured card under the company's pinned
+/// Verify the initiator's exact structured card under the company's pinned
 /// native trust. The operator supplies a fresh challenge in `context` and
 /// re-reads `pins` from installed records before this call.
 pub(crate) fn verify_task_activation(
@@ -417,7 +437,7 @@ fn verify_task_activation_for_profile(
     let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     if action.action_ids().len() != 1 {
-        return Err(not_entered("gateway.task.single-human-action-required"));
+        return Err(not_entered("gateway.task.single-initiator-action-required"));
     }
     let command = McpProfile
         .decode_verified(action)
@@ -432,16 +452,16 @@ fn verify_task_activation_for_profile(
     let branches = authorized_chains(proof_cbor, action)
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let [branch] = branches.as_slice() else {
-        return Err(not_entered("gateway.task.single-human-action-required"));
+        return Err(not_entered("gateway.task.single-initiator-action-required"));
     };
-    if branch.actor.as_str() != arguments.task.human_principal
+    if branch.actor.as_str() != arguments.task.initiator_principal
         || branch.chain.is_empty()
         || branch
             .chain
             .last()
             .is_none_or(|grant| grant.statement().subject() != &branch.actor)
     {
-        return Err(not_entered("gateway.task.human-authority"));
+        return Err(not_entered("gateway.task.initiator-authority"));
     }
     let bundle = auths_codec::decode_bundle(proof_cbor, &VerifierLimits::default())
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
@@ -458,13 +478,10 @@ fn verify_task_activation_for_profile(
     {
         return Err(not_entered("gateway.task.unsupported-policy"));
     }
-    let canonical = serde_json_canonicalizer::to_vec(&arguments.task)
-        .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-    let commitment = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
-        .map_err(|_| not_entered("gateway.task.invalid-card"))?;
+    let commitment = arguments.task.canonical_commitment()?;
     Ok(ApprovedAgentTask {
         descriptor: arguments.task,
-        commitment: *commitment.as_bytes(),
+        commitment,
     })
 }
 
@@ -487,7 +504,8 @@ mod tests {
             schema: TASK_SCHEMA.to_owned(),
             task_id: "task-1".to_owned(),
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: "a".repeat(64),
             connection_id: "jules-google".to_owned(),
@@ -526,7 +544,8 @@ mod tests {
     fn pins(card: &AgentTaskDescriptor) -> TaskActivationPins {
         TaskActivationPins {
             company_id: card.company_id.clone(),
-            human_principal: card.human_principal.clone(),
+            initiator_principal: card.initiator_principal.clone(),
+            approver_principal: card.approver_principal.clone(),
             agent_principal: card.agent_principal.clone(),
             agent_key_fingerprint: card.agent_key_fingerprint.clone(),
             connection_id: card.connection_id.clone(),
@@ -589,7 +608,7 @@ mod tests {
         assert_ne!(approved.commitment(), &[0; 32]);
         let policy = approved.task_policy();
         assert_eq!(policy.task_id, card.task_id);
-        assert_eq!(policy.human_principal, human.principal.as_str());
+        assert_eq!(policy.initiator_principal, human.principal.as_str());
         assert_eq!(policy.resources.len(), 1);
         assert_eq!(policy.resources[0].handle, "source-1");
         assert_eq!(policy.resources[0].connection_id, "jules-read");
@@ -775,6 +794,105 @@ mod tests {
                 .is_err(),
             "a new operation ID cannot populate the same child again"
         );
+    }
+
+    #[test]
+    fn machine_activation_requires_initiator_and_commits_independent_approver() {
+        let root = Signer::new(0x11);
+        let machine = Signer::new(0x55);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut descriptor = card(&machine, &agent);
+        descriptor.approver_principal = human.principal.as_str().to_owned();
+        let installed = pins(&descriptor);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_for_agent_and_task(&root, observer.principal(), NOW)
+            .expect("installed context");
+        let (proof, action) = signed_card_for_approval(&root, &machine, &descriptor);
+        let activated = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("machine activation with independent approver");
+        assert_eq!(
+            activated.descriptor().approver_principal,
+            human.principal.as_str()
+        );
+        for impostor in [&human, &agent] {
+            let (proof, action) = signed_card_for_approval(&root, impostor, &descriptor);
+            assert_eq!(
+                verify_task_activation(&context, &installed, NOW, &proof, &action).err(),
+                Some(not_entered("gateway.task.initiator-authority"))
+            );
+        }
+        for changed in [
+            AgentTaskDescriptor {
+                initiator_principal: human.principal.as_str().to_owned(),
+                ..descriptor.clone()
+            },
+            AgentTaskDescriptor {
+                approver_principal: machine.principal.as_str().to_owned(),
+                ..descriptor.clone()
+            },
+        ] {
+            assert_eq!(
+                changed.validate(&installed, NOW).err(),
+                Some(not_entered("gateway.task.operator-binding"))
+            );
+            let changed_pins = pins(&changed);
+            assert_eq!(
+                ApprovedAgentTask::from_activated_card(
+                    changed,
+                    *activated.commitment(),
+                    &changed_pins,
+                    NOW
+                )
+                .err(),
+                Some(not_entered("gateway.task.activation-changed"))
+            );
+        }
+    }
+
+    #[test]
+    fn task_roles_reject_self_approval_unapproved_upfront_and_obsolete_cards() {
+        let machine = Signer::new(0x55);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut descriptor = card(&machine, &agent);
+        descriptor.approver_principal = human.principal.as_str().to_owned();
+        let installed = pins(&descriptor);
+        descriptor
+            .validate(&installed, NOW)
+            .expect("separate roles");
+        let mut self_approved = descriptor.clone();
+        self_approved.approver_principal = agent.principal.as_str().to_owned();
+        assert!(!self_approved.roles_valid());
+        descriptor.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        descriptor.upfront_allowed_arguments = vec![BTreeMap::from([(
+            "replacement".to_owned(),
+            json!("Approved"),
+        )])];
+        let mut installed = pins(&descriptor);
+        installed.allow_bounded_writes = true;
+        assert_eq!(
+            descriptor.validate(&installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-card"))
+        );
+        descriptor.approver_principal = machine.principal.as_str().to_owned();
+        installed.approver_principal = machine.principal.as_str().to_owned();
+        descriptor
+            .validate(&installed, NOW)
+            .expect("explicit same-principal upfront approval");
+        let mut obsolete = serde_json::to_value(&descriptor).expect("card");
+        obsolete["schema"] = json!("auths.agent-task/2");
+        let old: AgentTaskDescriptor =
+            serde_json::from_value(obsolete.clone()).expect("shape only");
+        assert!(old.validate(&installed, NOW).is_err());
+        let object = obsolete.as_object_mut().expect("card object");
+        object.remove("initiator_principal");
+        object.remove("approver_principal");
+        object.insert(
+            "human_principal".to_owned(),
+            json!(machine.principal.as_str()),
+        );
+        assert!(serde_json::from_value::<AgentTaskDescriptor>(obsolete).is_err());
     }
 
     #[test]

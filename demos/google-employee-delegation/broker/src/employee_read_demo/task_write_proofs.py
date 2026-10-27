@@ -108,8 +108,9 @@ def _prepare(authority: TaskWriteAuthority, *, tool: str,
 
 def prepare_task_approval(authority: TaskWriteAuthority, card: dict,
                           *, now: int | None = None) -> PreparedHumanAction:
-    if (type(card) is not dict or card.get("schema") != "auths.agent-task/2"
-            or card.get("human_principal") != authority.human_principal):
+    if (type(card) is not dict or card.get("schema") != "auths.agent-task/3"
+            or card.get("initiator_principal") != authority.human_principal
+            or card.get("approver_principal") != authority.human_principal):
         raise OperatorDenied("reviewed task card does not name the human")
     return _prepare(authority, tool=APPROVAL_TOOL, payload={"task": card}, now=now)
 
@@ -150,6 +151,6 @@ def prepare_recovered_child_confirmation(
 
 def task_commitment(card: dict) -> str:
     """Match the gateway's domain-separated commitment for a reviewed card."""
-    if type(card) is not dict or card.get("schema") != "auths.agent-task/2":
+    if type(card) is not dict or card.get("schema") != "auths.agent-task/3":
         raise OperatorDenied("task card is invalid")
-    return commitment("auths.agent-task.v2", card)
+    return commitment("auths.agent-task.v3", card)

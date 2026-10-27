@@ -985,7 +985,8 @@ mod tests {
             "connection_subject": subject});
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: root.principal.as_str().to_owned(),
+            initiator_principal: root.principal.as_str().to_owned(),
+            approver_principal: root.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: hex::encode(Sha256::digest(&packet)),
             connection_id: bound.connection_id().as_str().to_owned(),
@@ -999,8 +1000,9 @@ mod tests {
             allow_bounded_writes: false,
         };
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2", "task_id": "task-1", "company_id": "atlas",
-            "human_principal": root.principal.as_str(), "agent_principal": agent.principal.as_str(),
+            "schema": "auths.agent-task/3", "task_id": "task-1", "company_id": "atlas",
+            "initiator_principal": root.principal.as_str(),
+            "approver_principal": root.principal.as_str(), "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": pins.agent_key_fingerprint,
             "connection_id": bound.connection_id().as_str(),
             "connection_generation": bound.generation().get(), "connection_subject": subject,
@@ -1014,7 +1016,7 @@ mod tests {
         .expect("card");
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("card canonical");
         let commitment =
-            auths_codec::domain_commitment("auths.agent-task.v2", &canonical).expect("commitment");
+            auths_codec::domain_commitment("auths.agent-task.v3", &canonical).expect("commitment");
         let approved = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let directory = tempfile::tempdir().expect("state root");
         std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))

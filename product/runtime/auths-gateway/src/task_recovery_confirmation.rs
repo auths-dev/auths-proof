@@ -112,7 +112,7 @@ pub(crate) fn verify_recovery_confirmation(
     let [branch] = branches.as_slice() else {
         return Err(not_entered("gateway.task.single-human-action-required"));
     };
-    if branch.actor.as_str() != task.descriptor().human_principal
+    if branch.actor.as_str() != task.descriptor().approver_principal
         || branch.chain.is_empty()
         || branch
             .chain

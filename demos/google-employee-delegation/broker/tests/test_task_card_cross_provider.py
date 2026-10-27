@@ -96,11 +96,11 @@ class CrossProviderTaskCardTests(unittest.TestCase):
             record = "recTEST0000000001"
             installed = private / "task-installation.json"
             installed.write_text(json.dumps({
-                "schema": "auths.gateway-task-installation/3",
+                "schema": "auths.gateway-task-installation/4",
                 "recipe_digests": [write_digest],
                 "pins": {
                     "company_id": "example-company",
-                    "human_principal": human_principal,
+                    "initiator_principal": human_principal, "approver_principal": human_principal,
                     "agent_principal": agent_principal,
                     "agent_key_fingerprint": agent_digest,
                     "connection_id": "operator-airtable-write",

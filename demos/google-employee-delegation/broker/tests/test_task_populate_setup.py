@@ -27,10 +27,10 @@ class TaskPopulateSetupTests(unittest.TestCase):
             seed = root / "preflight.seed"
             output = root / "task-installation.json"
             config = {
-                "schema": "auths.gateway-task-installation/3",
+                "schema": "auths.gateway-task-installation/4",
                 "recipe_digests": ["a" * 64, "b" * 64],
                 "pins": {
-                    "company_id": "atlas-studio", "human_principal": "human",
+                    "company_id": "atlas-studio", "initiator_principal": "human", "approver_principal": "human",
                     "agent_principal": "agent", "agent_key_fingerprint": "c" * 64,
                     "connection_id": "jules-google", "connection_generation": 1,
                     "connection_subject": "jules", "delivery_channel": "agent-channel",
@@ -79,10 +79,10 @@ class TaskPopulateSetupTests(unittest.TestCase):
             root = Path(directory)
             base = root / "base.json"
             base.write_text(json.dumps({
-                "schema": "auths.gateway-task-installation/3",
+                "schema": "auths.gateway-task-installation/4",
                 "recipe_digests": ["a" * 64],
                 "pins": {
-                    "company_id": "atlas-studio", "human_principal": "human",
+                    "company_id": "atlas-studio", "initiator_principal": "human", "approver_principal": "human",
                     "agent_principal": "agent", "agent_key_fingerprint": "c" * 64,
                     "connection_id": "jules-google", "connection_generation": 1,
                     "connection_subject": "jules", "delivery_channel": "agent-channel",

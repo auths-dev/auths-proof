@@ -91,7 +91,7 @@ const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
 #[cfg(unix)]
-const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/3";
+const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/4";
 /// How often `serve` sweeps expired count and sum slots.
 pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
 /// The most expired slots one sweep deletes.
@@ -3807,7 +3807,8 @@ pub(crate) mod tests {
         .expect("identity packet");
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: hex::encode(sha2::Sha256::digest(&identity)),
             connection_id: record.record().connection_id().as_str().to_owned(),
@@ -3956,11 +3957,22 @@ pub(crate) mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn installed_task_session_activates_and_gates_exact_agent_write() {
+        Box::pin(installed_task_write_case(false)).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn machine_initiated_task_requires_independent_human_for_exact_write() {
+        Box::pin(installed_task_write_case(true)).await;
+    }
+
+    #[cfg(unix)]
     #[allow(
         clippy::too_many_lines,
-        reason = "installed activation fixture includes connection, task and native human proof"
+        reason = "installed activation fixture includes connection, task and native principal proofs"
     )]
-    async fn installed_task_session_activates_and_gates_exact_agent_write() {
+    async fn installed_task_write_case(independent_initiator: bool) {
         use crate::harness::{self, Signer};
         use crate::observed_tests::submission_for;
         use crate::task_activation::AgentTaskDescriptor;
@@ -4041,6 +4053,12 @@ pub(crate) mod tests {
         let now = wall_clock_seconds().expect("clock");
         let root = Signer::new(0x11);
         let human = Signer::new(0x22);
+        let machine = Signer::new(0x55);
+        let initiator = if independent_initiator {
+            &machine
+        } else {
+            &human
+        };
         let agent = Signer::new(0x44);
         let observer = GatewayObserver::from_test_seed(0x33);
         engine.trusted_context = harness::context_for_agent_and_task_profile(
@@ -4137,7 +4155,8 @@ pub(crate) mod tests {
         }
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: initiator.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: "a".repeat(64),
             connection_id: bound.connection_id().as_str().to_owned(),
@@ -4149,10 +4168,11 @@ pub(crate) mod tests {
             allow_bounded_writes: false,
         };
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
+            "schema": "auths.agent-task/3",
             "task_id": "task-installed-1",
             "company_id": pins.company_id,
-            "human_principal": pins.human_principal,
+            "initiator_principal": pins.initiator_principal,
+            "approver_principal": pins.approver_principal,
             "agent_principal": pins.agent_principal,
             "agent_key_fingerprint": pins.agent_key_fingerprint,
             "connection_id": pins.connection_id,
@@ -4193,12 +4213,12 @@ pub(crate) mod tests {
             .expect("operator session");
         let grant = harness::grant_for(
             &root,
-            &human.principal,
+            &initiator.principal,
             now,
             "auths-agent-task",
             "approve_agent_task_v1",
         )
-        .expect("human grant");
+        .expect("initiator grant");
         let mut arguments = Map::new();
         arguments.insert(
             "task".to_owned(),
@@ -4206,7 +4226,7 @@ pub(crate) mod tests {
         );
         let signed = submission_for(
             &root,
-            &human,
+            initiator,
             &grant,
             &arguments,
             &[],
@@ -4340,6 +4360,52 @@ pub(crate) mod tests {
             "write".to_owned(),
             serde_json::to_value(&intent).expect("intent"),
         );
+        if independent_initiator {
+            for actor in [initiator, &agent] {
+                let unauthorized_grant = harness::grant_for(
+                    &root,
+                    &actor.principal,
+                    now,
+                    TASK_SERVICE,
+                    CONFIRMATION_TOOL,
+                )
+                .expect("valid native authority cannot replace the approver role");
+                let unauthorized = submission_for(
+                    &root,
+                    actor,
+                    &unauthorized_grant,
+                    &confirmation_arguments,
+                    &[],
+                    TASK_SERVICE,
+                    CONFIRMATION_TOOL,
+                    now,
+                );
+                assert_eq!(
+                    session
+                        .submit(TaskWriteProofs {
+                            task_id: &card.task_id,
+                            agent_proof: &agent_signed.proof,
+                            agent_action: &agent_signed.action,
+                            confirmation: Some((&unauthorized.proof, &unauthorized.action)),
+                        })
+                        .await,
+                    not_entered("gateway.task.human-authority")
+                );
+                assert_eq!(
+                    session
+                        .ledger
+                        .load(&card.task_id)
+                        .expect("journal")
+                        .expect("task")
+                        .write_count(),
+                    0
+                );
+                assert_eq!(
+                    installation.first.leases.load(Ordering::SeqCst),
+                    baseline_leases
+                );
+            }
+        }
         let confirmation = submission_for(
             &root,
             &human,
@@ -4736,7 +4802,8 @@ pub(crate) mod tests {
             .expect("replace descriptor");
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: "a".repeat(64),
             connection_id: bound.connection_id().as_str().to_owned(),
@@ -4749,9 +4816,10 @@ pub(crate) mod tests {
         };
         let marker = format!("ap071_{}", "d".repeat(32));
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2", "task_id": "task-create-reconcile",
+            "schema": "auths.agent-task/3", "task_id": "task-create-reconcile",
             "company_id": pins.company_id,
-            "human_principal": pins.human_principal,
+            "initiator_principal": pins.initiator_principal,
+            "approver_principal": pins.approver_principal,
             "agent_principal": pins.agent_principal,
             "agent_key_fingerprint": pins.agent_key_fingerprint,
             "connection_id": pins.connection_id,
@@ -4778,7 +4846,7 @@ pub(crate) mod tests {
         }))
         .expect("task card");
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("canonical card");
-        let commitment = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
+        let commitment = auths_codec::domain_commitment("auths.agent-task.v3", &canonical)
             .expect("card commitment");
         let task = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let mut digests = vec![engine.recipe.digest_hex(), populate.digest_hex()];
@@ -5456,7 +5524,7 @@ pub(crate) mod tests {
         let unknown_card_bytes =
             serde_json_canonicalizer::to_vec(&unknown_card).expect("second card bytes");
         let unknown_commitment =
-            auths_codec::domain_commitment("auths.agent-task.v2", &unknown_card_bytes)
+            auths_codec::domain_commitment("auths.agent-task.v3", &unknown_card_bytes)
                 .expect("second card commitment");
         let unknown_task =
             ApprovedAgentTask::from_test_card(unknown_card, *unknown_commitment.as_bytes());

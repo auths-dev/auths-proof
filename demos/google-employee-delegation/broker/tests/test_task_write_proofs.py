@@ -81,8 +81,8 @@ class TaskWriteProofTests(unittest.TestCase):
             provider_tool="replace_project_a_marker_v2", now=1000, lifetime=600,
         )
         card = {
-            "schema": "auths.agent-task/2", "task_id": "task-1",
-            "company_id": "atlas-studio", "human_principal": human,
+            "schema": "auths.agent-task/3", "task_id": "task-1",
+            "company_id": "atlas-studio", "initiator_principal": human, "approver_principal": human,
             "agent_principal": "agent-principal", "agent_key_fingerprint": "a" * 64,
             "connection_id": "jules-google", "connection_generation": 1,
             "connection_subject": "jules-subject", "read_scopes": [],
@@ -103,7 +103,7 @@ class TaskWriteProofTests(unittest.TestCase):
         self.assertGreater(len(signed.action), 0)
         commitment = task_commitment(card)
         self.assertEqual(commitment, bytes(_native.commit_canonical_v1(
-            "auths.agent-task.v2",
+            "auths.agent-task.v3",
             _native.canonicalize_mcp_arguments_json(canonical_json(card)),
         )).hex())
         intent = {

@@ -248,7 +248,7 @@ pub(crate) mod tests {
             task_id: "task-1".to_owned(),
             task_commitment: [0x11; 32],
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             not_before: NOW - 3_600,
             expires_at: NOW + 3_600,
@@ -388,7 +388,7 @@ pub(crate) mod tests {
 
         for changed in [
             ReleaseTaskPolicy {
-                human_principal: Signer::new(0x44).principal.as_str().to_owned(),
+                initiator_principal: Signer::new(0x44).principal.as_str().to_owned(),
                 ..policy.clone()
             },
             ReleaseTaskPolicy {
@@ -475,7 +475,7 @@ pub(crate) mod tests {
 
         let policy = task_policy(&recipe, &root, &agent);
         let mut wrong_human = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
-            human_principal: Signer::new(0x44).principal.as_str().to_owned(),
+            initiator_principal: Signer::new(0x44).principal.as_str().to_owned(),
             ..policy.clone()
         })
         .expect("policy");

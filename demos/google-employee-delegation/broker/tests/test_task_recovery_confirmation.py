@@ -37,8 +37,8 @@ class RecoveryReviewTests(unittest.TestCase):
                                         "human-key", "binding")
         self.agent = AgentBinding("atlas-studio", "binding", "agent-key", "a" * 64)
         self.card = {
-            "schema": "auths.agent-task/2", "task_id": self.task_id,
-            "company_id": "atlas-studio", "human_principal": "human-key",
+            "schema": "auths.agent-task/3", "task_id": self.task_id,
+            "company_id": "atlas-studio", "initiator_principal": "human-key", "approver_principal": "human-key",
             "agent_principal": "agent-key", "write_approval_mode": "exact",
             "pending_child": {"create_operation_id": "create-1"},
             "expires_at": 1300,
