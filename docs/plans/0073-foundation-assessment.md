@@ -925,3 +925,26 @@ with identity protocol 151, public SDK 148 and public surface 408. This does not
 qualify the new disclosure protocol. Python delivery-pin checks also reject
 boolean/floating generation substitutions instead of accepting Python's numeric
 equality. The current hosted run covers only the preceding admission revision.
+
+
+## 27. Hosted optional-string ABI lint
+
+Disclosure entry-permit source is pushed as
+`a754c81e71edd96153fcd2599b010ce0407a1acd`. CI 40604087805 on preceding
+`c79e5b1d` failed repository preflight at job 122539502230: Clippy flagged the
+WASM `prepareMcpActionV1` optional `String` argument as needless pass-by-value.
+The installed wasm-bindgen 0.2.118 conversion implements the optional incoming
+string ABI for owned `String`. The wrapper only borrows it into native authoring;
+changing it to an optional Rust reference would not preserve that ABI. A narrowly
+scoped allowance with this reason now applies to this exported wrapper, matching
+other existing optional-string ABI boundaries. No input validation, signing,
+trust or verification logic changes. Targeted WASM/Python all-target/all-feature Clippy reproduction passed (42.77s).
+Downstream hosted behavioral gates were skipped. Semantic source identity changes
+require explicit portable ABI 126 and MCP closed execution 34 at freeze 409;
+the JavaScript argument shape and verification semantics remain unchanged.
+
+Semantic inventory generation 409 and diff/format checks passed for the ABI lint
+correction. The participant contract §19 records the next child-write design:
+Rust-owned approval intent must bind the exact enrolled writer and instance,
+and retained journal accounting must attribute each write to its actual ancestry.
+Removing the initial-agent check without those changes is explicitly prohibited.

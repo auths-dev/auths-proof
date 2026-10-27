@@ -2907,6 +2907,10 @@ fn attach_observations_native(
 /// Returns a JavaScript error for malformed arguments, invalid profile
 /// identifiers, an invalid actor/challenge, or a malformed terminal grant.
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "wasm-bindgen's optional JavaScript string ABI requires an owned String"
+)]
 #[wasm_bindgen(js_name = prepareMcpActionV1)]
 pub fn prepare_mcp_action_v1(
     service: &str,
