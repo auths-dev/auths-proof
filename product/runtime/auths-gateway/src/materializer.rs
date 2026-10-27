@@ -7,11 +7,7 @@
 
 use async_trait::async_trait;
 use auths_connections::StoredSecretLease;
-use std::{
-    fmt,
-    sync::Arc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
-};
+use std::{fmt, sync::Arc, time::Instant};
 use subtle::ConstantTimeEq as _;
 use thiserror::Error;
 
@@ -128,22 +124,11 @@ impl MaterializerInstallation {
     }
 }
 
-pub(crate) fn task_lease_deadline(
-    source: &StoredSecretLease,
-    task_expires_at: u64,
-) -> Option<Instant> {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
-    let remaining = task_expires_at
-        .checked_sub(now)
-        .filter(|value| *value > 0)?;
-    let task_deadline = Instant::now().checked_add(Duration::from_secs(remaining))?;
-    Some(source.deadline().min(task_deadline))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Mutex;
+    use std::time::Duration;
     use zeroize::Zeroizing;
 
     struct CheckedAdapter {
@@ -277,7 +262,9 @@ mod tests {
         assert!(!is_materializer_source(&bearer));
         let expired = StoredSecretLease::from_store(
             Zeroizing::new(b"synthetic-static-bearer".to_vec()),
-            Instant::now() - Duration::from_secs(1),
+            Instant::now()
+                .checked_sub(Duration::from_secs(1))
+                .expect("earlier process instant"),
         );
         assert!(is_materializer_source(&expired));
     }

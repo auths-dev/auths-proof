@@ -136,6 +136,7 @@ pub(crate) fn window(from: u64, until: u64) -> Result<ValidityWindow, HarnessErr
     )
 }
 
+#[cfg(test)]
 pub(crate) fn audience() -> Result<Audience, HarnessError> {
     fixture(Audience::parse(&format!("mcp://{SERVICE}")), "audience")
 }
@@ -436,6 +437,7 @@ pub(crate) fn context_for_agent_and_task_profile(
     context_for_agent_and_task_profiles(root, observer, now, &[(service, tool)])
 }
 
+#[cfg(test)]
 pub(crate) fn context_for_agent_and_task_profiles(
     root: &Signer,
     observer: &PrincipalId,

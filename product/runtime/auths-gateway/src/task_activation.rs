@@ -611,6 +611,172 @@ mod tests {
         );
     }
 
+    fn assert_pending_card_integrity(
+        card: AgentTaskDescriptor,
+        approved: &ApprovedAgentTask,
+        installed: &TaskActivationPins,
+    ) {
+        assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
+        assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
+        let mut changed = card.clone();
+        changed.pending_child.as_mut().expect("pending").title = "Different title".to_owned();
+        assert!(
+            ApprovedAgentTask::from_activated_card(changed, *approved.commitment(), installed, NOW)
+                .is_err(),
+            "stored signed card cannot change title after activation"
+        );
+        let mut invalid = card.clone();
+        invalid
+            .pending_child
+            .as_mut()
+            .expect("pending")
+            .parent_handle = "project-b-folder".to_owned();
+        assert_eq!(
+            invalid.validate(installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-pending-child"))
+        );
+        let mut invalid = card.clone();
+        invalid.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        assert!(invalid.validate(installed, NOW).is_err());
+        let mut invalid = card;
+        invalid
+            .pending_child
+            .as_mut()
+            .expect("pending")
+            .populate_recipe_digest = "e".repeat(64);
+        assert_eq!(
+            invalid.validate(installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-pending-child"))
+        );
+    }
+
+    fn bind_only_reserved_child(
+        reopened: &FileReleaseTaskLedger,
+        create: &ApprovedTaskWrite,
+    ) -> (ExactWriteIntent, ApprovedTaskWrite) {
+        assert!(
+            reopened
+                .bind_created_child(
+                    create,
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "unreserved create cannot bind a child"
+        );
+        reopened
+            .reserve_write(create, NOW + 1)
+            .expect("reserve create");
+        let mut populate_intent = create.intent().clone();
+        populate_intent.operation_id = "populate-1".to_owned();
+        populate_intent.recipe_digest = "f".repeat(64);
+        populate_intent.resource_handle = "child_ABC-123".to_owned();
+        populate_intent.verb = TaskWriteVerb::Edit;
+        populate_intent.request_commitment = "b".repeat(64);
+        let populate = ApprovedTaskWrite::from_test_intent(populate_intent.clone());
+        assert!(
+            reopened.reserve_write(&populate, NOW + 1).is_err(),
+            "a pending child is not an executable scope"
+        );
+        assert!(
+            reopened
+                .bind_created_child(
+                    create,
+                    &VerifiedCreatedChild::from_test("child/other"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "unsafe child ID cannot bind"
+        );
+        let mut changed_intent = create.intent().clone();
+        changed_intent.request_commitment = "9".repeat(64);
+        assert!(
+            reopened
+                .bind_created_child(
+                    &ApprovedTaskWrite::from_test_intent(changed_intent),
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "changed request cannot bind"
+        );
+        let mut changed_action = create.intent().clone();
+        changed_action.action_commitment = "8".repeat(64);
+        assert!(
+            reopened
+                .bind_created_child(
+                    &ApprovedTaskWrite::from_test_intent(changed_action),
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "a different signed action cannot bind the reserved create"
+        );
+        reopened
+            .bind_created_child(
+                create,
+                &VerifiedCreatedChild::from_test("child_ABC-123"),
+                &[9; 32],
+                NOW + 1,
+            )
+            .expect("bind observed child");
+        assert!(
+            reopened
+                .bind_created_child(
+                    create,
+                    &VerifiedCreatedChild::from_test("other-child"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "binding is immutable"
+        );
+        (populate_intent, populate)
+    }
+
+    fn assert_population_is_single_use(
+        reopened: &FileReleaseTaskLedger,
+        populate_intent: ExactWriteIntent,
+        populate: &ApprovedTaskWrite,
+    ) {
+        let mut wrong_child = populate_intent.clone();
+        wrong_child.resource_handle = "arbitrary-child".to_owned();
+        assert!(
+            reopened
+                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_child), NOW + 1)
+                .is_err()
+        );
+        let mut wrong_recipe = populate_intent.clone();
+        wrong_recipe.recipe_digest = "a".repeat(64);
+        assert!(
+            reopened
+                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_recipe), NOW + 1)
+                .is_err()
+        );
+        reopened
+            .reserve_write(populate, NOW + 1)
+            .expect("bound child population reserves once");
+        assert!(
+            reopened.reserve_write(populate, NOW + 1).is_err(),
+            "population replays are refused"
+        );
+        let mut second_populate = populate_intent;
+        second_populate.operation_id = "populate-2".to_owned();
+        assert!(
+            reopened
+                .reserve_write(
+                    &ApprovedTaskWrite::from_test_intent(second_populate),
+                    NOW + 1
+                )
+                .is_err(),
+            "a new operation ID cannot populate the same child again"
+        );
+    }
+
     #[test]
     fn signed_pending_child_names_one_create_and_one_future_populate_recipe() {
         let root = Signer::new(0x11);
@@ -671,160 +837,13 @@ mod tests {
             connection_generation: card.connection_generation,
             connection_subject: card.connection_subject.clone(),
         });
-        assert!(
-            reopened
-                .bind_created_child(
-                    &create,
-                    &VerifiedCreatedChild::from_test("child_ABC-123"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "unreserved create cannot bind a child"
-        );
-        reopened
-            .reserve_write(&create, NOW + 1)
-            .expect("reserve create");
-        let mut populate_intent = create.intent().clone();
-        populate_intent.operation_id = "populate-1".to_owned();
-        populate_intent.recipe_digest = "f".repeat(64);
-        populate_intent.resource_handle = "child_ABC-123".to_owned();
-        populate_intent.verb = TaskWriteVerb::Edit;
-        populate_intent.request_commitment = "b".repeat(64);
-        let populate = ApprovedTaskWrite::from_test_intent(populate_intent.clone());
-        assert!(
-            reopened.reserve_write(&populate, NOW + 1).is_err(),
-            "a pending child is not an executable scope"
-        );
-        assert!(
-            reopened
-                .bind_created_child(
-                    &create,
-                    &VerifiedCreatedChild::from_test("child/other"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "unsafe child ID cannot bind"
-        );
-        let mut changed_intent = create.intent().clone();
-        changed_intent.request_commitment = "9".repeat(64);
-        assert!(
-            reopened
-                .bind_created_child(
-                    &ApprovedTaskWrite::from_test_intent(changed_intent),
-                    &VerifiedCreatedChild::from_test("child_ABC-123"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "changed request cannot bind"
-        );
-        let mut changed_action = create.intent().clone();
-        changed_action.action_commitment = "8".repeat(64);
-        assert!(
-            reopened
-                .bind_created_child(
-                    &ApprovedTaskWrite::from_test_intent(changed_action),
-                    &VerifiedCreatedChild::from_test("child_ABC-123"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "a different signed action cannot bind the reserved create"
-        );
-        reopened
-            .bind_created_child(
-                &create,
-                &VerifiedCreatedChild::from_test("child_ABC-123"),
-                &[9; 32],
-                NOW + 1,
-            )
-            .expect("bind observed child");
-        assert!(
-            reopened
-                .bind_created_child(
-                    &create,
-                    &VerifiedCreatedChild::from_test("other-child"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "binding is immutable"
-        );
+        let (populate_intent, populate) = bind_only_reserved_child(&reopened, &create);
         drop(reopened);
         let reopened = FileReleaseTaskLedger::open(path).expect("reopen");
         let state = reopened.load(&card.task_id).expect("load").expect("state");
         assert_eq!(state.bound_child_id(), Some("child_ABC-123"));
-        let mut wrong_child = populate_intent.clone();
-        wrong_child.resource_handle = "arbitrary-child".to_owned();
-        assert!(
-            reopened
-                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_child), NOW + 1)
-                .is_err()
-        );
-        let mut wrong_recipe = populate_intent.clone();
-        wrong_recipe.recipe_digest = "a".repeat(64);
-        assert!(
-            reopened
-                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_recipe), NOW + 1)
-                .is_err()
-        );
-        reopened
-            .reserve_write(&populate, NOW + 1)
-            .expect("bound child population reserves once");
-        assert!(
-            reopened.reserve_write(&populate, NOW + 1).is_err(),
-            "population replays are refused"
-        );
-        let mut second_populate = populate_intent;
-        second_populate.operation_id = "populate-2".to_owned();
-        assert!(
-            reopened
-                .reserve_write(
-                    &ApprovedTaskWrite::from_test_intent(second_populate),
-                    NOW + 1
-                )
-                .is_err(),
-            "a new operation ID cannot populate the same child again"
-        );
-        assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
-        assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
-        let mut changed = card.clone();
-        changed.pending_child.as_mut().expect("pending").title = "Different title".to_owned();
-        assert!(
-            ApprovedAgentTask::from_activated_card(
-                changed,
-                *approved.commitment(),
-                &installed,
-                NOW
-            )
-            .is_err(),
-            "stored signed card cannot change title after activation"
-        );
-        let mut invalid = card.clone();
-        invalid
-            .pending_child
-            .as_mut()
-            .expect("pending")
-            .parent_handle = "project-b-folder".to_owned();
-        assert_eq!(
-            invalid.validate(&installed, NOW).err(),
-            Some(not_entered("gateway.task.invalid-pending-child"))
-        );
-        let mut invalid = card.clone();
-        invalid.write_approval_mode = WriteApprovalMode::BoundedUpfront;
-        assert!(invalid.validate(&installed, NOW).is_err());
-        let mut invalid = card;
-        invalid
-            .pending_child
-            .as_mut()
-            .expect("pending")
-            .populate_recipe_digest = "e".repeat(64);
-        assert_eq!(
-            invalid.validate(&installed, NOW).err(),
-            Some(not_entered("gateway.task.invalid-pending-child"))
-        );
+        assert_population_is_single_use(&reopened, populate_intent, &populate);
+        assert_pending_card_integrity(card, &approved, &installed);
     }
 
     #[test]

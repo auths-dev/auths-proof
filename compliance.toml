@@ -1612,8 +1612,14 @@ security_state = ["permanent-commissioning-consumption", "commissioning-revocati
 
 [packages.auths-gateway.claims]
 operational-diagnostics = [
-  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_requires_a_recent_nonfuture_sample",
-  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_refuses_links_and_untrusted_write_permissions",
+  "product/runtime/auths-gateway/src/clock.rs#synchronization_marker_requires_a_recent_nonfuture_sample",
+  "product/runtime/auths-gateway/src/clock.rs#synchronization_marker_refuses_links_and_untrusted_write_permissions",
+  "product/runtime/auths-gateway/src/clock.rs#lease_conversion_retains_fractional_expiry_and_source_bound",
+  "product/runtime/auths-gateway/src/clock.rs#clock_failure_is_absent_and_trust_is_part_of_the_sample",
+  "product/runtime/auths-gateway/src/engine.rs#shared_clock_failure_stops_admission_and_custody_but_allows_disable",
+  "product/runtime/auths-gateway/src/engine.rs#entry_deadline_rejects_wall_rollback_and_independent_monotonic_expiry",
+  "product/runtime/auths-gateway/src/release_execute.rs#lost_clock_during_lease_stops_read_before_provider_or_disclosure",
+  "product/runtime/auths-gateway/src/release_execute.rs#lost_clock_trust_during_lease_stops_read_before_provider_or_disclosure",
   "product/runtime/auths-gateway/src/credential_journal.rs#notes_survive_restart_and_refuse_missing_corrupt_full_or_foreign_state",
   "product/runtime/auths-gateway/src/engine.rs#durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets",
   "product/runtime/auths-gateway/src/readiness.rs#the_projection_names_every_check_and_retains_precise_qualification_failure",

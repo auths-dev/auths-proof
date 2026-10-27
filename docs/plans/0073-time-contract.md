@@ -1,7 +1,7 @@
 # AP073 time ownership and provenance
 
-**Status:** next implementation contract, 27 October 2026. Only the WebAuthn
-provenance correction is implemented; hosted evidence is pending. See the
+**Status:** gateway source cutover and WebAuthn provenance correction
+implemented, 27 October 2026; hosted acceptance is pending. See the
 [assessment](0073-foundation-assessment.md) and
 [foundation spec](../specs/0073-identity-authority-and-enforcement-foundation.md).
 
@@ -17,14 +17,15 @@ One clock acquisition port cannot make these meanings interchangeable. The
 kernel continues accepting explicit time and immutable evidence; it must not
 read the host clock. Provider-specific freshness meaning remains in its profile.
 
-## Source-backed current boundary
+## Source-backed baseline boundary
 
-`GatewayEngine` uses `wall_clock_seconds` directly across activation, proof
-verification, observation, reservation and recovery. `QualificationGate` owns a
-separate sealed `DeploymentClock`; commissioning reads that clock, while ordinary
-submission reads the engine helper. Managed reads add a private test-only clock
-callback. `materializer::task_lease_deadline` independently reads wall and
-monotonic time. Several `Instant::now` calls enforce exposure and drain deadlines.
+Before this cutover, `GatewayEngine` used `wall_clock_seconds` directly across activation, proof
+verification, observation, reservation and recovery. `QualificationGate` owned a
+separate sealed `DeploymentClock`; commissioning read that clock, while ordinary
+submission read the engine helper. Managed reads added a private test-only clock
+callback. `materializer::task_lease_deadline` independently read wall and
+monotonic time. Process-local `Instant::now` calls enforce exposure and drain
+deadlines and remain appropriate for those purposes.
 
 ```mermaid
 flowchart LR
@@ -101,3 +102,36 @@ certificate validity and historical attestation age are not one common policy.
 The current SPIFFE `workload-attested` evaluation timestamp needs its own semantic
 review; changing it solely because WebAuthn changed would conflate different
 evidence contracts.
+
+## Implemented gateway boundary
+
+`clock.rs` owns the sealed `DeploymentClock::sample` interface. A private-field
+`DeploymentTime` binds the Unix duration, a preceding monotonic reference and
+trust state in one observation. `QualificationGate` owns the installed adapter;
+engine authority checks and credential deadline conversion consume it. Managed
+reads consume their installed read qualification gate's clock, including when
+read and write recipes have separately installed gates.
+
+The direct engine host-clock helper remains only under `cfg(test)` to bootstrap
+fixtures. The materializer host-clock helper and private managed-read callback
+are deleted. `FixedClock` exposes unavailable and untrusted states under test
+support, with one coherent sample. Qualification reporting can describe clock
+failure; its diagnostic fallback timestamps cannot enter execution. Optional
+recipe qualification does not permit an untrusted installed execution clock.
+Administrative bookkeeping can use a readable untrusted timestamp so disabling a
+connection remains possible after synchronization is lost; subsequent execution
+still requires trusted time.
+
+Credential deadline conversion keeps fractional seconds and caps the result by
+the source lease deadline. Write entry checks both monotonic elapsed time and
+wall time within the evaluation window; a backward step below the operation's
+evaluation time refuses. This is not a durable or general rollback detector.
+
+Prepared regressions cover fractional and exact expiry, source deadline caps,
+unavailable/untrusted samples, wall rollback/forward jumps versus independent
+monotonic expiry, custody refusal, disabling while untrusted, and clock or trust
+loss during a read lease before provider I/O/disclosure. Existing expiry and
+revocation read races now traverse the installed clock path. Required full CI
+runs gateway tests with all features, including the loopback read regressions.
+Source-closure generation and a compilation/lint result are not behavioral or
+hosted acceptance evidence; see the assessment's run log for current status.

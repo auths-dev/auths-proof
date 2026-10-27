@@ -79,7 +79,7 @@ mod unix {
         },
         path::{Component, Path, PathBuf},
         sync::Arc,
-        time::{Duration, SystemTime, UNIX_EPOCH},
+        time::Duration,
     };
     use subtle::ConstantTimeEq as _;
     use tokio::{
@@ -1494,11 +1494,12 @@ mod unix {
         hex::encode(Sha256::digest(bytes))
     }
 
+    // CLI statement/review/bookkeeping timestamp. Execution independently
+    // requires the installed deployment clock and its synchronization trust.
     fn now() -> Result<u64, &'static str> {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .map_err(|_| "gateway.clock.unavailable")
+        auths_gateway::DeploymentClock::sample(&DevelopmentClock)
+            .map(auths_gateway::DeploymentTime::unix_seconds)
+            .ok_or("gateway.clock.unavailable")
     }
 
     fn read_install_credential() -> Result<Zeroizing<Vec<u8>>, &'static str> {
@@ -3872,7 +3873,9 @@ mod unix {
             .create(true)
             .truncate(false)
             .mode(0o600)
-            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
             .open(state_dir.join(TASK_READ_COMMITMENT_ROTATION_LOCK))
             .map_err(|_| "gateway.release.rotation-unavailable")?;
         let metadata = lock
@@ -4005,7 +4008,9 @@ mod unix {
         check_private_directory(parent).map_err(|_| "gateway.release.source-unavailable")?;
         let opened = OpenOptions::new()
             .read(true)
-            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
             .open(&source_file)
             .map_err(|_| "gateway.release.source-unavailable")?;
         let metadata = opened
@@ -4333,7 +4338,7 @@ mod unix {
         Ok(())
     }
 
-    async fn task_recover_child(
+    struct TaskRecoverInputs {
         state_dir: PathBuf,
         task_id: String,
         recipe_digest: String,
@@ -4342,7 +4347,19 @@ mod unix {
         attestation: PathBuf,
         recovery_proof: PathBuf,
         recovery_action: PathBuf,
-    ) -> Result<(), Failure> {
+    }
+
+    async fn task_recover_child(inputs: TaskRecoverInputs) -> Result<(), Failure> {
+        let TaskRecoverInputs {
+            state_dir,
+            task_id,
+            recipe_digest,
+            agent_proof,
+            agent_action,
+            attestation,
+            recovery_proof,
+            recovery_action,
+        } = inputs;
         let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
         let installation = task_installation(&state_dir)?;
         let session =
@@ -4856,8 +4873,8 @@ mod unix {
         let kind = CredentialStoreKind::parse(&manifest.credential_store.kind)
             .map_err(|_| "gateway.credential.adapter-unsupported")?;
         let mut checks = engine.readiness_checks(kind).await;
-        checks.clock = if auths_gateway::DeploymentClock::trust(&SynchronizedHostClock)
-            == auths_gateway::ClockTrustState::Trusted
+        checks.clock = if auths_gateway::DeploymentClock::sample(&SynchronizedHostClock)
+            .is_some_and(|sample| sample.trust_state() == auths_gateway::ClockTrustState::Trusted)
         {
             auths_gateway::PreconditionState::Ready
         } else {
@@ -5386,7 +5403,7 @@ mod unix {
                 confirmation_proof,
                 confirmation_action,
             } => {
-                task_reconcile_child(
+                Box::pin(task_reconcile_child(
                     state_dir,
                     task_id,
                     recipe_digest,
@@ -5394,7 +5411,7 @@ mod unix {
                     agent_action,
                     confirmation_proof,
                     confirmation_action,
-                )
+                ))
                 .await
             }
             Command::TaskRecordEffectPlan {
@@ -5438,7 +5455,7 @@ mod unix {
                 recovery_proof,
                 recovery_action,
             } => {
-                task_recover_child(
+                task_recover_child(TaskRecoverInputs {
                     state_dir,
                     task_id,
                     recipe_digest,
@@ -5447,7 +5464,7 @@ mod unix {
                     attestation,
                     recovery_proof,
                     recovery_action,
-                )
+                })
                 .await
             }
             Command::Disable {
@@ -6643,7 +6660,7 @@ mod unix {
 #[cfg(unix)]
 #[tokio::main]
 async fn main() {
-    if let Err(failure) = unix::run().await {
+    if let Err(failure) = Box::pin(unix::run()).await {
         eprintln!("{failure}");
         std::process::exit(1);
     }

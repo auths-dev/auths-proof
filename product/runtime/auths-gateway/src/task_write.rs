@@ -594,30 +594,12 @@ mod tests {
         assert!(check_pending_create(&card, &without_mapping, &changed, &intent).is_err());
     }
 
-    #[test]
-    fn populate_intent_requires_the_durable_child_scope() {
-        let root = Signer::new(0x11);
-        let human = Signer::new(0x22);
-        let agent = Signer::new(0x44);
-        let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context_for_agent_and_task_profile(
-            &root,
-            observer.principal(),
-            NOW,
-            "google-docs-delegation-demo",
-            "populate_created_project_a_document_v1",
-        )
-        .expect("installed context");
-        let recipe = CompiledRecipe::compile(
-            include_bytes!(
-                "../../../../demos/google-employee-delegation/populate_reference/recipe.json"
-            ),
-            include_bytes!(
-                "../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
-            ),
-        )
-        .expect("reviewed populate recipe");
-        let card: AgentTaskDescriptor = serde_json::from_value(json!({
+    fn populate_card(
+        human: &Signer,
+        agent: &Signer,
+        recipe: &CompiledRecipe,
+    ) -> AgentTaskDescriptor {
+        serde_json::from_value(json!({
             "schema": "auths.agent-task/2",
             "task_id": "task-1",
             "company_id": "atlas",
@@ -648,7 +630,33 @@ mod tests {
             "operator_policy_digest": "d".repeat(64),
             "purpose": "Populate one Project A child"
         }))
-        .expect("card");
+        .expect("card")
+    }
+
+    #[test]
+    fn populate_intent_requires_the_durable_child_scope() {
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_for_agent_and_task_profile(
+            &root,
+            observer.principal(),
+            NOW,
+            "google-docs-delegation-demo",
+            "populate_created_project_a_document_v1",
+        )
+        .expect("installed context");
+        let recipe = CompiledRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/populate_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
+            ),
+        )
+        .expect("reviewed populate recipe");
+        let card = populate_card(&human, &agent, &recipe);
         let task = ApprovedAgentTask::from_test_card(card, [0x45; 32]);
         let grant = harness::grant_for(
             &root,

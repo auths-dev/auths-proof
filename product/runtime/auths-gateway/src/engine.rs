@@ -12,7 +12,7 @@ use crate::connection::{
 };
 use crate::materializer::{
     CredentialMaterializationContext, CredentialRequestKind, MaterializerInstallation,
-    is_materializer_source, task_lease_deadline,
+    is_materializer_source,
 };
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
@@ -71,7 +71,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 #[cfg(unix)]
@@ -401,6 +401,18 @@ struct PreparedEntry {
 }
 
 impl GatewayEngine {
+    fn execution_time(&self) -> Option<u64> {
+        self.qualification
+            .execution_time()
+            .map(crate::DeploymentTime::unix_seconds)
+    }
+
+    fn observed_time(&self) -> Option<u64> {
+        self.qualification
+            .observed_time()
+            .map(crate::DeploymentTime::unix_seconds)
+    }
+
     /// Constructs an engine only for an exact operator-approved recipe digest.
     /// The caller must be the separately deployed gateway, never the app.
     ///
@@ -669,7 +681,9 @@ impl GatewayEngine {
     ) -> Result<ConnectionRecord, &'static str> {
         for _ in 0..ADMIN_ROUNDS {
             let current = self.load_for_admin().await?;
-            let now = wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?;
+            let now = self
+                .observed_time()
+                .ok_or("gateway.admin.clock-unavailable")?;
             let Some(next) = change(current.record(), now)? else {
                 return Ok(current.record().clone());
             };
@@ -702,7 +716,8 @@ impl GatewayEngine {
         self.connection
             .stop(
                 false,
-                wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?,
+                self.observed_time()
+                    .ok_or("gateway.admin.clock-unavailable")?,
             )
             .await?;
         Ok(self.drained("gateway.admin.disabled").await)
@@ -919,7 +934,9 @@ impl GatewayEngine {
         current: &LoadedConnection,
         commitment: [u8; 32],
     ) -> Result<ConnectionRecord, &'static str> {
-        let timestamp = wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?;
+        let timestamp = self
+            .observed_time()
+            .ok_or("gateway.admin.clock-unavailable")?;
         let record = current.record();
         let replacement = record
             .rotated(
@@ -1064,7 +1081,9 @@ impl GatewayEngine {
     pub async fn status(&self) -> Result<GatewayAdminStatus, &'static str> {
         let loaded = self.load_for_admin().await?;
         let record = loaded.record();
-        let gateway_clock = wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?;
+        let gateway_clock = self
+            .observed_time()
+            .ok_or("gateway.admin.clock-unavailable")?;
         Ok(GatewayAdminStatus {
             state: match record.state() {
                 ConnectionState::Active => "active",
@@ -1204,7 +1223,9 @@ impl GatewayEngine {
     /// `gateway.sweep.clock-unavailable` without a clock, and
     /// `gateway.sweep.unavailable` when the store fails.
     pub async fn sweep_expired_slots(&self) -> Result<usize, &'static str> {
-        let now = wall_clock_seconds().ok_or("gateway.sweep.clock-unavailable")?;
+        let now = self
+            .execution_time()
+            .ok_or("gateway.sweep.clock-unavailable")?;
         let deleted = self
             .attempts
             .sweep_expired(now, SLOT_SWEEP_LIMIT)
@@ -1332,7 +1353,7 @@ impl GatewayEngine {
         if !self.recipe.requires_task_admission() {
             return not_entered("gateway.task.recipe-not-bound");
         }
-        let Some(now) = wall_clock_seconds() else {
+        let Some(now) = self.execution_time() else {
             return GatewaySubmitResult::Indeterminate {
                 code: "gateway.verify.clock-unavailable".to_owned(),
             };
@@ -1374,40 +1395,15 @@ impl GatewayEngine {
                     if submission.confirmation.is_some() {
                         return not_entered("gateway.task.unexpected-confirmation");
                     }
-                    let Some(plan) = state.effect_plan() else {
-                        return not_entered("gateway.task.effect-plan-required");
-                    };
-                    let (approved, preflight_valid_until) = if intent.verb
-                        == crate::task_activation::TaskWriteVerb::Create
-                    {
-                        (
-                            ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
-                            None,
-                        )
-                    } else {
-                        let Some(pin) = submission.preflight_pin else {
-                            return not_entered("gateway.task.preflight-not-installed");
-                        };
-                        let Some(preflight) = state.populate_preflight() else {
-                            return not_entered("gateway.task.preflight-required");
-                        };
-                        if plan.preflight_rule_digest.as_deref() != Some(pin.rule_digest.as_str())
-                            || plan.preflight_key_sha256.as_deref()
-                                != Some(pin.key_sha256().as_str())
-                        {
-                            return not_entered("gateway.task.preflight-policy-changed");
-                        }
-                        (
-                            ApprovedTaskWrite::from_recorded_effect_plan_populate(
-                                plan,
-                                &self.recipe,
-                                intent,
-                                &verified.arguments,
-                                &preflight.facts(),
-                                now,
-                            ),
-                            Some(preflight.facts().valid_until),
-                        )
+                    let (approved, preflight_valid_until) = match self.approve_task_effect_plan(
+                        &submission,
+                        &state,
+                        intent,
+                        &verified.arguments,
+                        now,
+                    ) {
+                        Ok(approval) => approval,
+                        Err(result) => return result,
                     };
                     return self
                         .run_admitted_task_write(
@@ -1442,8 +1438,53 @@ impl GatewayEngine {
             Ok(approved) => approved,
             Err(result) => return result,
         };
-        self.run_admitted_task_write(submission, &task, child_scope, Ok(approved), None)
+        self.run_admitted_task_write(submission, &task, child_scope, approved, None)
             .await
+    }
+
+    #[cfg(unix)]
+    fn approve_task_effect_plan(
+        &self,
+        submission: &TaskWriteSubmission<'_>,
+        state: &crate::release_state::ReleaseTaskState,
+        intent: crate::task_write::ExactWriteIntent,
+        arguments: &serde_json::Map<String, serde_json::Value>,
+        now: u64,
+    ) -> Result<(ApprovedTaskWrite, Option<u64>), GatewaySubmitResult> {
+        let Some(plan) = state.effect_plan() else {
+            return Err(not_entered("gateway.task.effect-plan-required"));
+        };
+        let (approved, preflight_valid_until) =
+            if intent.verb == crate::task_activation::TaskWriteVerb::Create {
+                (
+                    ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
+                    None,
+                )
+            } else {
+                let Some(pin) = submission.preflight_pin else {
+                    return Err(not_entered("gateway.task.preflight-not-installed"));
+                };
+                let Some(preflight) = state.populate_preflight() else {
+                    return Err(not_entered("gateway.task.preflight-required"));
+                };
+                if plan.preflight_rule_digest.as_deref() != Some(pin.rule_digest.as_str())
+                    || plan.preflight_key_sha256.as_deref() != Some(pin.key_sha256().as_str())
+                {
+                    return Err(not_entered("gateway.task.preflight-policy-changed"));
+                }
+                (
+                    ApprovedTaskWrite::from_recorded_effect_plan_populate(
+                        plan,
+                        &self.recipe,
+                        intent,
+                        arguments,
+                        &preflight.facts(),
+                        now,
+                    ),
+                    Some(preflight.facts().valid_until),
+                )
+            };
+        Ok((approved?, preflight_valid_until))
     }
 
     #[cfg(unix)]
@@ -1452,13 +1493,9 @@ impl GatewayEngine {
         submission: TaskWriteSubmission<'_>,
         task: &ApprovedAgentTask,
         child_scope: Option<crate::task_activation::TaskWriteScope>,
-        approved: Result<ApprovedTaskWrite, GatewaySubmitResult>,
+        approved: ApprovedTaskWrite,
         preflight_valid_until: Option<u64>,
     ) -> GatewaySubmitResult {
-        let approved = match approved {
-            Ok(approved) => approved,
-            Err(result) => return result,
-        };
         let io = EngineIo {
             engine: self,
             proof: submission.agent_proof,
@@ -1574,6 +1611,7 @@ impl GatewayEngine {
         // Time moved since the entry was prepared, so the gate is asked
         // again: nothing reaches the credential store unqualified.
         self.qualification.check().map_err(|_| ())?;
+        self.execution_time().ok_or(())?;
         self.execution_witness.lease();
         self.credentials
             .lease_secret(
@@ -1605,7 +1643,7 @@ impl GatewayEngine {
         };
         match request {
             GatewayObserveRequest::Outcome { operation_id } => {
-                let Some(now) = wall_clock_seconds() else {
+                let Some(now) = self.execution_time() else {
                     return refused("gateway.observer.clock-unavailable");
                 };
                 observe_outcome(
@@ -1649,7 +1687,7 @@ impl GatewayEngine {
                 {
                     return refused("gateway.observer.credential-guard");
                 }
-                observe_read_back(&target, observer, &port, wall_clock_seconds).await
+                observe_read_back(&target, observer, &port, || self.execution_time()).await
             }
         }
     }
@@ -1846,6 +1884,7 @@ pub struct TaskWriteProofs<'a> {
 impl TaskWriteSession<'_> {
     /// Development fault for the durable task-write/attempt-journal boundary.
     #[cfg(feature = "loopback-provider")]
+    #[must_use]
     pub fn with_exit_after_write_reservation_for_development(mut self) -> Self {
         self.exit_after_write_reservation = true;
         self
@@ -1871,14 +1910,14 @@ impl TaskWriteSession<'_> {
     /// Refuses missing or corrupt task state, unavailable attempt storage or
     /// an attempt whose recipe or action differs from the charged write.
     pub async fn activity(&self, task_id: &str) -> Result<TaskActivity, &'static str> {
-        let state = self
+        let journal = self
             .ledger
             .load(task_id)
             .map_err(|_| "gateway.task.activity-unavailable")?
             .ok_or("gateway.task.activity-unavailable")?;
-        let task = state.status();
+        let task = journal.status();
         let mut write_attempts = Vec::new();
-        for pin in state.write_attempt_pins() {
+        for pin in journal.write_attempt_pins() {
             let namespace = crate::OperatorNamespace::parse(&pin.operator_namespace)
                 .map_err(|_| "gateway.task.activity-unavailable")?;
             let operation = crate::LogicalOperationId::parse(&pin.operation_id)
@@ -1924,6 +1963,9 @@ impl TaskWriteSession<'_> {
     /// Read the journal's immutable population lineage without exposing its
     /// signed provider values or credential-bearing preflight evidence.
     /// This is evidence correlation, not authorization or an effect verdict.
+    ///
+    /// # Errors
+    /// Refuses missing, corrupt, or inconsistent task, child, plan, or preflight evidence.
     pub fn population_lineage(&self, task_id: &str) -> Result<TaskPopulationLineage, &'static str> {
         let state = self
             .ledger
@@ -2022,9 +2064,12 @@ impl TaskWriteSession<'_> {
         proof_cbor: &[u8],
         action_cbor: &[u8],
     ) -> Result<(), GatewaySubmitResult> {
-        let now = wall_clock_seconds().ok_or_else(|| GatewaySubmitResult::Indeterminate {
-            code: "gateway.verify.clock-unavailable".to_owned(),
-        })?;
+        let now =
+            self.engine
+                .execution_time()
+                .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                    code: "gateway.verify.clock-unavailable".to_owned(),
+                })?;
         let task = verify_task_activation(
             &self.engine.trusted_context,
             &self.pins,
@@ -2123,7 +2168,10 @@ impl TaskWriteSession<'_> {
         if self.engine.recipe.created_child_fields().is_none() {
             return Err("gateway.task.effect-plan-not-create");
         }
-        let now = wall_clock_seconds().ok_or("gateway.task.effect-plan-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.effect-plan-clock")?;
         let task = self
             .ledger
             .load(task_id)
@@ -2172,6 +2220,9 @@ impl TaskWriteSession<'_> {
     /// credential-bearing vertical. The report signer and rule digest are
     /// pinned before the human effect plan is recorded. This does not write
     /// to the provider or authorize a changed draft.
+    ///
+    /// # Errors
+    /// Refuses unavailable trusted time, inactive task state, missing installation or plan, invalid signed evidence, or a journal conflict.
     pub fn record_populate_preflight(
         &self,
         task_id: &str,
@@ -2181,7 +2232,10 @@ impl TaskWriteSession<'_> {
             .populate_preflight
             .as_ref()
             .ok_or("gateway.task.preflight-not-installed")?;
-        let now = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.preflight-clock")?;
         let state = self
             .ledger
             .load(task_id)
@@ -2213,6 +2267,9 @@ impl TaskWriteSession<'_> {
 
     /// Return only the journal-derived, secret-free inputs required by the
     /// installed vertical's fresh child GETs and signed report.
+    ///
+    /// # Errors
+    /// Refuses unavailable trusted time, inactive task state, absent child or plan, or changed preflight policy.
     pub fn populate_preflight_inputs(
         &self,
         task_id: &str,
@@ -2221,7 +2278,10 @@ impl TaskWriteSession<'_> {
             .populate_preflight
             .as_ref()
             .ok_or("gateway.task.preflight-not-installed")?;
-        let now = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.preflight-clock")?;
         let state = self
             .ledger
             .load(task_id)
@@ -2270,6 +2330,9 @@ impl TaskWriteSession<'_> {
     /// Inspect one durably claimed create whose response was never recorded.
     /// The private operator uses these facts to bind a bounded search and
     /// independent observation; this method never searches or grants a child.
+    ///
+    /// # Errors
+    /// Refuses unavailable trusted time, inactive task state, changed installation or plan, or an attempt that is not response-less and unknown.
     pub async fn create_recovery_inputs(
         &self,
         task_id: &str,
@@ -2281,7 +2344,10 @@ impl TaskWriteSession<'_> {
             .recovery_attestation
             .as_ref()
             .ok_or("gateway.task.recovery-not-installed")?;
-        let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.recovery-clock")?;
         let state = self
             .ledger
             .load(task_id)
@@ -2355,6 +2421,10 @@ impl TaskWriteSession<'_> {
     /// Bind a response-less create only after one independently joined
     /// candidate, a new native human recovery action, and a fresh Jules
     /// metadata GET. This never invokes the provider create request.
+    ///
+    /// # Errors
+    /// Refuses missing or changed task, attempt, attestation, human proof,
+    /// connection, metadata, or durable journal evidence.
     #[allow(
         clippy::too_many_lines,
         reason = "the native proof, durable attempt and provider read boundaries remain explicit"
@@ -2376,7 +2446,10 @@ impl TaskWriteSession<'_> {
         // This check has no side effect. Repeat it after the provider GET so
         // an intervening recorded response cannot be mistaken for recovery.
         self.create_recovery_inputs(proofs.task_id).await?;
-        let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.recovery-clock")?;
         let state = self
             .ledger
             .load(proofs.task_id)
@@ -2527,7 +2600,9 @@ impl TaskWriteSession<'_> {
                 &verified_child,
                 &attestation,
                 &human_action_commitment,
-                wall_clock_seconds().ok_or("gateway.task.recovery-clock")?,
+                self.engine
+                    .execution_time()
+                    .ok_or("gateway.task.recovery-clock")?,
             )
             .map_err(|_| "gateway.task.recovery-binding")?;
         Ok(attestation.candidate_id().to_owned())
@@ -2542,18 +2617,21 @@ impl TaskWriteSession<'_> {
     /// # Errors
     /// Refuses absent or changed task/attempt evidence, invalid native
     /// proofs, a changed connection, failed metadata, or a journal conflict.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "each proof, attempt and provider-read boundary remains explicit"
-    )]
     pub async fn reconcile_created_child(
         &self,
         proofs: TaskWriteProofs<'_>,
     ) -> Result<String, &'static str> {
-        let now = wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.reconcile-clock")?;
         self.reconcile_created_child_at(proofs, now).await
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "each proof, attempt and provider-read boundary remains explicit"
+    )]
     async fn reconcile_created_child_at(
         &self,
         proofs: TaskWriteProofs<'_>,
@@ -2746,7 +2824,9 @@ impl TaskWriteSession<'_> {
                 &approved,
                 &verified_child,
                 response_digest,
-                wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?,
+                self.engine
+                    .execution_time()
+                    .ok_or("gateway.task.reconcile-clock")?,
             )
             .map_err(|_| "gateway.task.reconcile-binding")?;
         Ok(candidate_id.clone())
@@ -2903,7 +2983,7 @@ impl EngineIo<'_> {
     #[cfg(unix)]
     fn task_write_active(&self) -> bool {
         self.task_write.as_ref().is_none_or(|admission| {
-            wall_clock_seconds().is_some_and(|now| {
+            self.engine.execution_time().is_some_and(|now| {
                 admission
                     .ledger
                     .load(&admission.task.descriptor().task_id)
@@ -2920,11 +3000,7 @@ impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
     fn clock(&self) -> Option<u64> {
-        #[cfg(unix)]
-        if self.commissioning.is_some() {
-            return Some(self.engine.qualification.commissioning_time().0);
-        }
-        wall_clock_seconds()
+        self.engine.execution_time()
     }
 
     fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
@@ -2976,7 +3052,10 @@ impl SubmitIo for EngineIo<'_> {
         {
             if let Some(admission) = &self.task_write {
                 let now = if let Some(valid_until) = admission.preflight_valid_until {
-                    let current = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+                    let current = self
+                        .engine
+                        .execution_time()
+                        .ok_or("gateway.task.preflight-clock")?;
                     if current >= valid_until {
                         return Err("gateway.task.preflight-stale");
                     }
@@ -3053,6 +3132,9 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn reload(&self) -> bool {
+        if self.engine.execution_time().is_none() {
+            return false;
+        }
         #[cfg(unix)]
         if !self.task_write_active() {
             return false;
@@ -3060,7 +3142,9 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(unix)]
         if self.task_write.as_ref().is_some_and(|admission| {
             admission.preflight_valid_until.is_some_and(|valid_until| {
-                wall_clock_seconds().is_none_or(|now| now >= valid_until)
+                self.engine
+                    .execution_time()
+                    .is_none_or(|now| now >= valid_until)
             })
         }) {
             return false;
@@ -3106,7 +3190,11 @@ impl SubmitIo for EngineIo<'_> {
             let admission = self.task_write.as_ref()?;
             let source = self.engine.lease_source(prepared).await.ok()?;
             let intent = admission.approved.intent();
-            let deadline = task_lease_deadline(&source, admission.task.descriptor().expires_at)?;
+            let deadline = self
+                .engine
+                .qualification
+                .execution_time()?
+                .lease_deadline(admission.task.descriptor().expires_at, source.deadline())?;
             let context = CredentialMaterializationContext {
                 task_id: intent.task_id.clone(),
                 operation_id: intent.operation_id.clone(),
@@ -3172,9 +3260,9 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
-        self.clock()
-            .is_some_and(|now| now <= evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS))
-            && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
+        self.clock().is_some_and(|now| {
+            (evaluated_at..=evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS)).contains(&now)
+        }) && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
     }
 
     async fn write(
@@ -3185,7 +3273,9 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(unix)]
         if self.task_write.as_ref().is_some_and(|admission| {
             admission.preflight_valid_until.is_some_and(|valid_until| {
-                wall_clock_seconds().is_none_or(|now| now >= valid_until)
+                self.engine
+                    .execution_time()
+                    .is_none_or(|now| now >= valid_until)
             })
         }) {
             return Err(GatewayTransportError::NotEntered);
@@ -3462,11 +3552,10 @@ pub(crate) fn replay_refused() -> GatewaySubmitResult {
     not_entered("gateway.attempt.replay")
 }
 
+#[cfg(test)]
 fn wall_clock_seconds() -> Option<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|elapsed| elapsed.as_secs())
+    crate::DeploymentClock::sample(&crate::DevelopmentClock)
+        .map(crate::DeploymentTime::unix_seconds)
 }
 
 /// Signs the stored stage and commitment of one logical operation.
@@ -3888,7 +3977,7 @@ pub(crate) mod tests {
                 "request": {"kind": "read-back", "arguments": {"record_id": record_id}},
             }))
             .expect("observation frame");
-            let (_, response) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            let ((), response) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
                 tokio::join!(crate::app::app_session(server, engine), async {
                     crate::app::write_frame(&mut client, &frame)
                         .await
@@ -3903,8 +3992,6 @@ pub(crate) mod tests {
             serde_json::from_slice(&response).expect("observation result")
         }
 
-        let mut installation = administration::installation(8).await;
-        let engine = &mut installation.first.engine;
         #[cfg(feature = "loopback-provider")]
         struct TestMaterializer {
             calls: Arc<AtomicU64>,
@@ -3936,6 +4023,8 @@ pub(crate) mod tests {
                 })
             }
         }
+        let mut installation = administration::installation(8).await;
+        let engine = &mut installation.first.engine;
         engine.recipe = CompiledRecipe::compile(
             include_bytes!("../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!("../../../../demos/airtable-gateway/write_reference/profile.lock.json"),
@@ -4537,13 +4626,13 @@ pub(crate) mod tests {
     #[cfg(all(unix, feature = "loopback-provider"))]
     #[tokio::test]
     async fn recorded_create_reconciles_child_without_reentering_provider_write() {
-        recorded_create_reconcile_case(true).await;
+        Box::pin(recorded_create_reconcile_case(true)).await;
     }
 
     #[cfg(all(unix, feature = "loopback-provider"))]
     #[tokio::test]
     async fn exact_confirmed_create_reconciles_after_proof_expiry() {
-        recorded_create_reconcile_case(false).await;
+        Box::pin(recorded_create_reconcile_case(false)).await;
     }
 
     #[cfg(all(unix, feature = "loopback-provider"))]
@@ -5785,6 +5874,88 @@ pub(crate) mod tests {
         use super::*;
         use std::os::unix::fs::PermissionsExt as _;
 
+        #[tokio::test]
+        async fn shared_clock_failure_stops_admission_and_custody_but_allows_disable() {
+            let mut installed = installation(8).await;
+            let clock = Arc::new(crate::FixedClock::at(wall_clock_seconds().expect("clock")));
+            installed
+                .first
+                .engine
+                .set_qualification(Arc::new(crate::QualificationGate::new(
+                    crate::QualificationPolicy::Optional,
+                    None,
+                    None,
+                    Box::new(Arc::clone(&clock)),
+                    auths_recipe_qualification::VerifierState::default(),
+                )));
+            let host = &installed.first;
+            assert!(host.engine.execution_time().is_some());
+
+            assert!(host.lease_refused_after(|| clock.trust_is(false)).await);
+            assert_eq!(host.leases.load(Ordering::SeqCst), 0);
+            assert!(matches!(host.engine.submit(&[], &[]).await,
+                GatewaySubmitResult::Indeterminate { code } if code == "gateway.verify.clock-unavailable"));
+
+            // Restricting the connection needs a record timestamp, but must
+            // remain possible when synchronization trust has been lost.
+            host.engine
+                .disable_connection()
+                .await
+                .expect("disable despite untrusted clock");
+            assert_eq!(host.record().await.state(), ConnectionState::Disabled);
+
+            clock.unavailable();
+            assert!(host.engine.execution_time().is_none());
+            assert!(matches!(host.engine.submit(&[], &[]).await,
+                GatewaySubmitResult::Indeterminate { code } if code == "gateway.verify.clock-unavailable"));
+            assert_eq!(host.leases.load(Ordering::SeqCst), 0);
+        }
+
+        #[tokio::test]
+        async fn entry_deadline_rejects_wall_rollback_and_independent_monotonic_expiry() {
+            let mut installed = installation(8).await;
+            let now = wall_clock_seconds().expect("clock");
+            let clock = Arc::new(crate::FixedClock::at(now));
+            installed
+                .first
+                .engine
+                .set_qualification(Arc::new(crate::QualificationGate::new(
+                    crate::QualificationPolicy::Optional,
+                    None,
+                    None,
+                    Box::new(Arc::clone(&clock)),
+                    auths_recipe_qualification::VerifierState::default(),
+                )));
+            let io = EngineIo {
+                engine: &installed.first.engine,
+                proof: &[],
+                action: &[],
+                started: Instant::now(),
+                prepared: OnceLock::new(),
+                task_write: None,
+                commissioning: None,
+                commissioned_action: OnceLock::new(),
+                commissioning_refusal: OnceLock::new(),
+            };
+            assert!(io.within_entry_deadline(now));
+            clock.set(now - 1);
+            assert!(!io.within_entry_deadline(now));
+            clock.set(now + ENTRY_DEADLINE_SECONDS + 1);
+            assert!(!io.within_entry_deadline(now));
+            clock.set(now);
+            let expired = EngineIo {
+                started: Instant::now()
+                    .checked_sub(Duration::from_secs(ENTRY_DEADLINE_SECONDS + 1))
+                    .expect("earlier process instant"),
+                ..io
+            };
+            assert!(!expired.within_entry_deadline(now));
+            clock.trust_is(false);
+            assert!(installed.first.engine.execution_time().is_none());
+            clock.unavailable();
+            assert!(installed.first.engine.execution_time().is_none());
+        }
+
         struct CountedCredentials {
             store: Arc<auths_connections::PersistentCredentialStore>,
             leases: Arc<AtomicU64>,
@@ -6133,13 +6304,16 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn a_restored_store_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::File).await;
+            Box::pin(restored_store_floor(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
         #[ignore = "requires the TLS PostgreSQL fixture"]
         async fn postgres_restore_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(restored_store_floor(
+                crate::store_testkit::Backend::Postgres,
+            ))
+            .await;
         }
 
         async fn restored_store_floor(backend: crate::store_testkit::Backend) {
@@ -6932,13 +7106,13 @@ pub(crate) mod tests {
         /// store, and the `PostgreSQL` store where the TLS fixture runs.
         async fn across_processes(backend: crate::store_testkit::Backend) {
             a_second_host_joins_only_with_the_matching_secret_after_state_changes(backend).await;
-            a_disable_or_revoke_through_one_process_stops_entry_in_another(backend).await;
+            Box::pin(a_disable_or_revoke_through_one_process_stops_entry_in_another(backend)).await;
             a_cross_process_rotation_then_disable_and_enable_leases_on_every_host(backend).await;
         }
 
         #[tokio::test]
         async fn file_store_shares_the_connection_across_processes() {
-            across_processes(crate::store_testkit::Backend::File).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
@@ -6948,7 +7122,7 @@ pub(crate) mod tests {
                 crate::store_testkit::postgres_configured(),
                 "TLS PostgreSQL environment slots are required"
             );
-            across_processes(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::Postgres)).await;
         }
     }
 }

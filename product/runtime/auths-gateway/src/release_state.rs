@@ -1282,12 +1282,12 @@ impl ReleaseTaskState {
         let Some((version, expected)) = self.commitment(operation_id) else {
             return false;
         };
-        let Ok(context) =
+        let Ok(commitment_scope) =
             ReleaseCommitmentContext::new(&self.task_id, resource_handle, operation_id, "released")
         else {
             return false;
         };
-        let presented = key.commit(&context, content);
+        let presented = key.commit(&commitment_scope, content);
         version == presented.key_version() && same_commitment(expected, &presented.hex())
     }
 

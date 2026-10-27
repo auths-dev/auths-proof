@@ -23,6 +23,7 @@ pub use engine::{
 };
 #[cfg(unix)]
 pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
+mod clock;
 mod connection;
 mod credential_journal;
 mod echo_verify;
@@ -118,6 +119,9 @@ pub use bounds::{
     MAX_BOUNDED_LINKS, MAX_LISTED_VALUE_BYTES, MAX_LISTED_VALUES, MAX_SUM_LIMIT, MAX_WINDOW_COUNT,
     MAX_WINDOW_SECONDS, gateway_evaluator_registrations,
 };
+#[cfg(any(test, feature = "testkit-harness"))]
+pub use clock::FixedClock;
+pub use clock::{DeploymentClock, DeploymentTime, DevelopmentClock, SynchronizedHostClock};
 pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
     install_connection, join_connection,
@@ -152,13 +156,10 @@ pub use operator::{
     OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,
     OperatorInstallation, OperatorStatement, verify_operator_attestation,
 };
-#[cfg(any(test, feature = "testkit-harness"))]
-pub use qualification::FixedClock;
 pub use qualification::{
-    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA,
-    PINNED_QUALIFICATION_ROOT, POSTGRES_STORE_SCHEMA, QUALIFICATION_POLICY_REFUSED,
-    QualificationBundle, QualificationGate, QualificationPolicy, QualificationStatus,
-    SynchronizedHostClock, deployment_tuple, qualification_code, qualification_policy,
+    DeploymentFacts, FILE_STORE_SCHEMA, PINNED_QUALIFICATION_ROOT, POSTGRES_STORE_SCHEMA,
+    QUALIFICATION_POLICY_REFUSED, QualificationBundle, QualificationGate, QualificationPolicy,
+    QualificationStatus, deployment_tuple, qualification_code, qualification_policy,
 };
 pub use readiness::{
     ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,

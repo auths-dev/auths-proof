@@ -104,7 +104,7 @@ The source already separates verification, compilation, approval, reservation, e
 | F04 | `release_state::tests::competing_last_write_claims_remain_spent_after_restart`, `paired_recipes_share_one_durable_write_budget_after_restart` (source). | Different downstream principals sharing a parent allocation; distributed partition/escrow evidence. |
 | F05 | `release_state::tests::read_and_write_share_task_replay_and_revocation`; gateway attempt identity is operator namespace + logical operation (source). | Cross-executor permit replay and explicit audience/partition binding. |
 | F06 | `task_write::tests::exact_human_signature_binds_the_native_agent_action_and_closed_request`; installed session test in `engine.rs` (source). | Bind participant grant/epoch and independent human approver without changing exact request semantics. |
-| F07 | Qualification clock contract and explicit kernel evaluation time (source). | WebAuthn UV evidence currently uses evaluation time in its assurance event; audit provenance before claiming freshness. A test clock is not sufficient evidence. |
+| F07 | Explicit kernel evaluation time, WebAuthn undated-UV correction and centralized gateway clock cutover (source; hosted acceptance pending). | Verify native/binding provenance corpus and clock fault regressions on the final revision; review SPIFFE workload-attestation event semantics. No global trusted-time or rollback guarantee. |
 | F08 | `release_state::tests::lost_ack_consumes_budget_and_cannot_redeliver`; [installed release crashes](../program-log/2026-10-26-ap071-installed-release-crash.md) (historical report). | Reproduce against final AP073 artifacts and participants. |
 | F09 | Same crash report includes write-reservation gap; `submit.rs` separates uncertain entry; store recovery tests (source/report). | Explicit reservation/entry/revocation histories and fault coverage for each selected storage implementation. |
 | F10 | `engine::tests::recorded_create_reconciles_child_without_reentering_provider_write` and `exact_confirmed_create_reconciles_after_proof_expiry` (source). | Preserve exact task lineage under new participants and independently reproduce provider cases. |
@@ -166,7 +166,7 @@ Required verification: hosted CI on the pushed revision, including native tests 
 
 Semantic inventory correction for the first slice: `auths.identity.protocol` 137 → 138 and `auths.product.public-sdk-contract` 134 → 135 reflect their ownership of the changed compliance evidence declarations. Freeze version and `auths.release.public-surface` 393 → 394 record the inventory/counter changes. These are inventory identities, not a core wire version change. `cargo xtask semantic-freeze --update` completed after inspecting the hosted failure. Gateway source closure was regenerated through `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib semantic_closure_is_current` (one generation check passed, 307 tests filtered out); this builds the gateway test module but does not establish that its new behavioral tests pass. Prior qualification does not cover the new code digest.
 
-Next: inspect hosted results and dispatch CI for the latest revision; resolve concrete failures without weakening checks. Implement the selected gateway clock cutover, then participant roles/schema and atomic ancestor accounting under the recorded contracts. Continue the binding, persistence and cache audit; do not replace those systems by inference from the narrow delegation change. The unused `auths-cache` API still needs an explicit retain/remove decision before adoption; no running cache bypass was established.
+Next: inspect hosted results and dispatch CI for the latest revision; resolve concrete failures without weakening checks. Verify the gateway clock cutover, then implement participant roles/schema and atomic ancestor accounting under the recorded contracts. Continue the binding, persistence and cache audit; do not replace those systems by inference from the narrow delegation change. The unused `auths-cache` API still needs an explicit retain/remove decision before adoption; no running cache bypass was established.
 
 ## 11. Cross-cutting ownership findings
 
@@ -196,8 +196,8 @@ assurance revision 2 and its configuration domain commit the changed meaning.
 The protocol and adapter specifications state the provenance rule. This is a
 restriction of an unsupported freshness claim, not a fresh-ceremony service.
 Such a service needs an exact challenge/assertion binding, a trusted temporal
-observation and replay-aware outer authority. The general clock acquisition
-cutover and SPIFFE workload-attestation timestamp interpretation remain open.
+observation and replay-aware outer authority. The gateway clock acquisition cutover is implemented below; its hosted
+acceptance and SPIFFE workload-attestation timestamp interpretation remain open.
 
 Evidence prepared:
 
@@ -219,3 +219,72 @@ Inventory versions: core protocol 36 → 37, core fixture manifest 15 → 16,
 freeze/public-surface 394 → 395. No portable wire encoding or signature
 preimage changes. No new Lean theorem or full F07 closure is claimed. Hosted
 native, independent and binding verification remains required.
+
+
+## 13. Central gateway clock implementation and CI diagnosis
+
+Hosted [run 40570861843](https://github.com/auths-dev/auths-proof/actions/runs/40570861843)
+on `d295a09427e235729095a287dd9e035930094d31` passed generated-artifact
+classification but failed preflight on fourteen gateway lint diagnostics. Native
+behavioral acceptance was not reached. The diagnostics concern test-only helper
+visibility, similar local names, API error documentation, one approval function's
+size and a recovery function's existing boundary allowance attached to its
+wrapper rather than its implementation. The correction preserves the checks,
+extracts recorded-plan approval from execution, and adds the missing API docs.
+A targeted gateway all-target/all-feature clippy reproduction is permitted by
+that inspected hosted failure; no full local gate is substituted for CI.
+
+The [time contract](0073-time-contract.md) now has its concrete gateway cutover:
+
+- One sealed sample carries time and trust to qualification, admission, recovery,
+  observation, critical reload and custody. Required execution refuses missing
+  or untrusted samples even when recipe qualification is optional.
+- Credential deadline conversion preserves fractional time and caps the source
+  lease. Entry checks retain independent monotonic expiry and reject wall time
+  before evaluation.
+- Managed reads use the installed clock rather than a separate test callback.
+  Clock/trust loss after credential acquisition stops provider entry and content
+  disclosure while retaining the charged reservation.
+- Readable but unsynchronized time remains usable for administrative bookkeeping
+  so connection disabling is not blocked by synchronization failure. It cannot
+  authorize execution.
+- Six new clock/engine/read fault regressions and the relocated synchronization
+  marker tests are registered in compliance. Behavioral results remain pending.
+
+Gateway semantic closure must be regenerated after the last source change;
+prior provider qualification is not evidence for this code. Inventory ownership
+requires identity protocol 138 → 139, public SDK contract 135 → 136, and
+freeze/public surface 395 → 396 for the source/compliance cutover. Core wire and
+fixture versions do not change in this slice. F07 remains open pending hosted
+results and the remaining evidence contracts; F01–F16 and M0–M4 are not declared
+complete by this implementation.
+
+
+The targeted local reproduction then exposed test/binary diagnostics that the
+hosted lib failure had prevented CI from reaching. Corrections retain all
+assertions: name closed read scenarios instead of four booleans, box oversized
+futures, use checked time subtraction, separate fixture construction and named
+assertion phases, group recovery CLI inputs, and preserve `NOFOLLOW` flag bits
+without a potentially wrapping numeric cast. No lint category was disabled.
+The existing recovery-boundary length allowance was relocated to its actual
+implementation. `cargo clippy -p auths-gateway --all-targets --all-features -- -D
+warnings` passed locally after these corrections. The CLI's non-executing
+statement/review/bookkeeping timestamps also use the maintained acquisition
+module; they do not assert synchronization or replace the installed execution
+clock's trust gate.
+
+
+Artifact generation exposed one additional consumer of the replaced clock API:
+`xtask/src/release_launch.rs`. Its launch-readiness projection now filters trust
+and obtains time from the same sample instead of separate `now`/`trust` calls.
+The formal source closure binds this control-plane source, so its frozen-byte
+identity advances 103 → 104 and its generated closure is refreshed. This does
+not constitute new formal qualification. A repository-wide adapter-name search
+found no other consumer of the removed gateway clock methods.
+
+Generation completed: gateway semantic closure through
+`AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --features loopback-provider
+--lib semantic_closure_is_current` (one generation check passed; 329 behavioral
+tests filtered out), followed by `cargo xtask semantic-freeze --update`. The
+latter refreshed formal source and semantic inventory bytes. These are artifact
+construction results, not a successful authoritative run.

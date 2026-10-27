@@ -835,9 +835,7 @@ mod tests {
         for candidate in [
             format!("{path}?supportsAllDrives=false"),
             format!("{path}?fields=id&supportsAllDrives=true"),
-            format!(
-                "https://elsewhere.example/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true"
-            ),
+            "https://elsewhere.example/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true".to_owned(),
             format!(
                 "{path}?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true#fragment"
             ),

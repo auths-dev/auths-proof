@@ -42,10 +42,7 @@ fn installed_google_and_airtable_read_connections_keep_independent_private_state
     }
 }
 
-fn check_read_installation(recipe_source: &[u8], lock_source: &[u8], provider: &str, alias: &str) {
-    let directory = tempfile::tempdir().expect("test directory");
-    let root = fs::canonicalize(directory.path()).expect("canonical directory");
-    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private directory");
+fn write_installation(root: &std::path::Path, provider: &str) {
     let manifest = json!({
         "schema": "auths.gateway-installation/6",
         "recipe_digest": "write-recipe-is-not-loaded-by-read-connect",
@@ -65,6 +62,13 @@ fn check_read_installation(recipe_source: &[u8], lock_source: &[u8], provider: &
         serde_json_canonicalizer::to_vec(&manifest).expect("canonical manifest"),
     )
     .expect("manifest");
+}
+
+fn check_read_installation(recipe_source: &[u8], lock_source: &[u8], provider: &str, alias: &str) {
+    let directory = tempfile::tempdir().expect("test directory");
+    let root = fs::canonicalize(directory.path()).expect("canonical directory");
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private directory");
+    write_installation(&root, provider);
     let write_id = ConnectionId::generate().expect("existing write connection ID");
     let write_journal = CredentialJournal::new(root.clone());
     write_journal.initialize(&write_id).expect("write journal");

@@ -203,12 +203,7 @@ mod tests {
     use ed25519_dalek::{Signer as _, SigningKey};
     use serde_json::Value;
 
-    #[test]
-    fn recovery_attestation_binds_candidate_and_both_observations_to_original_plan() {
-        let key = SigningKey::from_bytes(&[9; 32]);
-        let public = hex::encode(key.verifying_key().to_bytes());
-        let public_sha256 = hex::encode(sha2::Sha256::digest(key.verifying_key().to_bytes()));
-        let rule_digest = "6".repeat(64);
+    fn recovery_plan() -> (TaskPendingChild, VerifiedEffectPlan) {
         let pending = TaskPendingChild {
             create_operation_id: "create-1".into(),
             create_recipe_digest: "d".repeat(64),
@@ -240,15 +235,11 @@ mod tests {
             preflight_rule_digest: None,
             preflight_key_sha256: None,
         };
-        let expected = ExpectedRecoveryAttestation {
-            task_id: "task-1",
-            task_commitment: &plan.create.task_commitment,
-            pending: &pending,
-            plan: &plan,
-            public_key_sha256: &public_sha256,
-            rule_digest: &rule_digest,
-        };
-        let statement = RecoveryStatement {
+        (pending, plan)
+    }
+
+    fn recovery_statement() -> RecoveryStatement {
+        RecoveryStatement {
             schema: SCHEMA.into(),
             task_id: "task-1".into(),
             task_commitment: "a".repeat(64),
@@ -272,7 +263,25 @@ mod tests {
             candidate_metadata_sha256: "5".repeat(64),
             checked_at: 100,
             valid_until: 160,
+        }
+    }
+
+    #[test]
+    fn recovery_attestation_binds_candidate_and_both_observations_to_original_plan() {
+        let key = SigningKey::from_bytes(&[9; 32]);
+        let public = hex::encode(key.verifying_key().to_bytes());
+        let public_sha256 = hex::encode(sha2::Sha256::digest(key.verifying_key().to_bytes()));
+        let rule_digest = "6".repeat(64);
+        let (pending, plan) = recovery_plan();
+        let expected = ExpectedRecoveryAttestation {
+            task_id: "task-1",
+            task_commitment: &plan.create.task_commitment,
+            pending: &pending,
+            plan: &plan,
+            public_key_sha256: &public_sha256,
+            rule_digest: &rule_digest,
         };
+        let statement = recovery_statement();
         let mut preimage = DOMAIN.to_vec();
         preimage.extend(serde_json_canonicalizer::to_vec(&statement).expect("statement"));
         let report = serde_json_canonicalizer::to_vec(&SignedRecoveryAttestation {

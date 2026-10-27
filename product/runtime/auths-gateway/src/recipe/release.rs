@@ -713,6 +713,34 @@ mod tests {
         assert_eq!(state.counts(), (1, 0, 0));
     }
 
+    fn read_authority_state(recipe: &CompiledReleaseRecipe, resource_id: &str) -> ReleaseTaskState {
+        ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
+            task_id: "task-1".to_owned(),
+            task_commitment: [1; 32],
+            company_id: "test-company".to_owned(),
+            human_principal: "employee".to_owned(),
+            agent_principal: "agent-principal".to_owned(),
+            not_before: 100,
+            expires_at: 200,
+            max_provider_calls: 2,
+            max_releases: 1,
+            max_release_bytes: 512,
+            max_writes: 0,
+            write_scopes: vec![],
+            connection_id: "employee-account".to_owned(),
+            connection_generation: 3,
+            connection_subject: "employee-subject".to_owned(),
+            resources: vec![ReleaseResourceScope {
+                handle: resource_id.to_owned(),
+                recipe_digest: recipe.digest_hex(),
+                connection_id: "employee-account".to_owned(),
+                connection_generation: 3,
+                connection_subject: "employee-subject".to_owned(),
+            }],
+        })
+        .expect("task policy")
+    }
+
     #[test]
     fn both_provider_references_refuse_changed_read_authority_before_a_call() {
         for (google, namespace, resource_id) in [
@@ -725,31 +753,7 @@ mod tests {
             let request = recipe
                 .closed_request_from_arguments(&original, [7; 32])
                 .expect("closed request");
-            let mut state = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
-                task_id: "task-1".to_owned(),
-                task_commitment: [1; 32],
-                company_id: "test-company".to_owned(),
-                human_principal: "employee".to_owned(),
-                agent_principal: "agent-principal".to_owned(),
-                not_before: 100,
-                expires_at: 200,
-                max_provider_calls: 2,
-                max_releases: 1,
-                max_release_bytes: 512,
-                max_writes: 0,
-                write_scopes: vec![],
-                connection_id: "employee-account".to_owned(),
-                connection_generation: 3,
-                connection_subject: "employee-subject".to_owned(),
-                resources: vec![ReleaseResourceScope {
-                    handle: resource_id.to_owned(),
-                    recipe_digest: recipe.digest_hex(),
-                    connection_id: "employee-account".to_owned(),
-                    connection_generation: 3,
-                    connection_subject: "employee-subject".to_owned(),
-                }],
-            })
-            .expect("task policy");
+            let mut state = read_authority_state(&recipe, resource_id);
             let actors = ["agent-principal".to_owned()];
             let reserve = |state: &mut ReleaseTaskState,
                            request: &ClosedReleaseRequest,
