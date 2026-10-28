@@ -880,6 +880,27 @@ closure regeneration passed after that correction (one artifact-generation test)
   Python-owner removal, authenticated UI/bindings and full acceptance evidence
   remain open. No A01–A22 criterion is closed and no hosted CI was observed.
 
+## Private candidate proposal checkpoint
+
+- Added `auths.gateway-credential-candidate/1`, bounded canonical private JSON
+  containing exact candidate/predecessor CBOR and recipe digest. It preserves
+  the target for future CLI approval/restart steps without serializing authority,
+  custody, a check result or a transport capability. The native decoder derives
+  the plan from the pinned recipe and revalidates the connection relationship.
+- The five-target native generator now passes the decoded proposal into every
+  signed compilation and journal/publication history. It authors exact-roundtrip
+  and wrong-schema/recipe/record/predecessor, unknown/duplicate/noncanonical and
+  oversize refusals. Initial artifact compilation exposed a test assertion's
+  demand for private-plan Debug; the assertion now compares equality without
+  adding a private-data Debug implementation.
+- Native candidate artifact generation passed after the assertion correction:
+  five proposal roundtrips/negative sets and all 80 journal/publication histories.
+  Final semantic closure is regenerated with this source. No broad local gate
+  or hosted CI was run; no acceptance criterion closes at this checkpoint.
+- Staging and CLI cutover remain pending; this format alone does not implement
+  them. No new schema migration, legacy reader or alternate execution path was
+  added. Existing candidate compiler/binding/journal identities are unchanged.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

@@ -11,13 +11,16 @@ use serde_json::{Value, json};
 
 /// Reserved native operation for bounded candidate credential checks.
 pub const CANDIDATE_CHECK_TOOL: &str = "auths_gateway_candidate_check_v1";
+mod proposal;
+
 const CONTRACT: &str = "auths.gateway-candidate-check/1";
 const MAX_CANDIDATE_ATTEMPTS: u64 = 16;
 
 /// Private immutable first-install or rotation proposal, derived only from a
 /// validated connection descriptor and the installed recipe's closed reads.
-/// There is no decoder and no transport capability. A later transaction must
-/// establish the exact predecessor (or absence) before any candidate entry.
+/// Private proposal decoding reconstructs only this data, with no transport
+/// capability. A later transaction must establish the exact predecessor (or
+/// absence) before any candidate entry.
 #[derive(Clone)]
 pub struct CandidateCredentialTarget {
     candidate: ConnectionRecord,
@@ -319,14 +322,7 @@ pub(crate) struct CandidatePlan {
 
 impl CandidatePlan {
     pub(crate) fn connection(&self) -> Result<ConnectionRecord, EffectBindingError> {
-        if self.candidate.len() > MAX_EFFECT_BYTES {
-            return Err(EffectBindingError::Invalid);
-        }
-        let bytes = hex::decode(&self.candidate).map_err(|_| EffectBindingError::Invalid)?;
-        if hex::encode(&bytes) != self.candidate {
-            return Err(EffectBindingError::Invalid);
-        }
-        ConnectionRecord::from_canonical_cbor(&bytes).map_err(|_| EffectBindingError::Invalid)
+        decode_connection(&self.candidate)
     }
 
     pub(crate) fn source_key(&self) -> Result<crate::GatewayAttemptKey, EffectBindingError> {
@@ -500,4 +496,15 @@ fn connection_review(record: &ConnectionRecord, descriptor: &Value) -> Value {
         "allowed_profiles": record.allowed_profiles().iter().map(|p| json!({"id": p.id().as_str(), "version": p.version()})).collect::<Vec<_>>(),
         "created_at_unix_seconds": record.created_at_unix_seconds(), "updated_at_unix_seconds": record.updated_at_unix_seconds(),
     })
+}
+
+fn decode_connection(encoded: &str) -> Result<ConnectionRecord, EffectBindingError> {
+    if encoded.len() > MAX_EFFECT_BYTES {
+        return Err(EffectBindingError::Invalid);
+    }
+    let bytes = hex::decode(encoded).map_err(|_| EffectBindingError::Invalid)?;
+    if hex::encode(&bytes) != encoded {
+        return Err(EffectBindingError::Invalid);
+    }
+    ConnectionRecord::from_canonical_cbor(&bytes).map_err(|_| EffectBindingError::Invalid)
 }

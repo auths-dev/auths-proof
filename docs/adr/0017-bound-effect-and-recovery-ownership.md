@@ -704,3 +704,15 @@ credential binding. `AlreadyCurrent` is an exact-state observation for an
 explicit retry, including lost acknowledgement; it makes no causal claim and
 issues no capability. Staging/CLI cutover and installed custody/transport fault
 coverage remain separate required work.
+
+
+## Private candidate proposal persistence
+
+`auths.gateway-credential-candidate/1` stores exact canonical candidate and
+predecessor connection bytes plus the pinned recipe digest. The bounded native
+decoder reconstructs only proposal data and derives the closed check plan from
+the installed recipe. It validates the first-install or rotation relationship
+and rejects noncanonical/duplicate/unknown/obsolete data. No persisted proof of
+current custody, predecessor, authority or completed checks is implied. This
+format prepares the operator CLI to retain a stable target across approval and
+restart without adding a second execution path or serializable capability.

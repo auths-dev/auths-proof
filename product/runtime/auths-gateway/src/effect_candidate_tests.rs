@@ -110,6 +110,53 @@ async fn native_candidate_compilation_fixture_is_current() {
         );
         let target =
             CandidateCredentialTarget::new(&recipe, &candidate, previous.as_ref()).expect("target");
+        let proposal = target.to_private_bytes().expect("private proposal");
+        let decoded = CandidateCredentialTarget::from_private_bytes(&recipe, &proposal)
+            .expect("decode proposal");
+        assert!(
+            decoded.journal_plan().expect("decoded plan")
+                == target.journal_plan().expect("original plan"),
+            "private proposal preserves its complete compiled plan"
+        );
+        assert_eq!(
+            decoded.to_private_bytes().expect("canonical roundtrip"),
+            proposal
+        );
+        let proposal_value: Value = serde_json::from_slice(&proposal).expect("proposal JSON");
+        let mut invalid_proposals = Vec::new();
+        for field in ["schema", "recipe", "candidate", "previous", "extra"] {
+            let mut changed = proposal_value.clone();
+            changed[field] = json!("invalid");
+            assert!(
+                CandidateCredentialTarget::from_private_bytes(
+                    &recipe,
+                    &serde_json_canonicalizer::to_vec(&changed).expect("changed proposal")
+                )
+                .is_err(),
+                "{field}"
+            );
+            invalid_proposals.push(field);
+        }
+        let duplicate = format!(
+            "{{\"schema\":\"auths.gateway-credential-candidate/1\",{}",
+            std::str::from_utf8(&proposal[1..]).expect("UTF-8")
+        );
+        assert!(
+            CandidateCredentialTarget::from_private_bytes(&recipe, duplicate.as_bytes()).is_err()
+        );
+        let mut padded = proposal.to_vec();
+        padded.push(b' ');
+        assert!(CandidateCredentialTarget::from_private_bytes(&recipe, &padded).is_err());
+        assert!(
+            CandidateCredentialTarget::from_private_bytes(
+                &recipe,
+                &vec![b' '; crate::effect::MAX_EFFECT_BYTES + 1]
+            )
+            .is_err()
+        );
+        invalid_proposals.extend(["duplicate", "noncanonical", "oversized"]);
+        // All subsequent signed compilation/journal cases use the decoded data.
+        let target = decoded;
         let call = target
             .authorization_call(
                 &recipe,
@@ -486,7 +533,7 @@ async fn native_candidate_compilation_fixture_is_current() {
             )
             .is_err()
         );
-        cases.push(json!({"case": case, "review": review, "binding_canonical": std::str::from_utf8(&binding).expect("UTF-8"),
+        cases.push(json!({"case": case, "review": review, "candidate_proposal_canonical": std::str::from_utf8(&proposal).expect("UTF-8"), "invalid_proposals_refused": invalid_proposals, "binding_canonical": std::str::from_utf8(&binding).expect("UTF-8"),
             "substitutions_refused": refused, "native_reverification": "same effect; altered connection and expired approval refused",
             "admission": "mutation, recovery and orphan child refused; candidate runtime admission tested separately",
             "same_credential_new_operation_retains_lifetime_reservations": true,

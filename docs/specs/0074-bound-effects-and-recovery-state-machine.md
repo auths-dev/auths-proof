@@ -263,6 +263,15 @@ cannot establish predecessor freshness, enter transport or publish a credential;
 the runtime must fence predecessor/absence and retain the checks through safe
 publication in the same authoritative journal contract.
 
+The private operator proposal format `auths.gateway-credential-candidate/1`
+retains canonical connection/predecessor bytes and the exact recipe digest,
+bounded to 65,536 bytes. Decode rejects duplicate, unknown, noncanonical,
+obsolete-schema, wrong-recipe and invalid-relationship data and reconstructs
+checks only from the installed recipe. The proposal contains no provider secret
+and grants no native authority, custody lease, transport or publication. It is
+private operator data suitable for preserving an exact target across approval
+and restart; the journal and fresh fences remain authoritative.
+
 Candidate journal admission uses the expected connection row as a source
 rather than an invented source mutation. Both admission and every child/primary
 entry must recheck predecessor/absence, exact native authority, configuration,
