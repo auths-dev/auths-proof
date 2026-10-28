@@ -70,6 +70,14 @@ No stage is complete merely because types, documentation or a happy path exist.
 
 ## Immediate implementation continuation
 
+The specification hardening pass adds explicit deployment non-bypassability,
+versioned review completeness, adapter-specific fencing, six compositional
+safety obligations, bounded operational recovery and a future AP073 composition
+boundary. These strengthen A01/A02/A04/A06/A11–A13/A15–A18/A20–A22 without
+claiming new executed evidence. The existing review and revalidation APIs do
+not yet meet review-completeness or transactional-fencing gates. The adapter
+mechanism remains an explicit open decision in ADR 0017 before P2 cutover.
+
 1. Complete the installed policy and IPC review/approve/submit cutover. The new
    `effect` module currently owns native compile/approve/revalidate operations,
    but `GatewayEngine::submit`, `SubmitIo`, the application socket and clients

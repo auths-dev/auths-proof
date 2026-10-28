@@ -49,6 +49,34 @@ the grant and charges before acknowledgement. A committed revocation blocks late
 grants; an earlier grant may still be exercised. Process-local in-flight counters
 alone do not establish the multi-process order.
 
+Before the durable mutation cutover, this ADR must record the implemented file
+lock and PostgreSQL transaction scopes, lock order, versioned dependency records,
+configuration/revocation writer participation, after-lock clock sampling,
+verification deadlines and durable acknowledgement. This adapter design is
+still open. The present attempt CAS and connection reload do not satisfy it.
+Cross-store state requires demonstrated fencing; unsupported atomicity fails
+closed. Capacity reserved earlier is checked for intact conservation at grant,
+not allocated a second time.
+
+The installed gateway boundary must exclude untrusted agents from provider
+credentials, journal mutation, operator channels and alternate managed transport.
+Keep an interface inventory and exercise it from a separate restricted process.
+Rust sealed values do not establish process isolation, and independent provider
+writers or a malicious trusted host/operator are outside this containment claim.
+
+Native review must implement a versioned recipe-bound completeness contract.
+Missing mandatory fields or an unsupported renderer prevents approval; signing
+an effect digest alone does not establish complete presentation. Domain profiles
+own the meanings and units of mandatory fields. Faithful presentation makes no
+claim about human comprehension.
+
+Recovery exposes bounded observation work, retained charges and escalation.
+Administrative annotations are not provider evidence; no administrative path can
+convert post-grant uncertainty into non-entry or silently release capacity.
+Future delegated scope and ancestor charges feed this same admission authority,
+under atomicity or demonstrated fencing, without a second task/effect journal.
+This is an integration boundary only; AP073 remains outside the implementation.
+
 Acquisition, disclosure and mutation are closed typed alternatives. Ancillary
 credential/account/preflight/observation reads are linked bounded acquisitions.
 Each disclosure has its own recipient authority, source binding and charge.

@@ -98,6 +98,31 @@ The implementation must write an abstraction case comparing at least the existin
 
 This is prelaunch. Replace affected formats and call sites directly, reject obsolete disposable state, and remove superseded production logic. Do not add migration readers, dual journals, compatibility flags or a runtime switch between old and new semantics. Retain independent test oracles and useful historical evidence with their original scope.
 
+### 3.4 Managed deployment and non-bypassability
+
+Every managed effect MUST pass through bound-effect admission and durable entry.
+Inventory application sockets, SDKs, CLI/admin interfaces, credential-bearing
+ancillary reads, transport adapters and retained reference paths. No interface
+available to the agent may bypass these gates or substitute caller-controlled
+transport bytes. An operator commissioning path must satisfy the same effect
+binding, approval and entry protocol in addition to its commissioning authority.
+
+State the deployment threat model: an untrusted agent process is outside the
+credential, private review, journal and operator boundaries. The trusted host,
+gateway operator, custody service and configured transport enforce those
+boundaries. Enumerate credential access, filesystem/process permissions,
+authenticated channels and network restrictions needed for the claim. Possession
+of unrelated provider credentials, a malicious host/operator, and independent
+external writers are not contained by a Rust capability type. Application-owned
+reference paths must not be reachable with managed credentials or presented as
+managed execution.
+
+Installed acceptance evidence must run a hostile agent in a separate restricted
+process and exercise every inventoried application-facing route, including
+malformed/obsolete frames and direct credential/provider access attempts. Record
+the actual isolation and egress controls exercised; a negative test alone does
+not prove non-bypassability under unspecified deployment conditions.
+
 ## 4. The bound effect contract
 
 ### 4.1 Immutable description and identity
@@ -135,6 +160,24 @@ For acquisition and disclosure it can approve the source/projection, recipient a
 limits before the content is fetched; the exact disclosure binding is finalized
 after acquisition and checked against that consent. It cannot be used to approve
 a mutation that requires exact human confirmation. Its mere presence must not satisfy an exact-approval requirement.
+
+Each approvable operation MUST declare a versioned review contract, bound through
+the approved recipe/compiler semantics and effect identity. It names all
+security-critical fields, their types/units and required presentation, including
+the destination, action consequences, relevant limits and uncertainty. Domain
+profiles define domain-specific fields: a financial profile may require amount,
+currency, merchant identity, recurrence and settlement consequences. The shared
+gateway must not infer such semantics from provider names or arbitrary prose.
+
+Native code projects those fields from the same sealed effect. Unsupported
+review versions, absent fields, truncation that hides meaning, or an incapable
+renderer MUST prevent approval. Untrusted labels/content cannot replace trusted
+field names or obscure destinations, units or consequences. The approval channel
+must authenticate the approver and associate the displayed projection with the
+exact signed effect; an agent's assertion that review occurred is insufficient.
+Test rendering failures, substituted labels and changed review semantics. This
+establishes faithful, complete presentation under the declared contract, not a
+proof that the human understood it.
 
 ### 4.3 Closed transport and custody
 
@@ -235,6 +278,20 @@ For this milestone, provider-entry and disclosure-entry permits are one-use, and
 - Late valid response/ACK evidence can refine an unknown outcome. Revocation or expiry must not erase legitimate history or prevent recording a previously authorized delivery's exact ACK. Recording history confers no current execution authority.
 - Read-only recovery requires its own bounded authority and accounting. It cannot borrow a revoked writer's proof, use an expired approval as current authority, acquire broader credentials or change the original actor attribution.
 
+Unresolved effects also have an operational contract. Declare finite observation
+attempt/byte/time limits, evidence freshness, and escalation conditions. Expose
+the uncertainty, retained charges, last evidence and permitted next actions in
+native operator projections. Exhaustion or unavailable evidence leaves the
+effect unresolved and charged; it does not schedule an implicit retry, redelivery
+or refund. Recovery may remain unresolved indefinitely.
+
+Administrative annotations must remain distinguishable from verified provider
+evidence. Any administrative resolution that changes evidence or accounting must
+be an explicit, separately authorized command accepted by the sole reducer under
+a declared evidence rule. An operator assertion cannot establish non-entry after
+a grant or override the conservation/no-retry rules. Measure bounded recovery
+work and the cases actually resolvable, as well as refusal safety.
+
 ### 5.4 Accounting
 
 At every committed revision, for each capacity key and unit:
@@ -258,6 +315,15 @@ Re-run the full native verifier, or use a mechanically justified equivalent depe
 
 Connection, trust, recipe, policy, qualification and admission epoch changes must be ordered with entry or fenced under a demonstrated version protocol. A mutable value checked before waiting for the lock is insufficient. Exact human approval must remain eligible at entry. If durable consent has a distinct validity/revocation contract, make that a separate mode with explicit evidence; never discard approval dependencies accidentally.
 
+At the entry grant's serialization point, the atomic decision requires current
+native authority, eligible approval, current configuration and revocation state,
+an intact sufficient reservation with conserved accounting, and no previous
+grant for that operation's external-entry boundary. Already reserved capacity
+must not be charged again as a new allocation. The full check and durable grant
+must observe one consistent authoritative state, or an explicitly justified
+equivalent fencing protocol. One durable grant does not prove exactly-once
+provider execution, settlement or exclusive causation.
+
 ## 6. Journal and persistence contract
 
 There must be one logical journal owner for operation identity, reservation, entry grants, protocol outcomes and replay tombstones. Multiple physical records are acceptable only when their safety-critical changes commit atomically. An effect must not acquire two independent mutable truths in a task ledger and an attempt ledger.
@@ -272,6 +338,16 @@ For both file and PostgreSQL adapters, specify and exercise:
 - decoding bounds, illegal-state rejection and schema mismatch refusal;
 - replay/tombstone retention through the full authority and late-evidence horizon;
 - bounded garbage collection that cannot resurrect an expired claim or erase unresolved accounting.
+
+Before P2's behavioral cutover, the ownership ADR must name each adapter's exact
+lock/transaction scope, acquisition order, authoritative dependency versions,
+configuration/revocation writers, isolation/CAS behavior, clock sampling point,
+finite work/deadline bound and acknowledgement boundary. It must explain why a
+writer in another process cannot change a checked dependency before the grant
+without detection or ordered exclusion. Independently stored configuration or
+credentials require an explicit fencing/version contract; an attempt-only CAS
+or process-local in-flight counter is insufficient. Unsupported cross-store
+atomicity must fail closed, not become an undocumented deployment assumption.
 
 Existing file and PostgreSQL behavior must not regress. In-memory adapters are test tools and do not establish durability. File conformance establishes the stated local-filesystem assumptions, not distributed fencing or power-loss behavior on every platform.
 
@@ -325,6 +401,22 @@ Errors distinguish malformed/noncanonical input, unsupported schema/protocol, un
 | R09 | Recovery has explicit current read-only authority and preserves original effect attribution. |
 | R10 | Restored state and malformed/obsolete records cannot bypass the declared epoch, retention or durability assumptions. |
 
+The implementation must map these invariants to six system properties:
+
+| Property | Conditional guarantee |
+| --- | --- |
+| Authority preservation | Every external entry follows a grant with valid current native authority and eligible approval at its ordered grant point. |
+| Effect preservation | Every request/disclosure is the exact compiled and approved effect, including its review contract and allowed credential insertion. |
+| Single-grant safety | Each logical operation and external-entry boundary has at most one grant; persisted state cannot remint its permit. |
+| Capacity conservation | Concurrent admission, crashes and recovery cannot create authorized capacity or silently refund unknown effects. |
+| Revocation ordering | A committed revocation prevents every later grant within its defined scope; earlier grants retain the documented semantics. |
+| Evidence soundness | Recorded and displayed claims imply no more than their authenticated evidence establishes. |
+
+For each property, name the shipping pure predicates, runtime enforcement,
+adapter assumptions and model-generated/integration histories that support it.
+These are required proof/evidence obligations, not a claim of an already proved
+whole-system theorem. Formal claims must state their assumptions and source link.
+
 ## 10. Executable acceptance matrix
 
 All rows require reproducible artifacts, expected journal state, expected external calls, actual result, exact revision and limitations. Source code or a passing compilation alone is not behavioral evidence.
@@ -353,6 +445,17 @@ All rows require reproducible artifacts, expected journal state, expected extern
 | A20 | Model-generated event sequences and concurrent histories exercise every transition and illegal edge. Formal/refinement artifacts identify the actual shipping pure predicates and assumptions. |
 | A21 | Replay retention, terminal tombstones, stale cache/configuration and supported rollback-floor failures cannot resurrect entry authority. Unsupported whole-store rollback is explicitly excluded. |
 | A22 | Installed packages and native runtime execute the complete single-human/single-agent read, disclosure, exact write and observation journey; UI distinguishes grant, response, ACK, observation and unknown. |
+
+The same rows additionally require the following hardening cases; these are
+part of their exit gates, not optional follow-up work:
+
+| Cases | Additional adversarial evidence |
+| --- | --- |
+| A01, A02, A18, A22 | Unsupported review contract, omitted/truncated mandatory field, misleading untrusted label, changed units/destination/consequences and substituted review/signing channel. No approval of an incomplete or mismatched review. |
+| A04, A06, A12, A13 | Independent processes race dependency changes against the final grant on both adapters, including state in distinct physical records. Histories satisfy the named fencing mechanism; existing reservations are not charged twice. |
+| A11, A15, A22 | Exhaust reconciliation attempts/bytes/time; age its evidence; make authority/store unavailable. Retained charges and escalation remain visible; administrative annotations cannot manufacture non-entry or retry authority. |
+| A16, A20 | Scope/participant and charge inputs cannot create a second admission authority. Exercise the current unscoped/single-agent boundary and reject unsupported delegation representations; no AP073 implementation is required. |
+| A17, A21, A22 | Hostile isolated agent exercises the complete interface inventory, obsolete endpoints and alternate credential/transport routes. Assert no unauthorized managed provider calls and document the actual isolation assumptions. |
 
 Use external call counters and process failpoints, not only mocked return values or tests asserting the implementation's own intermediate flags. Exercise real local sockets, process restart and the maintained PostgreSQL fixture. Provider-specific live qualification remains a separate claim; no cloud credential should be necessary for the local foundation journey.
 
@@ -385,6 +488,15 @@ The foundation is not complete until required behavioral and hosted evidence pas
 Done means both central contracts own the maintained paths, obsolete managed interpretations are removed, interfaces and bindings are updated, source-linked formal and operational evidence are current, and the acceptance ledger contains actual results. The result must be a reviewable implementation with a concise explanation of changed behavior, tests and remaining deployment assumptions.
 
 Only after this foundation is closed should multi-agent delegation add participant trees and ancestor budget allocation on top. Those features must consume the established effect and recovery contracts instead of creating their own parallel journals, approval identities or retry rules.
+
+Future AP073 composition must bind the exact participant/executor identity,
+task partition/epoch, native authority chain and selected dependencies, scope and
+typed ancestor/task charges into the effect. These are inputs to AP074's single
+admission authority, never a second independent task approval or mutable effect
+journal. Any cross-domain charge/admission update must commit atomically or use
+an explicitly justified fencing protocol. Reject unsupported delegated scopes
+until that integration is implemented. This contract neither imports AP073 code
+nor authorizes work on its paused checkout.
 
 ## References
 
