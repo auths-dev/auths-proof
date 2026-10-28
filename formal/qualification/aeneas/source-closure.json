@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "4bc466118a74f05c0631f7c988e6a38d661b520840957de3895b1f646d6fca44",
+  "digest": "49eaf38e97eb68ff43d3668591e55aea64dd2ae8d18261758bc366b07a5815bd",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -157,7 +157,7 @@
     },
     {
       "path": "product/runtime/auths-connections/src/credential.rs",
-      "sha256": "82921413bb053f0f6c7931fbd4e6a86c8cc1d8c6b51debd9c2cef33a8d5b1c51"
+      "sha256": "83b4f30aaa0e1ad8440f9f5c1bc9146818e0ee446d2d0005ac8b8cfd0929c0cb"
     },
     {
       "path": "product/runtime/auths-connections/src/kernel.rs",
