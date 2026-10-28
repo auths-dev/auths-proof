@@ -134,16 +134,23 @@ held which key, is operator evidence and is not produced by this code.
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
-  `auths.lifecycle.postgresql/6`; it installs only into an empty database.
-  A database created at schema 4 or earlier is disposable prelaunch state:
+  `auths.lifecycle.postgresql/7`; it installs only into an empty database.
+  A database created with an obsolete schema is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
-  `auths.gateway-attempt/3`; a store holding `/2` records is refused as
+  `auths.gateway-attempt/6`; a store holding obsolete records is refused as
   corrupt, so the file store's attempts directory is recreated too.
 - **Several gateway processes** may serve from the same database. Each
   logical operation is claimed once, by an insert-once row; stage changes are
   compare-and-swap on the exact stored record. A second process that loses a
-  race records nothing and answers `gateway.attempt.replay`. Gateway claims
-  do not take the lifecycle store's singleton contract-row lock.
+  grant race records nothing and loads the matching journal state. An equal
+  binding with a prior grant or terminal outcome returns history without a
+  credential lease or provider read. A reserved operation can progress only
+  through fresh authorization and the fenced single-winner grant. Changed
+  bindings return `gateway.effect.operation-conflict`. An unavailable journal
+  reports `gateway.attempt.state-unavailable`, never proof of non-entry.
+  PostgreSQL writers share the table-scoped advisory transaction fence;
+  file writers share the bounded writer lock. The lifecycle store's singleton
+  contract-row lock is not the gateway's fence.
 - **Spend limits.** A grant's bounded policy (evaluator
   `auths.gateway.argument-ceiling-window-count/2`) counts per link subject in
   fixed, epoch-aligned windows, in the attempt store: every gateway process

@@ -1,4 +1,4 @@
-//! Attempt scenarios for attempt record `/4`: the pre-entry re-read, the
+//! Attempt scenarios for attempt record `/6`: the pre-entry re-read, the
 //! relative ceiling, the lease-time account and denied reads, account-scope
 //! headers, the retention rule, the entry deadline, and response-locator
 //! recovery.
@@ -8,12 +8,10 @@
 //! (empty when nothing is stored), the refusal code, and the lease, read, and
 //! write counts.
 //!
-//! `record_cases` are the claim, response, observation, and `unknown`
-//! scenarios of the retired attempt record `/2`, moved here unchanged when
-//! record `/3` replaced it. One `/2` scenario is not carried:
-//! `crash-after-entry-not-reobserved` asserted that a stored `attempting`
-//! record is never re-observed, which record `/3` reverses for a linked
-//! recipe; `linked-attempting-reobserved` replaces it.
+//! `record_cases` retain explicit operator observation mechanics as a reference;
+//! application replay only returns stored state. Neither oracle establishes
+//! independently authorized AP074 recovery. A grant with a lost response remains
+//! unknown on replay, including when a recipe has a linked observation plan.
 
 use super::{NOW, recipes, require_current};
 use serde_json::{Map, Value, json};
@@ -479,12 +477,12 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             &counts(1, 3, 1, 1),
         ),
         scenario(
-            "linked-attempting-reobserved",
+            "linked-grant-replay-retains-unknown",
             "airtable",
             json!({"crash": "after-write-before-response", "replay": "same-binding"}),
-            &["reserved", "entry-granted", "observed-by-provider"],
+            &["reserved", "entry-granted"],
             None,
-            &counts(2, 0, 1, 1),
+            &counts(1, 0, 1, 0),
         ),
     ]
 }
@@ -495,7 +493,11 @@ const RECORD_CASES: &[(&str, &str, u64)] = &[
     ("same-id-fresh-challenge", "reserved->binding-conflict", 0),
     ("changed-action-same-id", "reserved->binding-conflict", 0),
     ("crash-after-claim", "reserved->reserved-on-restart", 0),
-    ("complete-http-response", "entry-granted->response-recorded", 1),
+    (
+        "complete-http-response",
+        "entry-granted->response-recorded",
+        1,
+    ),
     ("ambiguous-transport", "entry-granted->unknown", 1),
     ("matching-read-back", "response-recorded->observed-match", 1),
     (

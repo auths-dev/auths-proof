@@ -287,6 +287,14 @@ For this milestone, provider-entry and disclosure-entry permits are one-use, and
 - An ambiguous commit requires loading the authoritative journal before doing anything else. Unavailable state fails closed.
 - A durable reservation with no entry grant may progress only through fresh authorization and an atomic single-winner grant; reopening it does not bypass approval or capacity checks.
 - Once an entry grant exists, restart must not reissue it, including when no response or ACK exists.
+- The native submission projection names a retained pre-grant reservation as
+  `reserved` with its exact JSON-safe journal revision. After an unacknowledged
+  grant, loading that state does not issue a capability. A retained grant with
+  no conclusive evidence projects `unknown`; unavailable or mismatched journal
+  state projects `indeterminate` with `gateway.attempt.state-unavailable`.
+  Identical admitted/terminal replay returns stored facts with no credential
+  lease, provider read or new observation credit. Reservation continuation is
+  the separate fresh-authorization rule above.
 - Provider idempotency may improve provider guarantees but does not override the default prohibition on Auths re-entry. Any future retry mode requires an explicit versioned protocol and evidence for key scope, retention, fencing and late requests.
 - Late valid response/ACK evidence can refine an unknown outcome. Revocation or expiry must not erase legitimate history or prevent recording a previously authorized delivery's exact ACK. Recording history confers no current execution authority.
 - Read-only recovery requires its own bounded authority and accounting. It cannot borrow a revoked writer's proof, use an expired approval as current authority, acquire broader credentials or change the original actor attribution.

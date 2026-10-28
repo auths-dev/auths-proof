@@ -144,13 +144,12 @@ class Effects:
                 'qualification.observation.race-hosts')
         decoded = [result(value) for value in native_results]
         linked = [value for value in decoded if value[2] is not None]
-        require(linked and all(value[0] in ['observed', 'unknown']
-                or (value[0] == 'refused' and value[1] == 'gateway.attempt.replay') for value in decoded)
+        require(linked and all(value[0] in ['observed', 'unknown'] for value in decoded)
                 and all(all(value[2][field] == linked[0][2][field]
                             for field in ['channel', 'echo', 'evidence_digest']) for value in linked),
                 'qualification.observation.race-evidence')
-        # Both are actual host results; the survivor's read-only recovery can
-        # supply the link. Distinct native scopes are aggregated directly.
+        # Both are actual host results. The owner supplies the link; the
+        # follower only reads history. Distinct native scopes are aggregated.
         return self._project(tuple_value, reviewed, resources, linked[0], measure.aggregate(pairs), response,
                              status=next(value['status'] for value in native_results
                                          if value['outcome'] == 'observed-by-provider'))

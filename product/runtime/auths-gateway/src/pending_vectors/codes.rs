@@ -55,7 +55,6 @@ const ROWS: &[&str] = &[
     "gateway.credential.unavailable engine recorded changed 3 -",
     "gateway.idempotency.window-exceeds-retention engine before-claim new 3 A:idempotency-window-exceeds-retention",
     "gateway.policy.above-sum-limit engine before-claim new 4 B:argument-above-smallest-sum-limit",
-    "gateway.policy.count-unavailable ReserveRefusal before-claim changed 4 -",
     "gateway.policy.evaluator-mismatch engine before-claim existing - B:policy-type-v1-refused",
     "gateway.policy.evaluator-unregistered engine before-claim existing - B:evaluator-v1-refused",
     "gateway.policy.expanded engine before-claim existing - B:child-raises-sum-limit",

@@ -29,6 +29,8 @@ from auths.gateway import (
     GatewayProviderEvidence,
     GatewaySignedObservation,
     GatewayUnknown,
+    GatewayReserved,
+    GatewayIndeterminate,
 )
 
 _ECHO = "auths-e1-" + "ab" * 32
@@ -424,3 +426,23 @@ def test_connect_failure_names_the_path_and_cause(socket_dir: Path) -> None:
     assert "outcome may be unknown" in text
     assert str(missing) in text
     assert os.strerror(errno.ENOENT) in text
+
+
+def test_native_replay_projection_corpus() -> None:
+    from auths.gateway import _parse_result
+
+    corpus = json.loads(
+        (Path(__file__).resolve().parents[2] / "fixtures/gateway/replay-projection.json").read_text()
+    )
+    assert corpus["schema"] == "auths.gateway-replay-projection-fixture/1"
+    assert _parse_result(json.dumps(corpus["unknown_replay"]["result"]).encode()) == GatewayUnknown()
+    expected = [GatewayReserved(1), GatewayUnknown(),
+                GatewayIndeterminate("gateway.attempt.state-unavailable")]
+    assert len(corpus["unacknowledged_grants"]) == len(expected)
+    for case, result in zip(corpus["unacknowledged_grants"], expected):
+        assert _parse_result(json.dumps(case["result"]).encode()) == result
+    for value in corpus["reserved_decoding"]["valid"]:
+        assert _parse_result(json.dumps(value).encode()) == GatewayReserved(value["revision"])
+    for value in corpus["reserved_decoding"]["invalid"]:
+        with pytest.raises(GatewayProtocolError):
+            _parse_result(json.dumps(value).encode())

@@ -270,14 +270,14 @@ class Operator:
                                   uid=self.app_uid) for index, sock in enumerate([first, second])]
             results = [json.loads(future.result()) for future in futures]
         require(any(value.get('outcome') == 'observed-by-provider' for value in results), 'live.write-not-observed')
-        require(all(value.get('outcome') in ['observed-by-provider', 'not-entered'] for value in results),
+        require(all(value.get('outcome') in ['observed-by-provider', 'unknown'] for value in results),
                 'live.race-unexpected-outcome')
         observed = next(value for value in results if value.get('outcome') == 'observed-by-provider')
         readback = self.api('GET', '/v0/' + self.args.base + '/' + self.args.table + '/' + self.record)
         require(readback['fields']['DemoStatus'] == 'Approved' and
                 readback['fields']['auths_echo'] == observed['evidence']['echo'], 'live.fresh-read-back-mismatch')
         replay = json.loads(self.run('proof-replay', self.child('submit', first), uid=self.app_uid))
-        require(replay.get('outcome') == 'not-entered' and replay.get('code') == 'gateway.attempt.replay', 'live.replay-not-refused')
+        require(replay == observed, 'live.replay-history-mismatch')
         altered = json.loads(self.run('altered-action', self.child('altered', first), uid=self.app_uid))
         require(altered.get('outcome') in ['not-entered', 'denied', 'indeterminate'], 'live.altered-action-entered')
         support = self.run('support-bundle', [self.binary, 'support-bundle', '--state-dir', self.work / 'first'])
@@ -286,7 +286,7 @@ class Operator:
         self.stop()
         restarted = self.start('first')
         replay_after = json.loads(self.run('restart-replay', self.child('submit', restarted), uid=self.app_uid))
-        require(replay_after.get('outcome') == 'not-entered' and replay_after.get('code') == 'gateway.attempt.replay',
+        require(replay_after == observed,
                 'live.restart-replay-entered')
         self.stop()
         report = {'schema': 'auths.recipe-qualification-simulation/1', 'simulation': True,

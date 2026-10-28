@@ -259,8 +259,9 @@ fn publish(family: Family, recipe: &CompiledRecipe, cases: &[Measurement]) {
 
 /// Runs each lifecycle against real durable claims, with both original and
 /// fresh proof commitments. A lost response or response-record crash must
-/// use only recovery the recipe's derived capability permits: Airtable's
-/// verified locator and echo can re-observe; Stripe needs its response locator.
+/// retain unknown on replay. Explicit operator observation mechanics are tested
+/// separately: Airtable has a verified locator; Stripe needs its response locator.
+/// These simulations do not establish AP074 independent recovery authorization.
 async fn lifecycle<P: SimulationProvider>(
     family: Family,
     provider: &OracleProvider<P>,
@@ -289,6 +290,7 @@ async fn lifecycle<P: SimulationProvider>(
             "{result:?}"
         );
     }
+    let cases_result = result.clone();
     let mut cases = vec![measurement(
         if ambiguous {
             "ambiguous-write"
@@ -317,35 +319,42 @@ async fn lifecycle<P: SimulationProvider>(
         let before = provider.checked.load(Ordering::SeqCst);
         let entries_before = provider.inner.entries();
         let result = run(attempts, &recipe, &observer, &io).await;
-        let recovery = ambiguous && matches!(family, Family::Airtable) && commitment == ORIGINAL;
-        if recovery {
-            assert!(
-                matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
-                "{} {name} ambiguous={ambiguous}: {result:?}",
-                family.name()
-            );
+        let same_binding = commitment == ORIGINAL;
+        if same_binding {
+            assert_eq!(result, cases_result, "{name}: return historical result");
         } else {
-            assert!(!matches!(
+            assert_eq!(
                 result,
-                GatewaySubmitResult::ObservedByProvider { .. }
-            ));
+                crate::engine::not_entered("gateway.effect.operation-conflict")
+            );
         }
-        assert_eq!(
-            io.leases(),
-            usize::from(recovery),
-            "{name}: only declared read-back recovery leases"
-        );
+        assert_eq!(io.leases(), 0, "{name}: replay never leases credentials");
         assert_eq!(
             provider.checked.load(Ordering::SeqCst),
             before,
             "{name}: no second write"
         );
-        cases.push(measurement(
+        let mut observed = measurement(
             name,
             &result,
             io.leases(),
             provider.inner.entries() - entries_before,
+        );
+        observed.confirmed_by_read_back = 0; // Historical evidence is not a new provider read.
+        cases.push(observed);
+    }
+    if ambiguous && matches!(family, Family::Airtable) {
+        let io = TestIo::new(provider, family.command(&recipe, &args, ORIGINAL));
+        let entries_before = provider.inner.entries();
+        let result = super::reobserve_operator(store.attempts(), &recipe, &observer, &io)
+            .await
+            .expect("explicit operator observation mechanics");
+        assert!(matches!(
+            result,
+            GatewaySubmitResult::ObservedByProvider { .. }
         ));
+        assert_eq!(provider.inner.entries(), entries_before);
+        cases.push(measurement("operator-read-back", &result, io.leases(), 0));
     }
     cases
 }

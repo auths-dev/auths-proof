@@ -88,7 +88,7 @@ class GatewayDenied:
 
 @dataclass(frozen=True)
 class GatewayIndeterminate:
-    """Native proof verification could not authorize the action."""
+    """Native verification or required durable state is indeterminate."""
 
     code: str
     outcome: Literal["indeterminate"] = "indeterminate"
@@ -100,6 +100,14 @@ class GatewayNotEntered:
 
     code: str
     outcome: Literal["not-entered"] = "not-entered"
+
+
+@dataclass(frozen=True)
+class GatewayReserved:
+    """Reserved without an entry grant; continuation requires fresh authorization."""
+
+    revision: int
+    outcome: Literal["reserved"] = "reserved"
 
 
 @dataclass(frozen=True)
@@ -160,6 +168,7 @@ GatewayResult = Union[
     GatewayDenied,
     GatewayIndeterminate,
     GatewayNotEntered,
+    GatewayReserved,
     GatewayUnknown,
     GatewayResponseRecorded,
     GatewayObserved,
@@ -218,6 +227,16 @@ def _parse_result(raw: bytes) -> GatewayResult:
         if outcome == "indeterminate":
             return GatewayIndeterminate(code)
         return GatewayNotEntered(code)
+    if outcome == "reserved":
+        revision = value.get("revision")
+        if (
+            set(value) != {"outcome", "revision"}
+            or not isinstance(revision, int)
+            or isinstance(revision, bool)
+            or not 1 <= revision <= 9_007_199_254_740_991
+        ):
+            raise GatewayProtocolError("gateway returned invalid reservation")
+        return GatewayReserved(revision)
     if outcome == "unknown" and set(value) == {"outcome"}:
         return GatewayUnknown()
     if outcome == "observed-by-provider":
@@ -579,6 +598,7 @@ __all__ = [
     "GatewayPreEntryResult",
     "GatewayProtocolError",
     "GatewayProviderEvidence",
+    "GatewayReserved",
     "GatewayResponseRecorded",
     "GatewayResult",
     "GatewaySignedObservation",

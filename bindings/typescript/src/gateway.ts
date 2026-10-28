@@ -80,7 +80,9 @@ export type GatewayProviderEvidence = Readonly<{
 }>;
 
 /**
- * Proof decision and transport/observation stages, without effect qualification.
+ * Native decision and journal stages, without effect qualification. `reserved`
+ * has no entry grant; continuation needs fresh authorization. `indeterminate`
+ * can mean required journal state is unavailable, not that entry was absent.
  * `observed-by-provider` means a read-back returned this attempt's echo token and the
  * verified value; anyone who knows the namespace, operation ID, and action commitment
  * can compute that token, so the link holds only while no other writer of that
@@ -90,6 +92,7 @@ export type GatewayResult =
   | Readonly<{ outcome: "denied"; code: string }>
   | Readonly<{ outcome: "indeterminate"; code: string }>
   | Readonly<{ outcome: "not-entered"; code: string }>
+  | Readonly<{ outcome: "reserved"; revision: number }>
   | Readonly<{ outcome: "unknown" }>
   | Readonly<{ outcome: "response-recorded"; status: number }>
   | Readonly<{ outcome: "observed"; status: number; matched: boolean }>
@@ -224,6 +227,12 @@ function parseResult(bytes: Uint8Array): GatewayResult {
       throw new GatewayProtocolError("gateway returned invalid refusal");
     }
     return { outcome, code: value.code };
+  }
+  if (outcome === "reserved") {
+    if (!exactKeys(value, ["outcome", "revision"]) || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 1) {
+      throw new GatewayProtocolError("gateway returned invalid reservation");
+    }
+    return { outcome, revision: value.revision };
   }
   if (outcome === "unknown" && exactKeys(value, ["outcome"])) {
     return { outcome };

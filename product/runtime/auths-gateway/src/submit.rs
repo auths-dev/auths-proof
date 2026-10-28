@@ -10,7 +10,7 @@
 //! provider double through the same driver.
 
 use crate::effect::ApprovedEffect;
-use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, replay_refused};
+use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
 use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
 use crate::store::BoundedClaim;
@@ -305,7 +305,7 @@ pub(crate) async fn run<I: SubmitIo>(cx: &SubmitContext<'_>, io: &I) -> GatewayS
 
 /// Runs the operator's read-only re-observation of `attempt`, which
 /// [`GatewayAttempts::resume_observable_operation`] reopened, through the
-/// same step machine a replay takes: a reload, a fresh lease that passes
+/// existing operator step machine: a reload, a fresh lease that passes
 /// every credential check, and one read-back from the stored plan. The
 /// caller has already prepared the entry. Returns the recorded result, or
 /// `None` when the read-back recorded nothing.
@@ -373,7 +373,6 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Preparation(valid)
             }
             SubmitAction::Claim => SubmitEvent::Claim(self.claim().await),
-            SubmitAction::Resume => SubmitEvent::Resume(self.resume().await),
             SubmitAction::Reload(_) => SubmitEvent::Reload(self.io.reload().await),
             SubmitAction::ReloadBeforeEntry => {
                 // Counted before the reload, so an admin change committed
@@ -562,36 +561,33 @@ impl<I: SubmitIo> Run<'_, I> {
                 ClaimResult::Refused
             }
             Ok(BoundedClaim::Contended) => {
-                self.refuse_before_claim(not_entered("gateway.policy.count-unavailable"));
+                self.result = Some(self.stored_result().await);
                 ClaimResult::Unavailable
             }
-            Err(GatewayAttemptError::Replay) => ClaimResult::Replay,
+            Err(GatewayAttemptError::Replay) => {
+                self.result = Some(self.stored_result().await);
+                ClaimResult::Replay
+            }
             Err(GatewayAttemptError::BindingConflict) => {
                 self.refuse_before_claim(not_entered("gateway.effect.operation-conflict"));
                 ClaimResult::Refused
             }
             Err(_) => {
-                self.refuse_before_claim(not_entered("gateway.attempt.unavailable"));
+                self.result = Some(self.stored_result().await);
                 ClaimResult::Unavailable
             }
         }
     }
 
-    async fn resume(&mut self) -> bool {
-        let Some(verified) = self.verified.as_deref().map(ApprovedEffect::command) else {
-            return false;
+    /// A replay or unacknowledged grant only loads the exact bound journal.
+    /// It never leases credentials or acquires provider evidence.
+    async fn stored_result(&self) -> GatewaySubmitResult {
+        let Some(approved) = self.verified.as_deref() else {
+            return unavailable_state();
         };
-        match self
-            .cx
-            .attempts
-            .resume_observable(&verified.request, *self.cx.recipe.digest())
-            .await
-        {
-            Ok(Some(attempt)) => {
-                self.observable = Some(attempt);
-                true
-            }
-            Ok(None) | Err(_) => false,
+        match self.cx.attempts.read_effect(approved).await {
+            Ok(Some(snapshot)) => crate::engine::stored_result(&snapshot),
+            Ok(None) | Err(_) => unavailable_state(),
         }
     }
 
@@ -739,8 +735,13 @@ impl<I: SubmitIo> Run<'_, I> {
             .await
         {
             Ok(granted) => granted,
-            // An ambiguous acknowledgement may follow a committed grant.
-            Err(_) => return false,
+            // The grant may have committed without its acknowledgement.
+            // A fresh authoritative read may report reserved or unknown, never
+            // manufacture a permit. Unavailable state is indeterminate.
+            Err(_) => {
+                self.result = Some(self.stored_result().await);
+                return false;
+            }
         };
         self.claim = Some(claim);
         self.permit = Some(permit);
@@ -895,7 +896,9 @@ impl<I: SubmitIo> Run<'_, I> {
             Stop::Refused => self
                 .result
                 .unwrap_or_else(|| not_entered("gateway.attempt.unavailable")),
-            Stop::StoreUnavailable => not_entered("gateway.attempt.unavailable"),
+            Stop::StoreUnavailable | Stop::Stored | Stop::GrantUnavailable => {
+                self.result.unwrap_or_else(unavailable_state)
+            }
             Stop::ClaimRefused | Stop::Response | Stop::Observed => {
                 self.result.unwrap_or(GatewaySubmitResult::Unknown)
             }
@@ -903,8 +906,14 @@ impl<I: SubmitIo> Run<'_, I> {
                 .refusal
                 .map_or(GatewaySubmitResult::Unknown, not_entered),
             Stop::Unknown | Stop::Halted => GatewaySubmitResult::Unknown,
-            Stop::ReplayRefused => replay_refused(),
+            Stop::ReobservationUnrecorded => unavailable_state(),
         }
+    }
+}
+
+fn unavailable_state() -> GatewaySubmitResult {
+    GatewaySubmitResult::Indeterminate {
+        code: "gateway.attempt.state-unavailable".to_owned(),
     }
 }
 

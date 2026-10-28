@@ -312,7 +312,8 @@ fn refusal_code(result: GatewaySubmitResult) -> String {
         GatewaySubmitResult::Denied { code }
         | GatewaySubmitResult::Indeterminate { code }
         | GatewaySubmitResult::NotEntered { code } => code,
-        GatewaySubmitResult::Unknown
+        GatewaySubmitResult::Reserved { .. }
+        | GatewaySubmitResult::Unknown
         | GatewaySubmitResult::ResponseRecorded { .. }
         | GatewaySubmitResult::Observed { .. }
         | GatewaySubmitResult::ObservedByProvider { .. } => "audit.unexpected-result".to_owned(),

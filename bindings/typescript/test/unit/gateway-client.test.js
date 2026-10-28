@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { GatewayClient, GatewayEndpoint, GatewayProtocolError } from "../../dist/gateway.js";
 
-test("gateway client submits proof/action only and separates observed from effect", { skip: process.platform === "win32" }, async () => {
+test("gateway client submits proof/action/exact approval and separates observed from effect", { skip: process.platform === "win32" }, async () => {
   const directory = await mkdtemp(join(tmpdir(), "auths-gateway-"));
   const path = join(directory, "app.sock");
   const seen = [];
@@ -311,5 +311,17 @@ test("operator gate refusals remain not-entered with the native code", { skip: p
     "gateway.connection.restore-rollback",
   ]) {
     assert.deepEqual(await replyOnce(JSON.stringify({ outcome: "not-entered", code })), { outcome: "not-entered", code });
+  }
+});
+
+
+test("gateway decodes the native replay and reservation corpus", { skip: process.platform === "win32" }, async () => {
+  const corpus = JSON.parse(await readFile(new URL("../../../fixtures/gateway/replay-projection.json", import.meta.url), "utf8"));
+  assert.equal(corpus.schema, "auths.gateway-replay-projection-fixture/1");
+  for (const result of [corpus.unknown_replay.result, ...corpus.unacknowledged_grants.map((item) => item.result), ...corpus.reserved_decoding.valid]) {
+    assert.deepEqual(await replyOnce(JSON.stringify(result)), result);
+  }
+  for (const invalid of corpus.reserved_decoding.invalid) {
+    await assert.rejects(replyOnce(JSON.stringify(invalid)), GatewayProtocolError);
   }
 });

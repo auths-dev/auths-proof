@@ -855,7 +855,9 @@ fn requirement_grant(harness: &Harness, from: u64, until: u64) -> SignedGrant {
     .expect("grant")
 }
 
-async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused(backend: Backend) {
+async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_returns_history(
+    backend: Backend,
+) {
     let harness = Harness::open(update_recipe(), backend);
     let long = || requirement_grant(&harness, NOW - 3_600, NOW + 86_400);
     let observation = harness.read_back(RECORD, NOW).await;
@@ -868,9 +870,10 @@ async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused
         NOW,
         None,
     );
+    let first = harness.submit(&within, NOW + 5).await;
     assert!(
         matches!(
-            harness.submit(&within, NOW + 5).await,
+            first,
             GatewaySubmitResult::ObservedByProvider {
                 status: Some(200),
                 ..
@@ -881,8 +884,8 @@ async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused
     assert_eq!(harness.provider.counts().0, 1);
     assert_eq!(
         harness.submit(&within, NOW + 10).await,
-        crate::engine::replay_refused(),
-        "the durable claim refuses the same action again inside its window"
+        first,
+        "the durable journal returns history for the same action inside its window"
     );
     let later = NOW + 3_600;
     let reauthored = sdk_submission(
@@ -895,8 +898,8 @@ async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused
     );
     assert_eq!(
         harness.submit(&reauthored, later + 5).await,
-        crate::engine::replay_refused(),
-        "and a fresh action for the same logical operation after the window"
+        crate::engine::not_entered("gateway.effect.operation-conflict"),
+        "a fresh action conflicts with the same logical operation after the window"
     );
     assert_eq!(harness.provider.counts().0, 1);
 
@@ -1541,7 +1544,7 @@ on_both_stores!(
     observer_in_the_authority_chain_is_refused,
     observer_key_in_the_authority_chain_is_refused_by_key,
     action_fact_policy_is_bound_into_the_pinned_configuration,
-    sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused,
+    sdk_action_window_admits_a_later_gateway_clock_and_replay_returns_history,
     sdk_action_window_is_cut_to_the_grant_expiry,
     a_longer_action_window_never_extends_observation_freshness,
     two_of_three_root_authorizes_only_with_two_distinct_roots,

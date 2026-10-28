@@ -257,7 +257,7 @@ class Operator:
         require(len(refunds) == 1 and len(matched) == 1 and matched[0]['payment_intent'] == self.payment,
                 'live.fresh-refund-read-back-mismatch')
         results['proof-replay'] = json.loads(self.run('proof-replay', self.child('submit'), uid=self.app_uid))
-        require(results['proof-replay'].get('code') == 'gateway.attempt.replay', 'live.replay-entered')
+        require(results['proof-replay'] == results['normal'], 'live.replay-entered')
         results['altered-action'] = json.loads(self.run('altered-action', self.child('altered'), uid=self.app_uid))
         require(results['altered-action'].get('outcome') in ['denied', 'indeterminate', 'not-entered'], 'live.altered-action-entered')
         support = self.run('support-bundle', [self.binary, 'support-bundle', '--state-dir', self.work / 'state'])
@@ -265,7 +265,7 @@ class Operator:
         (self.args.out / 'support-bundle.json').write_bytes(support)
         self.stop(); self.start()
         results['restart-replay'] = json.loads(self.run('restart-replay', self.child('submit'), uid=self.app_uid))
-        require(results['restart-replay'].get('code') == 'gateway.attempt.replay', 'live.restart-replay-entered')
+        require(results['restart-replay'] == results['normal'], 'live.restart-replay-entered')
         self.stop()
         return {'schema': 'auths.recipe-qualification-simulation/1', 'simulation': True, 'stable_launch_ready': False,
             'family': 'stripe-platform-refund-v1', 'provider': 'live Stripe test mode; platform account',

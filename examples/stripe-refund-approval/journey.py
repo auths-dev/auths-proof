@@ -843,7 +843,7 @@ def main() -> int:
             "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
             "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
             "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
-            "refund-1-replay": ("not-entered", "gateway.attempt.replay"),
+            "refund-1-replay": ("not-entered", "gateway.effect.operation-conflict"),
             "refund-8-reuse": ("denied", "action-body-mismatch"),
             "refund-2-retry": ("not-entered", "gateway.policy.window-exhausted"),
         }

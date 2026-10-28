@@ -333,6 +333,7 @@ async fn run(id: &str, backend: Backend) -> (String, Option<String>, (usize, usi
         GatewaySubmitResult::Denied { code } => ("denied".to_owned(), Some(code)),
         GatewaySubmitResult::Indeterminate { code } => ("indeterminate".to_owned(), Some(code)),
         GatewaySubmitResult::NotEntered { code } => ("not-entered".to_owned(), Some(code)),
+        GatewaySubmitResult::Reserved { .. } => ("reserved".to_owned(), None),
         GatewaySubmitResult::Unknown => ("unknown".to_owned(), None),
         GatewaySubmitResult::ResponseRecorded { .. }
         | GatewaySubmitResult::Observed { .. }
@@ -769,6 +770,7 @@ fn verdict(result: &GatewaySubmitResult) -> (&'static str, Option<&str>) {
         GatewaySubmitResult::Denied { code } => ("denied", Some(code)),
         GatewaySubmitResult::Indeterminate { code } => ("indeterminate", Some(code)),
         GatewaySubmitResult::NotEntered { code } => ("not-entered", Some(code)),
+        GatewaySubmitResult::Reserved { .. } => ("reserved", None),
         GatewaySubmitResult::Unknown
         | GatewaySubmitResult::ResponseRecorded { .. }
         | GatewaySubmitResult::Observed { .. }

@@ -809,11 +809,11 @@
       "id": "lease-never-precedes-claim",
       "class": "selection",
       "given": [
-        "the logical operation was already claimed"
+        "the logical operation has an entry grant and no recorded response"
       ],
       "expect": {
-        "stage": "not-entered",
-        "code": "gateway.attempt.replay",
+        "stage": "unknown",
+        "code": null,
         "leases": 0,
         "provider_entries": 0
       }

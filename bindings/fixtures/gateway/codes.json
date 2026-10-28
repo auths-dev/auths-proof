@@ -409,14 +409,6 @@
       }
     },
     {
-      "code": "gateway.policy.count-unavailable",
-      "owner": "ReserveRefusal",
-      "stage": "before-claim",
-      "status": "changed",
-      "epic": 4,
-      "case": null
-    },
-    {
       "code": "gateway.policy.evaluator-mismatch",
       "owner": "engine",
       "stage": "before-claim",

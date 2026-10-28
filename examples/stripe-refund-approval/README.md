@@ -226,7 +226,7 @@ gateway code.
 | `--connect-account acct_1AuthsOtherAcct`, which the grant does not list | gateway | `not-entered` `gateway.policy.scope-denied` | 0 |
 | 50.00 when 45.00 of the day's 60.00 USD is left | gateway | `not-entered` `gateway.policy.sum-exhausted` | 0 |
 | A third refund on the same UTC day | gateway | `not-entered` `gateway.policy.window-exhausted` | 0 |
-| `refund-1` requested again, with fresh approvals | gateway | `not-entered` `gateway.attempt.replay` | 0 |
+| `refund-1` requested again, with fresh approvals | gateway | `not-entered` `gateway.effect.operation-conflict` | 0 |
 | `refund-1`'s proof sent for another refund | gateway | `denied` `action-body-mismatch` | 0 |
 | The first lowered-threshold refund requested again at the installed threshold, after the window is full | gateway | `not-entered` `gateway.policy.window-exhausted`: a verification denial claims nothing, so this is not a replay | 0 |
 | Managers B and C run `auths approve … --decline` | managers B and C | `not-submitted` (`approvers-declined`): manager A's approval alone cannot make a quorum, so nothing is sent | 0 |

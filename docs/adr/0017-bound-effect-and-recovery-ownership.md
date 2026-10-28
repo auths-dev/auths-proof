@@ -303,3 +303,23 @@ silently approving business meaning from untrusted descriptions. The full
 Todoist vendor input currently fails the pinned digest; equivalent frozen native
 excerpt outputs update the render artifacts while full vendor execution remains
 explicitly pending. No source pin or verification rule was weakened.
+
+
+## Public replay and unacknowledged grants
+
+The mutation submission driver returns stored facts for equal bindings that
+already have a grant or terminal result. Replay stops before a credential lease
+and cannot invoke the operator observation path. An equal pre-grant reservation
+may continue only through the separate fresh authorization and grant checks.
+
+The native result represents that reservation explicitly with its bounded
+revision. If admission or grant acknowledgement is unavailable, reload the exact
+bound journal: reserved remains reserved; a retained grant without conclusive
+response remains unknown; missing/corrupt/unavailable state is indeterminate.
+These reads cannot return a permit or infer non-entry. Historical observation
+returned on replay must not be counted as a new read-back confirmation.
+
+The old explicit operator observation mechanics remain temporarily reachable
+only on the operator surface. They are not the final AP074 recovery contract:
+that direct path, automatic post-write observations and all ancillary reads must
+be replaced by independently authorized bounded acquisitions before completion.

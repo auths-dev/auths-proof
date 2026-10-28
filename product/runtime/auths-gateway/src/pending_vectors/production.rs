@@ -87,7 +87,7 @@ const ROWS: &[&str] = &[
     "gateway.support.unavailable support support-bundle implemented 4 -",
     "gateway.support.attempts-unavailable support support-bundle implemented 4 -",
     "gateway.support.connection-unavailable support support-bundle implemented 4 -",
-    "gateway.attempt.replay engine recorded existing - C:lease-never-precedes-claim",
+    "gateway.attempt.state-unavailable engine journal implemented 5 -",
     "gateway.connection.credential-generation-missing engine before-claim existing - C:lease-generation-not-held",
     "gateway.credential.unavailable engine recorded existing - C:lease-commitment-mismatch",
     "gateway.install.credential-store-unavailable install install existing - -",
@@ -667,10 +667,10 @@ fn lease_cases() -> Vec<Value> {
         scenario(
             "lease-never-precedes-claim",
             "selection",
-            &["the logical operation was already claimed"],
+            &["the logical operation has an entry grant and no recorded response"],
             json!({
-                "stage": "not-entered",
-                "code": "gateway.attempt.replay",
+                "stage": "unknown",
+                "code": null,
                 "leases": 0,
                 "provider_entries": 0,
             }),

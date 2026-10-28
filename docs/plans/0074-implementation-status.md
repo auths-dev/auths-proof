@@ -117,9 +117,9 @@ The checkpoint sections below are historical records; the phase and acceptance
 ledgers at the end describe current closure. Do not treat earlier "pending"
 notes as a reason to reimplement a later completed source cutover.
 
-1. Finish truthful public reservation/recovery projections and independently
-   authorized bounded observation. `Reserved` is not provider uncertainty, and
-   replay must not implicitly authorize provider reads. Preserve immutable
+1. Finish independently authorized bounded observation and full native recovery
+   actions/charge/evidence projections. Public `Reserved` and zero-provider-I/O
+   application replay are now implemented. Preserve immutable
    admission/grant history and the one-use transport boundary already wired.
 2. Complete typed acquisition, separate recipient disclosure and exact ACK in
    the existing native owners. Bind and account for all credential-bearing
@@ -343,6 +343,37 @@ closure regeneration passed after that correction (one artifact-generation test)
   supported frontend rendering and failure boundaries, privacy checks, and
   cross-language/installed evidence. P2–P4 remain open and no complete A01–A22
   acceptance claim follows from this checkpoint.
+
+## Replay projection checkpoint
+
+- Application replay of a granted or terminal effect now reads only its full
+  matching native binding and returns the retained journal outcome. It never
+  enters the credential/observation path. A reserved effect remains resumable
+  only through fresh approval/authority and the single-winner grant already
+  implemented. Changed bindings remain explicit conflicts.
+- The public native result adds `reserved` and its bounded journal revision.
+  An unacknowledged grant reloads the journal: pre-grant state is reserved,
+  committed grant state is unknown, and unavailable/corrupt state is
+  indeterminate (`gateway.attempt.state-unavailable`). None returns a permit.
+  Python and TypeScript decode the native variant; they do not decide recovery.
+- Native `replay-projection.json` artifact construction passed on `ed907973`
+  plus this source using `scenario_tests::native_replay_projection_fixture_is_current`.
+  It drives the real file store and submission driver with a synthetic command
+  oracle, concurrent reopened-store replay, pre-commit failure, post-commit lost
+  acknowledgement and unavailable reread. Counts show zero replay custody/read/
+  write calls and no journal change. It also constructs native valid/invalid
+  reservation decoding cases consumed by authored binding tests.
+- Qualification execution forbids replay leases and new confirmation credit.
+  Maintained family corpora, live harness expectations and examples now distinguish
+  historical outcomes from binding conflicts. Retained operator observation tests
+  explicitly invoke that path rather than using replay. That existing operator
+  path, automatic post-write reads and other ancillary reads still need independent
+  bounded native acquisition authority/accounting; this checkpoint does not close
+  A11/A15, installed bindings, full adapter faults or the authenticated journey.
+- Attempt-scenario, stable-code, custody and final semantic-closure corpus
+  construction also passed via their exact native artifact generators. Binding tests, broad conformance,
+  translated formal artifacts and hosted CI are not yet executed. No AP073 work
+  or delegation occurred.
 
 ## Phase gates
 

@@ -82,14 +82,20 @@ pub enum GatewayEngineConfigurationError {
 /// Closed, secret-free application result. A recorded response or matching
 /// read-back does not prove provider effect or exclusive causation.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "outcome", rename_all = "kebab-case")]
+#[serde(tag = "outcome", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum GatewaySubmitResult {
     /// Native proof verification denied the action.
     Denied { code: String },
-    /// Native proof verification could not reach an authorized conclusion.
+    /// Native verification or required durable state is unavailable/indeterminate.
     Indeterminate { code: String },
     /// Proof was authorized but this operation did not enter write transport.
     NotEntered { code: String },
+    /// A durable reservation exists without an entry grant. Continuing requires
+    /// fresh native authority, exact approval and a new single-winner grant.
+    Reserved {
+        #[serde(deserialize_with = "decode_journal_revision")]
+        revision: u64,
+    },
     /// Write entry/effect is ambiguous; no automatic retry is permitted.
     Unknown,
     /// A complete bounded HTTP response exists, but no read-back was recorded.
@@ -104,6 +110,16 @@ pub enum GatewaySubmitResult {
         status: Option<u16>,
         evidence: GatewayEvidenceSummary,
     },
+}
+
+fn decode_journal_revision<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u64, D::Error> {
+    let revision = u64::deserialize(deserializer)?;
+    if !(1..=9_007_199_254_740_991).contains(&revision) {
+        return Err(serde::de::Error::custom("invalid journal revision"));
+    }
+    Ok(revision)
 }
 
 /// Secret-free summary of stored provider evidence. The response bytes and
@@ -1501,11 +1517,14 @@ impl GatewayEngine {
     }
 }
 
-/// The result a stored attempt answers when a re-observation recorded
-/// nothing new.
-fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResult {
+/// Public journal facts, used for replay and inspection. This projection never
+/// creates authority, performs I/O or counts retained evidence as a new observation.
+pub(crate) fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResult {
     use crate::GatewayAttemptStage as Stage;
     match (snapshot.stage(), snapshot.response_status()) {
+        (Stage::Reserved, _) => GatewaySubmitResult::Reserved {
+            revision: snapshot.revision(),
+        },
         (Stage::NotEntered, _) => GatewaySubmitResult::NotEntered {
             code: snapshot
                 .refusal()
@@ -1975,10 +1994,6 @@ pub(crate) fn not_entered(code: &'static str) -> GatewaySubmitResult {
     GatewaySubmitResult::NotEntered {
         code: code.to_owned(),
     }
-}
-
-pub(crate) fn replay_refused() -> GatewaySubmitResult {
-    not_entered("gateway.attempt.replay")
 }
 
 fn wall_clock_seconds() -> Option<u64> {

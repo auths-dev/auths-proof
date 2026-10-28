@@ -1848,14 +1848,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(|_| GatewayAttemptError::Unavailable)?
 }
 
-/// The plan a reopened attempt must match: the one a new verified request
-/// resolves to, or, for the operator's re-observation, the stored one.
-#[derive(Clone, Copy)]
-enum ExpectedPlan<'a> {
-    Request(Option<&'a ObservationTemplate>),
-    Stored,
-}
-
 /// A fresh `reserved` claim record for `request`, with a random nonce and
 /// no counters.
 fn claim_record(
@@ -2065,36 +2057,35 @@ impl GatewayAttempts {
             .transpose()
     }
 
-    /// Reopens a stored attempt for one read-only observation from its
-    /// stored plan. It returns `None` unless the recipe digest is unchanged,
-    /// the new verified request resolves to the same plan, and the stage can
-    /// be resolved by a read-back: an `entry-granted` or `unknown` record only
-    /// for a verified-locator link, and a `response-recorded` record for any
-    /// declared link whose locator is recorded. A re-observation records only
-    /// positive evidence under compare-and-swap, so it may run while the
-    /// original attempt is in flight; the in-flight process then loses its
-    /// own compare-and-swap, and no second write happens either way.
-    ///
-    /// # Errors
-    /// Malformed state is a hard failure.
-    pub async fn resume_observable(
+    /// Reads history only when the complete immutable binding matches the
+    /// approved native effect. Renewed approval is not part of that identity.
+    pub(crate) async fn read_effect(
         &self,
-        request: &ClosedProviderRequest,
-        recipe_digest: [u8; 32],
-    ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
-        self.resume(
-            request.namespace(),
-            request.operation_id(),
-            recipe_digest,
-            ExpectedPlan::Request(request.observation_template()),
-        )
-        .await
+        approved: &ApprovedEffect,
+    ) -> Result<Option<GatewayAttemptSnapshot>, GatewayAttemptError> {
+        let request = &approved.command().request;
+        let Some((_, record)) = self
+            .load(request.namespace(), request.operation_id())
+            .await?
+        else {
+            return Ok(None);
+        };
+        if record.binding_canonical.as_bytes()
+            != approved
+                .effect()
+                .binding()
+                .to_private_bytes()
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .as_slice()
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        record.snapshot(true).map(Some)
     }
 
     /// Reopens a stored attempt for the operator's read-only
-    /// re-observation, under the rules of
-    /// [`Self::resume_observable`] except that the plan comes from the
-    /// stored record alone, since the operator supplies no request.
+    /// re-observation. The recipe must match and the stored stage must permit
+    /// evidence from its stored plan. Application replay cannot call this path.
     ///
     /// # Errors
     /// Malformed state is a hard failure.
@@ -2103,17 +2094,6 @@ impl GatewayAttempts {
         namespace: &OperatorNamespace,
         operation_id: &LogicalOperationId,
         recipe_digest: [u8; 32],
-    ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
-        self.resume(namespace, operation_id, recipe_digest, ExpectedPlan::Stored)
-            .await
-    }
-
-    async fn resume(
-        &self,
-        namespace: &OperatorNamespace,
-        operation_id: &LogicalOperationId,
-        recipe_digest: [u8; 32],
-        expected_plan: ExpectedPlan<'_>,
     ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
         let Some((stored, record)) = self.load(namespace, operation_id).await? else {
             return Ok(None);
@@ -2132,10 +2112,6 @@ impl GatewayAttempts {
         };
         let resumable = stage_resolvable
             && record.recipe_digest == hex::encode(recipe_digest)
-            && match expected_plan {
-                ExpectedPlan::Request(plan) => record.observation_plan.as_ref() == plan,
-                ExpectedPlan::Stored => true,
-            }
             && record.observation_request().is_some();
         let key = self.key(namespace, operation_id)?;
         Ok(resumable.then(|| ObservableGatewayAttempt {

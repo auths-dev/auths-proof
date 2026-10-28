@@ -37,7 +37,7 @@ pub enum Mode {
     Entry,
     /// The lease for the read-back after a recorded response.
     ReadBack,
-    /// The lease for a replay's read-only re-observation.
+    /// The lease for an explicit operator re-observation.
     Reobserve,
 }
 
@@ -80,7 +80,7 @@ pub enum Phase {
     Prepare,
     /// Awaiting the claim.
     Claim,
-    /// Awaiting whether a replayed attempt can be re-observed.
+    /// Awaiting an explicit operator re-observation start.
     Resume,
     /// Awaiting the connection reload before a lease.
     Reload(Mode),
@@ -241,7 +241,7 @@ pub enum SubmitEvent {
     Preparation(bool),
     /// The claim result.
     Claim(ClaimResult),
-    /// The replayed attempt can be re-observed.
+    /// An explicit operator attempt can be re-observed.
     Resume(bool),
     /// The connection record is unchanged.
     Reload(bool),
@@ -307,7 +307,7 @@ pub enum Refusal {
 pub enum Stop {
     /// Refused before the claim; nothing was stored.
     Refused,
-    /// The claim could not be stored; nothing was stored.
+    /// The claim was not acknowledged; durable state may be unavailable.
     StoreUnavailable,
     /// The claim step recorded `not-entered`.
     ClaimRefused,
@@ -319,8 +319,12 @@ pub enum Stop {
     Response,
     /// A read-back recorded its transition.
     Observed,
-    /// A replay recorded nothing.
-    ReplayRefused,
+    /// An identical replay returned only the matching journal state.
+    Stored,
+    /// A grant was not acknowledged; only a fresh journal read can report state.
+    GrantUnavailable,
+    /// An explicit operator re-observation recorded nothing.
+    ReobservationUnrecorded,
     /// An event the phase does not expect.
     Halted,
 }
@@ -340,8 +344,6 @@ pub enum SubmitAction {
     Prepare,
     /// Claim the logical operation.
     Claim,
-    /// Load the replayed attempt and decide whether it can be re-observed.
-    Resume,
     /// Reload the connection record before a lease.
     Reload(Mode),
     /// Lease the credential.
@@ -439,7 +441,7 @@ pub const fn lease_failed(state: SubmitState, mode: Mode, refusal: Refusal) -> S
     match mode {
         Mode::Entry => not_entered(state, refusal),
         Mode::ReadBack => stop(state, Stop::Response),
-        Mode::Reobserve => stop(state, Stop::ReplayRefused),
+        Mode::Reobserve => stop(state, Stop::ReobservationUnrecorded),
     }
 }
 
@@ -541,7 +543,7 @@ pub const fn after_claim(state: SubmitState, result: ClaimResult) -> SubmitDecis
             SubmitAction::Reload(Mode::Entry),
         ),
         ClaimResult::Refused => stop(state, Stop::ClaimRefused),
-        ClaimResult::Replay => go(state, Phase::Resume, SubmitAction::Resume),
+        ClaimResult::Replay => stop(state, Stop::Stored),
         ClaimResult::Unavailable => stop(state, Stop::StoreUnavailable),
     }
 }
@@ -646,7 +648,7 @@ pub const fn after_read_back(state: SubmitState, mode: Mode, recorded: bool) -> 
         match mode {
             Mode::Entry => halt(state),
             Mode::ReadBack => stop(state, Stop::Response),
-            Mode::Reobserve => stop(state, Stop::ReplayRefused),
+            Mode::Reobserve => stop(state, Stop::ReobservationUnrecorded),
         }
     }
 }
@@ -722,7 +724,7 @@ pub const fn lease_step(state: SubmitState, event: SubmitEvent) -> SubmitDecisio
                         SubmitAction::Reload(Mode::Reobserve),
                     )
                 } else {
-                    stop(state, Stop::ReplayRefused)
+                    stop(state, Stop::ReobservationUnrecorded)
                 }
             }
             _ => halt(state),
@@ -815,7 +817,7 @@ pub const fn entry_step(state: SubmitState, event: SubmitEvent) -> SubmitDecisio
         },
         Phase::Grant => match event {
             SubmitEvent::Granted(true) => go(state, Phase::Send, SubmitAction::Send),
-            SubmitEvent::Granted(false) => stop(state, Stop::Unknown),
+            SubmitEvent::Granted(false) => stop(state, Stop::GrantUnavailable),
             _ => halt(state),
         },
         Phase::Send => match event {
@@ -1032,18 +1034,15 @@ mod tests {
             SubmitEvent::Admission(true),
             SubmitEvent::Preparation(true),
             SubmitEvent::Claim(ClaimResult::Replay),
-            SubmitEvent::Resume(true),
-            SubmitEvent::Reload(true),
-            SubmitEvent::Lease(true),
-            SubmitEvent::Prefix(true),
-            SubmitEvent::Account(AccountResult::Mismatch),
         ];
         let actions = run(STRIPE, &replay);
         assert!(!actions.contains(&SubmitAction::Send));
-        assert_eq!(
-            actions.last(),
-            Some(&SubmitAction::Stop(Stop::ReplayRefused))
+        assert!(
+            !actions
+                .iter()
+                .any(|action| matches!(action, SubmitAction::Lease(_) | SubmitAction::ReadBack(_)))
         );
+        assert_eq!(actions.last(), Some(&SubmitAction::Stop(Stop::Stored)));
         let refused = run(
             STRIPE,
             &[
@@ -1070,7 +1069,7 @@ mod tests {
         );
         assert_eq!(
             next_step(state, SubmitEvent::Granted(false)).action,
-            SubmitAction::Stop(Stop::Unknown)
+            SubmitAction::Stop(Stop::GrantUnavailable)
         );
         assert_eq!(
             next_step(state, SubmitEvent::Write(WriteResult::Response)).action,

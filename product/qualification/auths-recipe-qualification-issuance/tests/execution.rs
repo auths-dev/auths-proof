@@ -136,7 +136,7 @@ fn commissioning_client_refusal_cannot_replace_an_ordinary_installed_effect() {
 }
 
 #[test]
-fn replay_can_complete_an_unresolved_read_back_but_never_write_or_reacquire_after_observation() {
+fn replay_returns_history_without_a_lease_entry_or_new_confirmation() {
     use auths_recipe_qualification::BoundedText;
     let mut case = executable_corpus()
         .cases
@@ -144,26 +144,21 @@ fn replay_can_complete_an_unresolved_read_back_but_never_write_or_reacquire_afte
         .find(|case| case.scenario == Scenario::AmbiguousResponse)
         .expect("ambiguous response");
     let replay = &mut case.steps[1].expected;
-    replay.credential_leases = 1;
+    replay.credential_leases = 0;
     replay.verdict.outcome = RunOutcome::Unknown;
     replay.verdict.code = BoundedText::parse("unknown").expect("code");
     assert!(run(&case, |_, _| {}).is_ok());
     let replay = &mut case.steps[1].expected;
     replay.verdict.outcome = RunOutcome::Observed;
     replay.verdict.evidence_sha256 = Some(tuple().profile_lock_sha256);
-    replay.confirmed_by_read_back = 1;
+    replay.confirmed_by_read_back = 0;
     assert!(run(&case, |_, _| {}).is_ok());
     for mutation in 0..3 {
         let mut changed = case.clone();
         match mutation {
             0 => changed.steps[1].expected.provider_entries = 1,
-            1 => changed.steps[1].expected.credential_leases = 2,
-            _ => {
-                changed.steps[0].expected.verdict.outcome = RunOutcome::Observed;
-                changed.steps[0].expected.verdict.evidence_sha256 =
-                    Some(tuple().profile_lock_sha256);
-                changed.steps[0].expected.confirmed_by_read_back = 1;
-            }
+            1 => changed.steps[1].expected.credential_leases = 1,
+            _ => changed.steps[1].expected.confirmed_by_read_back = 1,
         }
         assert_eq!(run(&changed, |_, _| {}), Err(IssuanceError::CaseFailed));
     }
