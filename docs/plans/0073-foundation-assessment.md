@@ -1009,3 +1009,34 @@ run's result instead of cancelling it through the workflow concurrency group.
 Next work must dispatch the new revision after that run terminates, inspect
 behavioral failures, and complete the external operator bootstrap and isolated
 child provider flow. No goal or acceptance criterion is closed by this checkpoint.
+
+## 29. Installed child writer and operator phase boundary
+
+A new `enrolled_machine_agent_child_executes_human_approved_write_and_observation`
+source test extends the existing installed task session scenario. It authors
+company → machine → A → B native resource/control chains, publishes the initial
+root and B enrollment through production journal methods, checks B's exact
+review/confirmation bytes, and drives the real gateway to a loopback PATCH and
+GET observation. The existing missing-human-approval, changed-connection,
+materialization, observed result and replay assertions also apply to B. The
+provider remains a test double; there is no new production path or provider
+semantic branch, and no process-isolation claim.
+
+The fixture accepts explicit time and grants no trust implicitly: its test-only
+operator setup explicitly installs depth three and participant-control tools.
+Source-closure construction compiled the scenario but ran only its artifact test
+(398 behavioral tests filtered out). Hosted execution remains pending. No
+acceptance criterion closes.
+
+Participant contract §20 records the external workflow replacement: activate the
+final signed card with control authority first; obtain exact native scope/audience
+projections from protected state; separately approve and issue resource authority
+and trust; bootstrap the root; enroll B. The AP071 combined task-and-grant browser
+ceremony cannot remain an ordinary-audience fallback. Its production-facing
+orchestration still needs that direct cutover.
+
+CI 40605911534 has now terminated. Fast Lean feedback passed; the repaired
+OpenAPI Rustdoc lint prevented downstream qualification. The next full run will
+cover the writer cutover plus this installed child scenario. Semantic inventory
+411 advances identity 153/public SDK 150 for the gateway source closure; these
+are source-identity updates, not core wire or new proof-qualification claims.

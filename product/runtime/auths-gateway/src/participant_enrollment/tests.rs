@@ -106,6 +106,17 @@ pub(crate) fn chained(
     tool: &str,
     arguments: &Map<String, Value>,
 ) -> Submission {
+    chained_at(signers, grants, service, tool, arguments, NOW)
+}
+
+pub(crate) fn chained_at(
+    signers: &[&Signer],
+    grants: &[&SignedGrant],
+    service: &str,
+    tool: &str,
+    arguments: &Map<String, Value>,
+    now: u64,
+) -> Submission {
     let mut signed = submission_for_audience(
         signers[signers.len() - 2],
         signers[signers.len() - 1],
@@ -114,7 +125,7 @@ pub(crate) fn chained(
         &[],
         service,
         tool,
-        NOW,
+        now,
         grants.last().unwrap().statement().audiences().as_slice()[0].clone(),
     );
     let terminal = auths_codec::decode_bundle(&signed.proof, &VerifierLimits::default()).unwrap();

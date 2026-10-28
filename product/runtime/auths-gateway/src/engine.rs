@@ -4286,13 +4286,19 @@ pub(crate) mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn installed_task_session_activates_and_gates_exact_agent_write() {
-        Box::pin(installed_task_write_case(false)).await;
+        Box::pin(installed_task_write_case(false, false)).await;
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn machine_initiated_task_requires_independent_human_for_exact_write() {
-        Box::pin(installed_task_write_case(true)).await;
+        Box::pin(installed_task_write_case(true, false)).await;
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider"))]
+    #[tokio::test]
+    async fn enrolled_machine_agent_child_executes_human_approved_write_and_observation() {
+        Box::pin(installed_task_write_case(true, true)).await;
     }
 
     #[cfg(unix)]
@@ -4300,7 +4306,7 @@ pub(crate) mod tests {
         clippy::too_many_lines,
         reason = "installed activation fixture includes connection, task and native principal proofs"
     )]
-    async fn installed_task_write_case(independent_initiator: bool) {
+    async fn installed_task_write_case(independent_initiator: bool, enrolled_child: bool) {
         use crate::harness::{self, Signer};
         use crate::task_activation::AgentTaskDescriptor;
         use crate::task_enrollment::test_authoring::submission as submission_for;
@@ -4388,6 +4394,7 @@ pub(crate) mod tests {
             &human
         };
         let agent = Signer::new(0x44);
+        let child = Signer::new(0x66);
         let observer = GatewayObserver::from_test_seed(0x33);
         engine.trusted_context = harness::context_for_agent_and_task_profile(
             &root,
@@ -4397,6 +4404,23 @@ pub(crate) mod tests {
             "set_demo_status_v2",
         )
         .expect("installed trust");
+        if enrolled_child {
+            engine.trusted_context = harness::context_for_profiles(
+                &[&root],
+                observer.principal(),
+                None,
+                now,
+                3,
+                auths_model::CompositionRequirement::new(None, 1, 1, 1).unwrap(),
+                &[auths_raw_key::RAW_KEY_V1],
+                &[
+                    ("airtable-gateway-demo", "set_demo_status_v2"),
+                    (TASK_SERVICE, crate::task_activation::APPROVAL_TOOL),
+                    (TASK_SERVICE, CONFIRMATION_TOOL),
+                ],
+            )
+            .unwrap();
+        }
         let loaded = engine
             .connection
             .load()
@@ -4481,6 +4505,18 @@ pub(crate) mod tests {
             assert!(engine.lease(&prepared).await.is_err());
             assert_eq!(materializer_calls.load(Ordering::SeqCst), 0);
         }
+        let mut delegation =
+            crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel");
+        if enrolled_child {
+            delegation.max_depth = 1;
+            delegation.permitted_channels.insert(
+                "child-channel".into(),
+                crate::participant_enrollment::EnrollmentChannelPins {
+                    principal: child.principal.clone(),
+                    instance_generation: 5,
+                },
+            );
+        }
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
             initiator_principal: initiator.principal.as_str().to_owned(),
@@ -4492,10 +4528,7 @@ pub(crate) mod tests {
             connection_subject: subject.to_owned(),
             permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
-            delegation: crate::task_activation::TaskDelegationPolicy::single(
-                &agent.principal,
-                "agent-channel",
-            ),
+            delegation,
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
@@ -4619,21 +4652,42 @@ pub(crate) mod tests {
             &signed.action,
         )
         .expect("approved task");
-        let resource_grants = crate::task_enrollment::test_authoring::bootstrap(
-            &session.ledger,
-            &approved,
-            &crate::TaskEnrollmentRecipes {
-                reads: &[],
-                writes: std::slice::from_ref(&engine.recipe),
-            },
-            &engine.trusted_context,
-            &config.pins,
-            &engine.qualification,
-            &root,
-            &agent,
-            now,
-        );
-        let agent_grant = &resource_grants[&engine.recipe.digest_hex()];
+        let recipes = crate::TaskEnrollmentRecipes {
+            reads: &[],
+            writes: std::slice::from_ref(&engine.recipe),
+        };
+        let delegated_resources = enrolled_child.then(|| {
+            crate::task_enrollment::test_authoring::bootstrap_delegated(
+                &crate::task_enrollment::test_authoring::DelegatedEnrollment {
+                    ledger: &session.ledger,
+                    task: &approved,
+                    recipes: &recipes,
+                    context: &engine.trusted_context,
+                    pins: &config.pins,
+                    time: &engine.qualification,
+                    signers: [&root, &machine, &agent, &child],
+                    now,
+                },
+            )
+        });
+        let resource_grants = if enrolled_child {
+            BTreeMap::new()
+        } else {
+            crate::task_enrollment::test_authoring::bootstrap(
+                &session.ledger,
+                &approved,
+                &crate::TaskEnrollmentRecipes {
+                    reads: &[],
+                    writes: std::slice::from_ref(&engine.recipe),
+                },
+                &engine.trusted_context,
+                &config.pins,
+                &engine.qualification,
+                &root,
+                &agent,
+                now,
+            )
+        };
         let agent_arguments = json!({
             "operator_namespace": "airtable-demo",
             "operation_id": "write-installed-1",
@@ -4643,16 +4697,29 @@ pub(crate) mod tests {
             "task_id": card.task_id,
             "task_commitment": hex::encode(approved.commitment()),
         });
-        let agent_signed = submission_for(
-            &root,
-            &agent,
-            agent_grant,
-            agent_arguments.as_object().expect("agent arguments"),
-            &[],
-            "airtable-gateway-demo",
-            "set_demo_status_v2",
-            now,
-        );
+        let agent_signed = if let Some(resources) = &delegated_resources {
+            crate::participant_enrollment::tests::chained_at(
+                &[&root, &machine, &agent, &child],
+                &resources[&engine.recipe.digest_hex()]
+                    .iter()
+                    .collect::<Vec<_>>(),
+                "airtable-gateway-demo",
+                "set_demo_status_v2",
+                agent_arguments.as_object().unwrap(),
+                now,
+            )
+        } else {
+            submission_for(
+                &root,
+                &agent,
+                &resource_grants[&engine.recipe.digest_hex()],
+                agent_arguments.as_object().expect("agent arguments"),
+                &[],
+                "airtable-gateway-demo",
+                "set_demo_status_v2",
+                now,
+            )
+        };
         let verified = verify_task_command(
             &approved,
             &engine.recipe,
@@ -4706,6 +4773,18 @@ pub(crate) mod tests {
             now,
         )
         .expect("closed write intent");
+        assert_eq!(
+            intent.writer.principal(),
+            if enrolled_child {
+                child.principal.as_str()
+            } else {
+                agent.principal.as_str()
+            }
+        );
+        assert_eq!(
+            review.confirmation_arguments,
+            serde_json_canonicalizer::to_string(&json!({"write": intent})).unwrap()
+        );
         let missing_confirmation = session
             .submit(TaskWriteProofs {
                 task_id: &card.task_id,

@@ -1683,6 +1683,7 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/task_enrollment/tests.rs#pending_child_projection_commits_lineage_without_substituting_parent_handle",
   "product/runtime/auths-gateway/src/task_enrollment/tests.rs#task_operations_require_native_root_and_exact_enrolled_scope_path",
   "product/runtime/auths-gateway/src/task_enrollment/tests.rs#exact_child_write_approval_cannot_be_reused_by_another_enrolled_writer",
+  "product/runtime/auths-gateway/src/engine.rs#enrolled_machine_agent_child_executes_human_approved_write_and_observation",
   "product/runtime/auths-gateway/src/task_enrollment/tests.rs#root_and_child_contend_for_one_write_and_revocation_stops_unreserved_child",
   "product/runtime/auths-gateway/src/task_enrollment/tests.rs#descendant_reads_and_unknown_disclosures_keep_all_ancestor_charges",
   "product/runtime/auths-gateway/src/task_enrollment/tests.rs#root_and_child_contend_for_one_last_shared_provider_read",

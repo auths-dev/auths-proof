@@ -50,6 +50,17 @@ pub(crate) fn operator_context(
             audiences.dedup();
             let mut permissions = anchor.permissions().as_slice().to_vec();
             permissions.push(control.permission().unwrap());
+            for tool in [
+                crate::participant_enrollment::ENROLL_PARTICIPANT_TOOL,
+                crate::participant_enrollment::ACCEPT_PARTICIPANT_TOOL,
+            ] {
+                permissions.push(
+                    McpToolCall::new(PARTICIPANT_SERVICE, tool, Map::new())
+                        .unwrap()
+                        .permission()
+                        .unwrap(),
+                );
+            }
             permissions.sort();
             permissions.dedup();
             let mut namespaces = anchor.resource_namespaces().to_vec();
@@ -269,3 +280,6 @@ pub(crate) fn submission(
         audience.clone(),
     )
 }
+
+mod delegated;
+pub(crate) use delegated::{DelegatedEnrollment, bootstrap_delegated};

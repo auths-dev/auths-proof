@@ -981,3 +981,79 @@ no hosted result and no provider execution. Sibling concurrency, changed-grant
 write mutations, child create/populate recovery, full language payload parity and
 the isolated provider write remain acceptance work. The old root-only bounded
 upfront restriction is preserved explicitly.
+
+## 20. Operator issuance follows protected activation
+
+**Design for the external workflow; not yet implemented.** The existing AP071
+broker issues ordinary service-audience resource grants before its task builder
+chooses a random task ID and final card. That order cannot produce the exclusive
+resource audiences required by §15. Adding audiences to trust automatically when
+an agent submits a proof would invert the trust boundary. Computing a different
+card in a later review would invalidate the intended scope as well.
+
+Before:
+
+```mermaid
+flowchart LR
+    O[Operator reviews recipes] --> G[Issue ordinary resource grants]
+    G --> C[Browser constructs final task card]
+    C --> S[Sign task and agent grants together]
+    S --> R[Resource operation]
+```
+
+Required sequence:
+
+```mermaid
+flowchart LR
+    O[Operator pins roles recipes accounts and ceilings] --> C[Initiator signs final card]
+    C --> A[Native activation: pending enrollment]
+    A --> P[Gateway projects exact scopes and audiences]
+    P --> O2[Explicit resource operator approval]
+    O2 --> G[Issue task-specific native resource and control chains]
+    G --> T[Install independently approved trust]
+    T --> B[Initial agent signs root and resource witnesses]
+    B --> E[Durable native root bootstrap]
+    E --> D[Parent delegation and child acceptance]
+    D --> X[Enrolled operations and independent exact write approval]
+```
+
+The first stage uses only authority for task-control actions. Recipe metadata,
+permitted resource handles, account/credential generations, principal roles,
+channels and budget ceilings are reviewed installation data, not already-issued
+provider authority. Activation persists one immutable signed card in the existing
+pending-root state; no resource operation is possible there.
+
+The next stage consumes `TaskWriteSession::participant_scopes` from that protected
+activation and installed recipes. The resource operator reviews those scopes
+alongside the signed card, including the account pins committed by each scope ID.
+The issuer grants each resource branch its single native task/partition/recipe
+audience. It signs distinct participant-control grants for the actual issuer →
+machine → A → B hierarchy, with declining delegation depth. Human confirmation
+stays a separate nondelegable role; machine initiation does not acquire it.
+Authority holders sign their own child grants and possession proofs.
+
+The final trust configuration is an explicit resource-operator decision with
+exact permission, audience, root and evidence policy limits. Resource audiences
+must not be inferred from incoming actions or silently appended by the runtime.
+The test-only `operator_context` helper is deliberately not a production issuer
+or trust-expansion API. Installation must bind the approved configuration using
+the existing installation/generation machinery; a final card is not rewritten
+to hash an artifact that already depends on that card. The card's policy pin and
+the resource operator's subsequent trust decision are separate, cumulative
+ceilings, not interchangeable attestations.
+
+The external broker needs two typed ceremonies: task activation and participant
+resource delegation. Its current combined response must be replaced, not kept as
+an alternate ordinary-audience route. The operator root key remains outside both
+browser/agent ceremonies. Finalization consumes the already activated card;
+refreshing inputs cannot mint a new task ID, replace roles, or extend expiry.
+Native root bootstrap remains the transaction that makes the engagement usable.
+Only after it succeeds may the agent receive a usable resource package and the
+operator configure the exact enrolled channel pins.
+
+The new installed native test follows this order with synthetic company,
+machine, A, B and human keys, production activation/enrollment/admission methods,
+and a loopback provider write plus read-back. It is source-level evidence for
+that sequence; it does not implement the browser ceremonies, prove process
+isolation or qualify a real provider. Those remain explicit external workflow
+work, together with issuer custody and binding-byte conformance.
