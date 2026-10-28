@@ -119,7 +119,7 @@ class TaskWriteExecutionTests(unittest.TestCase):
         card.write_text(json.dumps({
             "task_id": self.task_id,
             "company_id": "atlas",
-            "human_principal": "human-1",
+            "initiator_principal": "human-1", "approver_principal": "human-1",
         }), encoding="utf-8")
         os.chmod(card, 0o600)
         employee = EmployeeBinding("atlas", "jules", "issuer", "subject",
@@ -147,7 +147,7 @@ class TaskWriteExecutionTests(unittest.TestCase):
         card.write_text(json.dumps({
             "task_id": self.task_id,
             "company_id": "atlas",
-            "human_principal": "human-1",
+            "initiator_principal": "human-1", "approver_principal": "human-1",
         }), encoding="utf-8")
         os.chmod(card, 0o600)
         employee = EmployeeBinding("atlas", "jules", "issuer", "subject",
@@ -178,7 +178,7 @@ class TaskWriteExecutionTests(unittest.TestCase):
         card = self.task_dir / "task-card.json"
         card.write_text(json.dumps({
             "task_id": self.task_id, "company_id": "atlas",
-            "human_principal": "human-1",
+            "initiator_principal": "human-1", "approver_principal": "human-1",
         }), encoding="utf-8")
         card.chmod(0o600)
         employee = EmployeeBinding("atlas", "jules", "issuer", "subject",
@@ -323,6 +323,11 @@ class TaskWriteExecutionTests(unittest.TestCase):
                              b"human-proof")
             self.assertEqual((self.task_dir / "effect-plan.action").read_bytes(),
                              b"human-action")
+            with self.assertRaisesRegex(OperatorDenied, "already recorded"):
+                self.flow.prepare_effect_plan(
+                    task_id=self.task_id, employee=None, agent=None,
+                    agent_identity_packet=b"packet", now=1004,
+                )
             self.assertEqual(json.loads((self.task_dir / "effect-plan.json").read_bytes()),
                              prepared.plan)
             self.assertNotIn("task-submit", command)

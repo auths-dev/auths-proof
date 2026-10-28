@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .admission import AdmissionDenied
 from .demo_co_contract import ContractRejected
 from .existing_consent_smoke import (
@@ -74,7 +75,7 @@ def lease_jules_readonly_token(
     if type(token) is not str or not token or type(expiry) is not str:
         raise ReadOnlyCredentialDenied("read-only grant lacks usable token metadata")
     try:
-        parsed = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+        parsed = parse_aware_timestamp(expiry)
         if parsed.tzinfo is None:
             raise ValueError("timezone is missing")
         expires_at = int(parsed.astimezone(timezone.utc).timestamp())

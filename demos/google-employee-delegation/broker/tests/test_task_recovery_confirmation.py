@@ -37,8 +37,8 @@ class RecoveryReviewTests(unittest.TestCase):
                                         "human-key", "binding")
         self.agent = AgentBinding("atlas-studio", "binding", "agent-key", "a" * 64)
         self.card = {
-            "schema": "auths.agent-task/2", "task_id": self.task_id,
-            "company_id": "atlas-studio", "human_principal": "human-key",
+            "schema": "auths.agent-task/4", "task_id": self.task_id,
+            "company_id": "atlas-studio", "initiator_principal": "human-key", "approver_principal": "human-key",
             "agent_principal": "agent-key", "write_approval_mode": "exact",
             "pending_child": {"create_operation_id": "create-1"},
             "expires_at": 1300,
@@ -61,7 +61,7 @@ class RecoveryReviewTests(unittest.TestCase):
         public = self.signer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         self.pin = {"public_key_hex": public.hex(), "rule_digest": "1" * 64}
         self.plan = {
-            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "schema": "auths.agent-effect-plan/2", "task_id": self.task_id,
             "initial_text": "Approved Project A handoff",
         }
         plan_path = self.directory / "effect-plan.json"
@@ -71,7 +71,7 @@ class RecoveryReviewTests(unittest.TestCase):
             "schema": "auths.gateway-task-create-recovery-inputs/1",
             "task_id": self.task_id,
             "task_commitment": task_commitment(self.card),
-            "plan_commitment": commitment("auths.agent-effect-plan.v1", self.plan),
+            "plan_commitment": commitment("auths.agent-effect-plan.v2", self.plan),
             "content_commitment": hashlib.sha256(
                 b"auths.agent-effect-plan-content/1\0"
                 + self.plan["initial_text"].encode()).hexdigest(),

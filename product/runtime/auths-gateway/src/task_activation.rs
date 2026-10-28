@@ -1,11 +1,12 @@
-//! Provider-neutral, human-signed task envelope. Native verification proves
-//! who signed the exact card; operator pins still decide whether that human,
-//! agent and connection are installed. Provider access remains a later check.
+//! Provider-neutral task envelope with distinct initiator and approver roles.
+//! Native verification authenticates activation by the pinned initiator; exact
+//! effects require the independent approver. Provider access is a later check.
 
 use crate::bounds::authorized_chains;
 use crate::engine::{
     GatewaySubmitResult, authorized_action, not_entered, verify_sealed_for_audience,
 };
+use crate::participant_enrollment::MAX_SCOPES;
 use crate::release_state::{ReleaseResourceScope, ReleaseTaskPolicy};
 use auths_model::{Audience, PrincipalId, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
@@ -14,21 +15,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-const TASK_SCHEMA: &str = "auths.agent-task/2";
-pub(crate) const TASK_SERVICE: &str = "auths-agent-task";
+mod delegation;
+pub(crate) use delegation::TaskDelegationPolicy;
+
+const TASK_SCHEMA: &str = "auths.agent-task/4";
+pub(crate) use crate::control_namespace::TASK_SERVICE;
 pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
-const MAX_SCOPES: usize = 16;
 const MAX_TASK_SECONDS: u64 = 86_400;
 const MAX_WRITES: u32 = 32;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskReadScope {
-    handle: String,
-    recipe_digest: String,
-    connection_id: String,
-    connection_generation: u64,
-    connection_subject: String,
+    pub(crate) handle: String,
+    pub(crate) recipe_digest: String,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -95,7 +98,7 @@ pub(crate) enum WriteApprovalMode {
     BoundedUpfront,
 }
 
-/// Exact structured card the employee reviews and signs as one native MCP
+/// Exact structured card the initiator signs as one native MCP
 /// action. Handles and recipe digests are opaque to this shared contract.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -103,22 +106,24 @@ pub(crate) struct AgentTaskDescriptor {
     schema: String,
     pub(crate) task_id: String,
     company_id: String,
-    pub(crate) human_principal: String,
+    pub(crate) initiator_principal: String,
+    pub(crate) approver_principal: String,
     pub(crate) agent_principal: String,
     pub(crate) agent_key_fingerprint: String,
     pub(crate) connection_id: String,
     pub(crate) connection_generation: u64,
     pub(crate) connection_subject: String,
-    read_scopes: Vec<TaskReadScope>,
+    pub(crate) read_scopes: Vec<TaskReadScope>,
     pub(crate) write_scopes: Vec<TaskWriteScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) pending_child: Option<TaskPendingChild>,
     pub(crate) delivery_channel: String,
+    pub(crate) delegation: TaskDelegationPolicy,
     pub(crate) not_before: u64,
     pub(crate) expires_at: u64,
-    max_provider_calls: u32,
-    max_releases: u32,
-    max_release_bytes: u64,
+    pub(crate) max_provider_calls: u32,
+    pub(crate) max_releases: u32,
+    pub(crate) max_release_bytes: u64,
     pub(crate) max_writes: u32,
     pub(crate) write_approval_mode: WriteApprovalMode,
     /// Complete profile arguments the human allows in upfront mode, except
@@ -130,13 +135,14 @@ pub(crate) struct AgentTaskDescriptor {
 }
 
 /// Operator-installed values re-read at activation. These are independent of
-/// the human's submitted action and must come from active company, agent and
+/// the initiator's submitted action and must come from active company, agent and
 /// connection records, including the provider's stable account subject.
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskActivationPins {
     pub(crate) company_id: String,
-    pub(crate) human_principal: String,
+    pub(crate) initiator_principal: String,
+    pub(crate) approver_principal: String,
     pub(crate) agent_principal: String,
     pub(crate) agent_key_fingerprint: String,
     pub(crate) connection_id: String,
@@ -146,11 +152,20 @@ pub(crate) struct TaskActivationPins {
     /// a subset, but cannot invent a connection or substitute its subject.
     pub(crate) permitted_read_scopes: Vec<TaskReadScope>,
     pub(crate) delivery_channel: String,
+    pub(crate) delegation: TaskDelegationPolicy,
     pub(crate) operator_policy_digest: String,
     pub(crate) allow_bounded_writes: bool,
 }
 
 impl TaskActivationPins {
+    pub(crate) fn valid_delegation(&self) -> bool {
+        self.delegation.valid_for(
+            &self.agent_principal,
+            &self.delivery_channel,
+            &self.approver_principal,
+        )
+    }
+
     pub(crate) fn permits_read_recipe(&self, digest: &str) -> bool {
         self.permitted_read_scopes
             .iter()
@@ -158,7 +173,7 @@ impl TaskActivationPins {
     }
 }
 
-/// A verified human approval of the exact task card. No public constructor
+/// A verified activation of the exact task card by its initiator. No public constructor
 /// exists; the read ledger can derive its policy only from this value.
 pub(crate) struct ApprovedAgentTask {
     descriptor: AgentTaskDescriptor,
@@ -175,11 +190,7 @@ impl ApprovedAgentTask {
         now: u64,
     ) -> Result<Self, GatewaySubmitResult> {
         descriptor.validate(pins, now)?;
-        let canonical = serde_json_canonicalizer::to_vec(&descriptor)
-            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-        let actual = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
-            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-        if actual.as_bytes() != &commitment {
+        if descriptor.canonical_commitment()? != commitment {
             return Err(not_entered("gateway.task.activation-changed"));
         }
         Ok(Self {
@@ -200,7 +211,7 @@ impl ApprovedAgentTask {
             task_id: self.descriptor.task_id.clone(),
             task_commitment: self.commitment,
             company_id: self.descriptor.company_id.clone(),
-            human_principal: self.descriptor.human_principal.clone(),
+            initiator_principal: self.descriptor.initiator_principal.clone(),
             agent_principal: self.descriptor.agent_principal.clone(),
             not_before: self.descriptor.not_before,
             expires_at: self.descriptor.expires_at,
@@ -271,6 +282,15 @@ fn valid_upfront_choices(choices: &[BTreeMap<String, Value>]) -> bool {
 }
 
 impl AgentTaskDescriptor {
+    /// One owner for task canonicalization and its versioned commitment domain.
+    pub(crate) fn canonical_commitment(&self) -> Result<[u8; 32], GatewaySubmitResult> {
+        let canonical = serde_json_canonicalizer::to_vec(self)
+            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
+        auths_codec::domain_commitment("auths.agent-task.v4", &canonical)
+            .map(|commitment| *commitment.as_bytes())
+            .map_err(|_| not_entered("gateway.task.invalid-card"))
+    }
+
     pub(crate) fn recipes_installed(&self, digests: &[String]) -> bool {
         self.write_scopes
             .iter()
@@ -279,6 +299,27 @@ impl AgentTaskDescriptor {
                 digests.contains(&pending.create_recipe_digest)
                     && digests.contains(&pending.populate_recipe_digest)
             })
+    }
+
+    fn roles_valid(&self) -> bool {
+        [
+            &self.initiator_principal,
+            &self.approver_principal,
+            &self.agent_principal,
+        ]
+        .into_iter()
+        .all(|principal| PrincipalId::parse(principal).is_ok())
+            && self.initiator_principal != self.agent_principal
+            && self.approver_principal != self.agent_principal
+            && (self.write_approval_mode != WriteApprovalMode::BoundedUpfront
+                || self.initiator_principal == self.approver_principal)
+    }
+
+    fn resource_count(&self) -> usize {
+        self.read_scopes
+            .len()
+            .saturating_add(self.write_scopes.len())
+            .saturating_add(usize::from(self.pending_child.is_some()))
     }
 
     fn validate(&self, pins: &TaskActivationPins, now: u64) -> Result<(), GatewaySubmitResult> {
@@ -291,15 +332,12 @@ impl AgentTaskDescriptor {
             || !bounded_text(&self.purpose, 512)
             || !digest(&self.agent_key_fingerprint)
             || !digest(&self.operator_policy_digest)
-            || PrincipalId::parse(&self.human_principal).is_err()
-            || PrincipalId::parse(&self.agent_principal).is_err()
-            || self.human_principal == self.agent_principal
+            || !self.roles_valid()
             || self.connection_generation == 0
             || self.not_before > now
             || now >= self.expires_at
             || self.expires_at - self.not_before > MAX_TASK_SECONDS
-            || self.read_scopes.len() > MAX_SCOPES
-            || self.write_scopes.len() > MAX_SCOPES
+            || self.resource_count() > MAX_SCOPES
             || (self.read_scopes.is_empty() && self.write_scopes.is_empty())
             || self.max_provider_calls > 64
             || self.max_releases > self.max_provider_calls
@@ -324,6 +362,16 @@ impl AgentTaskDescriptor {
                 && self.write_approval_mode != WriteApprovalMode::Exact)
         {
             return Err(not_entered("gateway.task.invalid-card"));
+        }
+        if !pins.valid_delegation()
+            || !self.delegation.valid_for(
+                &self.agent_principal,
+                &self.delivery_channel,
+                &self.approver_principal,
+            )
+            || !self.delegation.narrows(&pins.delegation)
+        {
+            return Err(not_entered("gateway.task.delegation-binding"));
         }
         if !valid_upfront_choices(&self.upfront_allowed_arguments) {
             return Err(not_entered("gateway.task.invalid-upfront-allowance"));
@@ -361,7 +409,8 @@ impl AgentTaskDescriptor {
             return Err(not_entered("gateway.task.invalid-pending-child"));
         }
         if self.company_id != pins.company_id
-            || self.human_principal != pins.human_principal
+            || self.initiator_principal != pins.initiator_principal
+            || self.approver_principal != pins.approver_principal
             || self.agent_principal != pins.agent_principal
             || self.agent_key_fingerprint != pins.agent_key_fingerprint
             || self.connection_id != pins.connection_id
@@ -382,7 +431,7 @@ struct TaskApprovalArguments {
     task: AgentTaskDescriptor,
 }
 
-/// Verify the human's exact structured card under the company's pinned
+/// Verify the initiator's exact structured card under the company's pinned
 /// native trust. The operator supplies a fresh challenge in `context` and
 /// re-reads `pins` from installed records before this call.
 pub(crate) fn verify_task_activation(
@@ -417,7 +466,7 @@ fn verify_task_activation_for_profile(
     let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     if action.action_ids().len() != 1 {
-        return Err(not_entered("gateway.task.single-human-action-required"));
+        return Err(not_entered("gateway.task.single-initiator-action-required"));
     }
     let command = McpProfile
         .decode_verified(action)
@@ -432,16 +481,16 @@ fn verify_task_activation_for_profile(
     let branches = authorized_chains(proof_cbor, action)
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let [branch] = branches.as_slice() else {
-        return Err(not_entered("gateway.task.single-human-action-required"));
+        return Err(not_entered("gateway.task.single-initiator-action-required"));
     };
-    if branch.actor.as_str() != arguments.task.human_principal
+    if branch.actor.as_str() != arguments.task.initiator_principal
         || branch.chain.is_empty()
         || branch
             .chain
             .last()
             .is_none_or(|grant| grant.statement().subject() != &branch.actor)
     {
-        return Err(not_entered("gateway.task.human-authority"));
+        return Err(not_entered("gateway.task.initiator-authority"));
     }
     let bundle = auths_codec::decode_bundle(proof_cbor, &VerifierLimits::default())
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
@@ -458,13 +507,10 @@ fn verify_task_activation_for_profile(
     {
         return Err(not_entered("gateway.task.unsupported-policy"));
     }
-    let canonical = serde_json_canonicalizer::to_vec(&arguments.task)
-        .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-    let commitment = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
-        .map_err(|_| not_entered("gateway.task.invalid-card"))?;
+    let commitment = arguments.task.canonical_commitment()?;
     Ok(ApprovedAgentTask {
         descriptor: arguments.task,
-        commitment: *commitment.as_bytes(),
+        commitment,
     })
 }
 
@@ -487,7 +533,8 @@ mod tests {
             schema: TASK_SCHEMA.to_owned(),
             task_id: "task-1".to_owned(),
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: "a".repeat(64),
             connection_id: "jules-google".to_owned(),
@@ -510,6 +557,10 @@ mod tests {
             }],
             pending_child: None,
             delivery_channel: "registered-agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "registered-agent-channel",
+            ),
             not_before: NOW - 30,
             expires_at: NOW + 900,
             max_provider_calls: 2,
@@ -526,7 +577,8 @@ mod tests {
     fn pins(card: &AgentTaskDescriptor) -> TaskActivationPins {
         TaskActivationPins {
             company_id: card.company_id.clone(),
-            human_principal: card.human_principal.clone(),
+            initiator_principal: card.initiator_principal.clone(),
+            approver_principal: card.approver_principal.clone(),
             agent_principal: card.agent_principal.clone(),
             agent_key_fingerprint: card.agent_key_fingerprint.clone(),
             connection_id: card.connection_id.clone(),
@@ -534,6 +586,7 @@ mod tests {
             connection_subject: card.connection_subject.clone(),
             permitted_read_scopes: card.read_scopes.clone(),
             delivery_channel: card.delivery_channel.clone(),
+            delegation: card.delegation.clone(),
             operator_policy_digest: card.operator_policy_digest.clone(),
             allow_bounded_writes: false,
         }
@@ -574,6 +627,212 @@ mod tests {
     }
 
     #[test]
+    fn task_delegation_is_signed_and_may_only_narrow_installed_channels() {
+        use crate::participant_enrollment::EnrollmentChannelPins;
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let child = Signer::new(0x55);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context =
+            harness::context_for_agent_and_task(&root, observer.principal(), NOW).expect("context");
+        let mut card = card(&human, &agent);
+        let mut installed = pins(&card);
+        installed.delegation.max_depth = 1;
+        installed.delegation.permitted_channels.insert(
+            "child-channel".into(),
+            EnrollmentChannelPins {
+                principal: child.principal,
+                instance_generation: 2,
+            },
+        );
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let narrow = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("operator superset permits signed zero-depth task");
+        let narrow_commitment = *narrow.commitment();
+        card.delegation = installed.delegation.clone();
+        assert_ne!(
+            card.canonical_commitment().expect("commitment"),
+            narrow_commitment
+        );
+        let (_, changed_action) = signed_card_for_approval(&root, &human, &card);
+        assert!(
+            verify_task_activation(&context, &installed, NOW, &proof, &changed_action).is_err()
+        );
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let approved = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("explicit signed child-channel authorization");
+        assert_eq!(approved.descriptor().delegation, card.delegation);
+        installed
+            .delegation
+            .permitted_channels
+            .remove("child-channel");
+        installed.delegation.max_depth = 0;
+        assert!(verify_task_activation(&context, &installed, NOW, &proof, &action).is_err());
+    }
+
+    #[test]
+    fn task_delegation_refuses_generation_channel_role_and_depth_substitution() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let child = Signer::new(0x55);
+        let original = card(&human, &agent);
+        let installed = pins(&original);
+        let root_channel = "registered-agent-channel";
+        for mutation in 0..10 {
+            let mut changed = original.clone();
+            let delegation = &mut changed.delegation;
+            match mutation {
+                0 => delegation.partition_generation = 0,
+                1 => delegation.partition_generation = 2,
+                2 => delegation.root_instance_generation = 2,
+                3 => delegation.max_depth = 1,
+                4 => {
+                    delegation.permitted_channels.clear();
+                }
+                5 => {
+                    delegation
+                        .permitted_channels
+                        .get_mut(root_channel)
+                        .expect("pin")
+                        .principal = child.principal.clone();
+                }
+                6 => {
+                    delegation
+                        .permitted_channels
+                        .get_mut(root_channel)
+                        .expect("pin")
+                        .instance_generation = 2;
+                }
+                7 => delegation.partition_generation = 1 << 53,
+                8 => {
+                    delegation.permitted_channels.insert(
+                        "other".into(),
+                        crate::participant_enrollment::EnrollmentChannelPins {
+                            principal: human.principal.clone(),
+                            instance_generation: 1,
+                        },
+                    );
+                }
+                9 => {
+                    delegation.permitted_channels.insert(
+                        "other".into(),
+                        delegation.permitted_channels[root_channel].clone(),
+                    );
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                changed.validate(&installed, NOW).is_err(),
+                "mutation {mutation}"
+            );
+        }
+    }
+
+    #[test]
+    fn task_delegation_has_no_implicit_or_legacy_decoder() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let original = card(&human, &agent);
+        let mut missing = serde_json::to_value(&original).expect("card");
+        missing
+            .as_object_mut()
+            .expect("object")
+            .remove("delegation");
+        assert!(serde_json::from_value::<AgentTaskDescriptor>(missing).is_err());
+        let mut unknown = serde_json::to_value(&original).expect("card");
+        unknown["delegation"]["fallback_generation"] = json!(1);
+        assert!(serde_json::from_value::<AgentTaskDescriptor>(unknown).is_err());
+        let mut obsolete = original.clone();
+        obsolete.schema = "auths.agent-task/3".into();
+        assert!(obsolete.validate(&pins(&original), NOW).is_err());
+    }
+
+    #[test]
+    fn task_resource_limit_is_shared_by_reads_writes_and_pending_children() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut card = card(&human, &agent);
+        let source = card.read_scopes[0].clone();
+        card.read_scopes = (0..15)
+            .map(|index| TaskReadScope {
+                handle: format!("source-{index}"),
+                ..source.clone()
+            })
+            .collect();
+        assert!(card.validate(&pins(&card), NOW).is_ok());
+        card.read_scopes.push(TaskReadScope {
+            handle: "source-16".into(),
+            ..source
+        });
+        assert!(card.validate(&pins(&card), NOW).is_err());
+        card.read_scopes.truncate(14);
+        card.write_scopes[0].verb = TaskWriteVerb::Create;
+        card.max_writes = 2;
+        card.pending_child = Some(TaskPendingChild {
+            create_operation_id: "create-1".into(),
+            create_recipe_digest: "c".repeat(64),
+            populate_recipe_digest: "e".repeat(64),
+            parent_handle: "working-doc".into(),
+            title: "Scoped child".into(),
+            marker: "synthetic-child-marker".into(),
+        });
+        assert!(card.validate(&pins(&card), NOW).is_ok());
+        card.read_scopes.push(TaskReadScope {
+            handle: "source-15".into(),
+            ..card.read_scopes[0].clone()
+        });
+        assert!(card.validate(&pins(&card), NOW).is_err());
+    }
+
+    #[test]
+    fn reopened_task_refuses_a_changed_installed_partition_or_instance() {
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let card = card(&human, &agent);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context =
+            harness::context_for_agent_and_task(&root, observer.principal(), NOW).expect("context");
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let approved = verify_task_activation(&context, &pins(&card), NOW, &proof, &action)
+            .expect("native task");
+        let directory = tempfile::tempdir().expect("directory");
+        let path = fs::canonicalize(directory.path())
+            .expect("path")
+            .join("ledger");
+        FileReleaseTaskLedger::open(&path)
+            .expect("ledger")
+            .initialize(&approved)
+            .expect("durable activation");
+        let reopened = FileReleaseTaskLedger::open(path)
+            .expect("reopen")
+            .load(&card.task_id)
+            .expect("read")
+            .expect("task");
+        assert!(reopened.activated_task(&pins(&card), NOW + 1).is_ok());
+        for change_partition in [true, false] {
+            let mut changed = pins(&card);
+            if change_partition {
+                changed.delegation.partition_generation += 1;
+            } else {
+                changed.delegation.root_instance_generation += 1;
+                changed
+                    .delegation
+                    .permitted_channels
+                    .get_mut(&card.delivery_channel)
+                    .expect("channel")
+                    .instance_generation += 1;
+            }
+            assert!(changed.valid_delegation(), "valid replacement installation");
+            assert_eq!(
+                reopened.activated_task(&changed, NOW + 1).err(),
+                Some(crate::release_state::ReleaseStateError::Binding)
+            );
+        }
+    }
+
+    #[test]
     fn human_signed_card_initializes_exact_read_policy() {
         let root = Signer::new(0x11);
         let human = Signer::new(0x22);
@@ -589,7 +848,7 @@ mod tests {
         assert_ne!(approved.commitment(), &[0; 32]);
         let policy = approved.task_policy();
         assert_eq!(policy.task_id, card.task_id);
-        assert_eq!(policy.human_principal, human.principal.as_str());
+        assert_eq!(policy.initiator_principal, human.principal.as_str());
         assert_eq!(policy.resources.len(), 1);
         assert_eq!(policy.resources[0].handle, "source-1");
         assert_eq!(policy.resources[0].connection_id, "jules-read");
@@ -609,6 +868,271 @@ mod tests {
                 .digest()
                 .expect("digest")
         );
+    }
+
+    fn assert_pending_card_integrity(
+        card: AgentTaskDescriptor,
+        approved: &ApprovedAgentTask,
+        installed: &TaskActivationPins,
+    ) {
+        assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
+        assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
+        let mut changed = card.clone();
+        changed.pending_child.as_mut().expect("pending").title = "Different title".to_owned();
+        assert!(
+            ApprovedAgentTask::from_activated_card(changed, *approved.commitment(), installed, NOW)
+                .is_err(),
+            "stored signed card cannot change title after activation"
+        );
+        let mut invalid = card.clone();
+        invalid
+            .pending_child
+            .as_mut()
+            .expect("pending")
+            .parent_handle = "project-b-folder".to_owned();
+        assert_eq!(
+            invalid.validate(installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-pending-child"))
+        );
+        let mut invalid = card.clone();
+        invalid.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        assert!(invalid.validate(installed, NOW).is_err());
+        let mut invalid = card;
+        invalid
+            .pending_child
+            .as_mut()
+            .expect("pending")
+            .populate_recipe_digest = "e".repeat(64);
+        assert_eq!(
+            invalid.validate(installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-pending-child"))
+        );
+    }
+
+    fn bind_only_reserved_child(
+        reopened: &FileReleaseTaskLedger,
+        create: &ApprovedTaskWrite,
+    ) -> (ExactWriteIntent, ApprovedTaskWrite) {
+        assert!(
+            reopened
+                .bind_created_child(
+                    create,
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    &crate::harness::time_gate(NOW + 1)
+                )
+                .is_err(),
+            "unreserved create cannot bind a child"
+        );
+        reopened
+            .reserve_write(create, NOW + 1)
+            .expect("reserve create");
+        let mut populate_intent = create.intent().clone();
+        populate_intent.operation_id = "populate-1".to_owned();
+        populate_intent.recipe_digest = "f".repeat(64);
+        populate_intent.resource_handle = "child_ABC-123".to_owned();
+        populate_intent.verb = TaskWriteVerb::Edit;
+        populate_intent.request_commitment = "b".repeat(64);
+        let populate = ApprovedTaskWrite::from_test_intent(populate_intent.clone());
+        assert!(
+            reopened.reserve_write(&populate, NOW + 1).is_err(),
+            "a pending child is not an executable scope"
+        );
+        assert!(
+            reopened
+                .bind_created_child(
+                    create,
+                    &VerifiedCreatedChild::from_test("child/other"),
+                    &[9; 32],
+                    &crate::harness::time_gate(NOW + 1)
+                )
+                .is_err(),
+            "unsafe child ID cannot bind"
+        );
+        let mut changed_intent = create.intent().clone();
+        changed_intent.request_commitment = "9".repeat(64);
+        assert!(
+            reopened
+                .bind_created_child(
+                    &ApprovedTaskWrite::from_test_intent(changed_intent),
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    &crate::harness::time_gate(NOW + 1)
+                )
+                .is_err(),
+            "changed request cannot bind"
+        );
+        let mut changed_action = create.intent().clone();
+        changed_action.action_commitment = "8".repeat(64);
+        assert!(
+            reopened
+                .bind_created_child(
+                    &ApprovedTaskWrite::from_test_intent(changed_action),
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    &crate::harness::time_gate(NOW + 1)
+                )
+                .is_err(),
+            "a different signed action cannot bind the reserved create"
+        );
+        reopened
+            .bind_created_child(
+                create,
+                &VerifiedCreatedChild::from_test("child_ABC-123"),
+                &[9; 32],
+                &crate::harness::time_gate(NOW + 1),
+            )
+            .expect("bind observed child");
+        assert!(
+            reopened
+                .bind_created_child(
+                    create,
+                    &VerifiedCreatedChild::from_test("other-child"),
+                    &[9; 32],
+                    &crate::harness::time_gate(NOW + 1)
+                )
+                .is_err(),
+            "binding is immutable"
+        );
+        (populate_intent, populate)
+    }
+
+    fn assert_population_is_single_use(
+        reopened: &FileReleaseTaskLedger,
+        populate_intent: ExactWriteIntent,
+        populate: &ApprovedTaskWrite,
+    ) {
+        let mut wrong_child = populate_intent.clone();
+        wrong_child.resource_handle = "arbitrary-child".to_owned();
+        assert!(
+            reopened
+                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_child), NOW + 1)
+                .is_err()
+        );
+        let mut wrong_recipe = populate_intent.clone();
+        wrong_recipe.recipe_digest = "a".repeat(64);
+        assert!(
+            reopened
+                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_recipe), NOW + 1)
+                .is_err()
+        );
+        reopened
+            .reserve_write(populate, NOW + 1)
+            .expect("bound child population reserves once");
+        assert!(
+            reopened.reserve_write(populate, NOW + 1).is_err(),
+            "population replays are refused"
+        );
+        let mut second_populate = populate_intent;
+        second_populate.operation_id = "populate-2".to_owned();
+        assert!(
+            reopened
+                .reserve_write(
+                    &ApprovedTaskWrite::from_test_intent(second_populate),
+                    NOW + 1
+                )
+                .is_err(),
+            "a new operation ID cannot populate the same child again"
+        );
+    }
+
+    #[test]
+    fn machine_activation_requires_initiator_and_commits_independent_approver() {
+        let root = Signer::new(0x11);
+        let machine = Signer::new(0x55);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut descriptor = card(&machine, &agent);
+        descriptor.approver_principal = human.principal.as_str().to_owned();
+        let installed = pins(&descriptor);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_for_agent_and_task(&root, observer.principal(), NOW)
+            .expect("installed context");
+        let (proof, action) = signed_card_for_approval(&root, &machine, &descriptor);
+        let activated = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("machine activation with independent approver");
+        assert_eq!(
+            activated.descriptor().approver_principal,
+            human.principal.as_str()
+        );
+        for impostor in [&human, &agent] {
+            let (proof, action) = signed_card_for_approval(&root, impostor, &descriptor);
+            assert_eq!(
+                verify_task_activation(&context, &installed, NOW, &proof, &action).err(),
+                Some(not_entered("gateway.task.initiator-authority"))
+            );
+        }
+        for changed in [
+            AgentTaskDescriptor {
+                initiator_principal: human.principal.as_str().to_owned(),
+                ..descriptor.clone()
+            },
+            AgentTaskDescriptor {
+                approver_principal: machine.principal.as_str().to_owned(),
+                ..descriptor.clone()
+            },
+        ] {
+            assert_eq!(
+                changed.validate(&installed, NOW).err(),
+                Some(not_entered("gateway.task.operator-binding"))
+            );
+            let changed_pins = pins(&changed);
+            assert_eq!(
+                ApprovedAgentTask::from_activated_card(
+                    changed,
+                    *activated.commitment(),
+                    &changed_pins,
+                    NOW
+                )
+                .err(),
+                Some(not_entered("gateway.task.activation-changed"))
+            );
+        }
+    }
+
+    #[test]
+    fn task_roles_reject_self_approval_unapproved_upfront_and_obsolete_cards() {
+        let machine = Signer::new(0x55);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut descriptor = card(&machine, &agent);
+        descriptor.approver_principal = human.principal.as_str().to_owned();
+        let installed = pins(&descriptor);
+        descriptor
+            .validate(&installed, NOW)
+            .expect("separate roles");
+        let mut self_approved = descriptor.clone();
+        self_approved.approver_principal = agent.principal.as_str().to_owned();
+        assert!(!self_approved.roles_valid());
+        descriptor.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        descriptor.upfront_allowed_arguments = vec![BTreeMap::from([(
+            "replacement".to_owned(),
+            json!("Approved"),
+        )])];
+        let mut installed = pins(&descriptor);
+        installed.allow_bounded_writes = true;
+        assert_eq!(
+            descriptor.validate(&installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-card"))
+        );
+        descriptor.approver_principal = machine.principal.as_str().to_owned();
+        installed.approver_principal = machine.principal.as_str().to_owned();
+        descriptor
+            .validate(&installed, NOW)
+            .expect("explicit same-principal upfront approval");
+        let mut obsolete = serde_json::to_value(&descriptor).expect("card");
+        obsolete["schema"] = json!("auths.agent-task/2");
+        let old: AgentTaskDescriptor =
+            serde_json::from_value(obsolete.clone()).expect("shape only");
+        assert!(old.validate(&installed, NOW).is_err());
+        let object = obsolete.as_object_mut().expect("card object");
+        object.remove("initiator_principal");
+        object.remove("approver_principal");
+        object.insert(
+            "human_principal".to_owned(),
+            json!(machine.principal.as_str()),
+        );
+        assert!(serde_json::from_value::<AgentTaskDescriptor>(obsolete).is_err());
     }
 
     #[test]
@@ -659,6 +1183,12 @@ mod tests {
             .expect("revalidate signed card");
         assert_eq!(retained.descriptor().pending_child, card.pending_child);
         let create = ApprovedTaskWrite::from_test_intent(ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                &card.agent_principal,
+                approved.commitment(),
+                card.delegation.partition_generation,
+                card.delegation.root_instance_generation,
+            ),
             task_id: card.task_id.clone(),
             task_commitment: hex::encode(approved.commitment()),
             operation_id: "create-1".to_owned(),
@@ -671,160 +1201,13 @@ mod tests {
             connection_generation: card.connection_generation,
             connection_subject: card.connection_subject.clone(),
         });
-        assert!(
-            reopened
-                .bind_created_child(
-                    &create,
-                    &VerifiedCreatedChild::from_test("child_ABC-123"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "unreserved create cannot bind a child"
-        );
-        reopened
-            .reserve_write(&create, NOW + 1)
-            .expect("reserve create");
-        let mut populate_intent = create.intent().clone();
-        populate_intent.operation_id = "populate-1".to_owned();
-        populate_intent.recipe_digest = "f".repeat(64);
-        populate_intent.resource_handle = "child_ABC-123".to_owned();
-        populate_intent.verb = TaskWriteVerb::Edit;
-        populate_intent.request_commitment = "b".repeat(64);
-        let populate = ApprovedTaskWrite::from_test_intent(populate_intent.clone());
-        assert!(
-            reopened.reserve_write(&populate, NOW + 1).is_err(),
-            "a pending child is not an executable scope"
-        );
-        assert!(
-            reopened
-                .bind_created_child(
-                    &create,
-                    &VerifiedCreatedChild::from_test("child/other"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "unsafe child ID cannot bind"
-        );
-        let mut changed_intent = create.intent().clone();
-        changed_intent.request_commitment = "9".repeat(64);
-        assert!(
-            reopened
-                .bind_created_child(
-                    &ApprovedTaskWrite::from_test_intent(changed_intent),
-                    &VerifiedCreatedChild::from_test("child_ABC-123"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "changed request cannot bind"
-        );
-        let mut changed_action = create.intent().clone();
-        changed_action.action_commitment = "8".repeat(64);
-        assert!(
-            reopened
-                .bind_created_child(
-                    &ApprovedTaskWrite::from_test_intent(changed_action),
-                    &VerifiedCreatedChild::from_test("child_ABC-123"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "a different signed action cannot bind the reserved create"
-        );
-        reopened
-            .bind_created_child(
-                &create,
-                &VerifiedCreatedChild::from_test("child_ABC-123"),
-                &[9; 32],
-                NOW + 1,
-            )
-            .expect("bind observed child");
-        assert!(
-            reopened
-                .bind_created_child(
-                    &create,
-                    &VerifiedCreatedChild::from_test("other-child"),
-                    &[9; 32],
-                    NOW + 1
-                )
-                .is_err(),
-            "binding is immutable"
-        );
+        let (populate_intent, populate) = bind_only_reserved_child(&reopened, &create);
         drop(reopened);
         let reopened = FileReleaseTaskLedger::open(path).expect("reopen");
         let state = reopened.load(&card.task_id).expect("load").expect("state");
         assert_eq!(state.bound_child_id(), Some("child_ABC-123"));
-        let mut wrong_child = populate_intent.clone();
-        wrong_child.resource_handle = "arbitrary-child".to_owned();
-        assert!(
-            reopened
-                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_child), NOW + 1)
-                .is_err()
-        );
-        let mut wrong_recipe = populate_intent.clone();
-        wrong_recipe.recipe_digest = "a".repeat(64);
-        assert!(
-            reopened
-                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_recipe), NOW + 1)
-                .is_err()
-        );
-        reopened
-            .reserve_write(&populate, NOW + 1)
-            .expect("bound child population reserves once");
-        assert!(
-            reopened.reserve_write(&populate, NOW + 1).is_err(),
-            "population replays are refused"
-        );
-        let mut second_populate = populate_intent;
-        second_populate.operation_id = "populate-2".to_owned();
-        assert!(
-            reopened
-                .reserve_write(
-                    &ApprovedTaskWrite::from_test_intent(second_populate),
-                    NOW + 1
-                )
-                .is_err(),
-            "a new operation ID cannot populate the same child again"
-        );
-        assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
-        assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
-        let mut changed = card.clone();
-        changed.pending_child.as_mut().expect("pending").title = "Different title".to_owned();
-        assert!(
-            ApprovedAgentTask::from_activated_card(
-                changed,
-                *approved.commitment(),
-                &installed,
-                NOW
-            )
-            .is_err(),
-            "stored signed card cannot change title after activation"
-        );
-        let mut invalid = card.clone();
-        invalid
-            .pending_child
-            .as_mut()
-            .expect("pending")
-            .parent_handle = "project-b-folder".to_owned();
-        assert_eq!(
-            invalid.validate(&installed, NOW).err(),
-            Some(not_entered("gateway.task.invalid-pending-child"))
-        );
-        let mut invalid = card.clone();
-        invalid.write_approval_mode = WriteApprovalMode::BoundedUpfront;
-        assert!(invalid.validate(&installed, NOW).is_err());
-        let mut invalid = card;
-        invalid
-            .pending_child
-            .as_mut()
-            .expect("pending")
-            .populate_recipe_digest = "e".repeat(64);
-        assert_eq!(
-            invalid.validate(&installed, NOW).err(),
-            Some(not_entered("gateway.task.invalid-pending-child"))
-        );
+        assert_population_is_single_use(&reopened, populate_intent, &populate);
+        assert_pending_card_integrity(card, &approved, &installed);
     }
 
     #[test]

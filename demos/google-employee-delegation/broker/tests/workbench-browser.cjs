@@ -12,7 +12,8 @@ function byId(id) {
     elements.set(id, {
       value: "", textContent: "", disabled: false, hidden: false,
       options: [],
-      addEventListener() {},
+      addEventListener(_event, handler) { this.clickHandler = handler; },
+      insertAdjacentElement(_position, element) { this.feedback = element; },
       replaceChildren() { this.options = []; this.value = ""; },
       append(option) {
         this.options.push(option);
@@ -75,7 +76,7 @@ async function fetch(url, options = {}) {
 async function main() {
   const context = vm.createContext({
     document: { getElementById: byId,
-      createElement: () => ({append(child) { this.child = child; }}) },
+      createElement: () => ({append(child) { this.child = child; }, setAttribute() {}}) },
     fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
     TextEncoder, Uint8Array,
   });
@@ -130,7 +131,7 @@ async function main() {
   };
   const upfrontContext = vm.createContext({
     document: { getElementById: byId,
-      createElement: () => ({append(child) { this.child = child; }}) },
+      createElement: () => ({append(child) { this.child = child; }, setAttribute() {}}) },
     fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
     TextEncoder, Uint8Array,
   });
@@ -139,6 +140,9 @@ async function main() {
   assert.equal(byId("page-title").textContent, "Jules delegates one bounded Project A edit");
   assert.equal(byId("write-confirm-prepare").hidden, true);
   await vm.runInContext("prepareWriteTask()", upfrontContext);
+  await byId("write-authorize").clickHandler();
+  assert.match(byId("write-authorize").feedback.textContent,
+    /indexedDB is not defined/);
   assert.match(byId("write-card").textContent, /"task_id": "task-upfront"/);
   assert.equal(byId("write-status-label").textContent,
     "Previously signed task (not this review)");
@@ -222,7 +226,7 @@ async function main() {
     expires_at: 9999999999, agent_package: null,
     read_agent_package: {}, companion_agent_package: null };
   const readContext = vm.createContext({
-    document: { getElementById: byId, createElement: () => ({}) },
+    document: { getElementById: byId, createElement: () => ({setAttribute() {}}) },
     fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
     TextEncoder, Uint8Array,
   });

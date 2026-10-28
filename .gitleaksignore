@@ -99,3 +99,15 @@ f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:formal/Auths/Product/JsonStringDocument
 # Reviewed 2026-10-25: this evidence line names a public Auths Git commit
 # revision. The matched value is an immutable source SHA, not a credential.
 3d29a6b0273165f85676f200ff5c6e54c30b12d9:demos/google-employee-delegation/evidence/live-partial-consumer-2026-10-25.md:generic-api-key:8
+
+# Reviewed 2026-10-27 after AP073 hosted scan: inherited/rebased AP071
+# fingerprints for the same public Python import and Git source revisions
+# documented above. No credential value occurs in these lines.
+e2d10a74fa0be5e6bfe2b9f698632c835cd7b11b:bindings/python/tests/test_identity_authoring.py:generic-api-key:5
+e2d10a74fa0be5e6bfe2b9f698632c835cd7b11b:demos/google-employee-delegation/evidence/live-partial-consumer-2026-10-25.md:generic-api-key:8
+e2d10a74fa0be5e6bfe2b9f698632c835cd7b11b:demos/google-employee-delegation/versions.lock.json:generic-api-key:4
+# The Airtable reference uses recTEST0000000001 as a public record identifier
+# in a closed request test. It is not an API key; preserving its provider-shaped
+# representation exercises the real URL binding. Only this historical match
+# is suppressed, not the file, provider, rule, or identifier in other contexts.
+510950b92d92ef2b5fb087113283f7ee6924f851:product/runtime/auths-gateway/src/recipe/release.rs:airtable-api-key:720

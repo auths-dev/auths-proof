@@ -12,7 +12,7 @@ use crate::connection::{
 };
 use crate::materializer::{
     CredentialMaterializationContext, CredentialRequestKind, MaterializerInstallation,
-    is_materializer_source, task_lease_deadline,
+    is_materializer_source,
 };
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
@@ -71,7 +71,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 #[cfg(unix)]
@@ -91,7 +91,10 @@ const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
 #[cfg(unix)]
-const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/3";
+const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/5";
+/// Maximum encoded task installation, checked before JSON decoding by both
+/// the native session boundary and the operator CLI's bounded file reads.
+pub const MAX_TASK_INSTALLATION_BYTES: usize = 16_384;
 /// How often `serve` sweeps expired count and sum slots.
 pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
 /// The most expired slots one sweep deletes.
@@ -188,6 +191,40 @@ pub struct GatewayRequestReview {
     pub idempotency_key: Option<String>,
 }
 
+/// Native task review with exact enrolled writer and canonical human-signing input.
+/// This private-content projection is a preview, never an execution permit.
+#[cfg(unix)]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct TaskWriteReview {
+    /// Review format, distinct from ordinary non-task review.
+    pub schema: &'static str,
+    /// Verified action, actors and exact provider request for human presentation.
+    pub submission: GatewaySubmissionReview,
+    /// Rust-owned exact intent, including immutable enrolled writer attribution.
+    pub intent: crate::task_write::ExactWriteIntent,
+    /// Canonical JSON arguments for the exact confirmation action. Bindings must
+    /// sign this object, without recomputing request commitments or the writer.
+    pub confirmation_arguments: String,
+}
+
+/// Pure serialization of a task review after its caller establishes native
+/// scope/enrollment eligibility. The result is a preview, never a permit.
+#[cfg(unix)]
+pub(crate) fn task_submission_review(
+    command: VerifiedCommand,
+    intent: crate::task_write::ExactWriteIntent,
+) -> Result<TaskWriteReview, GatewaySubmitResult> {
+    let confirmation_arguments =
+        serde_json_canonicalizer::to_string(&serde_json::json!({"write": intent}))
+            .map_err(|_| not_entered("gateway.task.write-request"))?;
+    Ok(TaskWriteReview {
+        schema: "auths.gateway-task-write-review/1",
+        submission: review_verified_command(command)?,
+        intent,
+        confirmation_arguments,
+    })
+}
+
 /// Reviews proof and action through the same native verification and closed
 /// request construction as submission, without opening custody or a store.
 /// `now` is an offline evaluation input; this function grants no lease and
@@ -206,7 +243,13 @@ pub fn review_submission(
     proof: &[u8],
     action: &[u8],
 ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
-    let command = verify_detailed(recipe, context, now, proof, action)?;
+    review_verified_command(verify_detailed(recipe, context, now, proof, action)?)
+}
+
+#[cfg(unix)]
+fn review_verified_command(
+    command: VerifiedCommand,
+) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
     let request = &command.request;
     Ok(GatewaySubmissionReview {
         schema: "auths.gateway-submission-review/1",
@@ -401,6 +444,18 @@ struct PreparedEntry {
 }
 
 impl GatewayEngine {
+    fn execution_time(&self) -> Option<u64> {
+        self.qualification
+            .execution_time()
+            .map(crate::DeploymentTime::unix_seconds)
+    }
+
+    fn observed_time(&self) -> Option<u64> {
+        self.qualification
+            .observed_time()
+            .map(crate::DeploymentTime::unix_seconds)
+    }
+
     /// Constructs an engine only for an exact operator-approved recipe digest.
     /// The caller must be the separately deployed gateway, never the app.
     ///
@@ -669,7 +724,9 @@ impl GatewayEngine {
     ) -> Result<ConnectionRecord, &'static str> {
         for _ in 0..ADMIN_ROUNDS {
             let current = self.load_for_admin().await?;
-            let now = wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?;
+            let now = self
+                .observed_time()
+                .ok_or("gateway.admin.clock-unavailable")?;
             let Some(next) = change(current.record(), now)? else {
                 return Ok(current.record().clone());
             };
@@ -702,7 +759,8 @@ impl GatewayEngine {
         self.connection
             .stop(
                 false,
-                wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?,
+                self.observed_time()
+                    .ok_or("gateway.admin.clock-unavailable")?,
             )
             .await?;
         Ok(self.drained("gateway.admin.disabled").await)
@@ -919,7 +977,9 @@ impl GatewayEngine {
         current: &LoadedConnection,
         commitment: [u8; 32],
     ) -> Result<ConnectionRecord, &'static str> {
-        let timestamp = wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?;
+        let timestamp = self
+            .observed_time()
+            .ok_or("gateway.admin.clock-unavailable")?;
         let record = current.record();
         let replacement = record
             .rotated(
@@ -1064,7 +1124,9 @@ impl GatewayEngine {
     pub async fn status(&self) -> Result<GatewayAdminStatus, &'static str> {
         let loaded = self.load_for_admin().await?;
         let record = loaded.record();
-        let gateway_clock = wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?;
+        let gateway_clock = self
+            .observed_time()
+            .ok_or("gateway.admin.clock-unavailable")?;
         Ok(GatewayAdminStatus {
             state: match record.state() {
                 ConnectionState::Active => "active",
@@ -1204,7 +1266,9 @@ impl GatewayEngine {
     /// `gateway.sweep.clock-unavailable` without a clock, and
     /// `gateway.sweep.unavailable` when the store fails.
     pub async fn sweep_expired_slots(&self) -> Result<usize, &'static str> {
-        let now = wall_clock_seconds().ok_or("gateway.sweep.clock-unavailable")?;
+        let now = self
+            .execution_time()
+            .ok_or("gateway.sweep.clock-unavailable")?;
         let deleted = self
             .attempts
             .sweep_expired(now, SLOT_SWEEP_LIMIT)
@@ -1263,12 +1327,16 @@ impl GatewayEngine {
         installation_bytes: &[u8],
         ledger_root: impl Into<PathBuf>,
     ) -> Result<TaskWriteSession<'_>, &'static str> {
+        if installation_bytes.is_empty() || installation_bytes.len() > MAX_TASK_INSTALLATION_BYTES {
+            return Err("gateway.task.invalid-installation");
+        }
         let installation: TaskWriteInstallation = serde_json::from_slice(installation_bytes)
             .map_err(|_| "gateway.task.invalid-installation")?;
         let canonical = serde_json_canonicalizer::to_vec(&installation)
             .map_err(|_| "gateway.task.invalid-installation")?;
         if installation_bytes != canonical
             || installation.schema != TASK_INSTALLATION_SCHEMA
+            || !installation.pins.valid_delegation()
             || installation.recipe_digests.is_empty()
             || installation.recipe_digests.len() > 4
             || installation.recipe_digests.iter().any(|digest| {
@@ -1332,7 +1400,7 @@ impl GatewayEngine {
         if !self.recipe.requires_task_admission() {
             return not_entered("gateway.task.recipe-not-bound");
         }
-        let Some(now) = wall_clock_seconds() else {
+        let Some(now) = self.execution_time() else {
             return GatewaySubmitResult::Indeterminate {
                 code: "gateway.verify.clock-unavailable".to_owned(),
             };
@@ -1347,7 +1415,8 @@ impl GatewayEngine {
             Err(error) => return not_entered(error.write_code()),
         };
         let child_scope = state.bound_child_scope();
-        let verified = match verify_detailed(
+        let verified = match verify_task_command(
+            &task,
             &self.recipe,
             &self.trusted_context,
             now,
@@ -1357,12 +1426,17 @@ impl GatewayEngine {
             Ok(verified) => verified,
             Err(result) => return result,
         };
+        let writer = match state.write_participant(&verified) {
+            Ok(writer) => writer,
+            Err(error) => return not_entered(error.write_code()),
+        };
         let intent = match derive_exact_write_intent(
             &task,
             &verified,
             &self.recipe,
             submission.binding,
             child_scope.as_ref(),
+            &writer,
             now,
         ) {
             Ok(intent) => intent,
@@ -1374,40 +1448,15 @@ impl GatewayEngine {
                     if submission.confirmation.is_some() {
                         return not_entered("gateway.task.unexpected-confirmation");
                     }
-                    let Some(plan) = state.effect_plan() else {
-                        return not_entered("gateway.task.effect-plan-required");
-                    };
-                    let (approved, preflight_valid_until) = if intent.verb
-                        == crate::task_activation::TaskWriteVerb::Create
-                    {
-                        (
-                            ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
-                            None,
-                        )
-                    } else {
-                        let Some(pin) = submission.preflight_pin else {
-                            return not_entered("gateway.task.preflight-not-installed");
-                        };
-                        let Some(preflight) = state.populate_preflight() else {
-                            return not_entered("gateway.task.preflight-required");
-                        };
-                        if plan.preflight_rule_digest.as_deref() != Some(pin.rule_digest.as_str())
-                            || plan.preflight_key_sha256.as_deref()
-                                != Some(pin.key_sha256().as_str())
-                        {
-                            return not_entered("gateway.task.preflight-policy-changed");
-                        }
-                        (
-                            ApprovedTaskWrite::from_recorded_effect_plan_populate(
-                                plan,
-                                &self.recipe,
-                                intent,
-                                &verified.arguments,
-                                &preflight.facts(),
-                                now,
-                            ),
-                            Some(preflight.facts().valid_until),
-                        )
+                    let (approved, preflight_valid_until) = match self.approve_task_effect_plan(
+                        &submission,
+                        &state,
+                        intent,
+                        &verified.arguments,
+                        now,
+                    ) {
+                        Ok(approval) => approval,
+                        Err(result) => return result,
                     };
                     return self
                         .run_admitted_task_write(
@@ -1442,8 +1491,53 @@ impl GatewayEngine {
             Ok(approved) => approved,
             Err(result) => return result,
         };
-        self.run_admitted_task_write(submission, &task, child_scope, Ok(approved), None)
+        self.run_admitted_task_write(submission, &task, child_scope, approved, None)
             .await
+    }
+
+    #[cfg(unix)]
+    fn approve_task_effect_plan(
+        &self,
+        submission: &TaskWriteSubmission<'_>,
+        state: &crate::release_state::ReleaseTaskState,
+        intent: crate::task_write::ExactWriteIntent,
+        arguments: &serde_json::Map<String, serde_json::Value>,
+        now: u64,
+    ) -> Result<(ApprovedTaskWrite, Option<u64>), GatewaySubmitResult> {
+        let Some(plan) = state.effect_plan() else {
+            return Err(not_entered("gateway.task.effect-plan-required"));
+        };
+        let (approved, preflight_valid_until) =
+            if intent.verb == crate::task_activation::TaskWriteVerb::Create {
+                (
+                    ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
+                    None,
+                )
+            } else {
+                let Some(pin) = submission.preflight_pin else {
+                    return Err(not_entered("gateway.task.preflight-not-installed"));
+                };
+                let Some(preflight) = state.populate_preflight() else {
+                    return Err(not_entered("gateway.task.preflight-required"));
+                };
+                if plan.preflight_rule_digest.as_deref() != Some(pin.rule_digest.as_str())
+                    || plan.preflight_key_sha256.as_deref() != Some(pin.key_sha256().as_str())
+                {
+                    return Err(not_entered("gateway.task.preflight-policy-changed"));
+                }
+                (
+                    ApprovedTaskWrite::from_recorded_effect_plan_populate(
+                        plan,
+                        &self.recipe,
+                        intent,
+                        arguments,
+                        &preflight.facts(),
+                        now,
+                    ),
+                    Some(preflight.facts().valid_until),
+                )
+            };
+        Ok((approved?, preflight_valid_until))
     }
 
     #[cfg(unix)]
@@ -1452,13 +1546,9 @@ impl GatewayEngine {
         submission: TaskWriteSubmission<'_>,
         task: &ApprovedAgentTask,
         child_scope: Option<crate::task_activation::TaskWriteScope>,
-        approved: Result<ApprovedTaskWrite, GatewaySubmitResult>,
+        approved: ApprovedTaskWrite,
         preflight_valid_until: Option<u64>,
     ) -> GatewaySubmitResult {
-        let approved = match approved {
-            Ok(approved) => approved,
-            Err(result) => return result,
-        };
         let io = EngineIo {
             engine: self,
             proof: submission.agent_proof,
@@ -1574,6 +1664,7 @@ impl GatewayEngine {
         // Time moved since the entry was prepared, so the gate is asked
         // again: nothing reaches the credential store unqualified.
         self.qualification.check().map_err(|_| ())?;
+        self.execution_time().ok_or(())?;
         self.execution_witness.lease();
         self.credentials
             .lease_secret(
@@ -1605,7 +1696,7 @@ impl GatewayEngine {
         };
         match request {
             GatewayObserveRequest::Outcome { operation_id } => {
-                let Some(now) = wall_clock_seconds() else {
+                let Some(now) = self.execution_time() else {
                     return refused("gateway.observer.clock-unavailable");
                 };
                 observe_outcome(
@@ -1649,7 +1740,7 @@ impl GatewayEngine {
                 {
                     return refused("gateway.observer.credential-guard");
                 }
-                observe_read_back(&target, observer, &port, wall_clock_seconds).await
+                observe_read_back(&target, observer, &port, || self.execution_time()).await
             }
         }
     }
@@ -1844,8 +1935,142 @@ pub struct TaskWriteProofs<'a> {
 
 #[cfg(unix)]
 impl TaskWriteSession<'_> {
+    fn enrollment_transaction(&self) -> crate::release_state::EnrollmentTransaction<'_> {
+        crate::release_state::EnrollmentTransaction {
+            context: &self.engine.trusted_context,
+            pins: &self.pins,
+            time: &self.engine.qualification,
+        }
+    }
+
+    /// Derive exact scope IDs and native witness fields from the activated
+    /// card and operator-supplied compiled recipes. Preparation grants no entry.
+    ///
+    /// # Errors
+    /// Refuses stale tasks, substituted recipes and invalid created-child bindings.
+    pub fn participant_scopes(
+        &self,
+        task_id: &str,
+        recipes: &crate::TaskEnrollmentRecipes<'_>,
+    ) -> Result<Vec<crate::TaskEnrollmentScope>, &'static str> {
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.verify.clock-unavailable")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.enrollment-unavailable")?
+            .ok_or("gateway.task.enrollment-unavailable")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.enrollment-refused")?;
+        crate::task_enrollment::scopes(task.descriptor(), recipes)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Prepare the exact root commitment the initial participant must sign.
+    /// Proposed grant IDs are untrusted until native bootstrap succeeds.
+    ///
+    /// # Errors
+    /// Refuses a stale task, changed recipe set or incomplete scope-to-grant map.
+    pub fn participant_root(
+        &self,
+        task_id: &str,
+        recipes: &crate::TaskEnrollmentRecipes<'_>,
+        authority: &crate::TaskRootAuthority,
+    ) -> Result<crate::participant_enrollment::ParentEnrollmentPins, &'static str> {
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.verify.clock-unavailable")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.enrollment-unavailable")?
+            .ok_or("gateway.task.enrollment-unavailable")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.enrollment-refused")?;
+        crate::task_enrollment::root_pins(&task, recipes, authority)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Verify root possession and resource authority, then atomically publish
+    /// its tree in the existing task journal before any operation is reserved.
+    /// No credential or provider call occurs. Publication is single-use.
+    ///
+    /// # Errors
+    /// Refuses replay, prior task use, changed task/operator pins or invalid proofs.
+    pub fn bootstrap_participants(
+        &self,
+        task_id: &str,
+        recipes: &crate::TaskEnrollmentRecipes<'_>,
+        authority: &crate::TaskRootAuthority,
+        proofs: &crate::participant_enrollment::RootEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], &'static str> {
+        self.ledger
+            .bootstrap_participants(
+                task_id,
+                &self.enrollment_transaction(),
+                recipes,
+                authority,
+                proofs,
+            )
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Enroll a child under current native parent authority and child acceptance
+    /// in the same locked record as task replay, revocation and accounting.
+    /// Enrollment does not itself admit an operation or disclose content.
+    ///
+    /// # Errors
+    /// Refuses invalid, stale, revoked, duplicate or over-capacity enrollment.
+    pub fn enroll_participant(
+        &self,
+        task_id: &str,
+        parent: [u8; 32],
+        proofs: &crate::participant_enrollment::ParticipantEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], &'static str> {
+        self.ledger
+            .enroll_participant(task_id, &self.enrollment_transaction(), parent, proofs)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Current active participant snapshot for authoring a child proposal.
+    /// Enrollment rederives its own pins under its exclusive transaction.
+    ///
+    /// # Errors
+    /// Refuses unknown, revoked, expired or changed task/participant bindings.
+    pub fn participant_pins(
+        &self,
+        task_id: &str,
+        participant: [u8; 32],
+    ) -> Result<crate::participant_enrollment::ParentEnrollmentPins, &'static str> {
+        self.ledger
+            .participant_pins(task_id, &self.enrollment_transaction(), participant)
+            .map_err(|_| "gateway.task.enrollment-refused")
+    }
+
+    /// Operator-only revocation of a participant and all descendant eligibility.
+    /// The caller must authenticate administrative authority. The task journal
+    /// retains records and charges; root revocation also revokes the whole task.
+    ///
+    /// # Errors
+    /// Refuses an unknown task/participant or unavailable protected journal.
+    pub fn revoke_participant(
+        &self,
+        task_id: &str,
+        participant: [u8; 32],
+    ) -> Result<(), &'static str> {
+        self.ledger
+            .revoke_participant(task_id, participant)
+            .map_err(|_| "gateway.task.revoke-unavailable")
+    }
+
     /// Development fault for the durable task-write/attempt-journal boundary.
     #[cfg(feature = "loopback-provider")]
+    #[must_use]
     pub fn with_exit_after_write_reservation_for_development(mut self) -> Self {
         self.exit_after_write_reservation = true;
         self
@@ -1871,14 +2096,14 @@ impl TaskWriteSession<'_> {
     /// Refuses missing or corrupt task state, unavailable attempt storage or
     /// an attempt whose recipe or action differs from the charged write.
     pub async fn activity(&self, task_id: &str) -> Result<TaskActivity, &'static str> {
-        let state = self
+        let journal = self
             .ledger
             .load(task_id)
             .map_err(|_| "gateway.task.activity-unavailable")?
             .ok_or("gateway.task.activity-unavailable")?;
-        let task = state.status();
+        let task = journal.status();
         let mut write_attempts = Vec::new();
-        for pin in state.write_attempt_pins() {
+        for pin in journal.write_attempt_pins() {
             let namespace = crate::OperatorNamespace::parse(&pin.operator_namespace)
                 .map_err(|_| "gateway.task.activity-unavailable")?;
             let operation = crate::LogicalOperationId::parse(&pin.operation_id)
@@ -1924,6 +2149,9 @@ impl TaskWriteSession<'_> {
     /// Read the journal's immutable population lineage without exposing its
     /// signed provider values or credential-bearing preflight evidence.
     /// This is evidence correlation, not authorization or an effect verdict.
+    ///
+    /// # Errors
+    /// Refuses missing, corrupt, or inconsistent task, child, plan, or preflight evidence.
     pub fn population_lineage(&self, task_id: &str) -> Result<TaskPopulationLineage, &'static str> {
         let state = self
             .ledger
@@ -2022,9 +2250,12 @@ impl TaskWriteSession<'_> {
         proof_cbor: &[u8],
         action_cbor: &[u8],
     ) -> Result<(), GatewaySubmitResult> {
-        let now = wall_clock_seconds().ok_or_else(|| GatewaySubmitResult::Indeterminate {
-            code: "gateway.verify.clock-unavailable".to_owned(),
-        })?;
+        let now =
+            self.engine
+                .execution_time()
+                .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                    code: "gateway.verify.clock-unavailable".to_owned(),
+                })?;
         let task = verify_task_activation(
             &self.engine.trusted_context,
             &self.pins,
@@ -2064,6 +2295,56 @@ impl TaskWriteSession<'_> {
             }
         })?;
         Ok(())
+    }
+
+    /// Review an exact write under the activated task's native resource audience.
+    /// The installed recipe, connection binding and signed task scope determine
+    /// the projection. Review neither reserves capacity nor permits execution.
+    ///
+    /// # Errors
+    /// Refuses inactive tasks, invalid native proofs, foreign resource audiences
+    /// and requests outside the task's exact or verified created-child scope.
+    pub fn review_submission(
+        &self,
+        task_id: &str,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<TaskWriteReview, GatewaySubmitResult> {
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|error| not_entered(error.write_code()))?
+            .ok_or_else(|| not_entered("gateway.task.not-activated"))?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|error| not_entered(error.write_code()))?;
+        let command = verify_task_command(
+            &task,
+            &self.engine.recipe,
+            &self.engine.trusted_context,
+            now,
+            proof,
+            action,
+        )?;
+        let intent = derive_exact_write_intent(
+            &task,
+            &command,
+            &self.engine.recipe,
+            &self.binding,
+            state.bound_child_scope().as_ref(),
+            &state
+                .write_participant(&command)
+                .map_err(|error| not_entered(error.write_code()))?,
+            now,
+        )?;
+        state
+            .admit_write_participant(&command, &intent, now)
+            .map_err(|error| not_entered(error.write_code()))?;
+        task_submission_review(command, intent)
     }
 
     /// Verifies a previously activated task and one agent write, then runs
@@ -2123,15 +2404,20 @@ impl TaskWriteSession<'_> {
         if self.engine.recipe.created_child_fields().is_none() {
             return Err("gateway.task.effect-plan-not-create");
         }
-        let now = wall_clock_seconds().ok_or("gateway.task.effect-plan-clock")?;
-        let task = self
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.effect-plan-clock")?;
+        let state = self
             .ledger
             .load(task_id)
             .map_err(|_| "gateway.task.effect-plan-state")?
-            .ok_or("gateway.task.effect-plan-state")?
+            .ok_or("gateway.task.effect-plan-state")?;
+        let task = state
             .activated_task(&self.pins, now)
             .map_err(|_| "gateway.task.effect-plan-inactive")?;
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &self.engine.recipe,
             &self.engine.trusted_context,
             now,
@@ -2145,9 +2431,15 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
+            &state
+                .write_participant(&verified)
+                .map_err(|_| "gateway.task.effect-plan-participant")?,
             now,
         )
         .map_err(|_| "gateway.task.effect-plan-create")?;
+        state
+            .admit_write_participant(&verified, &create, now)
+            .map_err(|_| "gateway.task.effect-plan-participant")?;
         let plan = verify_effect_plan(
             &self.engine.trusted_context,
             &task,
@@ -2163,7 +2455,7 @@ impl TaskWriteSession<'_> {
                 .map(|pin| (pin.rule_digest.as_str(), pin.public_key_hex.as_str())),
         );
         self.ledger
-            .record_effect_plan(task_id, &plan, now)
+            .record_effect_plan(task_id, &plan, &self.engine.qualification)
             .map_err(|_| "gateway.task.effect-plan-journal")?;
         Ok(())
     }
@@ -2172,6 +2464,9 @@ impl TaskWriteSession<'_> {
     /// credential-bearing vertical. The report signer and rule digest are
     /// pinned before the human effect plan is recorded. This does not write
     /// to the provider or authorize a changed draft.
+    ///
+    /// # Errors
+    /// Refuses unavailable trusted time, inactive task state, missing installation or plan, invalid signed evidence, or a journal conflict.
     pub fn record_populate_preflight(
         &self,
         task_id: &str,
@@ -2181,7 +2476,10 @@ impl TaskWriteSession<'_> {
             .populate_preflight
             .as_ref()
             .ok_or("gateway.task.preflight-not-installed")?;
-        let now = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.preflight-clock")?;
         let state = self
             .ledger
             .load(task_id)
@@ -2206,13 +2504,16 @@ impl TaskWriteSession<'_> {
         let verified = verify_populate_preflight(report, &pin.public_key_hex, &expected, now)
             .ok_or("gateway.task.preflight-report-refused")?;
         self.ledger
-            .record_populate_preflight(task_id, &verified, now)
+            .record_populate_preflight(task_id, &verified, &self.engine.qualification)
             .map_err(|_| "gateway.task.preflight-journal")?;
         Ok(())
     }
 
     /// Return only the journal-derived, secret-free inputs required by the
     /// installed vertical's fresh child GETs and signed report.
+    ///
+    /// # Errors
+    /// Refuses unavailable trusted time, inactive task state, absent child or plan, or changed preflight policy.
     pub fn populate_preflight_inputs(
         &self,
         task_id: &str,
@@ -2221,7 +2522,10 @@ impl TaskWriteSession<'_> {
             .populate_preflight
             .as_ref()
             .ok_or("gateway.task.preflight-not-installed")?;
-        let now = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.preflight-clock")?;
         let state = self
             .ledger
             .load(task_id)
@@ -2270,6 +2574,9 @@ impl TaskWriteSession<'_> {
     /// Inspect one durably claimed create whose response was never recorded.
     /// The private operator uses these facts to bind a bounded search and
     /// independent observation; this method never searches or grants a child.
+    ///
+    /// # Errors
+    /// Refuses unavailable trusted time, inactive task state, changed installation or plan, or an attempt that is not response-less and unknown.
     pub async fn create_recovery_inputs(
         &self,
         task_id: &str,
@@ -2281,7 +2588,10 @@ impl TaskWriteSession<'_> {
             .recovery_attestation
             .as_ref()
             .ok_or("gateway.task.recovery-not-installed")?;
-        let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.recovery-clock")?;
         let state = self
             .ledger
             .load(task_id)
@@ -2355,6 +2665,10 @@ impl TaskWriteSession<'_> {
     /// Bind a response-less create only after one independently joined
     /// candidate, a new native human recovery action, and a fresh Jules
     /// metadata GET. This never invokes the provider create request.
+    ///
+    /// # Errors
+    /// Refuses missing or changed task, attempt, attestation, human proof,
+    /// connection, metadata, or durable journal evidence.
     #[allow(
         clippy::too_many_lines,
         reason = "the native proof, durable attempt and provider read boundaries remain explicit"
@@ -2376,7 +2690,10 @@ impl TaskWriteSession<'_> {
         // This check has no side effect. Repeat it after the provider GET so
         // an intervening recorded response cannot be mistaken for recovery.
         self.create_recovery_inputs(proofs.task_id).await?;
-        let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.recovery-clock")?;
         let state = self
             .ledger
             .load(proofs.task_id)
@@ -2437,7 +2754,8 @@ impl TaskWriteSession<'_> {
         {
             return Err("gateway.task.recovery-attempt-time");
         }
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &self.engine.recipe,
             &self.engine.trusted_context,
             original_time,
@@ -2451,6 +2769,9 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
+            &state
+                .write_participant(&verified)
+                .map_err(|_| "gateway.task.recovery-participant")?,
             original_time,
         )
         .map_err(|_| "gateway.task.recovery-intent")?;
@@ -2527,7 +2848,7 @@ impl TaskWriteSession<'_> {
                 &verified_child,
                 &attestation,
                 &human_action_commitment,
-                wall_clock_seconds().ok_or("gateway.task.recovery-clock")?,
+                &self.engine.qualification,
             )
             .map_err(|_| "gateway.task.recovery-binding")?;
         Ok(attestation.candidate_id().to_owned())
@@ -2542,18 +2863,21 @@ impl TaskWriteSession<'_> {
     /// # Errors
     /// Refuses absent or changed task/attempt evidence, invalid native
     /// proofs, a changed connection, failed metadata, or a journal conflict.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "each proof, attempt and provider-read boundary remains explicit"
-    )]
     pub async fn reconcile_created_child(
         &self,
         proofs: TaskWriteProofs<'_>,
     ) -> Result<String, &'static str> {
-        let now = wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?;
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or("gateway.task.reconcile-clock")?;
         self.reconcile_created_child_at(proofs, now).await
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "each proof, attempt and provider-read boundary remains explicit"
+    )]
     async fn reconcile_created_child_at(
         &self,
         proofs: TaskWriteProofs<'_>,
@@ -2611,7 +2935,8 @@ impl TaskWriteSession<'_> {
         {
             return Err("gateway.task.reconcile-attempt-time");
         }
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &self.engine.recipe,
             &self.engine.trusted_context,
             evaluated_at,
@@ -2625,6 +2950,9 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
+            &state
+                .write_participant(&verified)
+                .map_err(|_| "gateway.task.reconcile-participant")?,
             evaluated_at,
         )
         .map_err(|_| "gateway.task.reconcile-intent")?;
@@ -2746,7 +3074,7 @@ impl TaskWriteSession<'_> {
                 &approved,
                 &verified_child,
                 response_digest,
-                wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?,
+                &self.engine.qualification,
             )
             .map_err(|_| "gateway.task.reconcile-binding")?;
         Ok(candidate_id.clone())
@@ -2901,16 +3229,54 @@ struct EngineIo<'a> {
 
 impl EngineIo<'_> {
     #[cfg(unix)]
+    fn enter_task_write(
+        &self,
+    ) -> Result<Option<crate::release_state::EnteredTaskWrite>, GatewayTransportError> {
+        let Some(admission) = &self.task_write else {
+            return Ok(None);
+        };
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or(GatewayTransportError::NotEntered)?;
+        // Re-run native verification at current time against installed evidence;
+        // the earlier admission snapshot is not a live entry permit.
+        let verified = self
+            .verify(now)
+            .map_err(|_| GatewayTransportError::NotEntered)?;
+        admission
+            .ledger
+            .enter_write(
+                admission.approved,
+                verified,
+                admission.pins,
+                &self.engine.qualification,
+                admission.preflight_valid_until,
+            )
+            .map(Some)
+            .map_err(|_| GatewayTransportError::NotEntered)
+    }
+
+    #[cfg(unix)]
     fn task_write_active(&self) -> bool {
         self.task_write.as_ref().is_none_or(|admission| {
-            wall_clock_seconds().is_some_and(|now| {
+            self.engine.execution_time().is_some_and(|now| {
                 admission
                     .ledger
                     .load(&admission.task.descriptor().task_id)
                     .ok()
                     .flatten()
-                    .and_then(|state| state.activated_task(admission.pins, now).ok())
-                    .is_some_and(|current| current.commitment() == admission.task.commitment())
+                    .is_some_and(|state| {
+                        state
+                            .activated_task(admission.pins, now)
+                            .is_ok_and(|current| {
+                                current.commitment() == admission.task.commitment()
+                                    && state.write_participant_active(
+                                        &admission.approved.intent().writer,
+                                        now,
+                                    )
+                            })
+                    })
             })
         })
     }
@@ -2920,17 +3286,31 @@ impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
     fn clock(&self) -> Option<u64> {
-        #[cfg(unix)]
-        if self.commissioning.is_some() {
-            return Some(self.engine.qualification.commissioning_time().0);
-        }
-        wall_clock_seconds()
+        self.engine.execution_time()
     }
 
     fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        let verified = verify_detailed(
+        #[cfg(unix)]
+        let task_audience = self
+            .task_write
+            .as_ref()
+            .map(|admission| {
+                crate::task_enrollment::audience(admission.task, &self.engine.recipe.digest_hex())
+            })
+            .transpose()?;
+        #[cfg(not(unix))]
+        let task_audience: Option<Audience> = None;
+        let audience = task_audience.map_or_else(
+            || {
+                Audience::parse(&format!("mcp://{}", self.engine.recipe.service()))
+                    .map_err(|_| not_entered("gateway.recipe.audience"))
+            },
+            Ok,
+        )?;
+        let verified = verify_detailed_for_audience(
             &self.engine.recipe,
             &self.engine.trusted_context,
+            audience,
             now,
             self.proof,
             self.action,
@@ -2943,6 +3323,7 @@ impl SubmitIo for EngineIo<'_> {
                 &self.engine.recipe,
                 admission.binding,
                 admission.child_scope.as_ref(),
+                &admission.approved.intent().writer,
                 now,
             )?;
             if &intent != admission.approved.intent() {
@@ -2969,27 +3350,29 @@ impl SubmitIo for EngineIo<'_> {
 
     fn reserve_task_write(
         &self,
-        _verified: &VerifiedCommand,
-        now: u64,
+        verified: &VerifiedCommand,
+        _now: u64,
     ) -> Result<(), &'static str> {
         #[cfg(unix)]
         {
             if let Some(admission) = &self.task_write {
-                let now = if let Some(valid_until) = admission.preflight_valid_until {
-                    let current = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+                if let Some(valid_until) = admission.preflight_valid_until {
+                    let current = self
+                        .engine
+                        .execution_time()
+                        .ok_or("gateway.task.preflight-clock")?;
                     if current >= valid_until {
                         return Err("gateway.task.preflight-stale");
                     }
-                    current
-                } else {
-                    now
-                };
+                }
                 let reserved = admission
                     .ledger
                     .reserve_write_with_namespace(
                         admission.approved,
+                        verified,
                         self.engine.recipe.namespace().as_str(),
-                        now,
+                        &self.engine.qualification,
+                        admission.preflight_valid_until,
                     )
                     .map(|_| ())
                     .map_err(crate::release_state::ReleaseStateError::write_code);
@@ -3013,13 +3396,18 @@ impl SubmitIo for EngineIo<'_> {
         &self,
         child: &crate::recipe::VerifiedCreatedChild,
         response_digest: &[u8; 32],
-        now: u64,
+        _now: u64,
     ) -> bool {
         #[cfg(unix)]
         if let Some(admission) = &self.task_write {
             return admission
                 .ledger
-                .bind_created_child(admission.approved, child, response_digest, now)
+                .bind_created_child(
+                    admission.approved,
+                    child,
+                    response_digest,
+                    &self.engine.qualification,
+                )
                 .is_ok();
         }
         false
@@ -3053,6 +3441,9 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn reload(&self) -> bool {
+        if self.engine.execution_time().is_none() {
+            return false;
+        }
         #[cfg(unix)]
         if !self.task_write_active() {
             return false;
@@ -3060,7 +3451,9 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(unix)]
         if self.task_write.as_ref().is_some_and(|admission| {
             admission.preflight_valid_until.is_some_and(|valid_until| {
-                wall_clock_seconds().is_none_or(|now| now >= valid_until)
+                self.engine
+                    .execution_time()
+                    .is_none_or(|now| now >= valid_until)
             })
         }) {
             return false;
@@ -3106,7 +3499,11 @@ impl SubmitIo for EngineIo<'_> {
             let admission = self.task_write.as_ref()?;
             let source = self.engine.lease_source(prepared).await.ok()?;
             let intent = admission.approved.intent();
-            let deadline = task_lease_deadline(&source, admission.task.descriptor().expires_at)?;
+            let deadline = self
+                .engine
+                .qualification
+                .execution_time()?
+                .lease_deadline(admission.task.descriptor().expires_at, source.deadline())?;
             let context = CredentialMaterializationContext {
                 task_id: intent.task_id.clone(),
                 operation_id: intent.operation_id.clone(),
@@ -3172,9 +3569,9 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
-        self.clock()
-            .is_some_and(|now| now <= evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS))
-            && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
+        self.clock().is_some_and(|now| {
+            (evaluated_at..=evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS)).contains(&now)
+        }) && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
     }
 
     async fn write(
@@ -3185,13 +3582,21 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(unix)]
         if self.task_write.as_ref().is_some_and(|admission| {
             admission.preflight_valid_until.is_some_and(|valid_until| {
-                wall_clock_seconds().is_none_or(|now| now >= valid_until)
+                self.engine
+                    .execution_time()
+                    .is_none_or(|now| now >= valid_until)
             })
         }) {
             return Err(GatewayTransportError::NotEntered);
         }
         match self.prepared.get() {
             Some(prepared) => {
+                #[cfg(unix)]
+                let entered_request = self
+                    .enter_task_write()?
+                    .map(crate::release_state::EnteredTaskWrite::into_request);
+                #[cfg(unix)]
+                let request = entered_request.as_ref().unwrap_or(request);
                 let outcome = LeasedTransport {
                     transport: &prepared.transport,
                     lease,
@@ -3332,6 +3737,8 @@ pub(crate) fn verify_command(
 /// need of its authorized branches.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    #[cfg(unix)]
+    pub(crate) authorities: Vec<crate::bounds::NativeAuthority>,
     /// Exact actors of action IDs already sealed by the native verifier.
     #[cfg(unix)]
     pub(crate) actors: Vec<auths_model::PrincipalId>,
@@ -3366,6 +3773,32 @@ pub(crate) fn verify_detailed(
 ) -> Result<VerifiedCommand, GatewaySubmitResult> {
     let audience = Audience::parse(&format!("mcp://{}", recipe.service()))
         .map_err(|_| not_entered("gateway.recipe.audience"))?;
+    verify_detailed_for_audience(recipe, context, audience, now, proof_cbor, action_cbor)
+}
+
+/// Verify against the engagement selected by the protected journal, never an
+/// audience supplied by the agent. Ordinary entry remains on its MCP audience.
+#[cfg(unix)]
+pub(crate) fn verify_task_command(
+    task: &ApprovedAgentTask,
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
+    let audience = crate::task_enrollment::audience(task, &recipe.digest_hex())?;
+    verify_detailed_for_audience(recipe, context, audience, now, proof_cbor, action_cbor)
+}
+
+fn verify_detailed_for_audience(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    audience: Audience,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
     let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     let bound = admit_bounds(proof_cbor, action, recipe, now)?;
@@ -3383,6 +3816,8 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
+        #[cfg(unix)]
+        authorities: branches.authorities,
         #[cfg(unix)]
         actors: branches.actors,
         request,
@@ -3412,7 +3847,8 @@ pub(crate) fn authorized_action(
 }
 
 /// Rebinds only the verifier's expected audience for a fixed, gateway-owned
-/// approval profile. The caller must supply a code-defined audience; agent
+/// profile or journal-bound engagement. The caller must derive the audience
+/// from trusted configuration and activated state; agent
 /// input must never choose the audience being verified.
 pub(crate) fn verify_sealed_for_audience(
     context: &TrustedContext,
@@ -3462,11 +3898,10 @@ pub(crate) fn replay_refused() -> GatewaySubmitResult {
     not_entered("gateway.attempt.replay")
 }
 
+#[cfg(test)]
 fn wall_clock_seconds() -> Option<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|elapsed| elapsed.as_secs())
+    crate::DeploymentClock::sample(&crate::DevelopmentClock)
+        .map(crate::DeploymentTime::unix_seconds)
 }
 
 /// Signs the stored stage and commitment of one logical operation.
@@ -3577,6 +4012,12 @@ pub(crate) mod tests {
             .expect("make arm parent private");
         let path = directory.path().join("population.json");
         let intent = crate::task_write::ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "test-agent",
+                &[0xaa; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".to_owned(),
             task_commitment: "a".repeat(64),
             operation_id: "populate-1".to_owned(),
@@ -3718,7 +4159,8 @@ pub(crate) mod tests {
         .expect("identity packet");
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: hex::encode(sha2::Sha256::digest(&identity)),
             connection_id: record.record().connection_id().as_str().to_owned(),
@@ -3734,6 +4176,10 @@ pub(crate) mod tests {
                 .expect("read scope"),
             ],
             delivery_channel: "agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "agent-channel",
+            ),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
@@ -3749,6 +4195,23 @@ pub(crate) mod tests {
         let task_root = std::fs::canonicalize(directory.path())
             .expect("canonical root")
             .join("task-state");
+        assert_eq!(
+            engine
+                .task_write_session(&vec![b' '; MAX_TASK_INSTALLATION_BYTES + 1], &task_root)
+                .err(),
+            Some("gateway.task.invalid-installation")
+        );
+        let mut invalid = serde_json::to_value(&config).expect("config");
+        invalid["pins"]["delegation"]["root_instance_generation"] = serde_json::json!(2);
+        let invalid = serde_json_canonicalizer::to_vec(&invalid).expect("canonical config");
+        assert_eq!(
+            engine.task_write_session(&invalid, &task_root).err(),
+            Some("gateway.task.invalid-installation")
+        );
+        assert!(
+            !task_root.exists(),
+            "invalid installation must precede journal creation"
+        );
         assert_eq!(
             engine.task_write_session(&bytes, &task_root).err(),
             Some("gateway.task.trust-profile-unavailable")
@@ -3867,14 +4330,31 @@ pub(crate) mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn installed_task_session_activates_and_gates_exact_agent_write() {
+        Box::pin(installed_task_write_case(false, false)).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn machine_initiated_task_requires_independent_human_for_exact_write() {
+        Box::pin(installed_task_write_case(true, false)).await;
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider"))]
+    #[tokio::test]
+    async fn enrolled_machine_agent_child_executes_human_approved_write_and_observation() {
+        Box::pin(installed_task_write_case(true, true)).await;
+    }
+
+    #[cfg(unix)]
     #[allow(
         clippy::too_many_lines,
-        reason = "installed activation fixture includes connection, task and native human proof"
+        reason = "installed activation fixture includes connection, task and native principal proofs"
     )]
-    async fn installed_task_session_activates_and_gates_exact_agent_write() {
+    async fn installed_task_write_case(independent_initiator: bool, enrolled_child: bool) {
         use crate::harness::{self, Signer};
-        use crate::observed_tests::submission_for;
         use crate::task_activation::AgentTaskDescriptor;
+        use crate::task_enrollment::test_authoring::submission as submission_for;
         use serde_json::{Map, json};
 
         #[cfg(feature = "loopback-provider")]
@@ -3888,7 +4368,7 @@ pub(crate) mod tests {
                 "request": {"kind": "read-back", "arguments": {"record_id": record_id}},
             }))
             .expect("observation frame");
-            let (_, response) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            let ((), response) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
                 tokio::join!(crate::app::app_session(server, engine), async {
                     crate::app::write_frame(&mut client, &frame)
                         .await
@@ -3903,8 +4383,6 @@ pub(crate) mod tests {
             serde_json::from_slice(&response).expect("observation result")
         }
 
-        let mut installation = administration::installation(8).await;
-        let engine = &mut installation.first.engine;
         #[cfg(feature = "loopback-provider")]
         struct TestMaterializer {
             calls: Arc<AtomicU64>,
@@ -3936,6 +4414,8 @@ pub(crate) mod tests {
                 })
             }
         }
+        let mut installation = administration::installation(8).await;
+        let engine = &mut installation.first.engine;
         engine.recipe = CompiledRecipe::compile(
             include_bytes!("../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!("../../../../demos/airtable-gateway/write_reference/profile.lock.json"),
@@ -3952,7 +4432,14 @@ pub(crate) mod tests {
         let now = wall_clock_seconds().expect("clock");
         let root = Signer::new(0x11);
         let human = Signer::new(0x22);
+        let machine = Signer::new(0x55);
+        let initiator = if independent_initiator {
+            &machine
+        } else {
+            &human
+        };
         let agent = Signer::new(0x44);
+        let child = Signer::new(0x66);
         let observer = GatewayObserver::from_test_seed(0x33);
         engine.trusted_context = harness::context_for_agent_and_task_profile(
             &root,
@@ -3962,6 +4449,23 @@ pub(crate) mod tests {
             "set_demo_status_v2",
         )
         .expect("installed trust");
+        if enrolled_child {
+            engine.trusted_context = harness::context_for_profiles(
+                &[&root],
+                observer.principal(),
+                None,
+                now,
+                3,
+                auths_model::CompositionRequirement::new(None, 1, 1, 1).unwrap(),
+                &[auths_raw_key::RAW_KEY_V1],
+                &[
+                    ("airtable-gateway-demo", "set_demo_status_v2"),
+                    (TASK_SERVICE, crate::task_activation::APPROVAL_TOOL),
+                    (TASK_SERVICE, CONFIRMATION_TOOL),
+                ],
+            )
+            .unwrap();
+        }
         let loaded = engine
             .connection
             .load()
@@ -4046,9 +4550,22 @@ pub(crate) mod tests {
             assert!(engine.lease(&prepared).await.is_err());
             assert_eq!(materializer_calls.load(Ordering::SeqCst), 0);
         }
+        let mut delegation =
+            crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel");
+        if enrolled_child {
+            delegation.max_depth = 1;
+            delegation.permitted_channels.insert(
+                "child-channel".into(),
+                crate::participant_enrollment::EnrollmentChannelPins {
+                    principal: child.principal.clone(),
+                    instance_generation: 5,
+                },
+            );
+        }
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: initiator.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: "a".repeat(64),
             connection_id: bound.connection_id().as_str().to_owned(),
@@ -4056,14 +4573,16 @@ pub(crate) mod tests {
             connection_subject: subject.to_owned(),
             permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
+            delegation,
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
+            "schema": "auths.agent-task/4",
             "task_id": "task-installed-1",
             "company_id": pins.company_id,
-            "human_principal": pins.human_principal,
+            "initiator_principal": pins.initiator_principal,
+            "approver_principal": pins.approver_principal,
             "agent_principal": pins.agent_principal,
             "agent_key_fingerprint": pins.agent_key_fingerprint,
             "connection_id": pins.connection_id,
@@ -4076,6 +4595,7 @@ pub(crate) mod tests {
                               "connection_generation": pins.connection_generation,
                               "connection_subject": pins.connection_subject}],
             "delivery_channel": pins.delivery_channel,
+            "delegation": pins.delegation,
             "not_before": now - 30,
             "expires_at": now + 600,
             "max_provider_calls": 0,
@@ -4087,6 +4607,10 @@ pub(crate) mod tests {
             "purpose": "Edit one test record"
         }))
         .expect("card");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &card,
+        );
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
             populate_preflight: None,
@@ -4104,12 +4628,12 @@ pub(crate) mod tests {
             .expect("operator session");
         let grant = harness::grant_for(
             &root,
-            &human.principal,
+            &initiator.principal,
             now,
             "auths-agent-task",
             "approve_agent_task_v1",
         )
-        .expect("human grant");
+        .expect("initiator grant");
         let mut arguments = Map::new();
         arguments.insert(
             "task".to_owned(),
@@ -4117,7 +4641,7 @@ pub(crate) mod tests {
         );
         let signed = submission_for(
             &root,
-            &human,
+            initiator,
             &grant,
             &arguments,
             &[],
@@ -4173,14 +4697,42 @@ pub(crate) mod tests {
             &signed.action,
         )
         .expect("approved task");
-        let agent_grant = harness::grant_for(
-            &root,
-            &agent.principal,
-            now,
-            "airtable-gateway-demo",
-            "set_demo_status_v2",
-        )
-        .expect("agent grant");
+        let recipes = crate::TaskEnrollmentRecipes {
+            reads: &[],
+            writes: std::slice::from_ref(&engine.recipe),
+        };
+        let delegated_resources = enrolled_child.then(|| {
+            crate::task_enrollment::test_authoring::bootstrap_delegated(
+                &crate::task_enrollment::test_authoring::DelegatedEnrollment {
+                    ledger: &session.ledger,
+                    task: &approved,
+                    recipes: &recipes,
+                    context: &engine.trusted_context,
+                    pins: &config.pins,
+                    time: &engine.qualification,
+                    signers: [&root, &machine, &agent, &child],
+                    now,
+                },
+            )
+        });
+        let resource_grants = if enrolled_child {
+            BTreeMap::new()
+        } else {
+            crate::task_enrollment::test_authoring::bootstrap(
+                &session.ledger,
+                &approved,
+                &crate::TaskEnrollmentRecipes {
+                    reads: &[],
+                    writes: std::slice::from_ref(&engine.recipe),
+                },
+                &engine.trusted_context,
+                &config.pins,
+                &engine.qualification,
+                &root,
+                &agent,
+                now,
+            )
+        };
         let agent_arguments = json!({
             "operator_namespace": "airtable-demo",
             "operation_id": "write-installed-1",
@@ -4190,17 +4742,31 @@ pub(crate) mod tests {
             "task_id": card.task_id,
             "task_commitment": hex::encode(approved.commitment()),
         });
-        let agent_signed = submission_for(
-            &root,
-            &agent,
-            &agent_grant,
-            agent_arguments.as_object().expect("agent arguments"),
-            &[],
-            "airtable-gateway-demo",
-            "set_demo_status_v2",
-            now,
-        );
-        let verified = verify_detailed(
+        let agent_signed = if let Some(resources) = &delegated_resources {
+            crate::participant_enrollment::tests::chained_at(
+                &[&root, &machine, &agent, &child],
+                &resources[&engine.recipe.digest_hex()]
+                    .iter()
+                    .collect::<Vec<_>>(),
+                "airtable-gateway-demo",
+                "set_demo_status_v2",
+                agent_arguments.as_object().unwrap(),
+                now,
+            )
+        } else {
+            submission_for(
+                &root,
+                &agent,
+                &resource_grants[&engine.recipe.digest_hex()],
+                agent_arguments.as_object().expect("agent arguments"),
+                &[],
+                "airtable-gateway-demo",
+                "set_demo_status_v2",
+                now,
+            )
+        };
+        let verified = verify_task_command(
+            &approved,
             &engine.recipe,
             &engine.trusted_context,
             now,
@@ -4208,15 +4774,62 @@ pub(crate) mod tests {
             &agent_signed.action,
         )
         .expect("native agent action");
+        let review = session
+            .review_submission(&card.task_id, &agent_signed.proof, &agent_signed.action)
+            .expect("task audience review uses protected activation");
+        assert_eq!(
+            review.submission.action_commitment,
+            hex::encode(verified.request.action_commitment())
+        );
+        assert_eq!(review.submission.arguments, verified.arguments);
+        assert!(
+            review_submission(
+                &engine.recipe,
+                &engine.trusted_context,
+                now,
+                &agent_signed.proof,
+                &agent_signed.action,
+            )
+            .is_err(),
+            "ordinary review must not adopt an action-supplied task audience"
+        );
+        assert!(
+            session
+                .review_submission(
+                    "unactivated-task",
+                    &agent_signed.proof,
+                    &agent_signed.action,
+                )
+                .is_err()
+        );
         let intent = derive_exact_write_intent(
             &approved,
             &verified,
             &engine.recipe,
             &session.binding,
             None,
+            &session
+                .ledger
+                .load(&card.task_id)
+                .unwrap()
+                .unwrap()
+                .write_participant(&verified)
+                .unwrap(),
             now,
         )
         .expect("closed write intent");
+        assert_eq!(
+            intent.writer.principal(),
+            if enrolled_child {
+                child.principal.as_str()
+            } else {
+                agent.principal.as_str()
+            }
+        );
+        assert_eq!(
+            review.confirmation_arguments,
+            serde_json_canonicalizer::to_string(&json!({"write": intent})).unwrap()
+        );
         let missing_confirmation = session
             .submit(TaskWriteProofs {
                 task_id: &card.task_id,
@@ -4251,6 +4864,52 @@ pub(crate) mod tests {
             "write".to_owned(),
             serde_json::to_value(&intent).expect("intent"),
         );
+        if independent_initiator {
+            for actor in [initiator, &agent] {
+                let unauthorized_grant = harness::grant_for(
+                    &root,
+                    &actor.principal,
+                    now,
+                    TASK_SERVICE,
+                    CONFIRMATION_TOOL,
+                )
+                .expect("valid native authority cannot replace the approver role");
+                let unauthorized = submission_for(
+                    &root,
+                    actor,
+                    &unauthorized_grant,
+                    &confirmation_arguments,
+                    &[],
+                    TASK_SERVICE,
+                    CONFIRMATION_TOOL,
+                    now,
+                );
+                assert_eq!(
+                    session
+                        .submit(TaskWriteProofs {
+                            task_id: &card.task_id,
+                            agent_proof: &agent_signed.proof,
+                            agent_action: &agent_signed.action,
+                            confirmation: Some((&unauthorized.proof, &unauthorized.action)),
+                        })
+                        .await,
+                    not_entered("gateway.task.human-authority")
+                );
+                assert_eq!(
+                    session
+                        .ledger
+                        .load(&card.task_id)
+                        .expect("journal")
+                        .expect("task")
+                        .write_count(),
+                    0
+                );
+                assert_eq!(
+                    installation.first.leases.load(Ordering::SeqCst),
+                    baseline_leases
+                );
+            }
+        }
         let confirmation = submission_for(
             &root,
             &human,
@@ -4365,6 +5024,8 @@ pub(crate) mod tests {
                 .replace(&loaded, &ready)
                 .await
                 .expect("install task descriptor");
+            let provider_journal = FileReleaseTaskLedger::open(root_path.clone()).unwrap();
+            let expected_writer = intent.writer.clone();
             let provider = tokio::spawn(async move {
                 const BODY: &[u8] =
                     br#"{"id":"recTEST0000000001","fields":{"DemoStatus":"Approved"}}"#;
@@ -4385,6 +5046,16 @@ pub(crate) mod tests {
                             break end;
                         }
                     };
+                    let durable = provider_journal.load("task-installed-1").unwrap().unwrap();
+                    let durable = serde_json::to_value(durable).unwrap();
+                    assert_eq!(
+                        durable["writes"]["write-installed-1"]["entry"]["stage"],
+                        "granted"
+                    );
+                    assert_eq!(
+                        durable["writes"]["write-installed-1"]["writer"],
+                        serde_json::to_value(&expected_writer).unwrap()
+                    );
                     let head = String::from_utf8(bytes[..end].to_vec()).expect("request head");
                     assert!(
                         head.contains("Bearer pat-materialized"),
@@ -4537,13 +5208,13 @@ pub(crate) mod tests {
     #[cfg(all(unix, feature = "loopback-provider"))]
     #[tokio::test]
     async fn recorded_create_reconciles_child_without_reentering_provider_write() {
-        recorded_create_reconcile_case(true).await;
+        Box::pin(recorded_create_reconcile_case(true)).await;
     }
 
     #[cfg(all(unix, feature = "loopback-provider"))]
     #[tokio::test]
     async fn exact_confirmed_create_reconciles_after_proof_expiry() {
-        recorded_create_reconcile_case(false).await;
+        Box::pin(recorded_create_reconcile_case(false)).await;
     }
 
     #[cfg(all(unix, feature = "loopback-provider"))]
@@ -4553,8 +5224,8 @@ pub(crate) mod tests {
     )]
     async fn recorded_create_reconcile_case(with_plan: bool) {
         use crate::harness::{self, Signer};
-        use crate::observed_tests::submission_for;
         use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
+        use crate::task_enrollment::test_authoring::submission as submission_for;
         use auths_connections::SemanticId;
         use base64ct::{Base64Unpadded, Encoding as _};
         use ed25519_dalek::{Signer as _, SigningKey};
@@ -4647,7 +5318,8 @@ pub(crate) mod tests {
             .expect("replace descriptor");
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
-            human_principal: human.principal.as_str().to_owned(),
+            initiator_principal: human.principal.as_str().to_owned(),
+            approver_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
             agent_key_fingerprint: "a".repeat(64),
             connection_id: bound.connection_id().as_str().to_owned(),
@@ -4655,14 +5327,19 @@ pub(crate) mod tests {
             connection_subject: subject.to_owned(),
             permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
+            delegation: crate::task_activation::TaskDelegationPolicy::single(
+                &agent.principal,
+                "agent-channel",
+            ),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
         let marker = format!("ap071_{}", "d".repeat(32));
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2", "task_id": "task-create-reconcile",
+            "schema": "auths.agent-task/4", "task_id": "task-create-reconcile",
             "company_id": pins.company_id,
-            "human_principal": pins.human_principal,
+            "initiator_principal": pins.initiator_principal,
+            "approver_principal": pins.approver_principal,
             "agent_principal": pins.agent_principal,
             "agent_key_fingerprint": pins.agent_key_fingerprint,
             "connection_id": pins.connection_id,
@@ -4680,6 +5357,7 @@ pub(crate) mod tests {
                 "parent_handle": "project-a-folder",
                 "title": "Auths AP-071 Project A handoff", "marker": marker},
             "delivery_channel": pins.delivery_channel,
+            "delegation": pins.delegation,
             "not_before": now - 30, "expires_at": now + 600,
             "max_provider_calls": 0, "max_releases": 0,
             "max_release_bytes": 0, "max_writes": 2,
@@ -4689,8 +5367,12 @@ pub(crate) mod tests {
         }))
         .expect("task card");
         let canonical = serde_json_canonicalizer::to_vec(&card).expect("canonical card");
-        let commitment = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
+        let commitment = auths_codec::domain_commitment("auths.agent-task.v4", &canonical)
             .expect("card commitment");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &card,
+        );
         let task = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let mut digests = vec![engine.recipe.digest_hex(), populate.digest_hex()];
         digests.sort();
@@ -4723,14 +5405,21 @@ pub(crate) mod tests {
             .ledger
             .initialize(&task)
             .expect("activate fixture task");
-        let grant = harness::grant_for(
+        let resource_grants = crate::task_enrollment::test_authoring::bootstrap(
+            &session.ledger,
+            &task,
+            &crate::TaskEnrollmentRecipes {
+                reads: &[],
+                writes: &[engine.recipe.clone(), populate.clone()],
+            },
+            &engine.trusted_context,
+            &session.pins,
+            &engine.qualification,
             &root,
-            &agent.principal,
-            now - 3_300,
-            "google-drive-delegation-demo",
-            "create_project_a_document_v1",
-        )
-        .expect("agent create grant");
+            &agent,
+            now,
+        );
+        let grant = &resource_grants[&engine.recipe.digest_hex()];
         let args = json!({
             "operator_namespace": "google-drive-create-demo",
             "operation_id": "create-reconcile-1",
@@ -4744,14 +5433,15 @@ pub(crate) mod tests {
         let signed = submission_for(
             &root,
             &agent,
-            &grant,
+            grant,
             args.as_object().expect("arguments"),
             &[],
             "google-drive-delegation-demo",
             "create_project_a_document_v1",
             now - 3_300,
         );
-        let verified = verify_detailed(
+        let verified = verify_task_command(
+            &task,
             &engine.recipe,
             &engine.trusted_context,
             now,
@@ -4765,6 +5455,13 @@ pub(crate) mod tests {
             &engine.recipe,
             &session.binding,
             None,
+            &session
+                .ledger
+                .load(&task.descriptor().task_id)
+                .unwrap()
+                .unwrap()
+                .write_participant(&verified)
+                .unwrap(),
             now,
         )
         .expect("exact create intent");
@@ -4801,7 +5498,7 @@ pub(crate) mod tests {
         plan_args.insert(
             "plan".to_owned(),
             json!({
-                "schema": "auths.agent-effect-plan/1",
+                "schema": "auths.agent-effect-plan/2",
                 "task_id": "task-create-reconcile",
                 "task_commitment": hex::encode(commitment.as_bytes()),
                 "create": intent,
@@ -5026,7 +5723,8 @@ pub(crate) mod tests {
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 2);
         assert!(
-            verify_detailed(
+            verify_task_command(
+                &task,
                 &engine.recipe,
                 &engine.trusted_context,
                 now + 360,
@@ -5143,18 +5841,11 @@ pub(crate) mod tests {
                 .expect("populate address")
                 .port(),
         );
-        engine.recipe = populate;
+        engine.recipe = populate.clone();
         let session = engine
             .task_write_session(&installation_bytes, &state_root)
             .expect("populate task session");
-        let populate_grant = harness::grant_for(
-            &root,
-            &agent.principal,
-            now,
-            "google-docs-delegation-demo",
-            "populate_created_project_a_document_v1",
-        )
-        .expect("agent populate grant");
+        let populate_grant = &resource_grants[&engine.recipe.digest_hex()];
         let populate_args = json!({
             "operator_namespace": "google-docs-populate-demo",
             "operation_id": "populate-reconcile-1",
@@ -5169,7 +5860,7 @@ pub(crate) mod tests {
         let populate_signed = submission_for(
             &root,
             &agent,
-            &populate_grant,
+            populate_grant,
             populate_args.as_object().expect("populate arguments"),
             &[],
             "google-docs-delegation-demo",
@@ -5245,7 +5936,7 @@ pub(crate) mod tests {
         let changed = submission_for(
             &root,
             &agent,
-            &populate_grant,
+            populate_grant,
             changed_args.as_object().expect("changed arguments"),
             &[],
             "google-docs-delegation-demo",
@@ -5367,8 +6058,12 @@ pub(crate) mod tests {
         let unknown_card_bytes =
             serde_json_canonicalizer::to_vec(&unknown_card).expect("second card bytes");
         let unknown_commitment =
-            auths_codec::domain_commitment("auths.agent-task.v2", &unknown_card_bytes)
+            auths_codec::domain_commitment("auths.agent-task.v4", &unknown_card_bytes)
                 .expect("second card commitment");
+        engine.trusted_context = crate::task_enrollment::test_authoring::operator_context(
+            &engine.trusted_context,
+            &unknown_card,
+        );
         let unknown_task =
             ApprovedAgentTask::from_test_card(unknown_card, *unknown_commitment.as_bytes());
         let unknown_listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
@@ -5391,6 +6086,22 @@ pub(crate) mod tests {
             .ledger
             .initialize(&unknown_task)
             .expect("activate second task");
+        let unknown_grants = crate::task_enrollment::test_authoring::bootstrap(
+            &unknown_session.ledger,
+            &unknown_task,
+            &crate::TaskEnrollmentRecipes {
+                reads: &[],
+                writes: &[engine.recipe.clone(), populate.clone()],
+            },
+            &engine.trusted_context,
+            &unknown_session.pins,
+            &engine.qualification,
+            &root,
+            &agent,
+            now,
+        );
+        let grant = &unknown_grants[&engine.recipe.digest_hex()];
+
         let mut unknown_args = args.clone();
         unknown_args["task_id"] = json!("task-create-unknown");
         unknown_args["task_commitment"] = json!(hex::encode(unknown_commitment.as_bytes()));
@@ -5399,14 +6110,15 @@ pub(crate) mod tests {
         let unknown_signed = submission_for(
             &root,
             &agent,
-            &grant,
+            grant,
             unknown_args.as_object().expect("second create arguments"),
             &[],
             "google-drive-delegation-demo",
             "create_project_a_document_v1",
             now,
         );
-        let unknown_verified = verify_detailed(
+        let unknown_verified = verify_task_command(
+            &unknown_task,
             &engine.recipe,
             &engine.trusted_context,
             now,
@@ -5420,6 +6132,13 @@ pub(crate) mod tests {
             &engine.recipe,
             &unknown_session.binding,
             None,
+            &unknown_session
+                .ledger
+                .load(&unknown_task.descriptor().task_id)
+                .unwrap()
+                .unwrap()
+                .write_participant(&unknown_verified)
+                .unwrap(),
             now,
         )
         .expect("second create intent");
@@ -5492,7 +6211,8 @@ pub(crate) mod tests {
             .expect("unknown create attempt");
         assert!(original_attempt.evaluated_at() <= now + 2);
         assert!(
-            verify_detailed(
+            verify_task_command(
+                &unknown_task,
                 &engine.recipe,
                 &engine.trusted_context,
                 original_attempt.evaluated_at(),
@@ -5784,6 +6504,88 @@ pub(crate) mod tests {
     pub(crate) mod administration {
         use super::*;
         use std::os::unix::fs::PermissionsExt as _;
+
+        #[tokio::test]
+        async fn shared_clock_failure_stops_admission_and_custody_but_allows_disable() {
+            let mut installed = installation(8).await;
+            let clock = Arc::new(crate::FixedClock::at(wall_clock_seconds().expect("clock")));
+            installed
+                .first
+                .engine
+                .set_qualification(Arc::new(crate::QualificationGate::new(
+                    crate::QualificationPolicy::Optional,
+                    None,
+                    None,
+                    Box::new(Arc::clone(&clock)),
+                    auths_recipe_qualification::VerifierState::default(),
+                )));
+            let host = &installed.first;
+            assert!(host.engine.execution_time().is_some());
+
+            assert!(host.lease_refused_after(|| clock.trust_is(false)).await);
+            assert_eq!(host.leases.load(Ordering::SeqCst), 0);
+            assert!(matches!(host.engine.submit(&[], &[]).await,
+                GatewaySubmitResult::Indeterminate { code } if code == "gateway.verify.clock-unavailable"));
+
+            // Restricting the connection needs a record timestamp, but must
+            // remain possible when synchronization trust has been lost.
+            host.engine
+                .disable_connection()
+                .await
+                .expect("disable despite untrusted clock");
+            assert_eq!(host.record().await.state(), ConnectionState::Disabled);
+
+            clock.unavailable();
+            assert!(host.engine.execution_time().is_none());
+            assert!(matches!(host.engine.submit(&[], &[]).await,
+                GatewaySubmitResult::Indeterminate { code } if code == "gateway.verify.clock-unavailable"));
+            assert_eq!(host.leases.load(Ordering::SeqCst), 0);
+        }
+
+        #[tokio::test]
+        async fn entry_deadline_rejects_wall_rollback_and_independent_monotonic_expiry() {
+            let mut installed = installation(8).await;
+            let now = wall_clock_seconds().expect("clock");
+            let clock = Arc::new(crate::FixedClock::at(now));
+            installed
+                .first
+                .engine
+                .set_qualification(Arc::new(crate::QualificationGate::new(
+                    crate::QualificationPolicy::Optional,
+                    None,
+                    None,
+                    Box::new(Arc::clone(&clock)),
+                    auths_recipe_qualification::VerifierState::default(),
+                )));
+            let io = EngineIo {
+                engine: &installed.first.engine,
+                proof: &[],
+                action: &[],
+                started: Instant::now(),
+                prepared: OnceLock::new(),
+                task_write: None,
+                commissioning: None,
+                commissioned_action: OnceLock::new(),
+                commissioning_refusal: OnceLock::new(),
+            };
+            assert!(io.within_entry_deadline(now));
+            clock.set(now - 1);
+            assert!(!io.within_entry_deadline(now));
+            clock.set(now + ENTRY_DEADLINE_SECONDS + 1);
+            assert!(!io.within_entry_deadline(now));
+            clock.set(now);
+            let expired = EngineIo {
+                started: Instant::now()
+                    .checked_sub(Duration::from_secs(ENTRY_DEADLINE_SECONDS + 1))
+                    .expect("earlier process instant"),
+                ..io
+            };
+            assert!(!expired.within_entry_deadline(now));
+            clock.trust_is(false);
+            assert!(installed.first.engine.execution_time().is_none());
+            clock.unavailable();
+            assert!(installed.first.engine.execution_time().is_none());
+        }
 
         struct CountedCredentials {
             store: Arc<auths_connections::PersistentCredentialStore>,
@@ -6133,13 +6935,16 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn a_restored_store_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::File).await;
+            Box::pin(restored_store_floor(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
         #[ignore = "requires the TLS PostgreSQL fixture"]
         async fn postgres_restore_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(restored_store_floor(
+                crate::store_testkit::Backend::Postgres,
+            ))
+            .await;
         }
 
         async fn restored_store_floor(backend: crate::store_testkit::Backend) {
@@ -6932,13 +7737,13 @@ pub(crate) mod tests {
         /// store, and the `PostgreSQL` store where the TLS fixture runs.
         async fn across_processes(backend: crate::store_testkit::Backend) {
             a_second_host_joins_only_with_the_matching_secret_after_state_changes(backend).await;
-            a_disable_or_revoke_through_one_process_stops_entry_in_another(backend).await;
+            Box::pin(a_disable_or_revoke_through_one_process_stops_entry_in_another(backend)).await;
             a_cross_process_rotation_then_disable_and_enable_leases_on_every_host(backend).await;
         }
 
         #[tokio::test]
         async fn file_store_shares_the_connection_across_processes() {
-            across_processes(crate::store_testkit::Backend::File).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
@@ -6948,7 +7753,7 @@ pub(crate) mod tests {
                 crate::store_testkit::postgres_configured(),
                 "TLS PostgreSQL environment slots are required"
             );
-            across_processes(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::Postgres)).await;
         }
     }
 }

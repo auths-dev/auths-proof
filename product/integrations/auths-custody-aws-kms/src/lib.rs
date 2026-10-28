@@ -7,7 +7,7 @@ use auths_custody::{
     CustodyProviderError, ExternalSigner, KeyLifecycleState, KeyVersionId, P256SignatureVerifier,
     RawSigningResponse, SigningIntent, UntrustedSigningResponse,
 };
-use p256::{EncodedPoint, pkcs8::DecodePublicKey as _};
+use p256::{Sec1Point, pkcs8::DecodePublicKey as _};
 use sha2::{Digest as _, Sha256};
 
 const ADAPTER_ID: &str = "aws-kms-p256-v1";
@@ -231,7 +231,7 @@ impl<C: AwsKmsApi> AwsKmsP256Adapter<C> {
             .map_err(AwsKmsConfigurationError::Provider)?;
         let key = p256::PublicKey::from_public_key_der(&public_key_der)
             .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?;
-        let sec1 = EncodedPoint::from(key).compress();
+        let sec1 = Sec1Point::from(key).compress();
         let identity = CustodyIdentity::p256(form, sec1.as_bytes())
             .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?;
         let key_version = key_version(key_arn, &public_key_der)?;
@@ -407,7 +407,7 @@ mod tests {
         }
 
         fn get_public_key(&self, _key_arn: &str) -> Result<Vec<u8>, AwsKmsFailure> {
-            let encoded = self.key.verifying_key().to_encoded_point(false);
+            let encoded = self.key.verifying_key().to_sec1_point(false);
             Ok(p256::PublicKey::from_sec1_bytes(encoded.as_bytes())
                 .unwrap()
                 .to_public_key_der()
@@ -424,7 +424,7 @@ mod tests {
             _message_type: AwsKmsMessageType,
         ) -> Result<AwsKmsSignOutput, AwsKmsFailure> {
             let signature: Signature = self.key.sign(message);
-            let signature = signature.normalize_s().unwrap_or(signature);
+            let signature = signature.normalize_s();
             Ok(AwsKmsSignOutput {
                 key_arn: self.arn.clone(),
                 algorithm,

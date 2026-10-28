@@ -684,7 +684,7 @@ impl PyMcpAction {
 }
 
 #[pyfunction]
-#[pyo3(signature = (service, name, arguments_json, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None))]
+#[pyo3(signature = (service, name, arguments_json, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None, *, audience = None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_mcp_action(
     service: &str,
@@ -695,6 +695,7 @@ fn prepare_mcp_action(
     challenge: &[u8],
     evaluation_time: u64,
     validity_seconds: Option<u64>,
+    audience: Option<&str>,
 ) -> PyResult<PyMcpAction> {
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
@@ -715,6 +716,32 @@ fn prepare_mcp_action(
         ));
     };
     let call = McpToolCall::new(service, name, arguments).map_err(value_error)?;
+    prepare_mcp_action_from_call(
+        &call,
+        actor.inner.clone(),
+        terminal_grant,
+        challenge,
+        evaluation_time,
+        validity_seconds,
+        audience,
+    )
+}
+
+/// Shared MCP authoring projection. An explicit audience signs intent; it never
+/// changes grant authority or the verifier's independently installed anchors.
+pub(crate) fn prepare_mcp_action_from_call(
+    call: &McpToolCall,
+    actor: auths_model::PrincipalId,
+    terminal_grant: &auths_model::SignedGrant,
+    challenge: &[u8],
+    evaluation_time: u64,
+    validity_seconds: Option<u64>,
+    audience: Option<&str>,
+) -> PyResult<PyMcpAction> {
+    let audience = match audience {
+        Some(value) => auths_model::Audience::parse(value).map_err(value_error)?,
+        None => call.audience().map_err(value_error)?,
+    };
     let profile = McpProfile;
     let canonical = profile
         .canonicalize(&call.canonical_bytes().map_err(value_error)?)
@@ -722,8 +749,8 @@ fn prepare_mcp_action(
     let display = profile.review_display(&canonical).map_err(value_error)?;
     let prepared = prepare_profile_action(
         canonical,
-        call.audience().map_err(value_error)?,
-        actor.inner.clone(),
+        audience.clone(),
+        actor,
         terminal_grant,
         array32(challenge, "challenge")?,
         evaluation_time,
@@ -732,8 +759,8 @@ fn prepare_mcp_action(
     .map_err(value_error)?;
     let (canonical, envelope) = prepared.into_parts();
     Ok(PyMcpAction {
-        arguments_json: canonical_arguments,
-        audience: call.audience().map_err(value_error)?.to_string(),
+        arguments_json: serde_json_canonicalizer::to_vec(call.arguments()).map_err(value_error)?,
+        audience: audience.to_string(),
         resource: canonical.permission().resource().to_string(),
         display_digest_hex: display.canonical_digest_hex().to_owned(),
         review_title: display.title().to_owned(),

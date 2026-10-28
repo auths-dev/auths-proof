@@ -918,6 +918,8 @@ def prepare_mcp_action(
     challenge: bytes,
     evaluation_time: int,
     validity_seconds: Optional[int] = None,
+    *,
+    audience: Optional[str] = None,
 ) -> McpAction: ...
 def attach_mcp_observations(
     action: McpAction, observations: List[Tuple[str, bytes]]
@@ -935,6 +937,8 @@ def prepare_mcp_call_action(
     challenge: bytes,
     evaluation_time: int,
     validity_seconds: Optional[int] = None,
+    *,
+    audience: Optional[str] = None,
 ) -> McpAction: ...
 def authorize_mcp(
     prepared: McpAction,

@@ -97,10 +97,37 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for thirteen installed cases
+pins the bundle manifests and redacted receipts for seventeen installed cases
 on this host, including both restart boundaries, the two-task swap, the
 no-content delivery fault, a stale-generation write refusal and an isolated
 Linux container read/write run.
+
+Use `--retired-record` for the real provider-status denial case. After signing
+the task and agent read, the runner retires only its own disposable record
+through the ownership journal. The unchanged signed read must reach Airtable
+and return 403 or 404, with one charged call, zero release bytes and no agent
+content. Independent discovery must still find no owned record. The runner
+persists the actual gateway result before later assertions; an unexpected
+response remains failed evidence. This case performs its retirement inside
+the run and records cleanup complete. The
+[installed HTTP 403 result](../../../docs/program-log/2026-10-26-ap071-read-boundary-and-status.md)
+does not demonstrate employee ACL withdrawal, a second employee identity,
+media-type substitution, redirects or changed origin.
+
+Use `--oversize-field` for the live projection-ceiling case. After the task is
+active, the operator changes only the disposable record's `DemoStatus` to 65
+bytes. The agent submits one signed read. The runner requires a provider GET,
+zero release bytes, no agent content and an independent 65-byte Airtable
+readback, then retires the record in a separate `cleanup` invocation. The
+[installed result](../../../docs/program-log/2026-10-26-ap071-airtable-oversize-field.md)
+pins the source-free bundle and redacted receipt.
+
+Use `--missing-field` to clear only the run-owned `DemoStatus` after task
+activation, or `--oversize-body` to set it to 17,000 bytes. Both cases submit
+one signed read and require one provider call, zero releases and no agent
+content. The separate cleanup command retires each record. The
+[installed results](../../../docs/program-log/2026-10-26-ap071-airtable-response-shapes.md)
+pin both redacted receipts and their shared source-free bundle.
 
 For the [container case](../../../docs/program-log/2026-10-26-ap071-container-read-write.md),
 start the digest-pinned images with the

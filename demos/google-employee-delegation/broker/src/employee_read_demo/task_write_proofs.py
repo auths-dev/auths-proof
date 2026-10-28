@@ -108,8 +108,9 @@ def _prepare(authority: TaskWriteAuthority, *, tool: str,
 
 def prepare_task_approval(authority: TaskWriteAuthority, card: dict,
                           *, now: int | None = None) -> PreparedHumanAction:
-    if (type(card) is not dict or card.get("schema") != "auths.agent-task/2"
-            or card.get("human_principal") != authority.human_principal):
+    if (type(card) is not dict or card.get("schema") != "auths.agent-task/4"
+            or card.get("initiator_principal") != authority.human_principal
+            or card.get("approver_principal") != authority.human_principal):
         raise OperatorDenied("reviewed task card does not name the human")
     return _prepare(authority, tool=APPROVAL_TOOL, payload={"task": card}, now=now)
 
@@ -125,7 +126,7 @@ def prepare_exact_confirmation(authority: TaskWriteAuthority, intent: dict,
 def prepare_effect_plan_confirmation(authority: TaskWriteAuthority, plan: dict,
                                      *, now: int | None = None) -> PreparedHumanAction:
     if (type(plan) is not dict
-            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") is None
             or type(plan.get("initial_text")) is not str
             or not 1 <= len(plan["initial_text"].encode("utf-8")) <= 192):
@@ -150,6 +151,6 @@ def prepare_recovered_child_confirmation(
 
 def task_commitment(card: dict) -> str:
     """Match the gateway's domain-separated commitment for a reviewed card."""
-    if type(card) is not dict or card.get("schema") != "auths.agent-task/2":
+    if type(card) is not dict or card.get("schema") != "auths.agent-task/4":
         raise OperatorDenied("task card is invalid")
-    return commitment("auths.agent-task.v2", card)
+    return commitment("auths.agent-task.v4", card)

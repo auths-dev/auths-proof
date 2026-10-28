@@ -79,6 +79,80 @@ fn every_corpus_vector_returns_its_decision_through_the_portable_abi() {
     });
 }
 
+/// Replaying a cryptographically valid assertion at a later evaluation time
+/// must not manufacture a fresh user-verification event. Exercise both issuer
+/// and actor roles through the byte-oriented binding contract.
+#[test]
+fn webauthn_reverification_does_not_refresh_user_verification() {
+    use auths_model::{
+        AssuranceClaimId, AssurancePolicy, AssuranceQuantifier, AssuranceRequirement,
+        FreshnessLimit, ParticipantRole, Requirement, Timestamp, TrustedContext,
+    };
+
+    with_corpus_registries(|registries| {
+        for (fixture, role) in [
+            (
+                auths_testkit::webauthn_root_raw_key_actor(),
+                ParticipantRole::Root,
+            ),
+            (
+                auths_testkit::raw_key_root_webauthn_actor(),
+                ParticipantRole::Actor,
+            ),
+        ] {
+            let original = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
+            for now in [50, 59] {
+                for maximum_age in [None, Some(FreshnessLimit::new(1).unwrap())] {
+                    let policy = AssurancePolicy::new(
+                        original.assurance_policy().id().clone(),
+                        vec![AssuranceRequirement::new(
+                            role,
+                            AssuranceQuantifier::Every,
+                            AssuranceClaimId::parse("user-verified").unwrap(),
+                            maximum_age,
+                        )],
+                    )
+                    .unwrap();
+                    let context = TrustedContext::new(
+                        original.configuration(),
+                        original.composition(),
+                        original.trust_anchors().to_vec(),
+                        original.accepted_registries().clone(),
+                        original.expected_audience().clone(),
+                        original.expected_challenge(),
+                        Timestamp::new(now),
+                        policy,
+                        original.principal_status_snapshot().clone(),
+                        original.grant_status_snapshot().clone(),
+                        original.resource_matcher().clone(),
+                        original.profile_policy().clone(),
+                        original.channel_policy().clone(),
+                        original.limits().clone(),
+                    )
+                    .unwrap();
+                    let bytes = auths_verifier::verify_v1(
+                        fixture.proof_bytes(),
+                        &fixture.action_bytes(),
+                        &auths_codec::encode_verifier_context(&context).unwrap(),
+                        registries,
+                    )
+                    .unwrap();
+                    let result = auths_codec::decode_verification_result(&bytes).unwrap();
+                    if maximum_age.is_some() {
+                        assert_eq!(result.decision(), VerificationDecision::Indeterminate);
+                        assert_eq!(
+                            result.code().code(),
+                            Requirement::AssuranceRequirementNotMet.code()
+                        );
+                    } else {
+                        assert_eq!(result.decision(), VerificationDecision::Authorized);
+                    }
+                }
+            }
+        }
+    });
+}
+
 /// A CBOR text item.
 fn cbor_text(value: &str) -> Vec<u8> {
     let length = value.len();

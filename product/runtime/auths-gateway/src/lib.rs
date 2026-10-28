@@ -19,11 +19,14 @@ pub mod commissioning_floor;
 pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
     GatewaySubmissionReview, TaskActivity, TaskPopulatePreflightInputs, TaskPopulationLineage,
-    TaskWriteProofs, TaskWriteSession, commissioning_principal_sha256, review_submission,
+    TaskWriteProofs, TaskWriteReview, TaskWriteSession, commissioning_principal_sha256,
+    review_submission,
 };
 #[cfg(unix)]
 pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
+mod clock;
 mod connection;
+mod control_namespace;
 mod credential_journal;
 mod echo_verify;
 mod engine;
@@ -38,6 +41,7 @@ mod materializer;
 mod observer;
 mod onboarding;
 mod operator;
+pub mod participant_enrollment;
 mod pre_entry;
 mod qualification;
 mod readiness;
@@ -68,6 +72,8 @@ mod support;
 // Human task approval is served only by the owner-side task session so far.
 #[allow(dead_code)]
 mod task_activation;
+mod task_enrollment;
+pub use task_enrollment::{TaskEnrollmentRecipes, TaskEnrollmentScope, TaskRootAuthority};
 // A signed two-effect plan is verified before it can enter the task journal.
 #[allow(dead_code)]
 mod task_effect_plan;
@@ -83,6 +89,8 @@ mod transport;
 
 #[cfg(test)]
 mod bounds_aggregate_tests;
+#[cfg(test)]
+mod engagement_reference;
 #[cfg(any(test, feature = "testkit-harness"))]
 pub mod harness;
 #[cfg(test)]
@@ -118,6 +126,9 @@ pub use bounds::{
     MAX_BOUNDED_LINKS, MAX_LISTED_VALUE_BYTES, MAX_LISTED_VALUES, MAX_SUM_LIMIT, MAX_WINDOW_COUNT,
     MAX_WINDOW_SECONDS, gateway_evaluator_registrations,
 };
+#[cfg(any(test, feature = "testkit-harness"))]
+pub use clock::FixedClock;
+pub use clock::{DeploymentClock, DeploymentTime, DevelopmentClock, SynchronizedHostClock};
 pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
     install_connection, join_connection,
@@ -131,7 +142,8 @@ pub use echo_verify::{
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
     GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
-    SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
+    MAX_TASK_INSTALLATION_BYTES, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
+    gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;
 pub use materializer::{
@@ -152,13 +164,10 @@ pub use operator::{
     OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,
     OperatorInstallation, OperatorStatement, verify_operator_attestation,
 };
-#[cfg(any(test, feature = "testkit-harness"))]
-pub use qualification::FixedClock;
 pub use qualification::{
-    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA,
-    PINNED_QUALIFICATION_ROOT, POSTGRES_STORE_SCHEMA, QUALIFICATION_POLICY_REFUSED,
-    QualificationBundle, QualificationGate, QualificationPolicy, QualificationStatus,
-    SynchronizedHostClock, deployment_tuple, qualification_code, qualification_policy,
+    DeploymentFacts, FILE_STORE_SCHEMA, PINNED_QUALIFICATION_ROOT, POSTGRES_STORE_SCHEMA,
+    QUALIFICATION_POLICY_REFUSED, QualificationBundle, QualificationGate, QualificationPolicy,
+    QualificationStatus, deployment_tuple, qualification_code, qualification_policy,
 };
 pub use readiness::{
     ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,
@@ -197,3 +206,6 @@ pub use support::{
     SupportFacts, support_bundle,
 };
 pub use transport::MAX_TRANSPORT_DURATION;
+
+#[cfg(unix)]
+pub use task_write::ExactWriteIntent;

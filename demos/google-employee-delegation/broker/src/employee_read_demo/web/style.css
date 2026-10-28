@@ -18,3 +18,5 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: .9rem; background
 code { font-family: ui-monospace, monospace; font-size: .95em; }
 .hint { color: #4b6060; font-size: .94rem; }
 #message { display: block; background: #163d34; color: white; padding: .75rem 1rem; border-radius: 7px; min-height: 1rem; }
+.button-feedback { display: block; flex-basis: 100%; margin: .35rem 0 .8rem; color: #324747; overflow-wrap: anywhere; }
+.button-feedback[hidden] { display: none; }

@@ -30,13 +30,16 @@ class TaskRecoverySetupTests(unittest.TestCase):
                 Encoding.Raw, PublicFormat.Raw,
             ).hex()
             config = {
-                "schema": "auths.gateway-task-installation/3",
+                "schema": "auths.gateway-task-installation/5",
                 "recipe_digests": ["a" * 64, "b" * 64],
                 "pins": {
-                    "company_id": "atlas-studio", "human_principal": "human",
+                    "company_id": "atlas-studio", "initiator_principal": "human", "approver_principal": "human",
                     "agent_principal": "agent", "agent_key_fingerprint": "c" * 64,
                     "connection_id": "jules-google", "connection_generation": 1,
                     "connection_subject": "jules", "delivery_channel": "agent-channel",
+                    "delegation": {"partition_generation": 1, "root_instance_generation": 1,
+                                   "max_depth": 0, "permitted_channels": {
+                                       "agent-channel": {"principal": "agent", "instance_generation": 1}}},
                     "operator_policy_digest": "d" * 64,
                     "allow_bounded_writes": False, "permitted_read_scopes": [],
                 },
@@ -72,13 +75,16 @@ class TaskRecoverySetupTests(unittest.TestCase):
             root = Path(directory)
             base = root / "paired.json"
             base.write_text(json.dumps({
-                "schema": "auths.gateway-task-installation/3",
+                "schema": "auths.gateway-task-installation/5",
                 "recipe_digests": ["a" * 64, "b" * 64],
                 "pins": {
-                    "company_id": "atlas-studio", "human_principal": "human",
+                    "company_id": "atlas-studio", "initiator_principal": "human", "approver_principal": "human",
                     "agent_principal": "agent", "agent_key_fingerprint": "c" * 64,
                     "connection_id": "jules-google", "connection_generation": 1,
                     "connection_subject": "jules", "delivery_channel": "agent-channel",
+                    "delegation": {"partition_generation": 1, "root_instance_generation": 1,
+                                   "max_depth": 0, "permitted_channels": {
+                                       "agent-channel": {"principal": "agent", "instance_generation": 1}}},
                     "operator_policy_digest": "d" * 64,
                     "allow_bounded_writes": False, "permitted_read_scopes": [],
                 },

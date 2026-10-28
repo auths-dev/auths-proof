@@ -17,8 +17,8 @@ use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeMap;
 
-pub(crate) const EFFECT_PLAN_TOOL: &str = "confirm_agent_effect_plan_v1";
-const EFFECT_PLAN_SCHEMA: &str = "auths.agent-effect-plan/1";
+pub(crate) const EFFECT_PLAN_TOOL: &str = "confirm_agent_effect_plan_v2";
+const EFFECT_PLAN_SCHEMA: &str = "auths.agent-effect-plan/2";
 const CONTENT_DOMAIN: &[u8] = b"auths.agent-effect-plan-content/1\0";
 const MAX_INITIAL_TEXT_BYTES: usize = 192;
 
@@ -110,6 +110,7 @@ impl VerifiedEffectPlan {
             && preflight.checked_at <= now
             && now < preflight.valid_until
             && preflight.valid_until <= self.expires_at
+            && intent.writer == self.create.writer
             && intent.task_id == self.create.task_id
             && intent.task_commitment == self.create.task_commitment
             && intent.operation_id == self.populate_operation_id
@@ -223,7 +224,7 @@ pub(crate) fn verify_effect_plan(
     let [branch] = branches.as_slice() else {
         return Err(not_entered("gateway.task.single-human-action-required"));
     };
-    if branch.actor.as_str() != card.human_principal
+    if branch.actor.as_str() != card.approver_principal
         || branch.chain.is_empty()
         || branch
             .chain
@@ -249,7 +250,7 @@ pub(crate) fn verify_effect_plan(
     }
     let canonical = serde_json_canonicalizer::to_vec(&plan)
         .map_err(|_| not_entered("gateway.task.invalid-effect-plan"))?;
-    let plan_commitment = auths_codec::domain_commitment("auths.agent-effect-plan.v1", &canonical)
+    let plan_commitment = auths_codec::domain_commitment("auths.agent-effect-plan.v2", &canonical)
         .map_err(|_| not_entered("gateway.task.invalid-effect-plan"))?;
     Ok(VerifiedEffectPlan {
         plan_commitment: hex::encode(plan_commitment.as_bytes()),
@@ -270,6 +271,96 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn assert_todoist_population(
+        plan: &VerifiedEffectPlan,
+        populate: &ExactWriteIntent,
+        recipe: &CompiledRecipe,
+        wrong_google_fields: &PopulatePreflightFacts<'_>,
+    ) {
+        let todoist = CompiledRecipe::compile(
+            include_bytes!("../../../../demos/todoist-gateway/populate_reference/recipe.json"),
+            include_bytes!(
+                "../../../../demos/todoist-gateway/populate_reference/profile.lock.json"
+            ),
+        )
+        .expect("independent populate recipe");
+        let mut todoist_plan = plan.clone();
+        todoist_plan.populate_recipe_digest = todoist.digest_hex();
+        let mut todoist_action = populate.clone();
+        todoist_action.recipe_digest = todoist.digest_hex();
+        let todoist_preflight = PopulatePreflightFacts {
+            child_id: "child-1",
+            provider_values: &BTreeMap::new(),
+            connection_subject: "jules",
+            connection_generation: 7,
+            checked_at: 99,
+            valid_until: 110,
+        };
+        let mut todoist_arguments = json!({"text": "Approved text"})
+            .as_object()
+            .expect("arguments")
+            .clone();
+        assert!(todoist_plan.matches_populate_action(
+            &todoist,
+            &todoist_action,
+            &todoist_arguments,
+            &todoist_preflight,
+            100,
+        ));
+        todoist_arguments.insert("text".into(), json!("Different text"));
+        assert!(!todoist_plan.matches_populate_action(
+            &todoist,
+            &todoist_action,
+            &todoist_arguments,
+            &todoist_preflight,
+            100,
+        ));
+        todoist_arguments.insert("text".into(), json!("Approved text"));
+        let mut mismatched_child = todoist_action.clone();
+        mismatched_child.resource_handle = "other-child".into();
+        assert!(!todoist_plan.matches_populate_action(
+            &todoist,
+            &mismatched_child,
+            &todoist_arguments,
+            &todoist_preflight,
+            100,
+        ));
+        assert!(!todoist_plan.matches_populate_action(
+            &todoist,
+            &todoist_action,
+            &todoist_arguments,
+            wrong_google_fields,
+            100,
+        ));
+        assert!(!todoist_plan.matches_populate_action(
+            &todoist,
+            &todoist_action,
+            &todoist_arguments,
+            &todoist_preflight,
+            110,
+        ));
+        let wrong_todoist_subject = PopulatePreflightFacts {
+            connection_subject: "other-human",
+            ..todoist_preflight
+        };
+        assert!(!todoist_plan.matches_populate_action(
+            &todoist,
+            &todoist_action,
+            &todoist_arguments,
+            &wrong_todoist_subject,
+            100,
+        ));
+        let mut wrong_todoist_recipe = todoist_action.clone();
+        wrong_todoist_recipe.recipe_digest = recipe.digest_hex();
+        assert!(!todoist_plan.matches_populate_action(
+            &todoist,
+            &wrong_todoist_recipe,
+            &todoist_arguments,
+            &todoist_preflight,
+            100,
+        ));
+    }
+
     #[test]
     fn planned_population_matches_only_approved_content_and_fresh_fields() {
         let recipe = CompiledRecipe::compile(
@@ -282,6 +373,12 @@ mod tests {
         )
         .expect("reviewed populate recipe");
         let create = ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "test-agent",
+                &[0xaa; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".into(),
             task_commitment: "a".repeat(64),
             operation_id: "create-1".into(),
@@ -355,87 +452,6 @@ mod tests {
             100,
         ));
 
-        let todoist = CompiledRecipe::compile(
-            include_bytes!("../../../../demos/todoist-gateway/populate_reference/recipe.json"),
-            include_bytes!(
-                "../../../../demos/todoist-gateway/populate_reference/profile.lock.json"
-            ),
-        )
-        .expect("independent populate recipe");
-        let mut todoist_plan = plan.clone();
-        todoist_plan.populate_recipe_digest = todoist.digest_hex();
-        let mut todoist_action = populate.clone();
-        todoist_action.recipe_digest = todoist.digest_hex();
-        let todoist_preflight = PopulatePreflightFacts {
-            child_id: "child-1",
-            provider_values: &BTreeMap::new(),
-            connection_subject: "jules",
-            connection_generation: 7,
-            checked_at: 99,
-            valid_until: 110,
-        };
-        let mut todoist_arguments = json!({"text": "Approved text"})
-            .as_object()
-            .expect("arguments")
-            .clone();
-        assert!(todoist_plan.matches_populate_action(
-            &todoist,
-            &todoist_action,
-            &todoist_arguments,
-            &todoist_preflight,
-            100,
-        ));
-        todoist_arguments.insert("text".into(), json!("Different text"));
-        assert!(!todoist_plan.matches_populate_action(
-            &todoist,
-            &todoist_action,
-            &todoist_arguments,
-            &todoist_preflight,
-            100,
-        ));
-        todoist_arguments.insert("text".into(), json!("Approved text"));
-        let mut mismatched_child = todoist_action.clone();
-        mismatched_child.resource_handle = "other-child".into();
-        assert!(!todoist_plan.matches_populate_action(
-            &todoist,
-            &mismatched_child,
-            &todoist_arguments,
-            &todoist_preflight,
-            100,
-        ));
-        assert!(!todoist_plan.matches_populate_action(
-            &todoist,
-            &todoist_action,
-            &todoist_arguments,
-            &wrong_google_fields,
-            100,
-        ));
-        assert!(!todoist_plan.matches_populate_action(
-            &todoist,
-            &todoist_action,
-            &todoist_arguments,
-            &todoist_preflight,
-            110,
-        ));
-        let wrong_todoist_subject = PopulatePreflightFacts {
-            connection_subject: "other-human",
-            ..todoist_preflight
-        };
-        assert!(!todoist_plan.matches_populate_action(
-            &todoist,
-            &todoist_action,
-            &todoist_arguments,
-            &wrong_todoist_subject,
-            100,
-        ));
-        let mut wrong_todoist_recipe = todoist_action.clone();
-        wrong_todoist_recipe.recipe_digest = recipe.digest_hex();
-        assert!(!todoist_plan.matches_populate_action(
-            &todoist,
-            &wrong_todoist_recipe,
-            &todoist_arguments,
-            &todoist_preflight,
-            100,
-        ));
+        assert_todoist_population(&plan, &populate, &recipe, &wrong_google_fields);
     }
 }

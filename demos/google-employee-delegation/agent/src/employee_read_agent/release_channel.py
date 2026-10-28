@@ -78,10 +78,41 @@ def _sign(key: AgentKey, message: bytes) -> bytes:
     return key.private.sign(preimage)
 
 
+def _delivery_fields(*, task_id: str, task_commitment: str, operation_id: str,
+                     recipient: str, channel_name: str, enrollment_commitment: str,
+                     partition_generation: int, instance_generation: int) -> dict:
+    """Pinned operator inputs; never copy identity or generations from a challenge."""
+    for value, maximum in ((task_id, 128), (operation_id, 128), (recipient, 256),
+                           (channel_name, 256)):
+        if type(value) is not str or not 1 <= len(value) <= maximum:
+            raise ValueError("agent delivery binding is invalid")
+    for value in (task_commitment, enrollment_commitment):
+        if type(value) is not str or _DIGEST.fullmatch(value) is None:
+            raise ValueError("agent delivery commitment is invalid")
+    for value in (partition_generation, instance_generation):
+        if type(value) is not int or not 1 <= value <= 2**53 - 1:
+            raise ValueError("agent delivery generation is invalid")
+    return {"task_id": task_id, "task_commitment": task_commitment,
+            "operation_id": operation_id, "recipient": recipient,
+            "delivery_channel": channel_name, "enrollment_commitment": enrollment_commitment,
+            "partition_generation": partition_generation, "instance_generation": instance_generation}
+
+
+def _matches_delivery(message: dict, expected: dict) -> bool:
+    # JSON booleans/floats must not compare equal to exact generation integers.
+    return all(type(message.get(name)) is type(value) and message[name] == value
+               for name, value in expected.items())
+
+
 def serve_one_release(*, socket_path: Path, output_path: Path, key: AgentKey,
                       task_id: str, task_commitment: str, operation_id: str,
-                      resource_handle: str, channel_name: str) -> dict:
+                      resource_handle: str, channel_name: str, enrollment_commitment: str,
+                      partition_generation: int, instance_generation: int) -> dict:
     """Accept one release; acknowledge only after saving its exact bytes."""
+    expected = _delivery_fields(task_id=task_id, task_commitment=task_commitment,
+        operation_id=operation_id, recipient=key.principal, channel_name=channel_name,
+        enrollment_commitment=enrollment_commitment, partition_generation=partition_generation,
+        instance_generation=instance_generation)
     _private_directory(socket_path.parent)
     _private_directory(output_path.parent)
     if (socket_path.exists() or socket_path.is_symlink() or output_path.exists()
@@ -103,13 +134,9 @@ def serve_one_release(*, socket_path: Path, output_path: Path, key: AgentKey,
                     peer.settimeout(5)
                     challenge_bytes = _receive_frame(peer)
                     challenge = _message(challenge_bytes,
-                                         "auths.agent-release-channel-challenge/1")
-                    expected = {"task_id": task_id, "task_commitment": task_commitment,
-                                "operation_id": operation_id, "recipient": key.principal,
-                                "delivery_channel": channel_name}
-                    if (set(challenge) != {"schema", "task_id", "task_commitment",
-                                           "operation_id", "recipient", "delivery_channel", "nonce"}
-                            or any(challenge.get(name) != value for name, value in expected.items())
+                                         "auths.agent-release-channel-challenge/2")
+                    if (set(challenge) != {"schema", *expected, "nonce"}
+                            or not _matches_delivery(challenge, expected)
                             or type(challenge.get("nonce")) is not str
                             or _DIGEST.fullmatch(challenge["nonce"]) is None
                             or challenge["nonce"] == "0" * 64):
@@ -118,14 +145,12 @@ def serve_one_release(*, socket_path: Path, output_path: Path, key: AgentKey,
                     content = _receive_frame(peer)
                     acknowledgement_bytes = _receive_frame(peer)
                     acknowledgement = _message(acknowledgement_bytes,
-                                               "auths.agent-release-ack/1")
-                    if (set(acknowledgement) != {"schema", "task_id", "task_commitment",
-                                                 "operation_id", "recipient", "delivery_channel",
+                                               "auths.agent-release-ack/2")
+                    if (set(acknowledgement) != {"schema", *expected,
                                                  "resource_handle", "released_bytes",
                                                  "content_sha256", "commitment_key_version",
                                                  "content_commitment"}
-                            or any(acknowledgement.get(name) != value
-                            for name, value in expected.items())
+                            or not _matches_delivery(acknowledgement, expected)
                             or acknowledgement.get("resource_handle") != resource_handle
                             or type(acknowledgement.get("released_bytes")) is not int
                             or acknowledgement["released_bytes"] != len(content)

@@ -79,7 +79,7 @@ mod unix {
         },
         path::{Component, Path, PathBuf},
         sync::Arc,
-        time::{Duration, SystemTime, UNIX_EPOCH},
+        time::Duration,
     };
     use subtle::ConstantTimeEq as _;
     use tokio::{
@@ -529,6 +529,29 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+        },
+        /// Review a task write using protected activation and the installed recipe.
+        /// This command never reserves capacity or issues a provider call.
+        TaskReviewSubmission {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: Option<String>,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+        },
+        /// Native participant enrollment using protected task and installation pins.
+        TaskEnrollment {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[command(subcommand)]
+            operation: TaskEnrollmentCommand,
         },
         /// Development operator only: submit an agent write under the
         /// installed task pins, with exact human confirmation by default.
@@ -1303,6 +1326,337 @@ mod unix {
         }
     }
 
+    #[derive(clap::Args)]
+    struct EnrollmentRecipeSelection {
+        /// Exact write recipes selected from the installed primary/companion set.
+        #[arg(long = "write-recipe-digest", num_args = 1.., action = clap::ArgAction::Append)]
+        writes: Vec<String>,
+        /// Include the operator-installed read recipe.
+        #[arg(long)]
+        read_recipe: bool,
+    }
+
+    #[derive(Subcommand)]
+    enum TaskEnrollmentCommand {
+        /// Derive signed scope identifiers and resource witness projections.
+        Scopes {
+            #[command(flatten)]
+            recipes: EnrollmentRecipeSelection,
+        },
+        /// Derive the full root commitment for participant signature.
+        Root {
+            #[command(flatten)]
+            recipes: EnrollmentRecipeSelection,
+            #[arg(long)]
+            authority: PathBuf,
+        },
+        /// Verify native root possession and every resource witness, then publish.
+        Bootstrap {
+            #[command(flatten)]
+            recipes: EnrollmentRecipeSelection,
+            #[arg(long)]
+            authority: PathBuf,
+            #[arg(long)]
+            proofs: PathBuf,
+        },
+        /// Verify parent authority, child acceptance and child resource grants.
+        Enroll {
+            #[arg(long)]
+            parent: String,
+            #[arg(long)]
+            proofs: PathBuf,
+        },
+        /// Read currently active participant pins from the protected journal.
+        Inspect {
+            #[arg(long)]
+            participant: String,
+        },
+        /// Operator-only revocation; retained charges and descendants survive.
+        Revoke {
+            #[arg(long)]
+            participant: String,
+        },
+    }
+
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct EnrollmentInvocationFiles {
+        proof: PathBuf,
+        action: PathBuf,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct EnrollmentResourceFiles {
+        scope_id: String,
+        invocation: EnrollmentInvocationFiles,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(tag = "schema", deny_unknown_fields)]
+    enum EnrollmentProofFiles {
+        #[serde(rename = "auths.gateway-root-enrollment-proofs/1")]
+        Root {
+            activation: EnrollmentInvocationFiles,
+            resources: Vec<EnrollmentResourceFiles>,
+        },
+        #[serde(rename = "auths.gateway-child-enrollment-proofs/1")]
+        Child {
+            parent: EnrollmentInvocationFiles,
+            child: EnrollmentInvocationFiles,
+            resources: Vec<EnrollmentResourceFiles>,
+        },
+    }
+
+    struct EnrollmentInvocationBytes {
+        proof: Vec<u8>,
+        action: Vec<u8>,
+    }
+
+    impl EnrollmentInvocationBytes {
+        fn load(files: &EnrollmentInvocationFiles, remaining: &mut usize) -> Result<Self, Failure> {
+            let proof = read_bounded(&files.proof, *remaining)?;
+            *remaining = remaining
+                .checked_sub(proof.len())
+                .ok_or("gateway.task.enrollment-size")?;
+            let action = read_bounded(&files.action, (*remaining).min(64 * 1024))?;
+            *remaining = remaining
+                .checked_sub(action.len())
+                .ok_or("gateway.task.enrollment-size")?;
+            if proof.is_empty() || action.is_empty() {
+                return Err("gateway.task.enrollment-size".into());
+            }
+            Ok(Self { proof, action })
+        }
+
+        fn invocation(&self) -> auths_gateway::participant_enrollment::EnrollmentInvocation<'_> {
+            auths_gateway::participant_enrollment::EnrollmentInvocation {
+                proof: &self.proof,
+                action: &self.action,
+            }
+        }
+    }
+
+    fn enrollment_identifier(value: &str) -> Result<[u8; 32], Failure> {
+        if value.len() != 64
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err("gateway.task.enrollment-identifier".into());
+        }
+        hex::decode(value)
+            .map_err(|_| "gateway.task.enrollment-identifier")?
+            .try_into()
+            .map_err(|_| "gateway.task.enrollment-identifier".into())
+    }
+
+    fn enrollment_recipes(
+        state_dir: &Path,
+        selection: &EnrollmentRecipeSelection,
+    ) -> Result<(Vec<CompiledReleaseRecipe>, Vec<CompiledRecipe>), Failure> {
+        if selection.writes.len() + usize::from(selection.read_recipe) > 16 {
+            return Err("gateway.task.enrollment-size".into());
+        }
+        let installed = installation(state_dir)?;
+        let writes = selection
+            .writes
+            .iter()
+            .map(|digest| selected_write_recipe(state_dir, &installed, Some(digest)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let reads = if selection.read_recipe {
+            vec![task_read_recipe(
+                state_dir,
+                &task_read_installation(state_dir)?,
+            )?]
+        } else {
+            Vec::new()
+        };
+        Ok((reads, writes))
+    }
+
+    fn enrollment_resources(
+        files: &[EnrollmentResourceFiles],
+        remaining: &mut usize,
+    ) -> Result<Vec<EnrollmentInvocationBytes>, Failure> {
+        if files.len() > 16 || files.iter().any(|file| file.scope_id.len() != 64) {
+            return Err("gateway.task.enrollment-size".into());
+        }
+        files
+            .iter()
+            .map(|file| EnrollmentInvocationBytes::load(&file.invocation, remaining))
+            .collect()
+    }
+
+    fn enrollment_witnesses<'a>(
+        files: &'a [EnrollmentResourceFiles],
+        bytes: &'a [EnrollmentInvocationBytes],
+    ) -> Vec<auths_gateway::participant_enrollment::EnrollmentResourceWitness<'a>> {
+        files
+            .iter()
+            .zip(bytes)
+            .map(
+                |(file, bytes)| auths_gateway::participant_enrollment::EnrollmentResourceWitness {
+                    scope_id: &file.scope_id,
+                    invocation: bytes.invocation(),
+                },
+            )
+            .collect()
+    }
+
+    fn print_enrollment(value: &impl Serialize) -> Result<(), Failure> {
+        println!(
+            "{}",
+            serde_json::to_string(value).map_err(|_| "gateway.task.enrollment-response")?
+        );
+        Ok(())
+    }
+
+    fn enroll_task_child(
+        session: &auths_gateway::TaskWriteSession<'_>,
+        task_id: &str,
+        parent: &str,
+        proofs: &Path,
+    ) -> Result<(), Failure> {
+        use auths_gateway::participant_enrollment::ParticipantEnrollmentProofs;
+        let parent_id = enrollment_identifier(parent)?;
+        let files: EnrollmentProofFiles = serde_json::from_slice(&read_bounded(proofs, 64 * 1024)?)
+            .map_err(|_| "gateway.task.enrollment-proofs")?;
+        let EnrollmentProofFiles::Child {
+            parent,
+            child,
+            resources,
+        } = files
+        else {
+            return Err("gateway.task.enrollment-proofs".into());
+        };
+        let mut remaining = 4 * 1024 * 1024;
+        let parent = EnrollmentInvocationBytes::load(&parent, &mut remaining)?;
+        let child = EnrollmentInvocationBytes::load(&child, &mut remaining)?;
+        let bytes = enrollment_resources(&resources, &mut remaining)?;
+        let witnesses = enrollment_witnesses(&resources, &bytes);
+        let commitment = session.enroll_participant(
+            task_id,
+            parent_id,
+            &ParticipantEnrollmentProofs {
+                parent: parent.invocation(),
+                child: child.invocation(),
+                resources: &witnesses,
+            },
+        )?;
+        print_enrollment(
+            &serde_json::json!({"outcome": "child-enrolled", "enrollment_commitment": hex::encode(commitment)}),
+        )
+    }
+
+    async fn task_review_submission(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: Option<String>,
+        proof: PathBuf,
+        action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, recipe_digest).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&action, 64 * 1024)?;
+        let review = session.review_submission(&task_id, &proof, &action);
+        let encoded = match review {
+            Ok(review) => serde_json::to_string(&review),
+            Err(refusal) => serde_json::to_string(&refusal),
+        }
+        .map_err(|_| "gateway.output")?;
+        println!("{encoded}");
+        Ok(())
+    }
+
+    async fn task_enrollment(
+        state_dir: PathBuf,
+        task_id: String,
+        operation: TaskEnrollmentCommand,
+    ) -> Result<(), Failure> {
+        use auths_gateway::participant_enrollment::RootEnrollmentProofs;
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        match operation {
+            TaskEnrollmentCommand::Scopes { recipes } => {
+                let (reads, writes) = enrollment_recipes(&state_dir, &recipes)?;
+                print_enrollment(&session.participant_scopes(
+                    &task_id,
+                    &auths_gateway::TaskEnrollmentRecipes {
+                        reads: &reads,
+                        writes: &writes,
+                    },
+                )?)
+            }
+            TaskEnrollmentCommand::Root { recipes, authority } => {
+                let (reads, writes) = enrollment_recipes(&state_dir, &recipes)?;
+                let authority = serde_json::from_slice(&read_bounded(&authority, 16 * 1024)?)
+                    .map_err(|_| "gateway.task.enrollment-authority")?;
+                print_enrollment(&session.participant_root(
+                    &task_id,
+                    &auths_gateway::TaskEnrollmentRecipes {
+                        reads: &reads,
+                        writes: &writes,
+                    },
+                    &authority,
+                )?)
+            }
+            TaskEnrollmentCommand::Bootstrap {
+                recipes,
+                authority,
+                proofs,
+            } => {
+                let (reads, writes) = enrollment_recipes(&state_dir, &recipes)?;
+                let authority = serde_json::from_slice(&read_bounded(&authority, 16 * 1024)?)
+                    .map_err(|_| "gateway.task.enrollment-authority")?;
+                let files: EnrollmentProofFiles =
+                    serde_json::from_slice(&read_bounded(&proofs, 64 * 1024)?)
+                        .map_err(|_| "gateway.task.enrollment-proofs")?;
+                let EnrollmentProofFiles::Root {
+                    activation,
+                    resources,
+                } = files
+                else {
+                    return Err("gateway.task.enrollment-proofs".into());
+                };
+                let mut remaining = 4 * 1024 * 1024;
+                let activation = EnrollmentInvocationBytes::load(&activation, &mut remaining)?;
+                let bytes = enrollment_resources(&resources, &mut remaining)?;
+                let witnesses = enrollment_witnesses(&resources, &bytes);
+                let commitment = session.bootstrap_participants(
+                    &task_id,
+                    &auths_gateway::TaskEnrollmentRecipes {
+                        reads: &reads,
+                        writes: &writes,
+                    },
+                    &authority,
+                    &RootEnrollmentProofs {
+                        activation: activation.invocation(),
+                        resources: &witnesses,
+                    },
+                )?;
+                print_enrollment(
+                    &serde_json::json!({"outcome": "root-enrolled", "enrollment_commitment": hex::encode(commitment)}),
+                )
+            }
+            TaskEnrollmentCommand::Enroll { parent, proofs } => {
+                enroll_task_child(&session, &task_id, &parent, &proofs)
+            }
+            TaskEnrollmentCommand::Inspect { participant } => print_enrollment(
+                &session.participant_pins(&task_id, enrollment_identifier(&participant)?)?,
+            ),
+            TaskEnrollmentCommand::Revoke { participant } => {
+                session.revoke_participant(&task_id, enrollment_identifier(&participant)?)?;
+                print_enrollment(&serde_json::json!({"outcome": "participant-revoked"}))
+            }
+        }
+    }
+
     #[derive(Serialize)]
     struct AdminResponse {
         schema: &'static str,
@@ -1494,11 +1848,12 @@ mod unix {
         hex::encode(Sha256::digest(bytes))
     }
 
+    // CLI statement/review/bookkeeping timestamp. Execution independently
+    // requires the installed deployment clock and its synchronization trust.
     fn now() -> Result<u64, &'static str> {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .map_err(|_| "gateway.clock.unavailable")
+        auths_gateway::DeploymentClock::sample(&DevelopmentClock)
+            .map(auths_gateway::DeploymentTime::unix_seconds)
+            .ok_or("gateway.clock.unavailable")
     }
 
     fn read_install_credential() -> Result<Zeroizing<Vec<u8>>, &'static str> {
@@ -3486,7 +3841,11 @@ mod unix {
     }
 
     fn task_installation(state_dir: &Path) -> Result<Vec<u8>, Failure> {
-        task_private_file(state_dir, TASK_WRITE_INSTALLATION_FILE, 16 * 1024)
+        task_private_file(
+            state_dir,
+            TASK_WRITE_INSTALLATION_FILE,
+            auths_gateway::MAX_TASK_INSTALLATION_BYTES,
+        )
     }
 
     fn task_read_installation(state_dir: &Path) -> Result<TaskReadInstallation, Failure> {
@@ -3539,7 +3898,7 @@ mod unix {
 
     async fn task_configure(state_dir: PathBuf, from: PathBuf) -> Result<(), Failure> {
         let engine = task_engine(&state_dir).await?;
-        let bytes = read_bounded(&from, 16 * 1024)?;
+        let bytes = read_bounded(&from, auths_gateway::MAX_TASK_INSTALLATION_BYTES)?;
         engine.task_write_session(&bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
         private_file(&state_dir.join(TASK_WRITE_INSTALLATION_FILE), &bytes)?;
         println!("{{\"outcome\":\"task-installation-configured\"}}");
@@ -3872,7 +4231,9 @@ mod unix {
             .create(true)
             .truncate(false)
             .mode(0o600)
-            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
             .open(state_dir.join(TASK_READ_COMMITMENT_ROTATION_LOCK))
             .map_err(|_| "gateway.release.rotation-unavailable")?;
         let metadata = lock
@@ -4005,7 +4366,9 @@ mod unix {
         check_private_directory(parent).map_err(|_| "gateway.release.source-unavailable")?;
         let opened = OpenOptions::new()
             .read(true)
-            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
             .open(&source_file)
             .map_err(|_| "gateway.release.source-unavailable")?;
         let metadata = opened
@@ -4333,7 +4696,7 @@ mod unix {
         Ok(())
     }
 
-    async fn task_recover_child(
+    struct TaskRecoverInputs {
         state_dir: PathBuf,
         task_id: String,
         recipe_digest: String,
@@ -4342,7 +4705,19 @@ mod unix {
         attestation: PathBuf,
         recovery_proof: PathBuf,
         recovery_action: PathBuf,
-    ) -> Result<(), Failure> {
+    }
+
+    async fn task_recover_child(inputs: TaskRecoverInputs) -> Result<(), Failure> {
+        let TaskRecoverInputs {
+            state_dir,
+            task_id,
+            recipe_digest,
+            agent_proof,
+            agent_action,
+            attestation,
+            recovery_proof,
+            recovery_action,
+        } = inputs;
         let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
         let installation = task_installation(&state_dir)?;
         let session =
@@ -4856,8 +5231,8 @@ mod unix {
         let kind = CredentialStoreKind::parse(&manifest.credential_store.kind)
             .map_err(|_| "gateway.credential.adapter-unsupported")?;
         let mut checks = engine.readiness_checks(kind).await;
-        checks.clock = if auths_gateway::DeploymentClock::trust(&SynchronizedHostClock)
-            == auths_gateway::ClockTrustState::Trusted
+        checks.clock = if auths_gateway::DeploymentClock::sample(&SynchronizedHostClock)
+            .is_some_and(|sample| sample.trust_state() == auths_gateway::ClockTrustState::Trusted)
         {
             auths_gateway::PreconditionState::Ready
         } else {
@@ -5351,6 +5726,18 @@ mod unix {
                 proof,
                 action,
             } => task_activate(state_dir, proof, action).await,
+            Command::TaskReviewSubmission {
+                state_dir,
+                task_id,
+                recipe_digest,
+                proof,
+                action,
+            } => task_review_submission(state_dir, task_id, recipe_digest, proof, action).await,
+            Command::TaskEnrollment {
+                state_dir,
+                task_id,
+                operation,
+            } => task_enrollment(state_dir, task_id, operation).await,
             Command::TaskSubmit {
                 state_dir,
                 task_id,
@@ -5386,7 +5773,7 @@ mod unix {
                 confirmation_proof,
                 confirmation_action,
             } => {
-                task_reconcile_child(
+                Box::pin(task_reconcile_child(
                     state_dir,
                     task_id,
                     recipe_digest,
@@ -5394,7 +5781,7 @@ mod unix {
                     agent_action,
                     confirmation_proof,
                     confirmation_action,
-                )
+                ))
                 .await
             }
             Command::TaskRecordEffectPlan {
@@ -5438,7 +5825,7 @@ mod unix {
                 recovery_proof,
                 recovery_action,
             } => {
-                task_recover_child(
+                task_recover_child(TaskRecoverInputs {
                     state_dir,
                     task_id,
                     recipe_digest,
@@ -5447,7 +5834,7 @@ mod unix {
                     attestation,
                     recovery_proof,
                     recovery_action,
-                )
+                })
                 .await
             }
             Command::Disable {
@@ -5674,6 +6061,68 @@ mod unix {
 
     #[cfg(test)]
     mod tests {
+        #[test]
+        fn enrollment_cli_requires_explicit_root_authority_and_bounded_proof_files() {
+            let common = [
+                "auths-gateway",
+                "task-enrollment",
+                "--state-dir",
+                "/operator-state",
+                "--task-id",
+                "engagement",
+            ];
+            let mut args = common.to_vec();
+            args.push("bootstrap");
+            assert!(super::Cli::try_parse_from(&args).is_err());
+            args.extend(["--authority", "root.json", "--proofs", "proofs.json"]);
+            assert!(matches!(
+                super::Cli::try_parse_from(&args).unwrap().command,
+                super::Command::TaskEnrollment {
+                    operation: super::TaskEnrollmentCommand::Bootstrap { .. },
+                    ..
+                }
+            ));
+            assert!(matches!(
+                super::Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-review-submission",
+                    "--state-dir",
+                    "/state",
+                    "--task-id",
+                    "task",
+                    "--proof",
+                    "/proof",
+                    "--action",
+                    "/action",
+                ])
+                .unwrap()
+                .command,
+                super::Command::TaskReviewSubmission { .. }
+            ));
+            let directory = tempfile::tempdir().unwrap();
+            let proof = directory.path().join("proof");
+            let action = directory.path().join("action");
+            std::fs::write(&proof, [1; 5]).unwrap();
+            std::fs::write(&action, [2; 5]).unwrap();
+            let files = super::EnrollmentInvocationFiles { proof, action };
+            let mut remaining = 9;
+            assert!(super::EnrollmentInvocationBytes::load(&files, &mut remaining).is_err());
+            let mut remaining = 10;
+            let bytes = super::EnrollmentInvocationBytes::load(&files, &mut remaining).unwrap();
+            assert_eq!(remaining, 0);
+            assert_eq!(bytes.proof.len() + bytes.action.len(), 10);
+            let manifest = serde_json::json!({"schema": "auths.gateway-root-enrollment-proofs/1",
+                "activation": {"proof": "proof", "action": "action"}, "resources": []});
+            assert!(
+                serde_json::from_value::<super::EnrollmentProofFiles>(manifest.clone()).is_ok()
+            );
+            let mut injected = manifest;
+            injected["url"] = serde_json::json!("https://untrusted.example");
+            assert!(serde_json::from_value::<super::EnrollmentProofFiles>(injected).is_err());
+            assert!(super::enrollment_identifier(&"ab".repeat(32)).is_ok());
+            assert!(super::enrollment_identifier(&"AB".repeat(32)).is_err());
+        }
+
         use super::*;
 
         #[test]
@@ -6643,7 +7092,7 @@ mod unix {
 #[cfg(unix)]
 #[tokio::main]
 async fn main() {
-    if let Err(failure) = unix::run().await {
+    if let Err(failure) = Box::pin(unix::run()).await {
         eprintln!("{failure}");
         std::process::exit(1);
     }

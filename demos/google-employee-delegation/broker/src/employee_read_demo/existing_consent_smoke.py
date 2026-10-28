@@ -13,11 +13,12 @@ import os
 import stat
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 
 import requests
 
+from .timestamps import parse_aware_timestamp
 from .admission import AdmissionDenied
 from .contracts import TaskDescriptor
 from .google_oauth import DRIVE_SCOPE, TOKEN_URL
@@ -152,7 +153,7 @@ class ExistingDemoCoConsentLease:
         if not isinstance(token, str) or not token or not isinstance(expiry, str):
             raise ExistingConsentDenied("existing employee grant lacks a usable access token")
         try:
-            parsed = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+            parsed = parse_aware_timestamp(expiry)
             if parsed.tzinfo is None:
                 raise ValueError("timezone is missing")
             expires_at = int(parsed.astimezone(timezone.utc).timestamp())

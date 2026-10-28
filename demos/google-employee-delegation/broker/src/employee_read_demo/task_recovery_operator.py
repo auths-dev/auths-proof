@@ -15,12 +15,12 @@ import json
 import re
 import stat
 import time
-from datetime import datetime
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _unique_pairs
 from .google_create_handoff import CHILD_TITLE
 from .google_create_preflight import _canonical_json
@@ -138,7 +138,7 @@ def attest_response_less_candidate(
     try:
         search = json.loads(_private_read(search_report_path, 8192),
                             object_pairs_hook=_unique_pairs)["result"]
-        observed_at = datetime.fromisoformat(candidate["observed_at"])
+        observed_at = parse_aware_timestamp(candidate["observed_at"])
     except (OSError, PermissionError, KeyError, UnicodeDecodeError,
             TypeError, ValueError) as error:
         raise ContractRejected("joined recovery observations are unavailable") from error

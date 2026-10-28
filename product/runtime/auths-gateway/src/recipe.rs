@@ -613,6 +613,10 @@ impl CompiledRecipe {
             .map(|binding| (binding.resource_field.as_str(), binding.verb.clone()))
     }
 
+    pub(crate) fn enrollment_tool(&self) -> &str {
+        &self.source.tool
+    }
+
     /// Returns the operator-controlled replay namespace.
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {
@@ -1610,6 +1614,9 @@ fn exact_keys(object: &Map<String, Value>, keys: &[&str]) -> bool {
 }
 
 fn validate_lock(lock: &ProfileLockFile) -> Result<(), GatewayRecipeError> {
+    if crate::control_namespace::is_control_service(&lock.service) {
+        return Err(GatewayRecipeError::ProfileMismatch);
+    }
     if lock.schema != "auths.self-hosted-profile-lock/1"
         || lock.generator_format != 2
         || lock.version == 0

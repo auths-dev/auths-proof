@@ -9,14 +9,13 @@
 //! and is never told a provider's name: the tuple carries the provider
 //! contract as a digest.
 
-use crate::ClockTrustState;
+use crate::{ClockTrustState, DeploymentClock, DeploymentTime, DevelopmentClock};
 use auths_recipe_qualification::{
     QualificationInputs, QualificationRefusal, QualificationTrustRoot, QualificationTuple,
     QualificationVerdict, RecipeQualificationState, VerifiedQualifications, VerifierState,
 };
 use sha2::{Digest as _, Sha256};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The install-time refusal of a qualification policy that is unknown or
 /// that production does not permit.
@@ -87,149 +86,6 @@ pub fn qualification_policy(
         }
         (None | Some("optional"), false) => Ok(QualificationPolicy::Optional),
         _ => Err(QUALIFICATION_POLICY_REFUSED),
-    }
-}
-
-mod sealed {
-    pub trait Sealed {}
-}
-
-/// The time and clock trust a deployment supplies.
-///
-/// The trait is sealed: only this crate's maintained adapters implement it,
-/// so no recipe, application, SDK, or configuration can supply clock trust.
-pub trait DeploymentClock: sealed::Sealed + Send + Sync {
-    /// Local time in unix seconds, when the clock can be read.
-    fn now(&self) -> Option<u64>;
-    /// Whether the platform reports the clock synchronized.
-    fn trust(&self) -> ClockTrustState;
-}
-
-fn system_seconds() -> Option<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|elapsed| elapsed.as_secs())
-}
-
-/// The production clock adapter: trusted while the host's synchronization
-/// marker records a sample no more than fifteen minutes old.
-///
-/// Missing, future-dated, stale, symlinked or nonregular markers refuse. On
-/// Unix, group/world-writable markers also refuse. The service updates the
-/// fixed file after each synchronization; mere existence cannot establish
-/// freshness. Neither the path nor the age bound is configurable.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SynchronizedHostClock;
-
-impl SynchronizedHostClock {
-    /// The marker the host's time synchronization service creates once the
-    /// clock is synchronized.
-    pub const MARKER: &'static str = "/run/systemd/timesync/synchronized";
-}
-
-impl sealed::Sealed for SynchronizedHostClock {}
-
-const MAX_SYNCHRONIZATION_AGE: Duration = Duration::from_mins(15);
-
-fn synchronization_marker_trust(path: &std::path::Path, now: SystemTime) -> ClockTrustState {
-    let Ok(marker) = std::fs::symlink_metadata(path) else {
-        return ClockTrustState::Untrusted;
-    };
-    if !marker.is_file() {
-        return ClockTrustState::Untrusted;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        if marker.permissions().mode() & 0o022 != 0 {
-            return ClockTrustState::Untrusted;
-        }
-    }
-    let age = marker
-        .modified()
-        .ok()
-        .and_then(|sample| now.duration_since(sample).ok());
-    if age.is_some_and(|age| age <= MAX_SYNCHRONIZATION_AGE) {
-        ClockTrustState::Trusted
-    } else {
-        ClockTrustState::Untrusted
-    }
-}
-
-impl DeploymentClock for SynchronizedHostClock {
-    fn now(&self) -> Option<u64> {
-        system_seconds()
-    }
-
-    fn trust(&self) -> ClockTrustState {
-        synchronization_marker_trust(std::path::Path::new(Self::MARKER), SystemTime::now())
-    }
-}
-
-/// The development clock adapter: the local clock, taken as trusted. A
-/// production deployment never uses it.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct DevelopmentClock;
-
-impl sealed::Sealed for DevelopmentClock {}
-
-impl DeploymentClock for DevelopmentClock {
-    fn now(&self) -> Option<u64> {
-        system_seconds()
-    }
-
-    fn trust(&self) -> ClockTrustState {
-        ClockTrustState::Trusted
-    }
-}
-
-/// A clock a test sets.
-#[cfg(any(test, feature = "testkit-harness"))]
-#[derive(Debug)]
-pub struct FixedClock {
-    now: std::sync::atomic::AtomicU64,
-    trusted: std::sync::atomic::AtomicBool,
-}
-
-#[cfg(any(test, feature = "testkit-harness"))]
-impl FixedClock {
-    /// A trusted clock at `now`.
-    #[must_use]
-    pub const fn at(now: u64) -> Self {
-        Self {
-            now: std::sync::atomic::AtomicU64::new(now),
-            trusted: std::sync::atomic::AtomicBool::new(true),
-        }
-    }
-
-    /// Moves the clock.
-    pub fn set(&self, now: u64) {
-        self.now.store(now, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    /// Sets what the platform reports.
-    pub fn trust_is(&self, trusted: bool) {
-        self.trusted
-            .store(trusted, std::sync::atomic::Ordering::SeqCst);
-    }
-}
-
-#[cfg(any(test, feature = "testkit-harness"))]
-impl sealed::Sealed for Arc<FixedClock> {}
-
-#[cfg(any(test, feature = "testkit-harness"))]
-impl DeploymentClock for Arc<FixedClock> {
-    fn now(&self) -> Option<u64> {
-        Some(self.now.load(std::sync::atomic::Ordering::SeqCst))
-    }
-
-    fn trust(&self) -> ClockTrustState {
-        if self.trusted.load(std::sync::atomic::Ordering::SeqCst) {
-            ClockTrustState::Trusted
-        } else {
-            ClockTrustState::Untrusted
-        }
     }
 }
 
@@ -383,6 +239,21 @@ impl QualificationGate {
         }
     }
 
+    /// A sample for diagnostics and administrative bookkeeping. Its trust
+    /// flag must not be discarded when deciding execution eligibility;
+    /// an administrative change cannot bypass the execution-time gate.
+    pub(crate) fn observed_time(&self) -> Option<DeploymentTime> {
+        self.clock.sample()
+    }
+
+    /// Time admissible for authority evaluation, independent of whether the
+    /// recipe requires qualification. Optional qualification cannot override
+    /// an unavailable or untrusted installed clock.
+    pub(crate) fn execution_time(&self) -> Option<DeploymentTime> {
+        self.observed_time()
+            .filter(|sample| sample.trust_state() == ClockTrustState::Trusted)
+    }
+
     /// The installation's policy.
     #[must_use]
     pub const fn policy(&self) -> QualificationPolicy {
@@ -459,8 +330,11 @@ impl QualificationGate {
 
     #[cfg(unix)]
     pub(crate) fn commissioning_time(&self) -> (u64, bool) {
-        match self.clock.now() {
-            Some(now) => (now, self.clock.trust() == ClockTrustState::Trusted),
+        match self.clock.sample() {
+            Some(sample) => (
+                sample.unix_seconds(),
+                sample.trust_state() == ClockTrustState::Trusted,
+            ),
             None => (0, false),
         }
     }
@@ -484,8 +358,11 @@ impl QualificationGate {
         let state = self.verifier_state();
         // An unreadable clock is evaluated as an untrusted one at the latest
         // representable time, so a revocation is still reported first.
-        let (now, trusted) = match self.clock.now() {
-            Some(now) => (now, self.clock.trust() == ClockTrustState::Trusted),
+        let (now, trusted) = match self.clock.sample() {
+            Some(sample) => (
+                sample.unix_seconds(),
+                sample.trust_state() == ClockTrustState::Trusted,
+            ),
             None => (u64::MAX, false),
         };
         held.verified.evaluate(deployment, now, trusted, &state)
@@ -597,82 +474,6 @@ pub fn deployment_tuple(facts: &DeploymentFacts<'_>) -> Option<QualificationTupl
             credential_store_kind: facts.credential_store_kind,
         },
     })
-}
-
-#[cfg(test)]
-mod clock_tests {
-    use super::*;
-    use std::fs::{File, FileTimes};
-
-    #[test]
-    fn synchronization_marker_requires_a_recent_nonfuture_sample() {
-        let directory = tempfile::tempdir().expect("temporary clock state");
-        let path = directory.path().join("synchronized");
-        let now = UNIX_EPOCH + Duration::from_secs(2_000_000_000);
-        assert_eq!(
-            synchronization_marker_trust(&path, now),
-            ClockTrustState::Untrusted
-        );
-        let marker = File::create(&path).expect("marker");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
-            marker
-                .set_permissions(std::fs::Permissions::from_mode(0o644))
-                .expect("marker permissions");
-        }
-        for (sample, expected) in [
-            (now, ClockTrustState::Trusted),
-            (now - MAX_SYNCHRONIZATION_AGE, ClockTrustState::Trusted),
-            (
-                now - MAX_SYNCHRONIZATION_AGE - Duration::from_secs(1),
-                ClockTrustState::Untrusted,
-            ),
-            (now + Duration::from_secs(1), ClockTrustState::Untrusted),
-        ] {
-            marker
-                .set_times(FileTimes::new().set_modified(sample))
-                .expect("set sample time");
-            assert_eq!(synchronization_marker_trust(&path, now), expected);
-        }
-        assert_eq!(
-            synchronization_marker_trust(directory.path(), now),
-            ClockTrustState::Untrusted
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn synchronization_marker_refuses_links_and_untrusted_write_permissions() {
-        use std::os::unix::fs::{PermissionsExt as _, symlink};
-        let directory = tempfile::tempdir().expect("temporary clock state");
-        let path = directory.path().join("synchronized");
-        let now = UNIX_EPOCH + Duration::from_secs(2_000_000_000);
-        let marker = File::create(&path).expect("marker");
-        marker
-            .set_times(FileTimes::new().set_modified(now))
-            .expect("set sample time");
-        for mode in [0o644, 0o664, 0o646] {
-            marker
-                .set_permissions(std::fs::Permissions::from_mode(mode))
-                .expect("set permissions");
-            let expected = if mode == 0o644 {
-                ClockTrustState::Trusted
-            } else {
-                ClockTrustState::Untrusted
-            };
-            assert_eq!(synchronization_marker_trust(&path, now), expected);
-        }
-        marker
-            .set_permissions(std::fs::Permissions::from_mode(0o644))
-            .expect("private marker");
-        let link = directory.path().join("link");
-        symlink(&path, &link).expect("link");
-        assert_eq!(
-            synchronization_marker_trust(&link, now),
-            ClockTrustState::Untrusted
-        );
-    }
 }
 
 #[cfg(test)]

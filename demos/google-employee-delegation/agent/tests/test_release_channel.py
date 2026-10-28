@@ -20,7 +20,7 @@ from auths.identity.authoring import create_raw_key_ed25519_identity
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption, PublicFormat
 
-from employee_read_agent.release_channel import _receive_frame, _send_frame, serve_one_release
+from employee_read_agent.release_channel import _delivery_fields, _matches_delivery, _receive_frame, _send_frame, serve_one_release
 from employee_read_agent.run import AgentKey
 
 
@@ -29,6 +29,25 @@ def _canonical(value: dict) -> bytes:
 
 
 class ReleaseChannelTests(unittest.TestCase):
+    def test_delivery_binding_requires_explicit_exact_generations(self) -> None:
+        fields = dict(task_id="task", task_commitment="a" * 64, operation_id="read",
+                      recipient="registered-principal", channel_name="registered-channel",
+                      enrollment_commitment="b" * 64, partition_generation=7, instance_generation=5)
+        self.assertEqual(_delivery_fields(**fields)["instance_generation"], 5)
+        expected = _delivery_fields(**fields)
+        self.assertTrue(_matches_delivery(dict(expected), expected))
+        self.assertFalse(_matches_delivery({**expected, "instance_generation": 5.0}, expected))
+        self.assertFalse(_matches_delivery({**expected, "enrollment_commitment": "c" * 64}, expected))
+        for name in ("partition_generation", "instance_generation"):
+            for value in (True, 0, -1, 1.0, 2**53, "7"):
+                with self.assertRaises(ValueError):
+                    _delivery_fields(**{**fields, name: value})
+        for name in ("task_commitment", "enrollment_commitment"):
+            for value in (None, "x" * 64, "A" * 64, "a" * 63):
+                with self.assertRaises(ValueError):
+                    _delivery_fields(**{**fields, name: value})
+
+
     def test_cli_receives_into_private_file_from_distinct_process(self) -> None:
         private = Ed25519PrivateKey.generate()
         seed = private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -46,6 +65,7 @@ class ReleaseChannelTests(unittest.TestCase):
                 "--output", str(output_path), "--task-id", "task-2",
                 "--task-commitment", "a" * 64, "--operation-id", "read-2",
                 "--resource-handle", "record-2", "--channel-name", "agent-channel",
+                "--enrollment-commitment", "e" * 64, "--partition-generation", "7", "--instance-generation", "5",
             ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             try:
                 until = time.monotonic() + 5
@@ -57,14 +77,15 @@ class ReleaseChannelTests(unittest.TestCase):
                     peer.connect(str(socket_path))
                     common = {"task_id": "task-2", "task_commitment": "a" * 64,
                               "operation_id": "read-2", "recipient": key.principal,
-                              "delivery_channel": "agent-channel"}
-                    challenge = _canonical({"schema": "auths.agent-release-channel-challenge/1",
+                              "delivery_channel": "agent-channel", "enrollment_commitment": "e" * 64,
+                              "partition_generation": 7, "instance_generation": 5}
+                    challenge = _canonical({"schema": "auths.agent-release-channel-challenge/2",
                                             **common, "nonce": "d" * 64})
                     _send_frame(peer, challenge)
                     self.assertEqual(len(_receive_frame(peer)), 64)
                     content = b"one private status"
                     acknowledgement = _canonical({
-                        "schema": "auths.agent-release-ack/1", **common,
+                        "schema": "auths.agent-release-ack/2", **common,
                         "resource_handle": "record-2", "released_bytes": len(content),
                         "content_sha256": hashlib.sha256(content).hexdigest(),
                         "commitment_key_version": 1, "content_commitment": "c" * 64,
@@ -101,7 +122,8 @@ class ReleaseChannelTests(unittest.TestCase):
                             socket_path=socket_path, output_path=output_path, key=key,
                             task_id="task-1", task_commitment="a" * 64,
                             operation_id="read-1", resource_handle="record-1",
-                            channel_name="agent-channel",
+                            channel_name="agent-channel", enrollment_commitment="e" * 64,
+                            partition_generation=7, instance_generation=5,
                         )
                     except Exception as error:
                         result["error"] = error
@@ -117,8 +139,9 @@ class ReleaseChannelTests(unittest.TestCase):
                     peer.connect(str(socket_path))
                     common = {"task_id": "task-1", "task_commitment": "a" * 64,
                               "operation_id": "read-1", "recipient": key.principal,
-                              "delivery_channel": "agent-channel"}
-                    challenge = _canonical({"schema": "auths.agent-release-channel-challenge/1",
+                              "delivery_channel": "agent-channel", "enrollment_commitment": "e" * 64,
+                              "partition_generation": 7, "instance_generation": 5}
+                    challenge = _canonical({"schema": "auths.agent-release-channel-challenge/2",
                                             **common, "nonce": "b" * 64})
                     _send_frame(peer, challenge)
                     challenge_signature = _receive_frame(peer)
@@ -127,7 +150,7 @@ class ReleaseChannelTests(unittest.TestCase):
                     self.assertIsInstance(verified, IdentityOk)
                     content = b"Ready"
                     acknowledgement = _canonical({
-                        "schema": "auths.agent-release-ack/1", **common,
+                        "schema": "auths.agent-release-ack/2", **common,
                         "resource_handle": "record-1", "released_bytes": len(content),
                         "content_sha256": "0" * 64 if incorrect else hashlib.sha256(content).hexdigest(),
                         "commitment_key_version": 1, "content_commitment": "c" * 64,

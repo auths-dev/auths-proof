@@ -402,6 +402,7 @@ export interface WorkflowWasmEngine {
     challenge: Uint8Array,
     evaluationTime: bigint,
     validitySeconds: number | undefined,
+    audience?: string,
   ): WorkflowMcpActionPreparation;
   attachObservationsV1(
     canonicalAction: Uint8Array,

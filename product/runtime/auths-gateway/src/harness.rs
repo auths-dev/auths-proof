@@ -136,6 +136,7 @@ pub(crate) fn window(from: u64, until: u64) -> Result<ValidityWindow, HarnessErr
     )
 }
 
+#[cfg(test)]
 pub(crate) fn audience() -> Result<Audience, HarnessError> {
     fixture(Audience::parse(&format!("mcp://{SERVICE}")), "audience")
 }
@@ -436,6 +437,7 @@ pub(crate) fn context_for_agent_and_task_profile(
     context_for_agent_and_task_profiles(root, observer, now, &[(service, tool)])
 }
 
+#[cfg(test)]
 pub(crate) fn context_for_agent_and_task_profiles(
     root: &Signer,
     observer: &PrincipalId,
@@ -445,8 +447,8 @@ pub(crate) fn context_for_agent_and_task_profiles(
     let mut allowed = profiles.to_vec();
     allowed.extend([
         ("auths-agent-task", "approve_agent_task_v1"),
-        ("auths-agent-task", "confirm_agent_write_v1"),
-        ("auths-agent-task", "confirm_agent_effect_plan_v1"),
+        ("auths-agent-task", "confirm_agent_write_v2"),
+        ("auths-agent-task", "confirm_agent_effect_plan_v2"),
         ("auths-agent-task", "confirm_agent_recovered_child_v1"),
     ]);
     context_for_profiles(
@@ -485,7 +487,7 @@ pub(crate) fn context_for_read_with_write_default(
     clippy::too_many_arguments,
     reason = "test trust includes named MCP profile"
 )]
-fn context_for_profiles(
+pub(crate) fn context_for_profiles(
     roots: &[&Signer],
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,
@@ -494,6 +496,36 @@ fn context_for_profiles(
     composition: CompositionRequirement,
     methods: &[&str],
     profiles: &[(&str, &str)],
+) -> Result<TrustedContext, HarnessError> {
+    context_for_profiles_and_audiences(
+        roots,
+        observer,
+        configuration,
+        now,
+        depth,
+        composition,
+        methods,
+        profiles,
+        &[],
+    )
+}
+
+/// Explicit operator trust for engagement audiences in native test fixtures.
+/// Rebinding an expected audience does not widen an anchor's authority.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust names profile and explicit anchor audiences"
+)]
+pub(crate) fn context_for_profiles_and_audiences(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+    methods: &[&str],
+    profiles: &[(&str, &str)],
+    engagement_audiences: &[Audience],
 ) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
@@ -509,10 +541,11 @@ fn context_for_profiles(
         .iter()
         .map(|(service, _)| *service)
         .collect::<BTreeSet<_>>();
-    let audiences = services
+    let mut audiences = services
         .iter()
         .map(|service| fixture(Audience::parse(&format!("mcp://{service}")), "audience"))
         .collect::<Result<Vec<_>, _>>()?;
+    audiences.extend_from_slice(engagement_audiences);
     let audience = fixture(
         Audience::parse(&format!("mcp://{}", profiles[0].0)),
         "audience",
@@ -1308,4 +1341,17 @@ mod process {
         };
         Ok((setup, running))
     }
+}
+
+/// Fixed trusted execution time for file-journal fixtures. Pure state tests
+/// continue to supply explicit integers and do not construct runtime clocks.
+#[cfg(test)]
+pub(crate) fn time_gate(now: u64) -> crate::QualificationGate {
+    crate::QualificationGate::new(
+        crate::QualificationPolicy::Optional,
+        None,
+        None,
+        Box::new(std::sync::Arc::new(crate::FixedClock::at(now))),
+        auths_recipe_qualification::VerifierState::default(),
+    )
 }

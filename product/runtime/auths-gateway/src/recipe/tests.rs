@@ -310,6 +310,40 @@ fn fixed_write_query_is_reviewed_and_cannot_be_supplied_by_the_agent() {
     }
 }
 
+fn google_create_request(
+    recipe: &CompiledRecipe,
+    operation_id: &str,
+) -> (Map<String, Value>, ClosedProviderRequest) {
+    let args = arguments(
+        recipe,
+        &json!({
+            "operation_id": operation_id,
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "parent_id": "project-a-folder",
+            "title": "Auths AP-071 Project A handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32))
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed create request");
+    (args, request)
+}
+
+fn google_child_metadata() -> Value {
+    json!({
+        "id": "child_ABC-123",
+        "name": "Auths AP-071 Project A handoff",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": ["project-a-folder"],
+        "driveId": "0ACsJUU1uex2wUk9PVA",
+        "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))},
+        "trashed": false,
+        "createdTime": "2026-10-25T10:00:00Z"
+    })
+}
+
 #[test]
 fn google_drive_create_is_a_task_bound_metadata_request() {
     let recipe = compiled("google-drive-create");
@@ -323,20 +357,7 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         recipe.review_document()["created_child"]["response_id_pointer"],
         "/id"
     );
-    let args = arguments(
-        &recipe,
-        &json!({
-            "operation_id": "create-1",
-            "task_id": "task-1",
-            "task_commitment": "45".repeat(32),
-            "parent_id": "project-a-folder",
-            "title": "Auths AP-071 Project A handoff",
-            "recovery_marker": format!("ap071_{}", "d".repeat(32))
-        }),
-    );
-    let request = recipe
-        .closed_request_from_arguments(&args, [0x41; 32])
-        .expect("closed create request");
+    let (args, request) = google_create_request(&recipe, "create-1");
     assert_eq!(request.method(), WriteMethod::Post);
     assert_eq!(
         request.url(),
@@ -380,16 +401,7 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         observation.url(),
         "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true"
     );
-    let metadata = json!({
-        "id": "child_ABC-123",
-        "name": "Auths AP-071 Project A handoff",
-        "mimeType": "application/vnd.google-apps.document",
-        "parents": ["project-a-folder"],
-        "driveId": "0ACsJUU1uex2wUk9PVA",
-        "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))},
-        "trashed": false,
-        "createdTime": "2026-10-25T10:00:00Z"
-    });
+    let metadata = google_child_metadata();
     assert!(child.metadata_matches("child_ABC-123", &serde_json::to_vec(&metadata).unwrap()));
     let verified = child
         .verify_metadata("child_ABC-123", &serde_json::to_vec(&metadata).unwrap())
@@ -515,37 +527,32 @@ fn created_child_declaration_requires_a_closed_task_create_and_consumed_fields()
     );
 }
 
-#[tokio::test]
-async fn created_child_candidate_survives_restart_without_granting_child_authority() {
-    let recipe = compiled("google-drive-create");
-    let args = arguments(
-        &recipe,
-        &json!({
-            "operation_id": "create-record-1",
-            "task_id": "task-1",
-            "task_commitment": "45".repeat(32),
-            "parent_id": "project-a-folder",
-            "title": "Auths AP-071 Project A handoff",
-            "recovery_marker": format!("ap071_{}", "d".repeat(32))
-        }),
-    );
-    let request = recipe
-        .closed_request_from_arguments(&args, [0x41; 32])
-        .expect("closed create request");
-    let complete_response = br#"{"id":"child_ABC-123"}"#;
-    let locator = crate::submit::response_locator(&request, 200, true, complete_response)
+fn checked_create_locator(
+    request: &ClosedProviderRequest,
+    complete_response: &[u8],
+) -> std::collections::BTreeMap<String, String> {
+    let locator = crate::submit::response_locator(request, 200, true, complete_response)
         .expect("bounded candidate");
     assert_eq!(locator.get("/id"), Some(&"child_ABC-123".to_owned()));
     for (status, version_ok, body) in [
-        (500, true, complete_response.as_slice()),
-        (200, false, complete_response.as_slice()),
+        (500, true, complete_response),
+        (200, false, complete_response),
         (200, true, br#"{"id":"child/other"}"#.as_slice()),
     ] {
         assert_eq!(
-            crate::submit::response_locator(&request, status, version_ok, body),
+            crate::submit::response_locator(request, status, version_ok, body),
             None
         );
     }
+    locator
+}
+
+#[tokio::test]
+async fn created_child_candidate_survives_restart_without_granting_child_authority() {
+    let recipe = compiled("google-drive-create");
+    let (_, request) = google_create_request(&recipe, "create-record-1");
+    let complete_response = br#"{"id":"child_ABC-123"}"#;
+    let locator = checked_create_locator(&request, complete_response);
     let temp = tempfile::tempdir().expect("temp directory");
     let root = std::fs::canonicalize(temp.path())
         .expect("canonical temp")
@@ -2093,5 +2100,40 @@ proptest::proptest! {
             }
             Err(error) => proptest::prop_assert_eq!(error, GatewayRecipeError::UnsafePath),
         }
+    }
+}
+
+#[test]
+fn provider_write_recipe_cannot_reinterpret_native_control_authority() {
+    let (source_bytes, lock_bytes) = fixture("airtable");
+    assert!(CompiledRecipe::compile(source_bytes, lock_bytes).is_ok());
+    for (service, tool) in [
+        (
+            crate::control_namespace::TASK_SERVICE,
+            crate::task_activation::APPROVAL_TOOL,
+        ),
+        (
+            crate::control_namespace::PARTICIPANT_SERVICE,
+            crate::participant_enrollment::ACTIVATE_ROOT_TOOL,
+        ),
+        (
+            crate::control_namespace::PARTICIPANT_SERVICE,
+            crate::participant_enrollment::ENROLL_PARTICIPANT_TOOL,
+        ),
+    ] {
+        let mut source: serde_json::Value = serde_json::from_slice(source_bytes).unwrap();
+        let mut lock: serde_json::Value = serde_json::from_slice(lock_bytes).unwrap();
+        for document in [&mut source, &mut lock] {
+            document["service"] = json!(service);
+            document["tool"] = json!(tool);
+        }
+        assert_eq!(
+            CompiledRecipe::compile(
+                &serde_json::to_vec(&source).unwrap(),
+                &serde_json::to_vec(&lock).unwrap()
+            )
+            .unwrap_err(),
+            GatewayRecipeError::ProfileMismatch
+        );
     }
 }

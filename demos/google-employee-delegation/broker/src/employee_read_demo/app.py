@@ -565,7 +565,7 @@ class Handler(BaseHTTPRequestHandler):
                             "No write destination (read-only task)"
                             if (self.workbench.finance_read_target is not None
                                 or self.workbench.project_b_exclusion_target is not None) else
-                            (f"Project A scratch run {scratch.run_id} ({scratch.case})"
+                            (f"Project A scratch run {scratch.run_id}"
                              if scratch is not None else
                              "Project A destination folder") if paired else
                             self.workbench.write_target.child.title

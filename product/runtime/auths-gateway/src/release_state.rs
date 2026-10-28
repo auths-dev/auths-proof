@@ -5,11 +5,15 @@
 
 #[cfg(test)]
 use crate::ClosedReleaseRequest;
+use crate::participant_enrollment::{
+    EnrollmentTree, EnrollmentTreeError, ParticipantEnrollmentProofs, RootEnrollmentProofs,
+};
 use crate::recipe::VerifiedCreatedChild;
 use crate::release_verify::VerifiedReleaseRequest;
 use crate::task_activation::TaskWriteScope;
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
 use crate::task_effect_plan::VerifiedEffectPlan;
+use crate::task_enrollment::{TaskEnrollmentRecipes, TaskRootAuthority};
 use crate::task_populate_attestation::{ExpectedPopulatePreflight, VerifiedPopulatePreflight};
 use crate::task_recovery_attestation::VerifiedRecoveryAttestation;
 use crate::task_write::ApprovedTaskWrite;
@@ -26,11 +30,18 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/7";
+mod delivery;
+mod participants;
+mod write_entry;
+pub(crate) use delivery::{EnteredRelease, ReleaseDeliveryBinding};
+pub(crate) use write_entry::EnteredTaskWrite;
+
+const SCHEMA: &str = "auths.gateway-agent-task-state/13";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
-const MAX_STATE_BYTES: usize = 262_144;
+// Includes the bounded 192 KiB participant tree and existing operation/card records.
+const MAX_STATE_BYTES: usize = 524_288;
 const KEY_DOMAIN: &[u8] = b"auths.gateway-release-task/1\0";
 const LOCK_FILE: &str = ".release.lock";
 
@@ -53,7 +64,7 @@ pub(crate) struct ReleaseTaskPolicy {
     pub(crate) task_id: String,
     pub(crate) task_commitment: [u8; 32],
     pub(crate) company_id: String,
-    pub(crate) human_principal: String,
+    pub(crate) initiator_principal: String,
     pub(crate) agent_principal: String,
     pub(crate) not_before: u64,
     pub(crate) expires_at: u64,
@@ -71,6 +82,8 @@ pub(crate) struct ReleaseTaskPolicy {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WriteOperation {
+    entry: write_entry::WriteEntry,
+    writer: crate::participant_enrollment::EnrolledParticipant,
     /// Recorded at reservation so activity can find the exact attempt even
     /// when one task uses recipes with different replay namespaces.
     operator_namespace: String,
@@ -210,6 +223,54 @@ struct ReleaseOperation {
     content_commitment: Option<String>,
 }
 
+/// A task activation precedes native root possession. There is no legacy tree
+/// decoder; absence of this explicit lifecycle field is a corrupt state.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "kebab-case", deny_unknown_fields)]
+enum TaskParticipants {
+    Pending,
+    Active {
+        #[serde(deserialize_with = "EnrollmentTree::deserialize_stored")]
+        tree: Box<EnrollmentTree>,
+    },
+}
+
+impl TaskParticipants {
+    fn tree(&self) -> Result<&EnrollmentTree, ReleaseStateError> {
+        match self {
+            Self::Active { tree } => Ok(tree),
+            Self::Pending => Err(ReleaseStateError::Inactive),
+        }
+    }
+
+    fn tree_mut(&mut self) -> Result<&mut EnrollmentTree, ReleaseStateError> {
+        match self {
+            Self::Active { tree } => Ok(tree),
+            Self::Pending => Err(ReleaseStateError::Inactive),
+        }
+    }
+}
+
+/// Installed trust and time, sampled within the existing exclusive transaction.
+pub(crate) struct EnrollmentTransaction<'a> {
+    pub(crate) context: &'a auths_model::TrustedContext,
+    pub(crate) pins: &'a TaskActivationPins,
+    pub(crate) time: &'a crate::QualificationGate,
+}
+
+impl EnrollmentTransaction<'_> {
+    fn now(&self) -> Result<u64, ReleaseStateError> {
+        transaction_time(self.time)
+    }
+}
+
+/// Sample the installed execution clock only after acquiring the journal lock.
+fn transaction_time(time: &crate::QualificationGate) -> Result<u64, ReleaseStateError> {
+    time.execution_time()
+        .map(crate::DeploymentTime::unix_seconds)
+        .ok_or(ReleaseStateError::Inactive)
+}
+
 /// One task's release accounting. A single CAS record keeps replay claims,
 /// call count, release count and byte sum atomic even under competing agents.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -219,7 +280,7 @@ pub(crate) struct ReleaseTaskState {
     task_id: String,
     task_commitment: String,
     company_id: String,
-    human_principal: String,
+    initiator_principal: String,
     agent_principal: String,
     not_before: u64,
     expires_at: u64,
@@ -235,6 +296,7 @@ pub(crate) struct ReleaseTaskState {
     /// Production activation writes the verified card. Policy-only synthetic
     /// states use null and cannot authorize a task submission.
     activated_card: Option<AgentTaskDescriptor>,
+    participants: TaskParticipants,
     revoked: bool,
     provider_calls: u32,
     releases: u32,
@@ -311,6 +373,18 @@ impl ReleaseStateError {
     }
 }
 
+impl From<EnrollmentTreeError> for ReleaseStateError {
+    fn from(error: EnrollmentTreeError) -> Self {
+        match error {
+            EnrollmentTreeError::Binding | EnrollmentTreeError::Verification(_) => Self::Binding,
+            EnrollmentTreeError::Inactive => Self::Inactive,
+            EnrollmentTreeError::Full => Self::Exhausted,
+            EnrollmentTreeError::Replay => Self::Replay,
+            EnrollmentTreeError::Corrupt => Self::Corrupt,
+        }
+    }
+}
+
 fn bounded_text(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.chars().any(char::is_control)
 }
@@ -382,7 +456,7 @@ impl ReleaseTaskState {
     fn new(policy: ReleaseTaskPolicy) -> Result<Self, ReleaseStateError> {
         if !bounded_text(&policy.task_id, 128)
             || !bounded_text(&policy.company_id, 128)
-            || !bounded_text(&policy.human_principal, 256)
+            || !bounded_text(&policy.initiator_principal, 256)
             || !bounded_text(&policy.agent_principal, 256)
             || !bounded_text(&policy.connection_id, 128)
             || policy.connection_generation == 0
@@ -435,7 +509,7 @@ impl ReleaseTaskState {
             task_id: policy.task_id,
             task_commitment: hex::encode(policy.task_commitment),
             company_id: policy.company_id,
-            human_principal: policy.human_principal,
+            initiator_principal: policy.initiator_principal,
             agent_principal: policy.agent_principal,
             not_before: policy.not_before,
             expires_at: policy.expires_at,
@@ -449,6 +523,7 @@ impl ReleaseTaskState {
             connection_generation: policy.connection_generation,
             connection_subject: policy.connection_subject,
             activated_card: None,
+            participants: TaskParticipants::Pending,
             revoked: false,
             provider_calls: 0,
             releases: 0,
@@ -470,6 +545,9 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if now >= plan.expires_at {
+            return Err(ReleaseStateError::Inactive);
+        }
         if !self.valid_effect_plan(plan) {
             return Err(ReleaseStateError::Binding);
         }
@@ -495,7 +573,14 @@ impl ReleaseTaskState {
             return false;
         };
         let create = &plan.create;
-        valid_digest(&plan.plan_commitment)
+        self.participants
+            .tree()
+            .and_then(|tree| {
+                tree.retained_identity(create.writer.principal())
+                    .map_err(Into::into)
+            })
+            .is_ok_and(|writer| writer == create.writer)
+            && valid_digest(&plan.plan_commitment)
             && valid_digest(&plan.content_commitment)
             && (1..=192).contains(&plan.content_length)
             && plan.expires_at > card.not_before
@@ -551,6 +636,9 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if !preflight.valid_at(now) {
+            return Err(ReleaseStateError::Inactive);
+        }
         if !self.valid_populate_preflight(preflight) {
             return Err(ReleaseStateError::Binding);
         }
@@ -579,8 +667,16 @@ impl ReleaseTaskState {
         Self::new(policy)
     }
 
+    fn operation_count(&self) -> Option<usize> {
+        self.operations.len().checked_add(self.writes.len())
+    }
+
     fn active(&self, now: u64) -> Result<(), ReleaseStateError> {
-        if self.revoked || now < self.not_before || now >= self.expires_at {
+        if self.revoked
+            || now < self.not_before
+            || now >= self.expires_at
+            || matches!(&self.participants, TaskParticipants::Active { tree } if !tree.root().active)
+        {
             Err(ReleaseStateError::Inactive)
         } else {
             Ok(())
@@ -594,7 +690,7 @@ impl ReleaseTaskState {
             task_id: self.task_id.clone(),
             task_commitment,
             company_id: self.company_id.clone(),
-            human_principal: self.human_principal.clone(),
+            initiator_principal: self.initiator_principal.clone(),
             agent_principal: self.agent_principal.clone(),
             not_before: self.not_before,
             expires_at: self.expires_at,
@@ -627,6 +723,11 @@ impl ReleaseTaskState {
         if approved.task_policy() != policy {
             return Err(ReleaseStateError::Corrupt);
         }
+        if let TaskParticipants::Active { tree } = &self.participants
+            && !crate::task_enrollment::root_matches_task(tree.root(), &approved)
+        {
+            return Err(ReleaseStateError::Corrupt);
+        }
         Ok(approved)
     }
 
@@ -639,7 +740,6 @@ impl ReleaseTaskState {
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
         if call.task_id != self.task_id
-            || call.recipient != self.agent_principal
             || !bounded_text(call.operation_id, 128)
             || call.action_commitment == [0; 32]
             || !self.resources.iter().any(|resource| {
@@ -657,7 +757,10 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Replay);
         }
-        if self.provider_calls >= self.max_provider_calls || self.operations.len() >= MAX_OPERATIONS
+        if self.provider_calls >= self.max_provider_calls
+            || self
+                .operation_count()
+                .is_none_or(|count| count >= MAX_OPERATIONS)
         {
             return Err(ReleaseStateError::Exhausted);
         }
@@ -743,12 +846,18 @@ impl ReleaseTaskState {
         ) {
             return Err(ReleaseStateError::Replay);
         }
-        if self.writes.len() >= self.max_writes as usize {
+        if self.writes.len() >= self.max_writes as usize
+            || self
+                .operation_count()
+                .is_none_or(|count| count >= MAX_OPERATIONS)
+        {
             return Err(ReleaseStateError::Exhausted);
         }
         self.writes.insert(
             intent.operation_id.clone(),
             WriteOperation {
+                entry: write_entry::WriteEntry::Reserved,
+                writer: intent.writer.clone(),
                 operator_namespace: operator_namespace.to_owned(),
                 resource_handle: intent.resource_handle.clone(),
                 recipe_digest: intent.recipe_digest.clone(),
@@ -795,6 +904,10 @@ impl ReleaseTaskState {
         };
         if intent.task_id != self.task_id
             || !same_commitment(&self.task_commitment, &intent.task_commitment)
+            || self
+                .writes
+                .get(&intent.operation_id)
+                .is_none_or(|write| write.writer != intent.writer)
             || !self.valid_child_binding(&binding)
         {
             return Err(ReleaseStateError::Binding);
@@ -813,6 +926,9 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         self.active(now)?;
+        if !attestation.valid_at(now) {
+            return Err(ReleaseStateError::Inactive);
+        }
         if !self.recovery_create_reserved(plan) {
             return Err(ReleaseStateError::Replay);
         }
@@ -846,6 +962,10 @@ impl ReleaseTaskState {
             || !same_commitment(&self.task_commitment, &intent.task_commitment)
             || &plan.create != intent
             || child.id() != attestation.candidate_id()
+            || self
+                .writes
+                .get(&intent.operation_id)
+                .is_none_or(|write| write.writer != intent.writer)
             || !self.valid_child_binding(&binding)
         {
             return Err(ReleaseStateError::Binding);
@@ -946,6 +1066,7 @@ impl ReleaseTaskState {
             && write.connection_id == create.connection_id
             && write.connection_generation == create.connection_generation
             && write.connection_subject == create.connection_subject
+            && write.writer == create.writer
             && write.action_commitment == create.action_commitment
             && write.request_commitment == create.request_commitment
     }
@@ -1001,7 +1122,7 @@ impl ReleaseTaskState {
     }
 
     /// Admit a compiled request only with a native-verified sole actor and
-    /// human-issued grant. The connection reference must come from the
+    /// exact enrolled resource-grant ancestry. The connection reference must come from the
     /// loaded, subject-bound credential record for this read recipe.
     pub(crate) fn reserve_verified_request(
         &mut self,
@@ -1013,7 +1134,6 @@ impl ReleaseTaskState {
     ) -> Result<(), ReleaseStateError> {
         let request = verified.request();
         if verified.actor().as_str() != request.recipient()
-            || verified.human_issuer().as_str() != self.human_principal
             || !same_commitment(
                 &self.task_commitment,
                 &hex::encode(request.task_commitment()),
@@ -1021,6 +1141,19 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Binding);
         }
+        let scope = ReleaseResourceScope {
+            handle: request.resource_handle().to_owned(),
+            recipe_digest: hex::encode(request.recipe_digest()),
+            connection_id: connection_id.to_owned(),
+            connection_generation,
+            connection_subject: connection_subject.to_owned(),
+        };
+        self.admit_read_participant(
+            verified.authority(),
+            &scope,
+            request.operation_id().as_str(),
+            now,
+        )?;
         self.reserve_provider_call(
             ReleaseCall {
                 task_id: request.task_id(),
@@ -1211,6 +1344,9 @@ impl ReleaseTaskState {
     /// it cannot undo a prior entered release.
     pub(crate) fn revoke(&mut self) {
         self.revoked = true;
+        if let TaskParticipants::Active { tree } = &mut self.participants {
+            tree.revoke_root();
+        }
     }
 
     pub(crate) fn stage(&self, operation_id: &str) -> Option<ReleaseStage> {
@@ -1282,12 +1418,12 @@ impl ReleaseTaskState {
         let Some((version, expected)) = self.commitment(operation_id) else {
             return false;
         };
-        let Ok(context) =
+        let Ok(commitment_scope) =
             ReleaseCommitmentContext::new(&self.task_id, resource_handle, operation_id, "released")
         else {
             return false;
         };
-        let presented = key.commit(&context, content);
+        let presented = key.commit(&commitment_scope, content);
         version == presented.key_version() && same_commitment(expected, &presented.hex())
     }
 
@@ -1312,13 +1448,19 @@ impl ReleaseTaskState {
             return Err(ReleaseStateError::Corrupt);
         }
         for (operation_id, write) in &self.writes {
-            if !bounded_text(operation_id, 128)
+            if !write.entry.valid_for(self.not_before, self.expires_at)
+                || !bounded_text(operation_id, 128)
                 || crate::OperatorNamespace::parse(&write.operator_namespace).is_err()
                 || self.operations.contains_key(operation_id)
                 || !valid_digest(&write.action_commitment)
                 || write.action_commitment == "0".repeat(64)
                 || !valid_digest(&write.request_commitment)
                 || write.request_commitment == "0".repeat(64)
+                || !self.matches_child_writer(
+                    &write.resource_handle,
+                    &write.recipe_digest,
+                    &write.writer,
+                )
                 || write.connection_id != self.connection_id
                 || write.connection_generation != self.connection_generation
                 || write.connection_subject != self.connection_subject
@@ -1358,15 +1500,50 @@ impl ReleaseTaskState {
         Ok(())
     }
 
+    fn validate_participant_root(
+        &self,
+        policy: &ReleaseTaskPolicy,
+    ) -> Result<(), ReleaseStateError> {
+        if let TaskParticipants::Active { tree } = &self.participants {
+            let card = self
+                .activated_card
+                .as_ref()
+                .ok_or(ReleaseStateError::Corrupt)?;
+            if card.canonical_commitment().ok() != Some(policy.task_commitment)
+                || !crate::task_enrollment::root_matches_card(
+                    tree.root(),
+                    card,
+                    &policy.task_commitment,
+                )
+                || (self.revoked && tree.root().active)
+            {
+                return Err(ReleaseStateError::Corrupt);
+            }
+        }
+        Ok(())
+    }
+
     fn decode(bytes: &[u8]) -> Result<Self, ReleaseStateError> {
         if bytes.is_empty() || bytes.len() > MAX_STATE_BYTES {
             return Err(ReleaseStateError::Corrupt);
         }
         let state: Self = serde_json::from_slice(bytes).map_err(|_| ReleaseStateError::Corrupt)?;
-        if state.schema != SCHEMA || state.encode()?.as_slice() != bytes {
+        if state.schema != SCHEMA
+            || state.encode()?.as_slice() != bytes
+            || state
+                .operation_count()
+                .is_none_or(|count| count > MAX_OPERATIONS)
+        {
             return Err(ReleaseStateError::Corrupt);
         }
-        Self::new(state.policy()?).map_err(|_| ReleaseStateError::Corrupt)?;
+        let policy = state.policy()?;
+        Self::new(policy.clone()).map_err(|_| ReleaseStateError::Corrupt)?;
+        state.validate_participant_root(&policy)?;
+        if state.activated_card.is_some() {
+            state
+                .validate_participant_accounting()
+                .map_err(|_| ReleaseStateError::Corrupt)?;
+        }
         let mut releases = 0_u32;
         let mut released_bytes = 0_u64;
         state.validate_writes()?;
@@ -1386,7 +1563,6 @@ impl ReleaseTaskState {
         }
         for (operation_id, operation) in &state.operations {
             if !bounded_text(operation_id, 128)
-                || operation.recipient != state.agent_principal
                 || !valid_digest(&operation.action_commitment)
                 || operation.action_commitment == "0".repeat(64)
                 || !state.resources.iter().any(|resource| {
@@ -1565,6 +1741,93 @@ impl FileReleaseTaskLedger {
         self.initialize_state(state)
     }
 
+    pub(crate) fn bootstrap_participants(
+        &self,
+        task_id: &str,
+        transaction: &EnrollmentTransaction<'_>,
+        recipes: &TaskEnrollmentRecipes<'_>,
+        authority: &TaskRootAuthority,
+        proofs: &RootEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], ReleaseStateError> {
+        let state = self.update(task_id, |state| {
+            let now = transaction.now()?;
+            let task = state.activated_task(transaction.pins, now)?;
+            if !matches!(state.participants, TaskParticipants::Pending)
+                || !state.operations.is_empty()
+                || !state.writes.is_empty()
+            {
+                return Err(ReleaseStateError::Replay);
+            }
+            let root = crate::task_enrollment::root_pins(&task, recipes, authority)?;
+            let tree = EnrollmentTree::bootstrap(transaction.context, &root, now, proofs)?;
+            tree.parent_pins(root.enrollment_commitment, transaction.now()?)?;
+            state.participants = TaskParticipants::Active {
+                tree: Box::new(tree),
+            };
+            Ok(())
+        })?;
+        Ok(state.participants.tree()?.root().enrollment_commitment)
+    }
+
+    pub(crate) fn enroll_participant(
+        &self,
+        task_id: &str,
+        transaction: &EnrollmentTransaction<'_>,
+        parent: [u8; 32],
+        proofs: &ParticipantEnrollmentProofs<'_>,
+    ) -> Result<[u8; 32], ReleaseStateError> {
+        let mut enrolled = None;
+        self.update(task_id, |state| {
+            let now = transaction.now()?;
+            state.activated_task(transaction.pins, now)?;
+            let tree = state.participants.tree_mut()?;
+            let commitment = tree.enroll(transaction.context, parent, now, proofs)?;
+            tree.parent_pins(commitment, transaction.now()?)?;
+            enrolled = Some(commitment);
+            Ok(())
+        })?;
+        enrolled.ok_or(ReleaseStateError::Corrupt)
+    }
+
+    /// Authenticated operator revocation; no proof, clock or provider I/O is
+    /// needed to remove eligibility. Records and all charges remain retained.
+    pub(crate) fn revoke_participant(
+        &self,
+        task_id: &str,
+        participant: [u8; 32],
+    ) -> Result<(), ReleaseStateError> {
+        self.update(task_id, |state| {
+            let tree = state.participants.tree_mut()?;
+            tree.revoke(participant)?;
+            if participant == tree.root().enrollment_commitment {
+                state.revoked = true;
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    pub(crate) fn participant_pins(
+        &self,
+        task_id: &str,
+        transaction: &EnrollmentTransaction<'_>,
+        participant: [u8; 32],
+    ) -> Result<crate::participant_enrollment::ParentEnrollmentPins, ReleaseStateError> {
+        let path = self.key_path(task_id)?;
+        let _lock = self.lock(rustix::fs::FlockOperation::LockShared)?;
+        let state = Self::read(&path)?.ok_or(ReleaseStateError::Corrupt)?;
+        if state.task_id != task_id {
+            return Err(ReleaseStateError::Corrupt);
+        }
+        let now = transaction.now()?;
+        state.activated_task(transaction.pins, now)?;
+        state
+            .participants
+            .tree()?
+            .parent_pins(participant, now)
+            .map_err(Into::into)
+    }
+
     #[cfg(test)]
     fn initialize_policy(
         &self,
@@ -1613,6 +1876,18 @@ impl FileReleaseTaskLedger {
         Ok(state)
     }
 
+    /// Every live timed transition obtains its own time under the same lock
+    /// as replay, revocation and accounting. Pure state transitions still take
+    /// explicit time; no provider/custody I/O runs inside this helper.
+    fn update_timed(
+        &self,
+        task_id: &str,
+        time: &crate::QualificationGate,
+        change: impl FnOnce(&mut ReleaseTaskState, u64) -> Result<(), ReleaseStateError>,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(task_id, |state| change(state, transaction_time(time)?))
+    }
+
     #[cfg(test)]
     fn reserve_provider_call(
         &self,
@@ -1628,9 +1903,9 @@ impl FileReleaseTaskLedger {
         connection_id: &str,
         connection_generation: u64,
         connection_subject: &str,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(verified.request().task_id(), |state| {
+        self.update_timed(verified.request().task_id(), time, |state, now| {
             state.reserve_verified_request(
                 verified,
                 connection_id,
@@ -1655,10 +1930,16 @@ impl FileReleaseTaskLedger {
     pub(crate) fn reserve_write_with_namespace(
         &self,
         approved: &ApprovedTaskWrite,
+        verified: &crate::engine::VerifiedCommand,
         operator_namespace: &str,
-        now: u64,
+        time: &crate::QualificationGate,
+        valid_until: Option<u64>,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(&approved.intent().task_id, |state| {
+        self.update_timed(&approved.intent().task_id, time, |state, now| {
+            if valid_until.is_some_and(|deadline| now >= deadline) {
+                return Err(ReleaseStateError::Inactive);
+            }
+            state.admit_write_participant(verified, approved.intent(), now)?;
             state.reserve_write_with_namespace(approved, operator_namespace, now)
         })
     }
@@ -1667,18 +1948,20 @@ impl FileReleaseTaskLedger {
         &self,
         task_id: &str,
         plan: &VerifiedEffectPlan,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(task_id, |state| state.record_effect_plan(plan, now))
+        self.update_timed(task_id, time, |state, now| {
+            state.record_effect_plan(plan, now)
+        })
     }
 
     pub(crate) fn record_populate_preflight(
         &self,
         task_id: &str,
         preflight: &VerifiedPopulatePreflight,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(task_id, |state| {
+        self.update_timed(task_id, time, |state, now| {
             state.record_populate_preflight(preflight, now)
         })
     }
@@ -1688,9 +1971,9 @@ impl FileReleaseTaskLedger {
         approved: &ApprovedTaskWrite,
         child: &VerifiedCreatedChild,
         response_digest: &[u8; 32],
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(&approved.intent().task_id, |state| {
+        self.update_timed(&approved.intent().task_id, time, |state, now| {
             state.bind_created_child(approved, child, response_digest, now)
         })
     }
@@ -1702,9 +1985,9 @@ impl FileReleaseTaskLedger {
         child: &VerifiedCreatedChild,
         attestation: &VerifiedRecoveryAttestation,
         human_action_commitment: &str,
-        now: u64,
+        time: &crate::QualificationGate,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(&approved.intent().task_id, |state| {
+        self.update_timed(&approved.intent().task_id, time, |state, now| {
             state.bind_recovered_child(
                 approved,
                 plan,
@@ -1754,19 +2037,6 @@ impl FileReleaseTaskLedger {
         self.update(task_id, |state| state.release_refused(operation_id))
     }
 
-    pub(crate) fn enter_release(
-        &self,
-        task_id: &str,
-        operation_id: &str,
-        content: &[u8],
-        key: &ReleaseCommitmentKey,
-        now: u64,
-    ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        self.update(task_id, |state| {
-            state.enter_release(operation_id, content, key, now)
-        })
-    }
-
     pub(crate) fn acknowledge(
         &self,
         evidence: &VerifiedAgentAcknowledgement,
@@ -1802,7 +2072,7 @@ mod tests {
             task_id: "task-1".to_owned(),
             task_commitment: [0x11; 32],
             company_id: "atlas".to_owned(),
-            human_principal: "jules-principal".to_owned(),
+            initiator_principal: "jules-principal".to_owned(),
             agent_principal: "agent-principal".to_owned(),
             not_before: 100,
             expires_at: 200,
@@ -1881,6 +2151,12 @@ mod tests {
 
     fn write_intent(operation_id: &str) -> ApprovedTaskWrite {
         ApprovedTaskWrite::from_test_intent(ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "agent",
+                &[0x11; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".to_owned(),
             task_commitment: "11".repeat(32),
             operation_id: operation_id.to_owned(),
@@ -1901,11 +2177,13 @@ mod tests {
     ) -> VerifiedAgentAcknowledgement {
         let (version, commitment) = state.commitment(operation_id).expect("commitment");
         VerifiedAgentAcknowledgement {
-            task_id: "task-1".to_owned(),
-            task_commitment: "11".repeat(32),
+            task_id: state.task_id.clone(),
+            task_commitment: state.task_commitment.clone(),
             operation_id: operation_id.to_owned(),
-            recipient: "agent-principal".to_owned(),
-            released_bytes: 8,
+            recipient: state.operations[operation_id].recipient.clone(),
+            released_bytes: state.operations[operation_id]
+                .released_bytes
+                .expect("entered bytes"),
             commitment_key_version: version,
             content_commitment: commitment.to_owned(),
         }
@@ -1949,8 +2227,14 @@ mod tests {
             .reserve_provider_call(call("read-1"), 101)
             .expect("claim");
         let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).expect("key");
-        let entered = ledger
-            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+        let (entered, _permit) = ledger
+            .enter_release(
+                "task-1",
+                "read-1",
+                b"Approved",
+                &key,
+                &crate::harness::time_gate(102),
+            )
             .expect("charge");
         assert_eq!(entered.acknowledged_key_version("read-1", "source-1"), None);
         assert!(!entered.acknowledged_content_matches("read-1", "source-1", b"Approved", &key,));
@@ -2136,84 +2420,123 @@ mod tests {
 
     #[test]
     fn durable_restart_keeps_charge_and_refuses_same_operation() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize_policy(policy()).expect("task");
-        ledger
-            .reserve_provider_call(call("read-1"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
-        let entered = ledger
-            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+        let (entered, _permit) = ledger
+            .enter_release(
+                crate::task_enrollment::tests::TASK,
+                "read-1",
+                b"Approved",
+                &key,
+                &crate::harness::time_gate(crate::task_enrollment::tests::NOW),
+            )
             .expect("durable charge");
         let digest = entered.digest().expect("canonical digest");
         drop(ledger);
 
         let restarted = FileReleaseTaskLedger::open(&path).expect("reopen");
-        let loaded = restarted.load("task-1").expect("load").expect("task");
+        let loaded = restarted
+            .load(crate::task_enrollment::tests::TASK)
+            .expect("load")
+            .expect("task");
         assert_eq!(loaded.digest().expect("digest"), digest);
         assert_eq!(loaded.counts(), (1, 1, 8));
         assert!(loaded.delivery_unknown("read-1"));
-        let stored = fs::read(restarted.key_path("task-1").expect("path")).expect("stored state");
+        let stored = fs::read(
+            restarted
+                .key_path(crate::task_enrollment::tests::TASK)
+                .expect("path"),
+        )
+        .expect("stored state");
         assert!(
             !stored
                 .windows(b"Approved".len())
                 .any(|part| part == b"Approved")
         );
         assert_eq!(
-            restarted.reserve_provider_call(call("read-1"), 103).err(),
+            fixture.reserve_read(&fixture.read(false, "read-1")).err(),
             Some(ReleaseStateError::Replay)
         );
         assert_eq!(
             restarted
-                .enter_release("task-1", "read-1", b"Approved", &key, 103)
+                .enter_release(
+                    crate::task_enrollment::tests::TASK,
+                    "read-1",
+                    b"Approved",
+                    &key,
+                    &crate::harness::time_gate(crate::task_enrollment::tests::NOW)
+                )
                 .err(),
             Some(ReleaseStateError::Stage)
         );
-        let loaded = restarted.load("task-1").expect("load").expect("task");
+        let loaded = restarted
+            .load(crate::task_enrollment::tests::TASK)
+            .expect("load")
+            .expect("task");
         assert_eq!(loaded.counts(), (1, 1, 8));
-        restarted.revoke("task-1").expect("revoke");
+        restarted
+            .revoke(crate::task_enrollment::tests::TASK)
+            .expect("revoke");
         assert_eq!(
-            restarted.reserve_provider_call(call("read-2"), 104).err(),
+            fixture.reserve_read(&fixture.read(false, "read-2")).err(),
             Some(ReleaseStateError::Inactive)
         );
     }
 
     #[test]
     fn no_send_receipt_survives_restart_without_refunding_or_replay() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize_policy(policy()).expect("task");
-        ledger
-            .reserve_provider_call(call("read-1"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
             .expect("call claim");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
         ledger
-            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+            .enter_release(
+                crate::task_enrollment::tests::TASK,
+                "read-1",
+                b"Approved",
+                &key,
+                &crate::harness::time_gate(crate::task_enrollment::tests::NOW),
+            )
             .expect("durable charge");
         ledger
-            .not_delivered(&ProvenNoSend::before_content("task-1", "read-1"))
+            .not_delivered(&ProvenNoSend::before_content(
+                crate::task_enrollment::tests::TASK,
+                "read-1",
+            ))
             .expect("durable no-content proof");
         drop(ledger);
 
         let restarted = FileReleaseTaskLedger::open(&path).expect("reopen");
-        let loaded = restarted.load("task-1").expect("load").expect("task");
+        let loaded = restarted
+            .load(crate::task_enrollment::tests::TASK)
+            .expect("load")
+            .expect("task");
         assert_eq!(loaded.stage("read-1"), Some(ReleaseStage::NotDelivered));
         assert_eq!(loaded.counts(), (1, 1, 8));
         assert!(!loaded.delivery_unknown("read-1"));
         assert_eq!(
-            restarted.reserve_provider_call(call("read-1"), 103).err(),
+            fixture.reserve_read(&fixture.read(false, "read-1")).err(),
             Some(ReleaseStateError::Replay)
         );
         assert_eq!(
             restarted
-                .enter_release("task-1", "read-1", b"Approved", &key, 103)
+                .enter_release(
+                    crate::task_enrollment::tests::TASK,
+                    "read-1",
+                    b"Approved",
+                    &key,
+                    &crate::harness::time_gate(crate::task_enrollment::tests::NOW)
+                )
                 .err(),
             Some(ReleaseStateError::Stage)
         );
@@ -2221,26 +2544,19 @@ mod tests {
 
     #[test]
     fn simultaneous_claim_has_one_winner_and_corruption_fails_closed() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
-        FileReleaseTaskLedger::open(&path)
-            .expect("open")
-            .initialize_policy(policy())
-            .expect("task");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let barrier = Arc::new(Barrier::new(2));
         let outcomes = std::thread::scope(|scope| {
             let mut jobs = Vec::new();
             for _ in 0..2 {
                 let barrier = Arc::clone(&barrier);
-                let path = path.clone();
+                let fixture = &fixture;
                 jobs.push(scope.spawn(move || {
-                    let ledger = FileReleaseTaskLedger::open(path).expect("open");
+                    let verified = fixture.read(false, "read-1");
                     barrier.wait();
-                    ledger
-                        .reserve_provider_call(call("read-1"), 101)
-                        .map(|_| ())
+                    fixture.reserve_read(&verified)
                 }));
             }
             jobs.into_iter()
@@ -2257,40 +2573,48 @@ mod tests {
         );
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
         assert_eq!(
-            ledger.load("task-1").expect("load").expect("task").counts(),
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .expect("load")
+                .expect("task")
+                .counts(),
             (1, 0, 0)
         );
         ledger
-            .provider_unavailable("task-1", "read-1")
+            .provider_unavailable(crate::task_enrollment::tests::TASK, "read-1")
             .expect("provider failed");
         assert_eq!(
             ledger
-                .load("task-1")
+                .load(crate::task_enrollment::tests::TASK)
                 .expect("load")
                 .expect("task")
                 .stage("read-1"),
             Some(ReleaseStage::ProviderUnavailable)
         );
-        fs::write(ledger.key_path("task-1").expect("path"), b"{}").expect("tamper");
+        fs::write(
+            ledger
+                .key_path(crate::task_enrollment::tests::TASK)
+                .expect("path"),
+            b"{}",
+        )
+        .expect("tamper");
         assert_eq!(
-            ledger.load("task-1").err(),
+            ledger.load(crate::task_enrollment::tests::TASK).err(),
             Some(ReleaseStateError::Corrupt)
         );
     }
 
     #[test]
     fn competing_release_entries_charge_only_one_budget_slot() {
-        let root = tempfile::tempdir().expect("private directory");
-        let path = fs::canonicalize(root.path())
-            .expect("canonical directory")
-            .join("release");
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().expect("native root");
+        let path = fixture.path.clone();
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize_policy(policy()).expect("task");
-        ledger
-            .reserve_provider_call(call("read-1"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
             .expect("first call");
-        ledger
-            .reserve_provider_call(call("read-2"), 101)
+        fixture
+            .reserve_read(&fixture.read(false, "read-2"))
             .expect("second call");
         let barrier = Arc::new(Barrier::new(2));
         let outcomes = std::thread::scope(|scope| {
@@ -2303,7 +2627,13 @@ mod tests {
                     let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
                     barrier.wait();
                     ledger
-                        .enter_release("task-1", operation, b"Approved", &key, 102)
+                        .enter_release(
+                            crate::task_enrollment::tests::TASK,
+                            operation,
+                            b"Approved",
+                            &key,
+                            &crate::harness::time_gate(crate::task_enrollment::tests::NOW),
+                        )
                         .map(|_| ())
                 }));
             }
@@ -2320,8 +2650,121 @@ mod tests {
             1
         );
         assert_eq!(
-            ledger.load("task-1").expect("load").expect("task").counts(),
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .expect("load")
+                .expect("task")
+                .counts(),
             (2, 1, 8)
+        );
+    }
+
+    fn clock_gate(clock: &Arc<crate::FixedClock>) -> crate::QualificationGate {
+        crate::QualificationGate::new(
+            crate::QualificationPolicy::Optional,
+            None,
+            None,
+            Box::new(Arc::clone(clock)),
+            auths_recipe_qualification::VerifierState::default(),
+        )
+    }
+
+    /// Hold the actual journal lock while the caller starts with valid time.
+    /// Advance to the exact exclusive deadline before allowing the transaction.
+    fn advance_while_locked<T: Send>(
+        ledger: &FileReleaseTaskLedger,
+        clock: &crate::FixedClock,
+        deadline: u64,
+        change: impl FnOnce() -> T + Send,
+    ) -> T {
+        let lock = ledger
+            .lock(rustix::fs::FlockOperation::LockExclusive)
+            .unwrap();
+        std::thread::scope(|scope| {
+            let (started, ready) = std::sync::mpsc::channel();
+            let worker = scope.spawn(move || {
+                started.send(()).unwrap();
+                change()
+            });
+            ready.recv().unwrap();
+            clock.set(deadline);
+            drop(lock);
+            worker.join().unwrap()
+        })
+    }
+
+    #[test]
+    fn disclosure_samples_locked_time_but_late_evidence_keeps_its_charge() {
+        let fixture = crate::task_enrollment::tests::Fixture::with_limits(false, 2, 1, 8);
+        fixture.bootstrap().unwrap();
+        fixture
+            .reserve_read(&fixture.read(false, "read-1"))
+            .unwrap();
+        let ledger = fixture.ledger();
+        let before = ledger
+            .load(crate::task_enrollment::tests::TASK)
+            .unwrap()
+            .unwrap()
+            .digest()
+            .unwrap();
+        let clock = fixture.clock.clone();
+        let time = clock_gate(&clock);
+        let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).unwrap();
+        let enter = || {
+            ledger.enter_release(
+                crate::task_enrollment::tests::TASK,
+                "read-1",
+                b"Approved",
+                &key,
+                &time,
+            )
+        };
+        assert_eq!(
+            advance_while_locked(
+                &ledger,
+                &clock,
+                crate::task_enrollment::tests::NOW + 600,
+                enter
+            )
+            .err(),
+            Some(ReleaseStateError::Inactive)
+        );
+        assert_eq!(
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .unwrap()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            before
+        );
+        clock.set(crate::task_enrollment::tests::NOW);
+        clock.trust_is(false);
+        assert_eq!(enter().err(), Some(ReleaseStateError::Inactive));
+        assert_eq!(
+            ledger
+                .load(crate::task_enrollment::tests::TASK)
+                .unwrap()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            before
+        );
+        clock.trust_is(true);
+        let (entered, _permit) = enter().unwrap();
+        let evidence = acknowledgement(&entered, "read-1");
+        clock.set(crate::task_enrollment::tests::NOW + 600);
+        clock.trust_is(false);
+        ledger.acknowledge(&evidence).unwrap();
+        ledger.revoke(crate::task_enrollment::tests::TASK).unwrap();
+        let retained = ledger
+            .load(crate::task_enrollment::tests::TASK)
+            .unwrap()
+            .unwrap();
+        assert_eq!(retained.counts(), (1, 1, 8));
+        assert_eq!(
+            retained.stage("read-1"),
+            Some(ReleaseStage::AgentAcknowledged)
         );
     }
 
@@ -2432,6 +2875,37 @@ mod tests {
             state.reserve_provider_call(call("new-read"), 101),
             Err(ReleaseStateError::Inactive)
         );
+    }
+
+    #[test]
+    fn mixed_reads_and_writes_share_the_hard_operation_bound() {
+        let mut policy = policy();
+        policy.max_provider_calls = 64;
+        policy.max_writes = 32;
+        policy.write_scopes = write_policy().write_scopes;
+        let mut state = ReleaseTaskState::from_test_policy(policy).unwrap();
+        for index in 0..33 {
+            state
+                .reserve_provider_call(call(&format!("read-{index}")), 101)
+                .unwrap();
+        }
+        for index in 0..31 {
+            state
+                .reserve_write(&write_intent(&format!("write-{index}")), 101)
+                .unwrap();
+        }
+        assert_eq!(state.operation_count(), Some(64));
+        let encoded = state.encode().unwrap();
+        let mut reopened = ReleaseTaskState::decode(&encoded).unwrap();
+        assert_eq!(
+            reopened.reserve_provider_call(call("read-extra"), 101),
+            Err(ReleaseStateError::Exhausted)
+        );
+        assert_eq!(
+            reopened.reserve_write(&write_intent("write-extra"), 101),
+            Err(ReleaseStateError::Exhausted)
+        );
+        assert_eq!(reopened.encode().unwrap(), encoded);
     }
 
     #[test]

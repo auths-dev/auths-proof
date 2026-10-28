@@ -21,8 +21,8 @@ from .operator_authority import EmployeeAuthority, OperatorDenied, OperatorRoot
 
 TASK_SERVICE = "auths-agent-task"
 APPROVAL_TOOL = "approve_agent_task_v1"
-CONFIRMATION_TOOL = "confirm_agent_write_v1"
-EFFECT_PLAN_TOOL = "confirm_agent_effect_plan_v1"
+CONFIRMATION_TOOL = "confirm_agent_write_v2"
+EFFECT_PLAN_TOOL = "confirm_agent_effect_plan_v2"
 RECOVERY_TOOL = "confirm_agent_recovered_child_v1"
 _TOOL = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 

@@ -454,12 +454,14 @@ class ExactMcpTool(Generic[CommandT]):
         challenge: bytes,
         evaluation_time: int,
         validity_seconds: Optional[int] = None,
+        audience: Optional[str] = None,
     ) -> PreparedMcpAction[CommandT]:
         """Prepare the unsigned exact action, valid from ``evaluation_time``
         for ``validity_seconds`` (the native default when ``None``, bounded
         natively) and cut to the terminal grant's expiry, so a verifier with
         its own later clock, such as a gateway, accepts it inside that
-        window."""
+        window. ``audience`` may select an operator-prepared engagement audience;
+        it does not expand the grant or the verifier's trust."""
         if type(command) is not self.command_type:
             raise TypeError("command does not belong to this exact tool")
         arguments = self.encode(command)
@@ -474,6 +476,7 @@ class ExactMcpTool(Generic[CommandT]):
             bytes(challenge),
             evaluation_time,
             _checked_validity(validity_seconds),
+            audience=audience,
         )
         canonical_action, _ = _native.inspect_mcp_action(native)
         return PreparedMcpAction(

@@ -66,7 +66,18 @@ pub(crate) struct VerifiedRecoveryAttestation {
     commitment: String,
 }
 
+impl RecoveryStatement {
+    fn valid_at(&self, now: u64) -> bool {
+        (self.checked_at..self.valid_until).contains(&now)
+    }
+}
+
 impl VerifiedRecoveryAttestation {
+    /// Recheck this signed evidence at the journal's current transaction time.
+    pub(crate) fn valid_at(&self, now: u64) -> bool {
+        self.statement.valid_at(now)
+    }
+
     pub(crate) fn candidate_id(&self) -> &str {
         &self.statement.candidate_id
     }
@@ -175,7 +186,7 @@ pub(crate) fn verify_recovery_attestation(
     let envelope: SignedRecoveryAttestation = serde_json::from_slice(report).ok()?;
     if serde_json_canonicalizer::to_vec(&envelope).ok()? != report
         || !matches_expected(&envelope.statement, expected)
-        || !(envelope.statement.checked_at..envelope.statement.valid_until).contains(&now)
+        || !envelope.statement.valid_at(now)
     {
         return None;
     }
@@ -203,12 +214,7 @@ mod tests {
     use ed25519_dalek::{Signer as _, SigningKey};
     use serde_json::Value;
 
-    #[test]
-    fn recovery_attestation_binds_candidate_and_both_observations_to_original_plan() {
-        let key = SigningKey::from_bytes(&[9; 32]);
-        let public = hex::encode(key.verifying_key().to_bytes());
-        let public_sha256 = hex::encode(sha2::Sha256::digest(key.verifying_key().to_bytes()));
-        let rule_digest = "6".repeat(64);
+    fn recovery_plan() -> (TaskPendingChild, VerifiedEffectPlan) {
         let pending = TaskPendingChild {
             create_operation_id: "create-1".into(),
             create_recipe_digest: "d".repeat(64),
@@ -220,6 +226,12 @@ mod tests {
         let plan = VerifiedEffectPlan {
             plan_commitment: "b".repeat(64),
             create: ExactWriteIntent {
+                writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                    "test-agent",
+                    &[0xaa; 32],
+                    1,
+                    1,
+                ),
                 task_id: "task-1".into(),
                 task_commitment: "a".repeat(64),
                 operation_id: "create-1".into(),
@@ -240,15 +252,11 @@ mod tests {
             preflight_rule_digest: None,
             preflight_key_sha256: None,
         };
-        let expected = ExpectedRecoveryAttestation {
-            task_id: "task-1",
-            task_commitment: &plan.create.task_commitment,
-            pending: &pending,
-            plan: &plan,
-            public_key_sha256: &public_sha256,
-            rule_digest: &rule_digest,
-        };
-        let statement = RecoveryStatement {
+        (pending, plan)
+    }
+
+    fn recovery_statement() -> RecoveryStatement {
+        RecoveryStatement {
             schema: SCHEMA.into(),
             task_id: "task-1".into(),
             task_commitment: "a".repeat(64),
@@ -272,7 +280,25 @@ mod tests {
             candidate_metadata_sha256: "5".repeat(64),
             checked_at: 100,
             valid_until: 160,
+        }
+    }
+
+    #[test]
+    fn recovery_attestation_binds_candidate_and_both_observations_to_original_plan() {
+        let key = SigningKey::from_bytes(&[9; 32]);
+        let public = hex::encode(key.verifying_key().to_bytes());
+        let public_sha256 = hex::encode(sha2::Sha256::digest(key.verifying_key().to_bytes()));
+        let rule_digest = "6".repeat(64);
+        let (pending, plan) = recovery_plan();
+        let expected = ExpectedRecoveryAttestation {
+            task_id: "task-1",
+            task_commitment: &plan.create.task_commitment,
+            pending: &pending,
+            plan: &plan,
+            public_key_sha256: &public_sha256,
+            rule_digest: &rule_digest,
         };
+        let statement = recovery_statement();
         let mut preimage = DOMAIN.to_vec();
         preimage.extend(serde_json_canonicalizer::to_vec(&statement).expect("statement"));
         let report = serde_json_canonicalizer::to_vec(&SignedRecoveryAttestation {
@@ -291,6 +317,13 @@ mod tests {
             hex::encode(sha2::Sha256::digest(&report))
         );
         assert!(verify_recovery_attestation(&report, &public, &expected, 160).is_none());
+        for now in [0, 99, 100, 110, 159, 160, 200, u64::MAX] {
+            assert_eq!(
+                verified.valid_at(now),
+                verify_recovery_attestation(&report, &public, &expected, now).is_some(),
+                "retained signed evidence must use the same validity boundary at {now}"
+            );
+        }
         assert!(verify_recovery_attestation(&report, &"9".repeat(64), &expected, 110).is_none());
         let mut wrong_subject: SignedRecoveryAttestation =
             serde_json::from_slice(&report).expect("report");

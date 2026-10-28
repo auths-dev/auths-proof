@@ -76,13 +76,19 @@ generation and does not perform a write.
 ## Operator-side development route
 
 `auths-gateway task-configure --state-dir STATE --from PINS.json` accepts one
-canonical JSON object with schema `auths.gateway-task-installation/3`, a
+canonical JSON object with schema `auths.gateway-task-installation/5`, a
 sorted, unique `recipe_digests` list of one to four compiled write recipes,
 and operator-controlled `pins`: `company_id`,
-`human_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
+`initiator_principal`, `approver_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
 `connection_generation`, `connection_subject`, `delivery_channel`,
-`operator_policy_digest`, `allow_bounded_writes`, and
-`permitted_read_scopes`. A write-only task sets
+`operator_policy_digest`, `allow_bounded_writes`, `permitted_read_scopes`, and
+`delegation`. The required delegation object contains `partition_generation`,
+`root_instance_generation`, `max_depth`, and `permitted_channels` mapping channel
+IDs to native `principal` and `instance_generation` pins. This single-agent demo
+explicitly installs depth zero and one channel; the card producer copies that
+policy into the signed schema-4 task. No implicit delegation default is applied. This employee demo selects the enrolled human for both
+initiator and approver. The gateway keeps the roles distinct: initiation cannot
+substitute for a separately required exact approval. A write-only task sets
 `permitted_read_scopes` to `[]`; a mixed task lists the reviewed read
 connection and source. Each signed task scope carries its own
 connection ID, generation, subject, and recipe digest; the write scope must
@@ -102,7 +108,7 @@ omitting it selects the edit recipe. This prepares two distinct write effects
 under one task journal but does not bind a created child or permit population.
 The installed native trust must admit the recipe's provider action plus both
 `auths-agent-task` tools, `approve_agent_task_v1` and
-`confirm_agent_write_v1`. The task session refuses missing task-profile trust
+`confirm_agent_write_v2`. The task session refuses missing task-profile trust
 before activation or provider entry.
 The broker's [task authority builder](../broker/src/employee_read_demo/task_write_authority.py)
 now prepares that multi-profile trust and distinct root-to-employee grants

@@ -103,6 +103,9 @@ def main() -> None:
     release.add_argument("--operation-id", required=True)
     release.add_argument("--resource-handle", required=True)
     release.add_argument("--channel-name", required=True)
+    release.add_argument("--enrollment-commitment", required=True)
+    release.add_argument("--partition-generation", type=int, required=True)
+    release.add_argument("--instance-generation", type=int, required=True)
     draft = commands.add_parser("author-draft")
     draft.add_argument("--key-file", type=Path, required=True)
     draft.add_argument("--read-package-file", type=Path, required=True)
@@ -145,7 +148,8 @@ def main() -> None:
             socket_path=args.socket, output_path=args.output, key=key,
             task_id=args.task_id, task_commitment=args.task_commitment,
             operation_id=args.operation_id, resource_handle=args.resource_handle,
-            channel_name=args.channel_name,
+            channel_name=args.channel_name, enrollment_commitment=args.enrollment_commitment,
+            partition_generation=args.partition_generation, instance_generation=args.instance_generation,
         )
         print(json.dumps(result, sort_keys=True))
         return

@@ -40,7 +40,8 @@ class LostAckAgentTests(unittest.TestCase):
                     key_file=key_file, socket_path=channel, output_path=output,
                     task_id=task, task_commitment=commitment,
                     operation_id=operation, resource_handle=handle,
-                    channel_name=name,
+                    channel_name=name, enrollment_commitment="e" * 64,
+                    partition_generation=7, instance_generation=5,
                 )
                 deadline = time.monotonic() + 5
                 while not channel.exists() and time.monotonic() < deadline:
@@ -54,17 +55,18 @@ class LostAckAgentTests(unittest.TestCase):
                     shared = {
                         "task_id": task, "task_commitment": commitment,
                         "operation_id": operation, "recipient": key.principal,
-                        "delivery_channel": name,
+                        "delivery_channel": name, "enrollment_commitment": "e" * 64,
+                        "partition_generation": 7, "instance_generation": 5,
                     }
                     challenge = {
-                        "schema": "auths.agent-release-channel-challenge/1",
+                        "schema": "auths.agent-release-channel-challenge/2",
                         **shared, "nonce": "b" * 64,
                     }
                     _send_frame(client, json.dumps(challenge).encode())
                     self.assertTrue(_receive_frame(client))
                     _send_frame(client, content)
                     acknowledgement = {
-                        "schema": "auths.agent-release-ack/1", **shared,
+                        "schema": "auths.agent-release-ack/2", **shared,
                         "resource_handle": handle,
                         "released_bytes": len(content),
                         "content_sha256": ("c" * 64 if bad_hash

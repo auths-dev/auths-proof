@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .contracts import commitment
 from .demo_co_contract import ContractRejected, _load, _unique_pairs
 from .google_create_handoff import CHILD_TITLE, MARKER
@@ -60,7 +61,7 @@ def _timestamp(value: object) -> datetime:
     if type(value) is not str:
         raise ContractRejected("populate setup time is invalid")
     try:
-        result = datetime.fromisoformat(value)
+        result = parse_aware_timestamp(value)
     except ValueError as error:
         raise ContractRejected("populate setup time is invalid") from error
     if result.tzinfo is None or result.utcoffset() is None:
@@ -522,7 +523,7 @@ def join_populate_post_entry(
             or create.get("operation_id") != pending.get("create_operation_id")
             or plan.get("populate_recipe_digest")
                 != pending.get("populate_recipe_digest")
-            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") != task_id
             or type(plan.get("initial_text")) is not str
             or not _identifier(create.get("operation_id"))
@@ -628,7 +629,7 @@ def join_populate_denial_recovery(
     create = plan.get("create")
     if (type(create) is not dict or type(plan.get("initial_text")) is not str
             or not _identifier(create.get("operation_id"))
-            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") != task_id
             or provider.get("authority") != "provider_state_only"
             or provider.get("child_id") != first_entry.get("child_id")

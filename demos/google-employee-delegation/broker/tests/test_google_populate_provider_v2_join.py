@@ -34,9 +34,9 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
         self.text = "Project A handoff from source"
         self.raw = b"\xef\xbb\xbf" + self.text.encode()
         self.card = {
-            "schema": "auths.agent-task/2", "task_id": "task-one",
+            "schema": "auths.agent-task/4", "task_id": "task-one",
             "company_id": "atlas-studio",
-            "human_principal": "key:sha256:human",
+            "initiator_principal": "key:sha256:human", "approver_principal": "key:sha256:human",
             "agent_principal": "key:sha256:agent",
             "write_approval_mode": "exact", "max_provider_calls": 1,
             "max_releases": 1, "max_release_bytes": 16_384,
@@ -58,7 +58,7 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
             },
         }
         self.plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": "task-one",
             "task_commitment": task_commitment(self.card),
             "create": {
@@ -110,7 +110,7 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
                 "task_id": "task-one",
                 "task_commitment": self.plan["task_commitment"],
                 "plan_commitment": commitment(
-                    "auths.agent-effect-plan.v1", self.plan,
+                    "auths.agent-effect-plan.v2", self.plan,
                 ),
                 "create_operation_id": "create-one",
                 "child_id": "child-one",

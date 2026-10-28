@@ -750,8 +750,8 @@ func webauthnControl(
 		{kind: "revocation-checked-at", observedAt: &credential.ObservedAt},
 	}
 	if flags&4 != 0 {
-		now := evaluationTime
-		claims = append(claims, assuranceClaim{kind: "user-verified", observedAt: &now})
+		// The signed UV flag does not contain a trusted ceremony timestamp.
+		claims = append(claims, assuranceClaim{kind: "user-verified"})
 	}
 	if credential.AttestationLevel != nil {
 		claims = append(claims, assuranceClaim{

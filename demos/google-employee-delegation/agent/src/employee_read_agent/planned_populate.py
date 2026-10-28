@@ -47,7 +47,7 @@ def planned_populate_arguments(*, package: dict, plan: dict, preflight: dict,
             or set(plan) != {"schema", "task_id", "task_commitment", "create",
                              "populate_recipe_digest", "populate_operation_id",
                              "initial_text", "expires_at"}
-            or plan["schema"] != "auths.agent-effect-plan/1"
+            or plan["schema"] != "auths.agent-effect-plan/2"
             or type(plan["create"]) is not dict
             or type(preflight) is not dict
             or set(preflight) != {"statement", "signature_b64"}

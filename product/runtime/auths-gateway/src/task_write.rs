@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
-pub(crate) const CONFIRMATION_TOOL: &str = "confirm_agent_write_v1";
+pub(crate) const CONFIRMATION_TOOL: &str = "confirm_agent_write_v2";
 
 /// Reviewed installation data, committed through the task's operator policy.
 /// `resource_field` is a profile field name, never a runtime JSON pointer.
@@ -40,7 +40,8 @@ pub(crate) struct TaskWriteBinding {
 /// bytes shown by the UI. Neither digest is a public content receipt.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ExactWriteIntent {
+pub struct ExactWriteIntent {
+    pub(crate) writer: crate::participant_enrollment::EnrolledParticipant,
     pub(crate) task_id: String,
     pub(crate) task_commitment: String,
     pub(crate) operation_id: String,
@@ -112,7 +113,9 @@ impl ApprovedTaskWrite {
     }
 }
 
-fn request_commitment(verified: &VerifiedCommand) -> Result<String, GatewaySubmitResult> {
+pub(crate) fn request_commitment(
+    verified: &VerifiedCommand,
+) -> Result<String, GatewaySubmitResult> {
     let request = &verified.request;
     let header_pairs: Vec<_> = request
         .headers()
@@ -143,13 +146,17 @@ pub(crate) fn derive_exact_write_intent(
     recipe: &CompiledRecipe,
     binding: &TaskWriteBinding,
     bound_child_scope: Option<&TaskWriteScope>,
+    writer: &crate::participant_enrollment::EnrolledParticipant,
     now: u64,
 ) -> Result<ExactWriteIntent, GatewaySubmitResult> {
     let card = task.descriptor();
     if now < card.not_before || now >= card.expires_at {
         return Err(not_entered("gateway.task.inactive"));
     }
-    if verified.actors.len() != 1 || verified.actors[0].as_str() != card.agent_principal {
+    if verified.actors.len() != 1
+        || verified.actors[0].as_str() != writer.principal()
+        || !writer.matches_task(task)
+    {
         return Err(not_entered("gateway.task.agent-binding"));
     }
     if binding.resource_field.is_empty()
@@ -206,6 +213,7 @@ pub(crate) fn derive_exact_write_intent(
         return Err(not_entered("gateway.task.write-scope"));
     }
     let intent = ExactWriteIntent {
+        writer: writer.clone(),
         task_id: card.task_id.clone(),
         task_commitment: expected_task_commitment,
         operation_id: verified.request.operation_id().as_str().to_owned(),
@@ -319,7 +327,7 @@ fn verify_exact_write_confirmation_for_profile(
     let [branch] = branches.as_slice() else {
         return Err(not_entered("gateway.task.single-human-action-required"));
     };
-    if branch.actor.as_str() != card.human_principal
+    if branch.actor.as_str() != card.approver_principal
         || branch.chain.is_empty()
         || branch
             .chain
@@ -357,6 +365,7 @@ pub(crate) fn admit_bounded_upfront_write(
 ) -> Result<ApprovedTaskWrite, GatewaySubmitResult> {
     let card = task.descriptor();
     if card.write_approval_mode != WriteApprovalMode::BoundedUpfront
+        || intent.writer.principal() != card.agent_principal
         || now < card.not_before
         || now >= card.expires_at
         || intent.task_id != card.task_id
@@ -386,6 +395,15 @@ pub(crate) fn admit_bounded_upfront_write(
 
 #[cfg(test)]
 mod tests {
+    fn test_writer(task: &ApprovedAgentTask) -> crate::participant_enrollment::EnrolledParticipant {
+        crate::participant_enrollment::EnrolledParticipant::for_test(
+            &task.descriptor().agent_principal,
+            task.commitment(),
+            task.descriptor().delegation.partition_generation,
+            task.descriptor().delegation.root_instance_generation,
+        )
+    }
+
     use super::*;
     use crate::GatewayObserver;
     use crate::engine::verify_detailed;
@@ -431,10 +449,11 @@ mod tests {
             CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
                 .expect("task-bound recipe");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
+            "schema": "auths.agent-task/4",
             "task_id": "task-1",
             "company_id": "atlas",
-            "human_principal": human.principal.as_str(),
+            "initiator_principal": human.principal.as_str(),
+            "approver_principal": human.principal.as_str(),
             "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": "a".repeat(64),
             "connection_id": "jules-google",
@@ -450,6 +469,7 @@ mod tests {
                 "connection_subject": "jules-subject"
             }],
             "delivery_channel": "agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel"),
             "not_before": NOW - 30,
             "expires_at": NOW + 900,
             "max_provider_calls": 0,
@@ -488,8 +508,16 @@ mod tests {
             connection_generation: 3,
             connection_subject: "jules-subject".to_owned(),
         };
-        let intent = derive_exact_write_intent(&task, &verified, &recipe, &binding, None, NOW)
-            .expect("task-bound intent");
+        let intent = derive_exact_write_intent(
+            &task,
+            &verified,
+            &recipe,
+            &binding,
+            None,
+            &test_writer(&task),
+            NOW,
+        )
+        .expect("task-bound intent");
         assert_eq!(intent.resource_handle, harness::RECORD);
         assert_eq!(intent.action_commitment, hex::encode(signed.commitment));
         let wrong_connection = TaskWriteBinding {
@@ -497,30 +525,62 @@ mod tests {
             ..binding.clone()
         };
         assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &wrong_connection, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &wrong_connection,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         let wrong_resource = TaskWriteBinding {
             resource_field: "task_id".to_owned(),
             ..binding.clone()
         };
         assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &wrong_resource, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &wrong_resource,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         let mut different_card = task.descriptor().clone();
         different_card.write_scopes[0].handle = "other-record".to_owned();
         let different_task = ApprovedAgentTask::from_test_card(different_card, *task.commitment());
         assert!(
-            derive_exact_write_intent(&different_task, &verified, &recipe, &binding, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &different_task,
+                &verified,
+                &recipe,
+                &binding,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         let mut different_card = task.descriptor().clone();
-        different_card.agent_principal = human.principal.as_str().to_owned();
+        different_card.delegation.partition_generation += 1;
         let different_task = ApprovedAgentTask::from_test_card(different_card, *task.commitment());
         assert!(
-            derive_exact_write_intent(&different_task, &verified, &recipe, &binding, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &different_task,
+                &verified,
+                &recipe,
+                &binding,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         (task, intent, context, root, human)
     }
@@ -594,6 +654,47 @@ mod tests {
         assert!(check_pending_create(&card, &without_mapping, &changed, &intent).is_err());
     }
 
+    fn populate_card(
+        human: &Signer,
+        agent: &Signer,
+        recipe: &CompiledRecipe,
+    ) -> AgentTaskDescriptor {
+        serde_json::from_value(json!({
+            "schema": "auths.agent-task/4",
+            "task_id": "task-1",
+            "company_id": "atlas",
+            "initiator_principal": human.principal.as_str(),
+            "approver_principal": human.principal.as_str(),
+            "agent_principal": agent.principal.as_str(),
+            "agent_key_fingerprint": "a".repeat(64),
+            "connection_id": "jules-google",
+            "connection_generation": 3,
+            "connection_subject": "jules-subject",
+            "read_scopes": [],
+            "write_scopes": [{"handle": "project-a-folder", "recipe_digest": "e".repeat(64),
+                "verb": "create", "connection_id": "jules-google",
+                "connection_generation": 3, "connection_subject": "jules-subject"}],
+            "pending_child": {"create_operation_id": "create-1",
+                "create_recipe_digest": "e".repeat(64),
+                "populate_recipe_digest": recipe.digest_hex(),
+                "parent_handle": "project-a-folder",
+                "title": "Auths AP-071 Project A handoff",
+                "marker": format!("ap071_{}", "d".repeat(32))},
+            "delivery_channel": "agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "agent-channel"),
+            "not_before": NOW - 30,
+            "expires_at": NOW + 900,
+            "max_provider_calls": 0,
+            "max_releases": 0,
+            "max_release_bytes": 0,
+            "max_writes": 2,
+            "write_approval_mode": "exact",
+            "operator_policy_digest": "d".repeat(64),
+            "purpose": "Populate one Project A child"
+        }))
+        .expect("card")
+    }
+
     #[test]
     fn populate_intent_requires_the_durable_child_scope() {
         let root = Signer::new(0x11);
@@ -617,38 +718,7 @@ mod tests {
             ),
         )
         .expect("reviewed populate recipe");
-        let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2",
-            "task_id": "task-1",
-            "company_id": "atlas",
-            "human_principal": human.principal.as_str(),
-            "agent_principal": agent.principal.as_str(),
-            "agent_key_fingerprint": "a".repeat(64),
-            "connection_id": "jules-google",
-            "connection_generation": 3,
-            "connection_subject": "jules-subject",
-            "read_scopes": [],
-            "write_scopes": [{"handle": "project-a-folder", "recipe_digest": "e".repeat(64),
-                "verb": "create", "connection_id": "jules-google",
-                "connection_generation": 3, "connection_subject": "jules-subject"}],
-            "pending_child": {"create_operation_id": "create-1",
-                "create_recipe_digest": "e".repeat(64),
-                "populate_recipe_digest": recipe.digest_hex(),
-                "parent_handle": "project-a-folder",
-                "title": "Auths AP-071 Project A handoff",
-                "marker": format!("ap071_{}", "d".repeat(32))},
-            "delivery_channel": "agent-channel",
-            "not_before": NOW - 30,
-            "expires_at": NOW + 900,
-            "max_provider_calls": 0,
-            "max_releases": 0,
-            "max_release_bytes": 0,
-            "max_writes": 2,
-            "write_approval_mode": "exact",
-            "operator_policy_digest": "d".repeat(64),
-            "purpose": "Populate one Project A child"
-        }))
-        .expect("card");
+        let card = populate_card(&human, &agent, &recipe);
         let task = ApprovedAgentTask::from_test_card(card, [0x45; 32]);
         let grant = harness::grant_for(
             &root,
@@ -688,7 +758,18 @@ mod tests {
             connection_generation: 3,
             connection_subject: "jules-subject".to_owned(),
         };
-        assert!(derive_exact_write_intent(&task, &verified, &recipe, &binding, None, NOW).is_err());
+        let derive = |scope: Option<&TaskWriteScope>| {
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &binding,
+                scope,
+                &test_writer(&task),
+                NOW,
+            )
+        };
+        assert!(derive(None).is_err());
         let child_scope = TaskWriteScope {
             handle: "child_ABC-123".to_owned(),
             recipe_digest: recipe.digest_hex(),
@@ -697,22 +778,14 @@ mod tests {
             connection_generation: binding.connection_generation,
             connection_subject: binding.connection_subject.clone(),
         };
-        let intent =
-            derive_exact_write_intent(&task, &verified, &recipe, &binding, Some(&child_scope), NOW)
-                .expect("bound child intent");
+        let intent = derive(Some(&child_scope)).expect("bound child intent");
         assert_eq!(intent.resource_handle, "child_ABC-123");
         let mut wrong = child_scope.clone();
         wrong.handle = "other-child".to_owned();
-        assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &binding, Some(&wrong), NOW)
-                .is_err()
-        );
+        assert!(derive(Some(&wrong)).is_err());
         wrong = child_scope;
         wrong.recipe_digest = "0".repeat(64);
-        assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &binding, Some(&wrong), NOW)
-                .is_err()
-        );
+        assert!(derive(Some(&wrong)).is_err());
     }
 
     fn confirmation(

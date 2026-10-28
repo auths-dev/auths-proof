@@ -221,6 +221,15 @@ Assurance is role-indexed and every requirement explicitly selects `Any` or
 parameters, adapter and version, evidence digests, and provenance. A strong
 actor cannot satisfy a weak root or intermediate.
 
+A claim's optional observation time belongs to the evidence fact it describes.
+Adapters MUST NOT replace an unknown historical event time with the current
+evaluation time, a credential registration time, or an untrusted asserted signing
+time. An undated fact can satisfy an unaged requirement, but cannot satisfy a
+maximum-age requirement. Re-evaluation may establish a current computation (for
+example, validating a certificate path at the supplied time); it does not renew
+the date of a prior ceremony or attestation. Each adapter profile must specify
+which fact its time describes and the trusted source for that time.
+
 ## Decisions
 
 The language-neutral pure result is canonical CBOR:

@@ -170,8 +170,9 @@ pub(crate) fn projection(repository: &Path, commit: &str) -> Result<Value, Strin
     };
     let clock = auths_gateway::SynchronizedHostClock;
     let Some(now) = clock
-        .now()
-        .filter(|_| clock.trust() == ClockTrustState::Trusted)
+        .sample()
+        .filter(|sample| sample.trust_state() == ClockTrustState::Trusted)
+        .map(auths_gateway::DeploymentTime::unix_seconds)
     else {
         report["reason"] = json!("release-clock-untrusted");
         return Ok(report);

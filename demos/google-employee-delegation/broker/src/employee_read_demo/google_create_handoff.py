@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Mapping
 from urllib.parse import quote, urlencode
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load
 
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
@@ -151,9 +152,7 @@ def validate_created_child_metadata(metadata: Mapping[str, object],
         timestamp = metadata["createdTime"]
         if type(timestamp) is not str or len(timestamp) > 40:
             raise ValueError("invalid timestamp shape")
-        created = datetime.fromisoformat(
-            timestamp[:-1] + "+00:00" if timestamp.endswith("Z") else timestamp
-        )
+        created = parse_aware_timestamp(timestamp)
     except (KeyError, TypeError, ValueError) as error:
         raise ContractRejected("created-child creation time is invalid") from error
     if created.tzinfo is None or created.utcoffset() is None:
@@ -466,9 +465,9 @@ def validate_create_observation(export: Path, pins: CreateObservationPins) -> No
     if observation.get("marker_match_count") != 1 or observation.get("direct_child_count") != 3:
         raise ContractRejected("create observation has ambiguous child inventory")
     try:
-        baseline = datetime.fromisoformat(observation["working_baseline_observed_at"])
-        created = datetime.fromisoformat(observation["child_created_at"])
-        observed = datetime.fromisoformat(observation["observed_at"])
+        baseline = parse_aware_timestamp(observation["working_baseline_observed_at"])
+        created = parse_aware_timestamp(observation["child_created_at"])
+        observed = parse_aware_timestamp(observation["observed_at"])
     except (TypeError, ValueError) as error:
         raise ContractRejected("create observation has invalid times") from error
     if (any(value.tzinfo is None for value in (baseline, created, observed))

@@ -15,7 +15,7 @@ import socket
 from pathlib import Path
 
 from employee_read_agent.release_channel import (
-    _message, _private_directory, _receive_frame, _send_frame, _sign,
+    _delivery_fields, _matches_delivery, _message, _private_directory, _receive_frame, _send_frame, _sign,
 )
 from employee_read_agent.run import AgentKey
 
@@ -24,7 +24,8 @@ _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 
 def receive_without_ack(*, key_file: Path, socket_path: Path, output_path: Path,
                         task_id: str, task_commitment: str, operation_id: str,
-                        resource_handle: str, channel_name: str) -> None:
+                        resource_handle: str, channel_name: str, enrollment_commitment: str,
+                        partition_generation: int, instance_generation: int) -> None:
     _private_directory(socket_path.parent)
     _private_directory(output_path.parent)
     if (socket_path.exists() or socket_path.is_symlink()
@@ -36,6 +37,10 @@ def receive_without_ack(*, key_file: Path, socket_path: Path, output_path: Path,
             or _DIGEST.fullmatch(task_commitment) is None):
         raise ValueError("lossy agent output already exists")
     key = AgentKey.load(key_file)
+    expected = _delivery_fields(task_id=task_id, task_commitment=task_commitment,
+        operation_id=operation_id, recipient=key.principal, channel_name=channel_name,
+        enrollment_commitment=enrollment_commitment, partition_generation=partition_generation,
+        instance_generation=instance_generation)
     previous_umask = os.umask(0o077)
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
@@ -48,15 +53,10 @@ def receive_without_ack(*, key_file: Path, socket_path: Path, output_path: Path,
                     peer.settimeout(5)
                     challenge_bytes = _receive_frame(peer)
                     challenge = _message(
-                        challenge_bytes, "auths.agent-release-channel-challenge/1",
+                        challenge_bytes, "auths.agent-release-channel-challenge/2",
                     )
-                    expected = {
-                        "task_id": task_id, "task_commitment": task_commitment,
-                        "operation_id": operation_id, "recipient": key.principal,
-                        "delivery_channel": channel_name,
-                    }
                     if (set(challenge) != set(expected) | {"schema", "nonce"}
-                            or any(challenge.get(k) != v for k, v in expected.items())
+                            or not _matches_delivery(challenge, expected)
                             or type(challenge.get("nonce")) is not str
                             or _DIGEST.fullmatch(challenge["nonce"]) is None
                             or challenge["nonce"] == "0" * 64):
@@ -64,14 +64,13 @@ def receive_without_ack(*, key_file: Path, socket_path: Path, output_path: Path,
                     _send_frame(peer, _sign(key, challenge_bytes))
                     content = _receive_frame(peer)
                     ack_bytes = _receive_frame(peer)
-                    acknowledgement = _message(ack_bytes, "auths.agent-release-ack/1")
+                    acknowledgement = _message(ack_bytes, "auths.agent-release-ack/2")
                     if (set(acknowledgement) != {
                             "schema", *expected, "resource_handle",
                             "released_bytes", "content_sha256",
                             "commitment_key_version", "content_commitment",
                         }
-                            or any(acknowledgement.get(k) != v
-                                   for k, v in expected.items())
+                            or not _matches_delivery(acknowledgement, expected)
                             or acknowledgement.get("resource_handle") != resource_handle
                             or type(acknowledgement.get("released_bytes")) is not int
                             or acknowledgement["released_bytes"] != len(content)
@@ -102,14 +101,17 @@ def main() -> None:
     for name in ("key-file", "socket", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     for name in ("task-id", "task-commitment", "operation-id",
-                 "resource-handle", "channel-name"):
+                 "resource-handle", "channel-name", "enrollment-commitment"):
         parser.add_argument("--" + name, required=True)
+    for name in ("partition-generation", "instance-generation"):
+        parser.add_argument("--" + name, type=int, required=True)
     args = parser.parse_args()
     receive_without_ack(
         key_file=args.key_file, socket_path=args.socket, output_path=args.output,
         task_id=args.task_id, task_commitment=args.task_commitment,
         operation_id=args.operation_id, resource_handle=args.resource_handle,
-        channel_name=args.channel_name,
+        channel_name=args.channel_name, enrollment_commitment=args.enrollment_commitment,
+        partition_generation=args.partition_generation, instance_generation=args.instance_generation,
     )
     print("agent-received-without-ack")
 

@@ -140,7 +140,8 @@ def _prepare_provider_delegation(
     if (human != authority.human_principal
             or parent is None or evidence != parent.employee_evidence
             or agent == human or type(card) is not dict
-            or card.get("human_principal") != human
+            or card.get("initiator_principal") != human
+            or card.get("approver_principal") != human
             or card.get("agent_principal") != agent
             or type(card.get("task_id")) is not str
             or not 1 <= len(card["task_id"]) <= 128

@@ -7,8 +7,9 @@ use crate::release_ack::{
     verify_agent_channel_challenge,
 };
 use crate::release_commitment::ReleaseCommitmentKey;
-use crate::release_state::{ProvenNoSend, VerifiedAgentAcknowledgement};
-use crate::task_activation::ApprovedAgentTask;
+use crate::release_state::{
+    EnteredRelease, ProvenNoSend, ReleaseDeliveryBinding, VerifiedAgentAcknowledgement,
+};
 use std::{
     fs,
     os::unix::fs::{FileTypeExt as _, MetadataExt as _},
@@ -45,8 +46,9 @@ pub(crate) enum ReleaseDeliveryError {
     DeliveryUnknown,
 }
 
-/// Operator-installed local socket and public agent identity. The human card
-/// pins the logical channel name and identity-packet fingerprint separately.
+/// Operator-installed local socket and canonical public agent identity. The
+/// signed task/enrollment select its channel, principal and instance; the initial
+/// participant also retains the task card's identity-packet fingerprint.
 pub(crate) struct UnixAgentReleaseChannel {
     socket: PathBuf,
     channel_name: String,
@@ -61,6 +63,7 @@ pub(crate) struct UnixAgentReleaseChannel {
 /// gateway-generated, operation-bound challenge. It has received no content.
 pub(crate) struct AuthenticatedReleaseChannel {
     stream: UnixStream,
+    binding: ReleaseDeliveryBinding,
     agent_identity_packet: Vec<u8>,
     #[cfg(any(test, feature = "loopback-provider"))]
     fail_before_content: bool,
@@ -108,10 +111,9 @@ impl UnixAgentReleaseChannel {
     /// Authenticate the peer before the caller charges or sends a release.
     pub(crate) async fn authenticate(
         &self,
-        task: &ApprovedAgentTask,
-        operation_id: &str,
+        binding: ReleaseDeliveryBinding,
     ) -> Result<AuthenticatedReleaseChannel, ReleaseChannelError> {
-        if self.channel_name != task.descriptor().delivery_channel {
+        if self.channel_name != binding.channel() {
             return Err(ReleaseChannelError::Binding);
         }
         checked_socket(&self.socket)?;
@@ -121,20 +123,15 @@ impl UnixAgentReleaseChannel {
             .map_err(|_| ReleaseChannelError::Unavailable)?;
         let mut nonce = [0_u8; 32];
         getrandom::fill(&mut nonce).map_err(|_| ReleaseChannelError::Unavailable)?;
-        let challenge = channel_challenge_message(task, operation_id, &nonce)
+        let challenge = channel_challenge_message(&binding, &nonce)
             .map_err(|_| ReleaseChannelError::Binding)?;
         write_frame(&mut stream, &challenge, MAX_FRAME_BYTES).await?;
         let signature = read_frame(&mut stream, MAX_SIGNATURE_BYTES).await?;
-        verify_agent_channel_challenge(
-            task,
-            operation_id,
-            &nonce,
-            &self.agent_identity_packet,
-            &signature,
-        )
-        .map_err(|_| ReleaseChannelError::Signature)?;
+        verify_agent_channel_challenge(&binding, &nonce, &self.agent_identity_packet, &signature)
+            .map_err(|_| ReleaseChannelError::Signature)?;
         Ok(AuthenticatedReleaseChannel {
             stream,
+            binding,
             agent_identity_packet: self.agent_identity_packet.clone(),
             #[cfg(any(test, feature = "loopback-provider"))]
             fail_before_content: self.fail_before_content,
@@ -145,24 +142,26 @@ impl UnixAgentReleaseChannel {
 }
 
 impl AuthenticatedReleaseChannel {
-    /// Called only after `release-entered` is durable. A failure before the
-    /// first content write proves no content was sent; later failures have an
-    /// unknown delivery outcome. This method never retries.
+    /// Consume a matching durable entry permit before any content write. A
+    /// mismatched permit cannot produce no-send evidence for another operation.
+    /// After a match, failures before content prove no send; later failures stay
+    /// unknown. This method never retries.
     pub(crate) async fn deliver(
         mut self,
-        task: &ApprovedAgentTask,
-        operation_id: &str,
-        resource_handle: &str,
+        permit: EnteredRelease,
         content: &[u8],
         key: &ReleaseCommitmentKey,
     ) -> Result<VerifiedAgentAcknowledgement, ReleaseDeliveryError> {
         let no_content = || {
             ReleaseDeliveryError::NoContentSent(ProvenNoSend::before_content(
-                &task.descriptor().task_id,
-                operation_id,
+                self.binding.task_id(),
+                self.binding.operation_id(),
             ))
         };
-        let message = acknowledgement_message(task, operation_id, resource_handle, content, key)
+        let resource_handle = permit
+            .validate_content(&self.binding, content, key)
+            .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
+        let message = acknowledgement_message(&self.binding, resource_handle, content, key)
             .map_err(|_| no_content())?;
         if content.is_empty() || content.len() > MAX_FRAME_BYTES {
             return Err(no_content());
@@ -196,8 +195,7 @@ impl AuthenticatedReleaseChannel {
             .await
             .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
         verify_agent_acknowledgement(
-            task,
-            operation_id,
+            &self.binding,
             resource_handle,
             content,
             key,
@@ -262,7 +260,7 @@ async fn write_frame(
 mod tests {
     use super::*;
     use crate::harness::Signer;
-    use crate::task_activation::AgentTaskDescriptor;
+    use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
     use auths_identity::IdentityDescriptor;
     use auths_identity_raw_key::RawKeyIdentityMethod;
     use ed25519_dalek::Signer as _;
@@ -284,8 +282,9 @@ mod tests {
         let descriptor = identity.to_descriptor().expect("descriptor");
         let packet = descriptor.encode().expect("packet");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/2", "task_id": "task-1",
-            "company_id": "atlas", "human_principal": human.principal.as_str(),
+            "schema": "auths.agent-task/4", "task_id": "task-1",
+            "company_id": "atlas", "initiator_principal": human.principal.as_str(),
+            "approver_principal": human.principal.as_str(),
             "agent_principal": agent.principal.as_str(),
             "agent_key_fingerprint": hex::encode(Sha256::digest(&packet)),
             "connection_id": "jules-write", "connection_generation": 3,
@@ -294,6 +293,7 @@ mod tests {
                 "connection_id": "jules-read", "connection_generation": 3,
                 "connection_subject": "jules-subject"}],
             "write_scopes": [], "delivery_channel": "registered-agent-channel",
+            "delegation": crate::task_activation::TaskDelegationPolicy::single(&agent.principal, "registered-agent-channel"),
             "not_before": 100, "expires_at": 200, "max_provider_calls": 1,
             "max_releases": 1, "max_release_bytes": 128, "max_writes": 0,
             "write_approval_mode": "exact", "operator_policy_digest": "a".repeat(64),
@@ -358,13 +358,22 @@ mod tests {
         assert_eq!(metadata.mode() & 0o077, 0);
         checked_socket(&channel.socket).expect("private agent socket");
         let authenticated = channel
-            .authenticate(&task, "read-1")
+            .authenticate(ReleaseDeliveryBinding::initial_for_test(&task, "read-1"))
             .await
             .expect("agent key");
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).expect("key");
         let content = b"Project A update";
         let acknowledgement = authenticated
-            .deliver(&task, "read-1", "resource-1", content, &key)
+            .deliver(
+                EnteredRelease::for_test(
+                    ReleaseDeliveryBinding::initial_for_test(&task, "read-1"),
+                    "resource-1",
+                    content,
+                    &key,
+                ),
+                content,
+                &key,
+            )
             .await
             .expect("authenticated acknowledgement");
         assert_eq!(acknowledgement.released_bytes, 16);
@@ -400,7 +409,9 @@ mod tests {
             UnixAgentReleaseChannel::new(socket, "registered-agent-channel".to_owned(), packet)
                 .expect("channel");
         assert!(matches!(
-            channel.authenticate(&task, "read-1").await,
+            channel
+                .authenticate(ReleaseDeliveryBinding::initial_for_test(&task, "read-1"))
+                .await,
             Err(ReleaseChannelError::Signature)
         ));
         server.await.expect("server");
@@ -417,6 +428,7 @@ mod tests {
         drop(peer);
         let channel = AuthenticatedReleaseChannel {
             stream,
+            binding: ReleaseDeliveryBinding::initial_for_test(&task, "read-1"),
             agent_identity_packet: packet,
             fail_before_content: false,
             #[cfg(feature = "loopback-provider")]
@@ -424,11 +436,47 @@ mod tests {
         };
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).expect("key");
         let result = channel
-            .deliver(&task, "read-1", "resource-1", b"private content", &key)
+            .deliver(
+                EnteredRelease::for_test(
+                    ReleaseDeliveryBinding::initial_for_test(&task, "read-1"),
+                    "resource-1",
+                    b"private content",
+                    &key,
+                ),
+                b"private content",
+                &key,
+            )
             .await;
         assert!(matches!(
             result,
             Err(ReleaseDeliveryError::NoContentSent(_))
         ));
+    }
+    #[tokio::test]
+    async fn mismatched_entry_permit_sends_nothing_and_cannot_mint_no_send_evidence() {
+        let (task, _agent, _identity, packet) = task_and_identity();
+        let (stream, mut peer) = UnixStream::pair().unwrap();
+        let binding = ReleaseDeliveryBinding::initial_for_test(&task, "read-1");
+        let channel = AuthenticatedReleaseChannel {
+            stream,
+            binding,
+            agent_identity_packet: packet,
+            fail_before_content: false,
+            #[cfg(feature = "loopback-provider")]
+            exit_after_content_send: false,
+        };
+        let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).unwrap();
+        let permit = EnteredRelease::for_test(
+            ReleaseDeliveryBinding::initial_for_test(&task, "another-operation"),
+            "resource-1",
+            b"private content",
+            &key,
+        );
+        assert!(matches!(
+            channel.deliver(permit, b"private content", &key).await,
+            Err(ReleaseDeliveryError::DeliveryUnknown)
+        ));
+        let mut byte = [0; 1];
+        assert_eq!(peer.read(&mut byte).await.unwrap(), 0);
     }
 }

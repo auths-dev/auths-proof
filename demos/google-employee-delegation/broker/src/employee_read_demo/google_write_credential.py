@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .admission import AdmissionDenied
 from .existing_consent_smoke import _private_grant, _userinfo
 from .google_oauth import TOKEN_URL
@@ -72,7 +73,7 @@ def lease_jules_write_token(evidence_path: Path, grant_path: Path,
         raise WriteCredentialDenied("write grant lacks an access token or expiry")
     now = int(time.time()) if now is None else now
     try:
-        parsed = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+        parsed = parse_aware_timestamp(expiry)
         if parsed.tzinfo is None:
             raise ValueError("timezone is missing")
         expires_at = int(parsed.astimezone(timezone.utc).timestamp())

@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "94c76dcb0d5e0596dd9fd9d7553726c4b7acddddf8dce6d0c0a37e0d1a9a99cd",
+  "digest": "c36460ee7b43d7c67b9e57bd553cc2301cd62fae45d62ace365ff7779f30699e",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,12 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "49bca1e518a5a554c38752cd3eba5c7be6d77fbe8f4f00d100d398467a7455c4",
+      "sha256": "721d5c68b9fa5d90c789d00fe56d54a2f84adba764103392bd0445ef8e466db6",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "903f8706758c3eccb5b58ad3081a61e2a29176cdb44f793c344228a5b9dcec51"
+      "sha256": "72262da7bce88ba657e2e551b7c00c51e08370091950c2595ee8a05a5bd2d6ec"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -389,7 +389,7 @@
     },
     {
       "path": "xtask/src/release_launch.rs",
-      "sha256": "1ace0de9a642e0e408997ce52c8244b628b2fb340b4cb354d9ffcddd44f357ce"
+      "sha256": "a622263ea8f3d14649c8056782cb462bea0cb0920c7117929b565fcf16d1a4e9"
     },
     {
       "path": "xtask/src/sdk_experience.rs",

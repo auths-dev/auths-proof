@@ -39,8 +39,8 @@ class TaskWriteDelegationTests(unittest.TestCase):
             provider_tool="replace_project_a_marker_v2", now=1000, lifetime=600,
         )
         card = {
-            "schema": "auths.agent-task/2", "task_id": "task-1",
-            "human_principal": human, "agent_principal": agent,
+            "schema": "auths.agent-task/4", "task_id": "task-1",
+            "initiator_principal": human, "approver_principal": human, "agent_principal": agent,
             "not_before": 1010, "expires_at": 1300,
             "write_scopes": [{"handle": "working-doc", "verb": "edit",
                               "recipe_digest": "a" * 64,

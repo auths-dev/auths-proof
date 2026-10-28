@@ -37,7 +37,7 @@ class PlannedPopulateTests(unittest.TestCase):
             model=_Model(), key=self.key.private,
         ))
         self.plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": "task-1", "task_commitment": self.task_commitment,
             "create": {
                 "task_id": "task-1", "task_commitment": self.task_commitment,

@@ -222,13 +222,39 @@ fn envelope_for(
     service: &str,
     now: u64,
 ) -> ActionEnvelope {
+    envelope_for_audience(
+        agent,
+        canonical,
+        grant,
+        plan,
+        proof_ref,
+        descriptors,
+        Audience::parse(&format!("mcp://{service}")).expect("audience"),
+        now,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test authoring specifies the signed audience explicitly"
+)]
+fn envelope_for_audience(
+    agent: &Signer,
+    canonical: &CanonicalAction,
+    grant: &SignedGrant,
+    plan: &AuthorizationPlan,
+    proof_ref: ProofRef,
+    descriptors: Vec<AttachmentDescriptor>,
+    audience: Audience,
+    now: u64,
+) -> ActionEnvelope {
     ActionEnvelope::new(
         canonical.profile().clone(),
         canonical.media_type().clone(),
         body_digest(canonical.body()),
         canonical.permission().clone(),
         None,
-        Audience::parse(&format!("mcp://{service}")).expect("audience"),
+        audience,
         Challenge::new([0; 32]),
         window(now - 3_600, now + 3_600),
         agent.principal.clone(),
@@ -274,6 +300,34 @@ pub(crate) fn submission_for(
     tool: &str,
     now: u64,
 ) -> Submission {
+    submission_for_audience(
+        root,
+        agent,
+        grant,
+        arguments,
+        observations,
+        service,
+        tool,
+        now,
+        Audience::parse(&format!("mcp://{service}")).expect("audience"),
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test authoring specifies profile, time and signed audience"
+)]
+pub(crate) fn submission_for_audience(
+    root: &Signer,
+    agent: &Signer,
+    grant: &SignedGrant,
+    arguments: &Map<String, Value>,
+    observations: &[Vec<u8>],
+    service: &str,
+    tool: &str,
+    now: u64,
+    audience: Audience,
+) -> Submission {
     let bytes = McpToolCall::new(service, tool, arguments.clone())
         .expect("call")
         .canonical_bytes()
@@ -288,14 +342,14 @@ pub(crate) fn submission_for(
     let plan = AuthorizationPlan::proof(proof_ref);
     let action = sign_action(
         agent,
-        envelope_for(
+        envelope_for_audience(
             agent,
             &canonical,
             grant,
             &plan,
             proof_ref,
             descriptors.clone(),
-            service,
+            audience,
             now,
         ),
     );
@@ -1304,12 +1358,7 @@ mod mock_custody {
             Ok(AwsKmsSignOutput {
                 key_arn: ARN.to_owned(),
                 algorithm,
-                signature_der: signature
-                    .normalize_s()
-                    .unwrap_or(signature)
-                    .to_der()
-                    .as_bytes()
-                    .to_vec(),
+                signature_der: signature.normalize_s().to_der().as_bytes().to_vec(),
             })
         }
     }
@@ -1326,7 +1375,7 @@ mod mock_custody {
                 public_key_sec1: self
                     .0
                     .verifying_key()
-                    .to_encoded_point(false)
+                    .to_sec1_point(false)
                     .as_bytes()
                     .to_vec(),
                 p256: true,
@@ -1343,7 +1392,7 @@ mod mock_custody {
         ) -> Result<Pkcs11SignOutput, Pkcs11Failure> {
             let signature: Signature = self.0.sign(message);
             Ok(Pkcs11SignOutput {
-                signature: signature.normalize_s().unwrap_or(signature).to_vec(),
+                signature: signature.normalize_s().to_vec(),
             })
         }
     }

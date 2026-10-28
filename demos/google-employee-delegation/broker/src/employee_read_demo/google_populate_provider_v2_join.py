@@ -96,13 +96,15 @@ def join_populate_provider_final_v2(
             or provider.get("retry_authorized") is not False
             or type(provider.get("source_raw_byte_count")) is not int
             or type(card) is not dict
-            or card.get("schema") != "auths.agent-task/2"
+            or card.get("schema") != "auths.agent-task/4"
             or card.get("task_id") != task_id
             or card.get("company_id") != provider.get("company_id")
             or card.get("write_approval_mode") != "exact"
-            or not _identifier(card.get("human_principal"))
+            or not _identifier(card.get("initiator_principal"))
+            or not _identifier(card.get("approver_principal"))
             or not _identifier(card.get("agent_principal"))
-            or card.get("human_principal") == card.get("agent_principal")
+            or card.get("initiator_principal") == card.get("agent_principal")
+            or card.get("approver_principal") == card.get("agent_principal")
             or card.get("max_provider_calls") != 1
             or card.get("max_releases") != 1
             or card.get("max_writes") != 2
@@ -129,7 +131,7 @@ def join_populate_provider_final_v2(
                 != pending.get("create_recipe_digest")
             or pending.get("title") != CHILD_TITLE
             or type(plan) is not dict
-            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") != task_id
             or type(provider.get("expected_raw_byte_count")) is not int
             or len(planned_raw) != provider["expected_raw_byte_count"]
@@ -153,7 +155,7 @@ def join_populate_provider_final_v2(
         raise ContractRejected("provider v2 task and plan differ from exact effect")
     try:
         actual_task_commitment = task_commitment(card)
-        actual_plan_commitment = commitment("auths.agent-effect-plan.v1", plan)
+        actual_plan_commitment = commitment("auths.agent-effect-plan.v2", plan)
     except (RuntimeError, TypeError, ValueError) as error:
         raise ContractRejected("provider v2 native commitments are unavailable") from error
     if plan.get("task_commitment") != actual_task_commitment:

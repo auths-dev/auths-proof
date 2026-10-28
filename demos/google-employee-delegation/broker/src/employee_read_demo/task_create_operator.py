@@ -571,7 +571,7 @@ def search_planned_created_child(*, gateway_binary: Path, gateway_sha256: str,
             or pending.get("marker") != baseline["marker"]
             or pending.get("parent_handle") != evidence["folder_id"]
             or pending.get("title") != CHILD_TITLE
-            or type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/1"
+            or type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") != task_id or type(create) is not dict
             or create.get("operation_id") != baseline["create_operation_id"]
             or create.get("resource_handle") != evidence["folder_id"]
@@ -660,7 +660,7 @@ def submit_planned_population(*, gateway_binary: Path, gateway_sha256: str,
     statement = report.get("statement") if type(report) is dict else None
     create = plan.get("create") if type(plan) is dict else None
     if (not _recorded_baseline_is_valid(baseline, task_id)
-            or type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/1"
+            or type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") != task_id
             or type(create) is not dict
             or create.get("operation_id") != baseline.get("create_operation_id")

@@ -128,7 +128,7 @@ class PostEntryJoinTests(unittest.TestCase):
                 },
             },
             "effect-plan.json": {
-                "schema": "auths.agent-effect-plan/1", "task_id": "task-one",
+                "schema": "auths.agent-effect-plan/2", "task_id": "task-one",
                 "initial_text": self.text,
                 "populate_operation_id": self.populate,
                 "populate_recipe_digest": "d" * 64,

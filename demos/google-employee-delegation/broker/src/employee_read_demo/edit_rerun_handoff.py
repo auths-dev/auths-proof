@@ -7,10 +7,11 @@ import os
 import re
 import stat
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from importlib.resources import files
 from pathlib import Path
 
+from .timestamps import parse_aware_timestamp
 from .demo_co_contract import ContractRejected, _load
 from .write_handoff import WriteHandoffPins
 
@@ -91,7 +92,7 @@ def _private_generation(path: Path, filename: str, *, after: int = 1) -> int:
 
 def _time(value: object, now: int) -> int:
     try:
-        observed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        observed = parse_aware_timestamp(value)
     except (AttributeError, ValueError) as error:
         raise ContractRejected("edit rerun observation time is malformed") from error
     if observed.tzinfo is None or observed.utcoffset() is None:

@@ -202,7 +202,7 @@ class TaskWriteConfirmationFlow:
         except (OSError, PermissionError, ValueError, UnicodeDecodeError) as error:
             raise OperatorDenied("staged agent proposal is unavailable") from error
         if (type(card) is not dict or card.get("task_id") != task_id
-                or card.get("human_principal") != employee.principal
+                or card.get("approver_principal") != employee.principal
                 or card.get("agent_principal") != agent.agent_principal
                 or type(card.get("not_before")) is not int
                 or type(card.get("expires_at")) is not int
@@ -244,15 +244,15 @@ class TaskWriteConfirmationFlow:
         if (recipe_sha != package.recipe_source_sha256
                 or lock_sha != package.profile_lock_sha256):
             raise OperatorDenied("reviewed recipe changed")
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("installed task review is unavailable")
         try:
             completed = subprocess.run([
-                str(self._binary()), "review-submission",
-                "--recipe", str(self.recipe_path),
-                "--profile-lock", str(self.profile_lock_path),
-                "--trusted-context", str(directory / "trusted-context.cbor"),
+                str(self._binary()), "task-review-submission",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id, "--recipe-digest", package.recipe_digest,
                 "--proof", str(directory / "agent.proof"),
                 "--action", str(directory / "agent.action"),
-                "--evaluated-at", str(now),
             ], capture_output=True, check=False, timeout=10)
             if completed.returncode != 0 or len(completed.stdout) > 131_072:
                 raise OperatorDenied("gateway refused staged agent proposal")
@@ -368,6 +368,9 @@ class TaskWriteConfirmationFlow:
                             now: int | None = None) -> PreparedEffectPlan:
         if (self.companion_recipe_path is None or self.gateway_state_dir is None):
             raise OperatorDenied("paired create plan is not installed")
+        plan_path = self._task_dir(task_id) / "effect-plan.json"
+        if plan_path.exists() or plan_path.is_symlink():
+            raise OperatorDenied("effect plan already recorded; review task activity")
         now = int(time.time()) if now is None else now
         card, review = self._review(task_id, employee, agent, now)
         pending = card.get("pending_child")
@@ -395,7 +398,7 @@ class TaskWriteConfirmationFlow:
             task_id, employee, agent, agent_identity_packet, card,
         )
         plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": task_id,
             "task_commitment": task_commitment(card),
             "create": intent,
@@ -517,12 +520,12 @@ class TaskWriteConfirmationFlow:
                 or type(envelope["signature_b64"]) is not str
                 or report != _canonical_json(envelope)):
             raise OperatorDenied("recovery evidence disagrees with task")
-        if (type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/1"
+        if (type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/2"
                 or plan.get("task_id") != task_id
                 or type(plan.get("initial_text")) is not str
                 or not 1 <= len(plan["initial_text"].encode("utf-8")) <= 192
                 or plan_raw != _canonical_json(plan)
-                or commitment("auths.agent-effect-plan.v1", plan)
+                or commitment("auths.agent-effect-plan.v2", plan)
                 != inputs["plan_commitment"]
                 or hashlib.sha256(
                     b"auths.agent-effect-plan-content/1\0"
@@ -740,7 +743,7 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied("signed task card is unavailable") from error
         if (type(card) is not dict or card.get("task_id") != task_id
                 or card.get("company_id") != employee.company_id
-                or card.get("human_principal") != employee.principal):
+                or card.get("approver_principal") != employee.principal):
             raise OperatorDenied("task is not owned by this employee")
         return card
 

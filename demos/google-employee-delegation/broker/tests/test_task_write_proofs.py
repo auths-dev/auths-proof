@@ -81,8 +81,8 @@ class TaskWriteProofTests(unittest.TestCase):
             provider_tool="replace_project_a_marker_v2", now=1000, lifetime=600,
         )
         card = {
-            "schema": "auths.agent-task/2", "task_id": "task-1",
-            "company_id": "atlas-studio", "human_principal": human,
+            "schema": "auths.agent-task/4", "task_id": "task-1",
+            "company_id": "atlas-studio", "initiator_principal": human, "approver_principal": human,
             "agent_principal": "agent-principal", "agent_key_fingerprint": "a" * 64,
             "connection_id": "jules-google", "connection_generation": 1,
             "connection_subject": "jules-subject", "read_scopes": [],
@@ -90,7 +90,10 @@ class TaskWriteProofTests(unittest.TestCase):
                               "verb": "edit", "connection_id": "jules-google",
                               "connection_generation": 1,
                               "connection_subject": "jules-subject"}],
-            "delivery_channel": "agent-channel", "not_before": 1000,
+            "delivery_channel": "agent-channel",
+            "delegation": {"partition_generation": 1, "root_instance_generation": 1,
+                           "max_depth": 0, "permitted_channels": {
+                               "agent-channel": {"principal": "agent-principal", "instance_generation": 1}}}, "not_before": 1000,
             "expires_at": 1300, "max_provider_calls": 0,
             "max_releases": 0, "max_release_bytes": 0, "max_writes": 1,
             "write_approval_mode": "exact", "operator_policy_digest": "c" * 64,
@@ -103,9 +106,13 @@ class TaskWriteProofTests(unittest.TestCase):
         self.assertGreater(len(signed.action), 0)
         commitment = task_commitment(card)
         self.assertEqual(commitment, bytes(_native.commit_canonical_v1(
-            "auths.agent-task.v2",
+            "auths.agent-task.v4",
             _native.canonicalize_mcp_arguments_json(canonical_json(card)),
         )).hex())
+        changed = {**card, "delegation": {**card["delegation"], "partition_generation": 2}}
+        self.assertNotEqual(commitment, task_commitment(changed))
+        with self.assertRaises(OperatorDenied):
+            task_commitment({**card, "schema": "auths.agent-task/3"})
         intent = {
             "task_id": "task-1", "task_commitment": commitment,
             "operation_id": "write-1", "action_commitment": "d" * 64,
@@ -119,7 +126,7 @@ class TaskWriteProofTests(unittest.TestCase):
         self.assertGreater(len(confirmed.proof), 0)
         self.assertGreater(len(confirmed.action), 0)
         effect_plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": "task-1",
             "task_commitment": commitment,
             "create": {**intent, "operation_id": "create-1", "verb": "create"},
