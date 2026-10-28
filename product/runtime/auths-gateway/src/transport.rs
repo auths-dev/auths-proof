@@ -3,10 +3,7 @@
 // These matches separate definite pre-entry failure from ambiguous network entry.
 #![allow(clippy::manual_let_else)]
 
-use crate::{
-    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
-    RequestHeader,
-};
+use crate::{ClosedCredentialRead, CompiledRecipe, CredentialRequirement, RequestHeader};
 use auths_connections::StoredSecretLease;
 use reqwest::{
     Client,
@@ -88,7 +85,7 @@ pub(crate) trait ProviderPort {
     /// Sends one closed write after a durable claim.
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
     /// Performs one bounded GET of an action read or observation and returns
@@ -109,9 +106,9 @@ pub(crate) trait ProviderPort {
 impl<P: ProviderPort> ProviderPort for &P {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        (**self).write(request).await
+        (**self).write(permit).await
     }
 
     async fn action_read(
@@ -139,9 +136,9 @@ pub(crate) struct LeasedTransport<'a> {
 impl ProviderPort for LeasedTransport<'_> {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.transport.write(request, self.lease).await
+        self.transport.write(permit, self.lease).await
     }
 
     async fn action_read(
@@ -275,9 +272,10 @@ impl GatewayHttpTransport {
     /// usual because the gateway never interprets a write body.
     pub(crate) async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
         lease: &StoredSecretLease,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         if request.credential_requirement() != &self.requirement || !self.owns_url(request.url()) {
             return Err(GatewayTransportError::NotEntered);
         }
@@ -634,9 +632,38 @@ mod tests {
             let arguments = json!({"operation_id": "run-1", "record_id": "recTEST0000000001",
                 "replacement": "Approved", "operator_namespace": recipe.namespace().as_str(),
                 "recipe_digest": recipe.digest_hex()});
-            let request = recipe
-                .closed_request_from_arguments(arguments.as_object().expect("arguments"), [1; 32])
-                .expect("request");
+            let command = crate::scenario_tests::admitted(
+                &recipe,
+                arguments.as_object().expect("arguments"),
+                [1; 32],
+                Vec::new(),
+                60,
+                Vec::new(),
+                1000,
+            )
+            .expect("command");
+            let approved = std::sync::Arc::new(
+                crate::effect::approve_driver_fixture(command, *recipe.digest(), 1000, None)
+                    .expect("approval"),
+            );
+            let attempts =
+                crate::store_testkit::TestAttempts::open(crate::store_testkit::Backend::File);
+            let crate::store::BoundedClaim::Claimed(claim) = attempts
+                .attempts()
+                .claim_bounded(&approved, 1000)
+                .await
+                .expect("claim")
+            else {
+                panic!("claim refused")
+            };
+            let (_granted, permit) = claim
+                .grant_entry(
+                    std::sync::Arc::clone(&approved),
+                    crate::entry::EntryValidation::Oracle { now: 1000 },
+                )
+                .await
+                .expect("durable grant");
+            let request = &approved.command().request;
             let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
                 .await
                 .expect("bind");
@@ -673,7 +700,7 @@ mod tests {
             );
             assert_eq!(witness.snapshot().read_transport_entries, 0);
             assert!(matches!(
-                transport.write(&request, &lease).await,
+                transport.write(permit, &lease).await,
                 Ok(WriteTransportOutcome::ResponseRecorded { status: 200, .. })
             ));
             let observation = request.observation().expect("observation");

@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/4`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/5`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/4";
+const SCHEMA: &str = "auths.gateway-attempt/5";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -65,8 +65,10 @@ const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
 pub enum GatewayAttemptStage {
     /// Transport entry was durably excluded after a claim.
     NotEntered,
-    /// Transport may have started; restart projects this to `Unknown`.
-    Attempting,
+    /// Durable admission and capacity reservation; no provider entry yet.
+    Reserved,
+    /// A unique durable grant exists; external entry may have occurred.
+    EntryGranted,
     /// A complete bounded HTTP response was durably recorded.
     ResponseRecorded,
     /// Entry or effect is ambiguous; no automatic retry.
@@ -83,7 +85,8 @@ impl GatewayAttemptStage {
     const fn kernel(self) -> Stage {
         match self {
             Self::NotEntered => Stage::NotEntered,
-            Self::Attempting => Stage::Attempting,
+            Self::Reserved => Stage::Reserved,
+            Self::EntryGranted => Stage::EntryGranted,
             Self::ResponseRecorded => Stage::ResponseRecorded,
             Self::Unknown => Stage::Unknown,
             Self::Observed => Stage::Observed,
@@ -485,6 +488,7 @@ struct Record {
     nonce: String,
     evaluated_at: u64,
     stage: GatewayAttemptStage,
+    entry: Option<EntryAudit>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     refusal: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -505,6 +509,17 @@ struct Record {
     provider_evidence: Option<EvidenceWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pre_entry: Option<PreEntryWire>,
+}
+
+/// Private immutable evidence of the unique acknowledged grant. It does not
+/// attest to a socket send and cannot be deserialized into a transport permit.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct EntryAudit {
+    schema: String,
+    granted_at: u64,
+    effect_id: String,
+    dependencies: Vec<String>,
 }
 
 /// The fields no transition may change, in a fixed order.
@@ -561,6 +576,12 @@ impl Record {
             _ => return Err(GatewayAttemptError::Corrupt),
         };
         Ok(AttemptView {
+            entry: self
+                .entry
+                .as_ref()
+                .map(canonical)
+                .transpose()?
+                .unwrap_or_default(),
             fixed: canonical(&FixedFields {
                 schema: &self.schema,
                 binding_canonical: &self.binding_canonical,
@@ -625,6 +646,102 @@ impl Record {
         Ok(counters)
     }
 
+    fn validate_reservations(
+        &self,
+        key: GatewayAttemptKey,
+        bound: Option<&crate::bounds::BoundAdmission>,
+        snapshots: &[Option<Vec<u8>>],
+        now: u64,
+    ) -> Result<(), GatewayAttemptError> {
+        let counters = self.counters()?;
+        let Some(bound) = bound else {
+            return if counters.is_empty() && snapshots.is_empty() {
+                Ok(())
+            } else {
+                Err(GatewayAttemptError::Corrupt)
+            };
+        };
+        if counters.len() != bound.counts.len() + bound.sums.len()
+            || snapshots.len() != counters.len()
+            || bound.window_seconds == 0
+            || bound.counts.iter().any(|bound| {
+                counters
+                    .iter()
+                    .filter(|counter| {
+                        counter.kind == GatewayCounterKind::Count && counter.counter == bound.key
+                    })
+                    .count()
+                    != 1
+            })
+            || bound.sums.iter().any(|bound| {
+                counters
+                    .iter()
+                    .filter(|counter| {
+                        counter.kind == GatewayCounterKind::Sum && counter.counter == bound.key
+                    })
+                    .count()
+                    != 1
+            })
+            || now >= bound.window_end
+            || now / bound.window_seconds != bound.window_index
+        {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let claim = hex::encode(key.as_bytes());
+        for (counter, bytes) in counters.iter().zip(snapshots) {
+            let bytes = bytes.as_deref().ok_or(GatewayAttemptError::Corrupt)?;
+            let valid = match counter.kind {
+                GatewayCounterKind::Count => {
+                    let slot: CountSlotRecord =
+                        serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+                    let limit = bound
+                        .counts
+                        .iter()
+                        .find(|candidate| candidate.key == counter.counter)
+                        .ok_or(GatewayAttemptError::Corrupt)?;
+                    canonical(&slot)? == bytes
+                        && slot.schema == COUNT_SLOT_SCHEMA
+                        && slot.counter == hex::encode(counter.counter)
+                        && slot.slot == counter.slot
+                        && slot.slot < limit.capacity
+                        && slot.namespace == self.namespace
+                        && slot.operation_id == self.operation_id
+                        && slot.claim == claim
+                        && slot.window_seconds == bound.window_seconds
+                        && slot.window_index == bound.window_index
+                        && slot.window_end == bound.window_end
+                }
+                GatewayCounterKind::Sum => {
+                    let slot: SumSlotRecord =
+                        serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+                    let limit = bound
+                        .sums
+                        .iter()
+                        .find(|candidate| candidate.key == counter.counter)
+                        .ok_or(GatewayAttemptError::Corrupt)?;
+                    canonical(&slot)? == bytes
+                        && slot.schema == SUM_SLOT_SCHEMA
+                        && slot.counter == hex::encode(counter.counter)
+                        && slot.slot == counter.slot
+                        && slot.slot < limit.slots
+                        && slot.namespace == self.namespace
+                        && slot.operation_id == self.operation_id
+                        && slot.claim == claim
+                        && slot.window_seconds == bound.window_seconds
+                        && slot.window_index == bound.window_index
+                        && slot.window_end == bound.window_end
+                        && slot.amount == bound.argument
+                        && slot.amount <= slot.cumulative
+                        && slot.cumulative <= limit.capacity
+                }
+            };
+            if !valid {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+        }
+        Ok(())
+    }
+
     fn locator_valid(&self) -> bool {
         match (&self.response_locator, &self.observation_plan) {
             (None, _) => true,
@@ -654,6 +771,19 @@ impl Record {
             || hex::encode(action) != self.action_commitment
             || hex::encode(recipe) != self.recipe_digest
         {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if self.entry.as_ref().is_some_and(|entry| {
+            entry.schema != "auths.effect-entry/1"
+                || entry.granted_at < self.evaluated_at
+                || entry.granted_at > MAX_JSON_INTEGER
+                || entry.effect_id != hex::encode(binding.id().as_bytes())
+                || entry.dependencies.len() > 3
+                || entry
+                    .dependencies
+                    .iter()
+                    .any(|value| digest_bytes(value).is_err())
+        }) {
             return Err(GatewayAttemptError::Corrupt);
         }
         if self.schema != SCHEMA
@@ -709,7 +839,7 @@ impl Record {
             action_commitment,
             recipe_digest,
             evaluated_at: self.evaluated_at,
-            stage: if recovered && self.stage == GatewayAttemptStage::Attempting {
+            stage: if recovered && self.stage == GatewayAttemptStage::EntryGranted {
                 GatewayAttemptStage::Unknown
             } else {
                 self.stage
@@ -1696,7 +1826,7 @@ enum ExpectedPlan<'a> {
     Stored,
 }
 
-/// A fresh `attempting` claim record for `request`, with a random nonce and
+/// A fresh `reserved` claim record for `request`, with a random nonce and
 /// no counters.
 fn claim_record(
     request: &ClosedProviderRequest,
@@ -1728,7 +1858,8 @@ fn claim_record(
         recipe_digest: hex::encode(binding.journal_identity().3),
         nonce: hex::encode(nonce),
         evaluated_at,
-        stage: GatewayAttemptStage::Attempting,
+        stage: GatewayAttemptStage::Reserved,
+        entry: None,
         refusal: None,
         counters: Vec::new(),
         response_status: None,
@@ -1886,7 +2017,7 @@ impl GatewayAttempts {
         .await
     }
 
-    /// Reads a secret-free durable snapshot. An `attempting` stage is
+    /// Reads a secret-free durable snapshot. An `entry-granted` stage is
     /// conservatively projected as `unknown`: another process may hold it, or
     /// it may have crashed.
     ///
@@ -1906,7 +2037,7 @@ impl GatewayAttempts {
     /// Reopens a stored attempt for one read-only observation from its
     /// stored plan. It returns `None` unless the recipe digest is unchanged,
     /// the new verified request resolves to the same plan, and the stage can
-    /// be resolved by a read-back: an `attempting` or `unknown` record only
+    /// be resolved by a read-back: an `entry-granted` or `unknown` record only
     /// for a verified-locator link, and a `response-recorded` record for any
     /// declared link whose locator is recorded. A re-observation records only
     /// positive evidence under compare-and-swap, so it may run while the
@@ -1959,11 +2090,12 @@ impl GatewayAttempts {
         record.snapshot(false)?;
         let link = record.link();
         let stage_resolvable = match record.stage {
-            GatewayAttemptStage::Attempting | GatewayAttemptStage::Unknown => {
+            GatewayAttemptStage::EntryGranted | GatewayAttemptStage::Unknown => {
                 transition::resolves_unknown(link)
             }
             GatewayAttemptStage::ResponseRecorded => transition::has_link(link),
-            GatewayAttemptStage::NotEntered
+            GatewayAttemptStage::Reserved
+            | GatewayAttemptStage::NotEntered
             | GatewayAttemptStage::Observed
             | GatewayAttemptStage::ObservedByProvider => false,
         };
@@ -2050,13 +2182,110 @@ impl Attempt {
     }
 }
 
-/// A durable claim token; dropping it without a result leaves `unknown` on
-/// restart and never permits another automatic write.
+/// A durable attempt handle. A reservation does not authorize transport; only
+/// a newly acknowledged grant produces a one-use provider permit.
 pub struct ClaimedGatewayAttempt {
     attempt: Attempt,
 }
 
 impl ClaimedGatewayAttempt {
+    /// Validates the native authority, dependencies and every existing slot
+    /// under the same writer fence, then persists one immutable grant. No
+    /// deserialization path can construct the returned transport permit.
+    pub(crate) async fn grant_entry(
+        self,
+        approved: Arc<ApprovedEffect>,
+        validation: crate::entry::EntryValidation,
+    ) -> Result<(Self, ProviderEntryPermit), GatewayAttemptError> {
+        blocking(move || {
+            let mut attempt = self.attempt;
+            let dependencies = validation.dependencies();
+            let counters = attempt.record.counters()?;
+            let mut keys = vec![(GatewayRecordKind::Attempt, attempt.key)];
+            keys.extend_from_slice(&dependencies);
+            keys.extend(counters.iter().map(|counter| match counter.kind {
+                GatewayCounterKind::Count => (
+                    GatewayRecordKind::CountSlot,
+                    GatewayAttemptKey(crate::bounds::count_slot_key(
+                        &counter.counter,
+                        counter.slot,
+                    )),
+                ),
+                GatewayCounterKind::Sum => (
+                    GatewayRecordKind::SumSlot,
+                    GatewayAttemptKey(crate::bounds::sum_slot_key(&counter.counter, counter.slot)),
+                ),
+            }));
+            let mut committed = None;
+            attempt.store.fenced_replace(&keys, &mut |snapshots| {
+                if snapshots.len() != keys.len()
+                    || snapshots[0].as_deref() != Some(attempt.stored.as_slice())
+                {
+                    return Err(GatewayAttemptError::Conflict);
+                }
+                let current = decode(
+                    snapshots[0]
+                        .as_deref()
+                        .ok_or(GatewayAttemptError::Corrupt)?,
+                )?;
+                if current.stage != GatewayAttemptStage::Reserved
+                    || current.binding_canonical.as_bytes()
+                        != approved
+                            .effect()
+                            .binding()
+                            .to_private_bytes()
+                            .map_err(|_| GatewayAttemptError::Corrupt)?
+                            .as_slice()
+                {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
+                let dependency_end = 1 + dependencies.len();
+                let now = validation
+                    .validate(
+                        &approved,
+                        &snapshots[1..dependency_end],
+                        current.evaluated_at,
+                    )
+                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                current.validate_reservations(
+                    attempt.key,
+                    approved.command().bound.as_ref(),
+                    &snapshots[dependency_end..],
+                    now,
+                )?;
+                let mut next = current.clone();
+                next.stage = GatewayAttemptStage::EntryGranted;
+                next.entry = Some(EntryAudit {
+                    schema: "auths.effect-entry/1".to_owned(),
+                    granted_at: now,
+                    effect_id: hex::encode(approved.effect().binding().id().as_bytes()),
+                    dependencies: snapshots[1..dependency_end]
+                        .iter()
+                        .map(|bytes| {
+                            let bytes = bytes.as_deref().ok_or(GatewayAttemptError::Corrupt)?;
+                            auths_codec::domain_commitment("auths.effect-entry-dependency/1", bytes)
+                                .map(|digest| hex::encode(digest.as_bytes()))
+                                .map_err(|_| GatewayAttemptError::Corrupt)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                });
+                if !valid_transition(&current, &next)? {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
+                let bytes = encode(&next)?;
+                committed = Some((next, bytes.clone()));
+                Ok(bytes)
+            })?;
+            // A callback result alone is insufficient. This point is reached
+            // only after the adapter acknowledges durable publication.
+            let (record, stored) = committed.ok_or(GatewayAttemptError::Unavailable)?;
+            attempt.record = record;
+            attempt.stored = stored;
+            Ok((Self { attempt }, ProviderEntryPermit { approved }))
+        })
+        .await
+    }
+
     /// Records, once and before transport entry, what was read after the
     /// lease: the pre-entry observations and the relative-ceiling basis.
     ///
@@ -2126,6 +2355,19 @@ impl ClaimedGatewayAttempt {
         Ok(ObservableGatewayAttempt {
             attempt: self.attempt.advance(next).await?,
         })
+    }
+}
+
+/// One-use native transport capability, constructed only after a new durable
+/// entry acknowledgement. The shared reference retains the one sealed command;
+/// the permit itself is neither cloneable nor deserializable.
+pub(crate) struct ProviderEntryPermit {
+    approved: Arc<ApprovedEffect>,
+}
+
+impl ProviderEntryPermit {
+    pub(crate) fn request(&self) -> &ClosedProviderRequest {
+        &self.approved.command().request
     }
 }
 
@@ -2669,3 +2911,7 @@ impl GatewayAttempts {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "entry_tests.rs"]
+mod entry_tests;

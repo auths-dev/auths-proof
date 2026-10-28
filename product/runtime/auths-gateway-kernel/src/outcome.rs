@@ -42,13 +42,14 @@ pub struct OutcomeFacts {
     pub relative_basis_digest: bool,
 }
 
-/// Whether an outcome may name `stage`: every stage but `attempting`, which
+/// Whether an outcome may name `stage`: every stage but `entry-granted`, which
 /// an outcome reports as `unknown`.
 #[must_use]
 pub const fn outcome_stage(stage: Stage) -> bool {
     match stage {
-        Stage::Attempting => false,
-        Stage::NotEntered
+        Stage::EntryGranted => false,
+        Stage::Reserved
+        | Stage::NotEntered
         | Stage::Unknown
         | Stage::ResponseRecorded
         | Stage::Observed
@@ -122,7 +123,7 @@ mod tests {
                 ..NONE
             }
         ));
-        assert!(!outcome_facts_present(Stage::Attempting, NONE));
+        assert!(!outcome_facts_present(Stage::EntryGranted, NONE));
     }
 
     #[test]
@@ -166,12 +167,13 @@ mod proofs {
     use super::*;
 
     fn any_stage() -> Stage {
-        match kani::any::<u8>() % 6 {
-            0 => Stage::Attempting,
+        match kani::any::<u8>() % 7 {
+            0 => Stage::EntryGranted,
             1 => Stage::NotEntered,
             2 => Stage::Unknown,
             3 => Stage::ResponseRecorded,
             4 => Stage::Observed,
+            5 => Stage::Reserved,
             _ => Stage::ObservedByProvider,
         }
     }
@@ -196,11 +198,11 @@ mod proofs {
         let pairs = facts.http_status == facts.response_digest
             && facts.relative_basis == facts.relative_basis_digest;
         let table = match stage {
-            Stage::Attempting => false,
+            Stage::EntryGranted => false,
             Stage::NotEntered => {
                 facts.refusal && !facts.http_status && !facts.observation && !facts.evidence_digest
             }
-            Stage::Unknown => {
+            Stage::Reserved | Stage::Unknown => {
                 !facts.refusal && !facts.http_status && !facts.observation && !facts.evidence_digest
             }
             Stage::ResponseRecorded => {

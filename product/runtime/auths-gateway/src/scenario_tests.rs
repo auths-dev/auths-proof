@@ -222,6 +222,12 @@ impl<'a, P> TestIo<'a, P> {
 impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
     type Lease = ();
 
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        Ok(crate::entry::EntryValidation::Oracle {
+            now: self.clock().ok_or("test.clock")?,
+        })
+    }
+
     fn clock(&self) -> Option<u64> {
         Some(self.clock.load(Ordering::SeqCst))
     }
@@ -282,9 +288,9 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
     async fn write(
         &self,
         _lease: &(),
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.provider.write(request).await
+        self.provider.write(permit).await
     }
 
     async fn action_read(
@@ -489,8 +495,9 @@ impl RecordProvider {
 impl ProviderPort for RecordProvider {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         self.writes.fetch_add(1, Ordering::SeqCst);
         self.idempotency_keys
             .lock()
@@ -678,7 +685,7 @@ async fn run_claim_case(id: &str, backend: Backend) -> (String, usize) {
             .expect("first claim"),
     );
     let transition = match id {
-        "first-claim" => "unclaimed->attempting".to_owned(),
+        "first-claim" => "unclaimed->reserved".to_owned(),
         "same-id-fresh-challenge" | "changed-action-same-id" => {
             let replacement = if id == "same-id-fresh-challenge" {
                 "Approved"
@@ -690,14 +697,11 @@ async fn run_claim_case(id: &str, backend: Backend) -> (String, usize) {
                 record.submit(&second, &provider).await,
                 crate::engine::not_entered("gateway.effect.operation-conflict")
             );
-            "attempting->binding-conflict".to_owned()
+            "reserved->binding-conflict".to_owned()
         }
         "crash-after-claim" => {
             record.store.restart();
-            format!(
-                "attempting->{}-on-restart",
-                record.describe(&original).await
-            )
+            format!("reserved->{}-on-restart", record.describe(&original).await)
         }
         _ => panic!("unhandled claim scenario {id}"),
     };
@@ -733,7 +737,7 @@ async fn run_first_attempt_case(id: &str, backend: Backend) -> (String, usize) {
     let from = if matches!(result, GatewaySubmitResult::Unknown)
         || !record.recipe.review().has_observation()
     {
-        "attempting"
+        "entry-granted"
     } else {
         "response-recorded"
     };
@@ -1061,8 +1065,9 @@ fn substitute(value: &mut Value, amount: &Value, echo: &Value) {
 impl ProviderPort for TableProvider {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         self.log(
             request.method().as_str(),
             request.url(),
@@ -1354,7 +1359,7 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
 async fn attempt_scenarios(backend: Backend) {
     let corpus = corpus(SCENARIOS);
     assert_eq!(corpus["schema"], "auths.gateway-attempt-scenarios/3");
-    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/4");
+    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/5");
     let recipes = self::corpus(corpus["recipes"].as_str().expect("recipes"));
     let mut ran = 0;
     for case in corpus["cases"].as_array().expect("cases") {
@@ -1483,7 +1488,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             "gateway_semantic_closure_sha256": crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
             "target": {"os": "linux", "arch": "x86_64", "gateway_package": "auths-gateway",
                 "gateway_version": "1.0.0-rc.1", "gateway_build_sha256": "55".repeat(32),
-                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/4",
+                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/5",
                 "credential_store_kind": "local-file-v1"}
         }))
         .expect("tuple");

@@ -48,7 +48,7 @@ use thiserror::Error;
 
 #[cfg(unix)]
 #[path = "commissioning_session.rs"]
-mod commissioning;
+pub(crate) mod commissioning;
 #[cfg(unix)]
 pub use commissioning::{
     CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
@@ -1545,6 +1545,39 @@ struct EngineIo<'a> {
 impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        let prepared = self.prepared.get().ok_or("gateway.entry.unprepared")?;
+        #[cfg(unix)]
+        let commissioning = self
+            .commissioning
+            .map(|session| {
+                self.commissioned_action
+                    .get()
+                    .ok_or("gateway.commissioning.binding-mismatch")
+                    .and_then(|action| session.entry_authority(action))
+            })
+            .transpose()?;
+        Ok(crate::entry::EntryValidation::Installed(Box::new(
+            crate::entry::InstalledEntry {
+                recipe: self.engine.recipe.clone(),
+                trust: self.engine.trusted_context.clone(),
+                policy: self.engine.effect_policy.clone(),
+                configuration: self.engine.shared_configuration()?,
+                connection: prepared.loaded.clone(),
+                connection_key: crate::connection_key(
+                    self.engine.connection.provider(),
+                    self.engine.connection.alias(),
+                ),
+                qualification: Arc::clone(&self.engine.qualification),
+                workload: self.engine.workload_id.clone(),
+                profile: self.engine.profile.clone(),
+                started: self.started,
+                #[cfg(unix)]
+                commissioning,
+            },
+        )))
+    }
+
     fn clock(&self) -> Option<u64> {
         self.engine.qualification.effect_time()
     }
@@ -1720,7 +1753,7 @@ impl SubmitIo for EngineIo<'_> {
     async fn write(
         &self,
         lease: &StoredSecretLease,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
         match self.prepared.get() {
             Some(prepared) => {
@@ -1728,7 +1761,7 @@ impl SubmitIo for EngineIo<'_> {
                     transport: &prepared.transport,
                     lease,
                 }
-                .write(request)
+                .write(permit)
                 .await
             }
             None => Err(GatewayTransportError::NotEntered),

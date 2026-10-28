@@ -102,6 +102,8 @@ pub enum Phase {
     EntryReload,
     /// Awaiting the entry-deadline check.
     Deadline,
+    /// Awaiting a newly acknowledged durable entry grant.
+    Grant,
     /// Awaiting the provider write.
     Send,
     /// Awaiting the store write of the response.
@@ -204,8 +206,6 @@ pub enum CeilingRead {
 /// The result of the provider write.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WriteResult {
-    /// Refused before network entry.
-    NotEntered,
     /// Transport may have been entered; no complete response.
     Unknown,
     /// A complete bounded response was received.
@@ -261,6 +261,8 @@ pub enum SubmitEvent {
     Recorded(bool),
     /// Entry is within the deadline.
     Deadline(bool),
+    /// A new durable grant was acknowledged and yielded its one-use permit.
+    Granted(bool),
     /// The provider write result.
     Write(WriteResult),
     /// The response record result.
@@ -311,7 +313,7 @@ pub enum Stop {
     ClaimRefused,
     /// `not-entered` was recorded after the claim.
     NotEntered,
-    /// The stored record is `attempting` or `unknown`.
+    /// The stored record is `entry-granted` or `unknown`.
     Unknown,
     /// The response is recorded and no read-back transition was.
     Response,
@@ -354,12 +356,14 @@ pub enum SubmitAction {
     PreEntryRead,
     /// Run the relative-ceiling read.
     CeilingRead,
-    /// Record what was read in one `attempting → attempting`.
+    /// Record what was read in one `reserved → reserved`.
     RecordCheckpoint,
     /// Reload the connection record before entry.
     ReloadBeforeEntry,
     /// Check the entry deadline.
     CheckDeadline,
+    /// Validate and durably grant entry under the common writer fence.
+    GrantEntry,
     /// Send the one write.
     Send,
     /// Record the response.
@@ -609,7 +613,6 @@ pub const fn after_ceiling(state: SubmitState, read: CeilingRead) -> SubmitDecis
 #[must_use]
 pub const fn after_write(state: SubmitState, result: WriteResult) -> SubmitDecision {
     match result {
-        WriteResult::NotEntered => not_entered(state, Refusal::TransportNotEntered),
         WriteResult::Unknown => go(state, Phase::RecordUnknown, SubmitAction::RecordUnknown),
         WriteResult::Response => go(state, Phase::RecordResponse, SubmitAction::RecordResponse),
     }
@@ -803,11 +806,16 @@ pub const fn entry_step(state: SubmitState, event: SubmitEvent) -> SubmitDecisio
         Phase::Deadline => match event {
             SubmitEvent::Deadline(within) => {
                 if within {
-                    go(state, Phase::Send, SubmitAction::Send)
+                    go(state, Phase::Grant, SubmitAction::GrantEntry)
                 } else {
                     not_entered(state, Refusal::EntryDeadline)
                 }
             }
+            _ => halt(state),
+        },
+        Phase::Grant => match event {
+            SubmitEvent::Granted(true) => go(state, Phase::Send, SubmitAction::Send),
+            SubmitEvent::Granted(false) => stop(state, Stop::Unknown),
             _ => halt(state),
         },
         Phase::Send => match event {
@@ -864,6 +872,7 @@ pub const fn next_step(state: SubmitState, event: SubmitEvent) -> SubmitDecision
         | Phase::Checkpoint
         | Phase::EntryReload
         | Phase::Deadline
+        | Phase::Grant
         | Phase::Send
         | Phase::RecordResponse
         | Phase::RecordUnknown
@@ -927,6 +936,7 @@ mod tests {
             SubmitEvent::Recorded(true),
             SubmitEvent::Reload(true),
             SubmitEvent::Deadline(true),
+            SubmitEvent::Granted(true),
             SubmitEvent::Write(WriteResult::Response),
             SubmitEvent::Response(ResponseRecord::Recorded { observable: true }),
             SubmitEvent::Reload(true),
@@ -957,6 +967,7 @@ mod tests {
                 SubmitAction::RecordCheckpoint,
                 SubmitAction::ReloadBeforeEntry,
                 SubmitAction::CheckDeadline,
+                SubmitAction::GrantEntry,
                 SubmitAction::Send,
                 SubmitAction::RecordResponse,
                 SubmitAction::Reload(back),
@@ -1044,6 +1055,36 @@ mod tests {
         );
         assert_eq!(refused.last(), Some(&SubmitAction::Stop(Stop::Refused)));
         assert!(!refused.contains(&SubmitAction::Claim));
+    }
+
+    #[test]
+    fn sending_requires_a_new_acknowledged_grant() {
+        let state = SubmitState {
+            plan: STRIPE,
+            phase: Phase::Grant,
+            argument: 500,
+        };
+        assert_eq!(
+            next_step(state, SubmitEvent::Granted(true)).action,
+            SubmitAction::Send
+        );
+        assert_eq!(
+            next_step(state, SubmitEvent::Granted(false)).action,
+            SubmitAction::Stop(Stop::Unknown)
+        );
+        assert_eq!(
+            next_step(state, SubmitEvent::Write(WriteResult::Response)).action,
+            SubmitAction::Stop(Stop::Halted)
+        );
+        let after = SubmitState {
+            plan: STRIPE,
+            phase: Phase::Send,
+            argument: 500,
+        };
+        assert_eq!(
+            next_step(after, SubmitEvent::Granted(true)).action,
+            SubmitAction::Stop(Stop::Halted)
+        );
     }
 
     #[test]

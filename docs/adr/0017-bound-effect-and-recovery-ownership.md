@@ -214,3 +214,41 @@ witnesses, not an alternate shared admission authority.
 Compilation and entry preparation now perform early checks. The final grant
 must still repeat these checks over the configuration snapshot under its own
 attempt fence. No final-entry guarantee is claimed by these early checks.
+
+## Mutation grant source cutover
+
+Attempt schema `/5` separates `Reserved` from `EntryGranted`. Admission creates
+only a reservation. The existing kernel transition owner requires immutable
+entry-audit bytes for every post-grant stage and forbids post-grant non-entry.
+The existing submission step machine now has an explicit `GrantEntry` action;
+only its successful acknowledgement can lead to `Send`.
+
+`ClaimedGatewayAttempt::grant_entry` holds the common adapter fence while it
+checks the exact attempt bytes, installed connection, shared configuration and
+every reserved count/sum slot. Commissioning additionally reads its permanent
+budget record and checks it against the acknowledged pre-custody floor. The
+native validation samples the deployment clock after lock acquisition, freezes
+one published qualification bundle plus monotonic memory, re-runs the original
+proof and exact approval, and checks the connection/workload/profile and time
+bounds. A concurrent process-local reload cannot replace that frozen evidence.
+No provider, custody or nested store I/O runs in the decision. Deployment clock
+sampling retains the clock implementation's explicit platform assumptions.
+
+Reservation membership checks cover exact key, kind, operation, window, slot,
+amount and capacity, including the one-to-one correspondence with native count
+and sum obligations. The grant allocates no second slot. Its private immutable
+audit includes the effect identity, grant time and domain-separated commitments
+to dependency snapshots. The adapter must acknowledge durable publication before
+one non-cloneable/non-deserializable permit is constructed. Every managed write
+port, through the final HTTPS transport, consumes that permit and obtains its
+request from the retained native command. Callers cannot supply substitute bytes.
+
+After a grant, even a transport failure before a socket opens is unknown; it
+cannot become `NotEntered`. A lost commit acknowledgement returns no permit.
+Reading a granted record after restart projects unknown and never remints one.
+The native corpus exercises one file-backed grant, stale-grant refusal and
+crash-before-send projection; separate file/PostgreSQL race tests are authored.
+This is not yet full P2 evidence. Reopening a reservation with fresh approval,
+explicit journal revisions, installed after-lock expiry/revocation races,
+ambiguous-commit fault injection and translated/refinement regeneration remain
+open. Acquisition/disclosure and independent recovery are later cutovers.

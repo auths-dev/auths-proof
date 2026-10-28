@@ -1,6 +1,6 @@
 {
   "schema": "auths.gateway-attempt-scenarios/3",
-  "attempt_schema": "auths.gateway-attempt/4",
+  "attempt_schema": "auths.gateway-attempt/5",
   "recipes": "hostile-recipes-v2.json",
   "evaluated_at": 1790000000,
   "defaults": {
@@ -174,7 +174,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.pre-entry.condition-false",
@@ -189,8 +189,9 @@
       "recipe": "airtable-pre-entry",
       "setup": {},
       "stages": [
-        "attempting",
-        "attempting",
+        "reserved",
+        "reserved",
+        "entry-granted",
         "response-recorded",
         "observed-by-provider"
       ],
@@ -214,7 +215,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.pre-entry.unavailable",
@@ -258,7 +259,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.relative-ceiling.above",
@@ -273,8 +274,9 @@
       "recipe": "stripe",
       "setup": {},
       "stages": [
-        "attempting",
-        "attempting",
+        "reserved",
+        "reserved",
+        "entry-granted",
         "response-recorded",
         "observed-by-provider"
       ],
@@ -303,7 +305,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.relative-ceiling.unavailable",
@@ -331,7 +333,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.relative-ceiling.unavailable",
@@ -357,7 +359,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.relative-ceiling.unavailable",
@@ -385,7 +387,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.relative-ceiling.binding-mismatch",
@@ -402,7 +404,7 @@
         "leased_secret_prefix": "sk_test_"
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.credential.mode-guard",
@@ -429,7 +431,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.credential.account-mismatch",
@@ -453,7 +455,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.credential.account-unavailable",
@@ -479,7 +481,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.credential.capability-excess",
@@ -503,7 +505,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.credential.capability-unavailable",
@@ -525,7 +527,7 @@
         }
       },
       "stages": [
-        "attempting",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.credential.capability-unavailable",
@@ -600,8 +602,9 @@
       "recipe": "stripe",
       "setup": {},
       "stages": [
-        "attempting",
-        "attempting",
+        "reserved",
+        "reserved",
+        "entry-granted",
         "response-recorded",
         "observed-by-provider"
       ],
@@ -705,8 +708,9 @@
         "validity_seconds": 86340
       },
       "stages": [
-        "attempting",
-        "attempting",
+        "reserved",
+        "reserved",
+        "entry-granted",
         "response-recorded",
         "observed-by-provider"
       ],
@@ -726,8 +730,8 @@
         }
       },
       "stages": [
-        "attempting",
-        "attempting",
+        "reserved",
+        "reserved",
         "not-entered"
       ],
       "code": "gateway.attempt.entry-deadline",
@@ -743,11 +747,12 @@
         "write_transport": "refused-before-send"
       },
       "stages": [
-        "attempting",
-        "attempting",
-        "not-entered"
+        "reserved",
+        "reserved",
+        "entry-granted",
+        "unknown"
       ],
-      "code": "gateway.transport.not-entered",
+      "code": null,
       "leases": 1,
       "credential_reads": 3,
       "action_reads": 1,
@@ -761,8 +766,9 @@
         "replay": "fresh-proof"
       },
       "stages": [
-        "attempting",
-        "attempting",
+        "reserved",
+        "reserved",
+        "entry-granted",
         "unknown"
       ],
       "code": null,
@@ -779,7 +785,8 @@
         "replay": "same-binding"
       },
       "stages": [
-        "attempting",
+        "reserved",
+        "entry-granted",
         "observed-by-provider"
       ],
       "code": null,
@@ -792,32 +799,32 @@
   "record_cases": [
     {
       "id": "first-claim",
-      "transition": "unclaimed->attempting",
+      "transition": "unclaimed->reserved",
       "provider_entries": 0
     },
     {
       "id": "same-id-fresh-challenge",
-      "transition": "attempting->binding-conflict",
+      "transition": "reserved->binding-conflict",
       "provider_entries": 0
     },
     {
       "id": "changed-action-same-id",
-      "transition": "attempting->binding-conflict",
+      "transition": "reserved->binding-conflict",
       "provider_entries": 0
     },
     {
       "id": "crash-after-claim",
-      "transition": "attempting->unknown-on-restart",
+      "transition": "reserved->reserved-on-restart",
       "provider_entries": 0
     },
     {
       "id": "complete-http-response",
-      "transition": "attempting->response-recorded",
+      "transition": "entry-granted->response-recorded",
       "provider_entries": 1
     },
     {
       "id": "ambiguous-transport",
-      "transition": "attempting->unknown",
+      "transition": "entry-granted->unknown",
       "provider_entries": 1
     },
     {

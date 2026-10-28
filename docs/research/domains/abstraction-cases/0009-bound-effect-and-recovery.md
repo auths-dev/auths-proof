@@ -131,3 +131,12 @@ identity, grant entry or establish multi-host revocation freshness. The shared c
 permanent qualification memory and requires explicit operator CAS activation.
 Connecting its snapshot to the one-use grant owner remains P2 work, as specified
 in ADR 0017. Early host checks are not final-entry evidence.
+
+
+The mutation source now connects this primitive to the existing transition and
+submission owners: reservation and durable grant are separate, fixed grant audit
+bytes cannot change, and transport consumes a capability issued only after the
+fenced replacement acknowledges. The same retained command supplies the request.
+Slot membership is checked without reallocation. The native synthetic grant
+corpus proves its narrow file-store sequence; it does not establish installed
+multi-process fencing, all fault boundaries or the still-open recovery cutover.

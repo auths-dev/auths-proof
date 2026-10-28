@@ -20,7 +20,7 @@ use serde_json::{Map, Value, json};
 
 pub(crate) const FILE: &str = "attempt-scenarios-v3.json";
 const SCHEMA: &str = "auths.gateway-attempt-scenarios/3";
-const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/4";
+const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/5";
 const STRIPE_VERSION: &str = "2025-03-31.basil";
 const ACCOUNT: &str = "acct_TESTACCOUNT01";
 const PLATFORM: &str = "acct_TESTPLATFORM1";
@@ -167,13 +167,14 @@ fn plain_response(key: &str, status: u16, body: Value) -> Value {
     setup
 }
 
-const FULL: [&str; 4] = [
-    "attempting",
-    "attempting",
+const FULL: [&str; 5] = [
+    "reserved",
+    "reserved",
+    "entry-granted",
     "response-recorded",
     "observed-by-provider",
 ];
-const REFUSED_AFTER_BASIS: [&str; 2] = ["attempting", "not-entered"];
+const REFUSED_AFTER_BASIS: [&str; 2] = ["reserved", "not-entered"];
 
 fn relative_ceiling_cases() -> Vec<Value> {
     let intent = format!("GET /v1/payment_intents/{INTENT}");
@@ -250,7 +251,7 @@ fn relative_ceiling_cases() -> Vec<Value> {
 }
 
 fn credential_cases() -> Vec<Value> {
-    let refused = ["attempting", "not-entered"];
+    let refused = ["reserved", "not-entered"];
     let version = plain_response("GET /v1/customers", 403, Value::Null);
     vec![
         scenario(
@@ -389,7 +390,7 @@ fn pre_entry_cases() -> Vec<Value> {
         "pre-entry-replaced-after-observation",
         "airtable-pre-entry",
         plain_response(&record, 200, json!({"fields": {"DemoStatus": "Approved"}})),
-        &["attempting", "not-entered"],
+        &["reserved", "not-entered"],
         Some("gateway.pre-entry.condition-false"),
         &counts(1, 0, 1, 0),
     );
@@ -410,7 +411,7 @@ fn pre_entry_cases() -> Vec<Value> {
             "pre-entry-unavailable",
             "airtable-pre-entry",
             plain_response(&record, 404, Value::Null),
-            &["attempting", "not-entered"],
+            &["reserved", "not-entered"],
             Some("gateway.pre-entry.unavailable"),
             &counts(1, 0, 1, 0),
         ),
@@ -435,7 +436,7 @@ fn pre_entry_cases() -> Vec<Value> {
 
 fn entry_and_recovery_cases() -> Vec<Value> {
     let none: [&str; 0] = [];
-    let refused_at_entry = ["attempting", "attempting", "not-entered"];
+    let refused_at_entry = ["reserved", "reserved", "not-entered"];
     vec![
         scenario(
             "idempotency-window-exceeds-retention",
@@ -465,15 +466,15 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             "transport-not-entered",
             "stripe",
             json!({"write_transport": "refused-before-send"}),
-            &refused_at_entry,
-            Some("gateway.transport.not-entered"),
+            &["reserved", "reserved", "entry-granted", "unknown"],
+            None,
             &counts(1, 3, 1, 0),
         ),
         scenario(
             "response-locator-unknown-stays-unknown",
             "stripe",
             json!({"write_transport": "timeout-after-send", "replay": "fresh-proof"}),
-            &["attempting", "attempting", "unknown"],
+            &["reserved", "reserved", "entry-granted", "unknown"],
             None,
             &counts(1, 3, 1, 1),
         ),
@@ -481,7 +482,7 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             "linked-attempting-reobserved",
             "airtable",
             json!({"crash": "after-write-before-response", "replay": "same-binding"}),
-            &["attempting", "observed-by-provider"],
+            &["reserved", "entry-granted", "observed-by-provider"],
             None,
             &counts(2, 0, 1, 1),
         ),
@@ -490,12 +491,12 @@ fn entry_and_recovery_cases() -> Vec<Value> {
 
 /// The `/2` record scenarios: id, transition, and provider entries.
 const RECORD_CASES: &[(&str, &str, u64)] = &[
-    ("first-claim", "unclaimed->attempting", 0),
-    ("same-id-fresh-challenge", "attempting->binding-conflict", 0),
-    ("changed-action-same-id", "attempting->binding-conflict", 0),
-    ("crash-after-claim", "attempting->unknown-on-restart", 0),
-    ("complete-http-response", "attempting->response-recorded", 1),
-    ("ambiguous-transport", "attempting->unknown", 1),
+    ("first-claim", "unclaimed->reserved", 0),
+    ("same-id-fresh-challenge", "reserved->binding-conflict", 0),
+    ("changed-action-same-id", "reserved->binding-conflict", 0),
+    ("crash-after-claim", "reserved->reserved-on-restart", 0),
+    ("complete-http-response", "entry-granted->response-recorded", 1),
+    ("ambiguous-transport", "entry-granted->unknown", 1),
     ("matching-read-back", "response-recorded->observed-match", 1),
     (
         "mismatching-read-back",

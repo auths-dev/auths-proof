@@ -23,22 +23,25 @@ const fn listed(from: Stage, to: Stage) -> bool {
     matches!(
         (from, to),
         (
-            Stage::Attempting,
-            Stage::Attempting
-                | Stage::NotEntered
-                | Stage::Unknown
-                | Stage::ResponseRecorded
-                | Stage::ObservedByProvider
-        ) | (Stage::Unknown, Stage::ObservedByProvider)
-            | (
-                Stage::ResponseRecorded,
-                Stage::Observed | Stage::ObservedByProvider
-            )
+            Stage::Reserved,
+            Stage::Reserved | Stage::EntryGranted | Stage::NotEntered
+        ) | (
+            Stage::EntryGranted,
+            Stage::Unknown | Stage::ResponseRecorded | Stage::ObservedByProvider
+        ) | (
+            Stage::Unknown,
+            Stage::ResponseRecorded | Stage::ObservedByProvider
+        ) | (
+            Stage::ResponseRecorded,
+            Stage::Observed | Stage::ObservedByProvider
+        )
     )
 }
 
-const FIXED: [&str; 8] = [
+const FIXED: [&str; 10] = [
     "schema",
+    "binding_canonical",
+    "approval_canonical",
     "namespace",
     "operation_id",
     "action_commitment",
@@ -68,6 +71,9 @@ fuzz_target!(|data: &[u8]| {
     ) else {
         panic!("valid records are JSON");
     };
+    if from != Stage::Reserved || to != Stage::EntryGranted {
+        assert_eq!(old.get("entry"), new.get("entry"), "entry grant changed");
+    }
     for field in FIXED {
         assert_eq!(old.get(field), new.get(field), "{field} changed");
     }

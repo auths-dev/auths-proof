@@ -17,8 +17,10 @@ use alloc::vec::Vec;
 /// The stage of an attempt record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Stage {
-    /// Claimed; transport may have been entered after the last checkpoint.
-    Attempting,
+    /// Capacity is reserved, but external entry is forbidden.
+    Reserved,
+    /// A unique durable grant exists; external entry may have occurred.
+    EntryGranted,
     /// Transport entry was excluded; terminal.
     NotEntered,
     /// Transport may have been entered and no complete response exists.
@@ -60,6 +62,8 @@ pub enum Link {
 pub struct AttemptView {
     /// Canonical bytes of the fields no transition may change.
     pub fixed: Vec<u8>,
+    /// Immutable canonical grant/audit bytes; empty before entry.
+    pub entry: Vec<u8>,
     /// The stage.
     pub stage: Stage,
     /// Whether a refusal code is recorded.
@@ -113,7 +117,7 @@ pub fn same_bytes(left: &[u8], right: &[u8]) -> bool {
     }
 }
 
-/// Whether a link lets an `attempting` or `unknown` record reach
+/// Whether a link lets an `entry-granted` or `unknown` record reach
 /// `observed-by-provider`: only a verified-locator link.
 #[must_use]
 pub const fn resolves_unknown(link: Link) -> bool {
@@ -137,7 +141,8 @@ pub const fn has_link(link: Link) -> bool {
 pub const fn refusal_stage(stage: Stage) -> bool {
     match stage {
         Stage::NotEntered => true,
-        Stage::Attempting
+        Stage::Reserved
+        | Stage::EntryGranted
         | Stage::Unknown
         | Stage::ResponseRecorded
         | Stage::Observed
@@ -150,7 +155,11 @@ pub const fn refusal_stage(stage: Stage) -> bool {
 pub const fn requires_response(stage: Stage) -> bool {
     match stage {
         Stage::ResponseRecorded | Stage::Observed => true,
-        Stage::Attempting | Stage::NotEntered | Stage::Unknown | Stage::ObservedByProvider => false,
+        Stage::Reserved
+        | Stage::EntryGranted
+        | Stage::NotEntered
+        | Stage::Unknown
+        | Stage::ObservedByProvider => false,
     }
 }
 
@@ -159,7 +168,7 @@ pub const fn requires_response(stage: Stage) -> bool {
 pub const fn permits_response(stage: Stage) -> bool {
     match stage {
         Stage::ResponseRecorded | Stage::Observed | Stage::ObservedByProvider => true,
-        Stage::Attempting | Stage::NotEntered | Stage::Unknown => false,
+        Stage::Reserved | Stage::EntryGranted | Stage::NotEntered | Stage::Unknown => false,
     }
 }
 
@@ -168,7 +177,8 @@ pub const fn permits_response(stage: Stage) -> bool {
 pub const fn observed_stage(stage: Stage) -> bool {
     match stage {
         Stage::Observed => true,
-        Stage::Attempting
+        Stage::Reserved
+        | Stage::EntryGranted
         | Stage::NotEntered
         | Stage::Unknown
         | Stage::ResponseRecorded
@@ -181,7 +191,8 @@ pub const fn observed_stage(stage: Stage) -> bool {
 pub const fn provider_stage(stage: Stage) -> bool {
     match stage {
         Stage::ObservedByProvider => true,
-        Stage::Attempting
+        Stage::Reserved
+        | Stage::EntryGranted
         | Stage::NotEntered
         | Stage::Unknown
         | Stage::ResponseRecorded
@@ -194,7 +205,7 @@ pub const fn provider_stage(stage: Stage) -> bool {
 pub const fn terminal_stage(stage: Stage) -> bool {
     match stage {
         Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider => true,
-        Stage::Attempting | Stage::Unknown | Stage::ResponseRecorded => false,
+        Stage::Reserved | Stage::EntryGranted | Stage::Unknown | Stage::ResponseRecorded => false,
     }
 }
 
@@ -216,7 +227,8 @@ pub const fn has_reading(reading: Reading) -> bool {
 #[must_use]
 pub fn consistent(view: &AttemptView) -> bool {
     let has_response = !absent(&view.response);
-    refusal_stage(view.stage) == view.refusal
+    requires_entry(view.stage) == !absent(&view.entry)
+        && refusal_stage(view.stage) == view.refusal
         && (!requires_response(view.stage) || has_response)
         && (!has_response || permits_response(view.stage))
         && (absent(&view.locator) || has_response)
@@ -227,96 +239,72 @@ pub fn consistent(view: &AttemptView) -> bool {
         && (!view.evidence || has_response || resolves_unknown(view.link))
 }
 
-/// The closed stage table: which stage may follow which, given the stored
-/// plan's link. `attempting → attempting` is the single checkpoint of
-/// pre-entry evidence; an `attempting` or `unknown` record reaches
-/// `observed-by-provider` only for a verified-locator link.
+/// Whether the state requires an immutable entry grant.
 #[must_use]
-pub const fn stage_transition_allowed(from: Stage, to: Stage, link: Link) -> bool {
-    match from {
-        Stage::Attempting => match to {
-            Stage::Attempting | Stage::NotEntered | Stage::Unknown | Stage::ResponseRecorded => {
-                true
-            }
-            Stage::ObservedByProvider => resolves_unknown(link),
-            Stage::Observed => false,
-        },
-        Stage::Unknown => match to {
-            Stage::ObservedByProvider => resolves_unknown(link),
-            Stage::Attempting
-            | Stage::NotEntered
-            | Stage::Unknown
-            | Stage::ResponseRecorded
-            | Stage::Observed => false,
-        },
-        Stage::ResponseRecorded => match to {
-            Stage::Observed | Stage::ObservedByProvider => true,
-            Stage::Attempting | Stage::NotEntered | Stage::Unknown | Stage::ResponseRecorded => {
-                false
-            }
-        },
-        Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider => false,
-    }
-}
-
-/// Whether a transition from `from` to `to` may add pre-entry evidence:
-/// only the checkpoint and a refusal before transport entry.
-#[must_use]
-pub const fn adds_pre_entry(from: Stage, to: Stage) -> bool {
-    match from {
-        Stage::Attempting => match to {
-            Stage::Attempting | Stage::NotEntered => true,
-            Stage::Unknown
-            | Stage::ResponseRecorded
-            | Stage::Observed
-            | Stage::ObservedByProvider => false,
-        },
-        Stage::NotEntered
-        | Stage::Unknown
-        | Stage::ResponseRecorded
-        | Stage::Observed
-        | Stage::ObservedByProvider => false,
-    }
-}
-
-/// Whether a transition from `from` to `to` records the response.
-#[must_use]
-pub const fn adds_response(from: Stage, to: Stage) -> bool {
-    match from {
-        Stage::Attempting => match to {
-            Stage::ResponseRecorded => true,
-            Stage::Attempting
-            | Stage::NotEntered
-            | Stage::Unknown
-            | Stage::Observed
-            | Stage::ObservedByProvider => false,
-        },
-        Stage::NotEntered
-        | Stage::Unknown
-        | Stage::ResponseRecorded
-        | Stage::Observed
-        | Stage::ObservedByProvider => false,
-    }
-}
-
-/// Whether the checkpoint condition holds: `attempting → attempting` adds
-/// pre-entry evidence exactly once and changes nothing else.
-#[must_use]
-pub fn checkpoint_valid(old: &AttemptView, new: &AttemptView) -> bool {
-    match old.stage {
-        Stage::Attempting => match new.stage {
-            Stage::Attempting => absent(&old.pre_entry) && !absent(&new.pre_entry),
-            Stage::NotEntered
-            | Stage::Unknown
-            | Stage::ResponseRecorded
-            | Stage::Observed
-            | Stage::ObservedByProvider => true,
-        },
-        Stage::NotEntered
+pub const fn requires_entry(stage: Stage) -> bool {
+    match stage {
+        Stage::Reserved | Stage::NotEntered => false,
+        Stage::EntryGranted
         | Stage::Unknown
         | Stage::ResponseRecorded
         | Stage::Observed
         | Stage::ObservedByProvider => true,
+    }
+}
+
+/// The one transition table: a reservation cannot acquire response evidence
+/// or become unknown until it has received a durable entry grant.
+#[must_use]
+pub const fn stage_transition_allowed(from: Stage, to: Stage, link: Link) -> bool {
+    match from {
+        Stage::Reserved => matches!(
+            to,
+            Stage::Reserved | Stage::NotEntered | Stage::EntryGranted
+        ),
+        Stage::EntryGranted => match to {
+            Stage::Unknown | Stage::ResponseRecorded => true,
+            Stage::ObservedByProvider => resolves_unknown(link),
+            _ => false,
+        },
+        Stage::Unknown => match to {
+            Stage::ResponseRecorded => true,
+            Stage::ObservedByProvider => resolves_unknown(link),
+            _ => false,
+        },
+        Stage::ResponseRecorded => matches!(to, Stage::Observed | Stage::ObservedByProvider),
+        Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider => false,
+    }
+}
+
+/// Only a reservation may add pre-entry observations.
+#[must_use]
+pub const fn adds_pre_entry(from: Stage, to: Stage) -> bool {
+    matches!(from, Stage::Reserved) && matches!(to, Stage::Reserved | Stage::NotEntered)
+}
+
+/// Only an existing grant may acquire a late or immediate response.
+#[must_use]
+pub const fn adds_response(from: Stage, to: Stage) -> bool {
+    matches!(from, Stage::EntryGranted | Stage::Unknown) && matches!(to, Stage::ResponseRecorded)
+}
+
+/// A reservation checkpoint adds its pre-entry record exactly once.
+#[must_use]
+pub fn checkpoint_valid(old: &AttemptView, new: &AttemptView) -> bool {
+    if matches!(old.stage, Stage::Reserved) && matches!(new.stage, Stage::Reserved) {
+        absent(&old.pre_entry) && !absent(&new.pre_entry)
+    } else {
+        true
+    }
+}
+
+/// Grant bytes are added only at the single reservation-to-entry transition.
+#[must_use]
+pub fn entry_kept(old: &AttemptView, new: &AttemptView) -> bool {
+    if matches!(old.stage, Stage::Reserved) && matches!(new.stage, Stage::EntryGranted) {
+        absent(&old.entry) && !absent(&new.entry)
+    } else {
+        same_bytes(&old.entry, &new.entry)
     }
 }
 
@@ -371,7 +359,9 @@ pub const fn link_equal(left: Link, right: Link) -> bool {
 /// consistent with its stage.
 #[must_use]
 pub fn valid_transition(old: &AttemptView, new: &AttemptView) -> bool {
-    same_bytes(&old.fixed, &new.fixed)
+    consistent(old)
+        && entry_kept(old, new)
+        && same_bytes(&old.fixed, &new.fixed)
         && plan_kept(old, new)
         && stage_transition_allowed(old.stage, new.stage, old.link)
         && checkpoint_valid(old, new)
@@ -385,8 +375,9 @@ mod tests {
     use super::*;
     use alloc::vec;
 
-    const STAGES: [Stage; 6] = [
-        Stage::Attempting,
+    const STAGES: [Stage; 7] = [
+        Stage::Reserved,
+        Stage::EntryGranted,
         Stage::NotEntered,
         Stage::Unknown,
         Stage::ResponseRecorded,
@@ -401,6 +392,11 @@ mod tests {
             Vec::new()
         };
         AttemptView {
+            entry: if requires_entry(stage) {
+                alloc::vec![7]
+            } else {
+                Vec::new()
+            },
             fixed: vec![7; 4],
             stage,
             refusal: refusal_stage(stage),
@@ -439,7 +435,8 @@ mod tests {
                 let allowed = valid_transition(&view(Stage::Unknown, link), &view(to, link));
                 assert_eq!(
                     allowed,
-                    to == Stage::ObservedByProvider && link == Link::Verified,
+                    to == Stage::ResponseRecorded
+                        || (to == Stage::ObservedByProvider && link == Link::Verified),
                     "{link:?} {to:?}"
                 );
             }
@@ -448,7 +445,7 @@ mod tests {
 
     #[test]
     fn checkpoint_adds_pre_entry_once_and_changes_nothing_else() {
-        let old = view(Stage::Attempting, Link::Verified);
+        let old = view(Stage::Reserved, Link::Verified);
         let mut checkpoint = old.clone();
         checkpoint.pre_entry = vec![9];
         assert!(valid_transition(&old, &checkpoint));
@@ -469,7 +466,16 @@ mod tests {
             !valid_transition(&old, &responded),
             "added only before entry"
         );
-        assert!(valid_transition(&checkpoint, &responded));
+        assert!(!valid_transition(&checkpoint, &responded));
+        let mut grant = view(Stage::EntryGranted, Link::Verified);
+        grant.pre_entry = checkpoint.pre_entry.clone();
+        assert!(valid_transition(&checkpoint, &grant));
+        assert!(valid_transition(&grant, &responded));
+        assert!(!valid_transition(&grant, &refused));
+        assert!(!valid_transition(&grant, &grant), "no second grant");
+        let mut changed = responded.clone();
+        changed.entry = vec![8];
+        assert!(!valid_transition(&grant, &changed), "grant is immutable");
     }
 
     #[test]
@@ -483,7 +489,7 @@ mod tests {
         let mut changed = view(Stage::Observed, Link::AfterResponse);
         changed.response = vec![2];
         assert!(!valid_transition(&old, &changed));
-        let attempting = view(Stage::Attempting, Link::AfterResponse);
+        let attempting = view(Stage::EntryGranted, Link::AfterResponse);
         assert!(!valid_transition(
             &attempting,
             &view(Stage::ObservedByProvider, Link::AfterResponse)
@@ -500,12 +506,13 @@ mod proofs {
     use alloc::vec::Vec;
 
     fn any_stage() -> Stage {
-        match kani::any::<u8>() % 6 {
-            0 => Stage::Attempting,
+        match kani::any::<u8>() % 7 {
+            0 => Stage::EntryGranted,
             1 => Stage::NotEntered,
             2 => Stage::Unknown,
             3 => Stage::ResponseRecorded,
             4 => Stage::Observed,
+            5 => Stage::Reserved,
             _ => Stage::ObservedByProvider,
         }
     }
@@ -539,6 +546,7 @@ mod proofs {
 
     fn any_view() -> AttemptView {
         AttemptView {
+            entry: any_bytes(),
             fixed: any_bytes(),
             stage: any_stage(),
             refusal: kani::any(),
@@ -557,16 +565,20 @@ mod proofs {
         matches!(
             (from, to),
             (
-                Stage::Attempting,
-                Stage::Attempting | Stage::NotEntered | Stage::Unknown | Stage::ResponseRecorded
+                Stage::EntryGranted,
+                Stage::Unknown | Stage::ResponseRecorded
             ) | (
-                Stage::ResponseRecorded,
-                Stage::Observed | Stage::ObservedByProvider
-            )
+                Stage::Reserved,
+                Stage::Reserved | Stage::NotEntered | Stage::EntryGranted
+            ) | (Stage::Unknown, Stage::ResponseRecorded)
+                | (
+                    Stage::ResponseRecorded,
+                    Stage::Observed | Stage::ObservedByProvider
+                )
         ) || (matches!(
             (from, to),
             (
-                Stage::Attempting | Stage::Unknown,
+                Stage::EntryGranted | Stage::Unknown,
                 Stage::ObservedByProvider
             )
         ) && link == Link::Verified)
@@ -578,7 +590,7 @@ mod proofs {
         let reading = view.reading != Reading::None;
         let shape = match view.stage {
             Stage::NotEntered => view.refusal && !response && !reading && !view.evidence,
-            Stage::Attempting | Stage::Unknown => {
+            Stage::Reserved | Stage::EntryGranted | Stage::Unknown => {
                 !view.refusal && !response && !reading && !view.evidence
             }
             Stage::ResponseRecorded => !view.refusal && response && !reading && !view.evidence,
@@ -593,7 +605,9 @@ mod proofs {
                     && (response || view.link == Link::Verified)
             }
         };
-        shape && (view.locator.is_empty() || response)
+        shape
+            && (view.locator.is_empty() || response)
+            && (matches!(view.stage, Stage::Reserved | Stage::NotEntered) == view.entry.is_empty())
     }
 
     /// Exhaustive over every stage, link, and reading pair: the closed stage
@@ -625,19 +639,29 @@ mod proofs {
         let old = any_view();
         let new = any_view();
         let pre_entry = match (old.stage, new.stage) {
-            (Stage::Attempting, Stage::Attempting) => {
+            (Stage::Reserved, Stage::Reserved) => {
                 old.pre_entry.is_empty() && !new.pre_entry.is_empty()
             }
-            (Stage::Attempting, Stage::NotEntered) => {
+            (Stage::Reserved, Stage::NotEntered) => {
                 old.pre_entry.is_empty() || old.pre_entry == new.pre_entry
             }
             _ => old.pre_entry == new.pre_entry,
         };
         let response = matches!(
             (old.stage, new.stage),
-            (Stage::Attempting, Stage::ResponseRecorded)
+            (
+                Stage::EntryGranted | Stage::Unknown,
+                Stage::ResponseRecorded
+            )
         ) || (old.response == new.response && old.locator == new.locator);
+        let entry = if old.stage == Stage::Reserved && new.stage == Stage::EntryGranted {
+            old.entry.is_empty() && !new.entry.is_empty()
+        } else {
+            old.entry == new.entry
+        };
         let expected = old.fixed == new.fixed
+            && entry
+            && fields_match_stage(&old)
             && old.observation == new.observation
             && old.link == new.link
             && table(old.stage, new.stage, old.link)

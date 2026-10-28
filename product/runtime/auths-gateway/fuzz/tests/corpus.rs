@@ -97,11 +97,26 @@ fn request_seeds_build_a_closed_request() {
 #[test]
 fn attempt_seeds_are_records_and_valid_transitions() {
     for (name, data) in seeds("target_gateway_attempt") {
+        if name.starts_with("obsolete-transition-") {
+            let (old, new) = split(&data);
+            assert!(fuzzing::attempt_stage(old).is_none(), "obsolete {name}");
+            assert!(fuzzing::attempt_stage(new).is_none(), "obsolete {name}");
+            continue;
+        }
+        if name.starts_with("obsolete-record-") {
+            assert!(fuzzing::attempt_stage(&data).is_none(), "obsolete {name}");
+            continue;
+        }
+
         if name.starts_with("transition-") {
             let (old, new) = split(&data);
             assert_eq!(
                 fuzzing::attempt_stage(old),
-                Some(GatewayAttemptStage::Attempting),
+                Some(if name.starts_with("transition-reserved-") {
+                    GatewayAttemptStage::Reserved
+                } else {
+                    GatewayAttemptStage::EntryGranted
+                }),
                 "{name}"
             );
             assert_eq!(fuzzing::attempt_transition(old, new), Some(true), "{name}");

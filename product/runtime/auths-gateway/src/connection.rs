@@ -54,6 +54,10 @@ pub struct LoadedConnection {
 }
 
 impl LoadedConnection {
+    pub(crate) fn private_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
     /// The decoded record.
     #[must_use]
     pub const fn record(&self) -> &ConnectionRecord {

@@ -18,8 +18,8 @@ use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
-    ClaimedGatewayAttempt, ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe,
-    GatewayAttemptError, GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis,
+    ClaimedGatewayAttempt, ClosedCredentialRead, CompiledRecipe, GatewayAttemptError,
+    GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis,
     ObservableGatewayAttempt, RequestHeader,
 };
 use auths_gateway_kernel::order::{
@@ -42,6 +42,9 @@ const ACCOUNT_DOMAIN: &[u8] = b"auths.gateway-account/1\0";
 pub(crate) trait SubmitIo {
     /// A credential lease.
     type Lease;
+
+    /// Captures installed immutable inputs for native checking inside the store fence.
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str>;
 
     /// Reads the gateway clock.
     fn clock(&self) -> Option<u64>;
@@ -102,7 +105,7 @@ pub(crate) trait SubmitIo {
     async fn write(
         &self,
         lease: &Self::Lease,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
     /// Performs one bounded GET of an action read or observation under
@@ -241,9 +244,10 @@ struct Run<'a, I: SubmitIo> {
     guard: Option<GuardChecks>,
     ceiling: Option<CeilingCheck>,
     evaluated_at: u64,
-    verified: Option<ApprovedEffect>,
+    verified: Option<std::sync::Arc<ApprovedEffect>>,
     selected: Vec<SelectedRequirement>,
     claim: Option<ClaimedGatewayAttempt>,
+    permit: Option<crate::store::ProviderEntryPermit>,
     observable: Option<ObservableGatewayAttempt>,
     lease: Option<I::Lease>,
     pre_entry: GatewayPreEntry,
@@ -264,6 +268,7 @@ impl<'a, I: SubmitIo> Run<'a, I> {
             verified: None,
             selected: Vec::new(),
             claim: None,
+            permit: None,
             observable: None,
             lease: None,
             pre_entry: GatewayPreEntry::default(),
@@ -350,7 +355,7 @@ impl<I: SubmitIo> Run<'_, I> {
             SubmitAction::Verify => SubmitEvent::Verification(self.verify()),
             SubmitAction::Admit => SubmitEvent::Admission(self.admit()),
             SubmitAction::BindScope => {
-                let bound = match self.verified.as_ref().map(ApprovedEffect::command) {
+                let bound = match self.verified.as_deref().map(ApprovedEffect::command) {
                     Some(verified) => self.io.bind_scope(verified),
                     None => Err("gateway.attempt.unavailable"),
                 };
@@ -406,6 +411,7 @@ impl<I: SubmitIo> Run<'_, I> {
             SubmitAction::CheckDeadline => SubmitEvent::Deadline(
                 self.io.within_entry_deadline(self.evaluated_at) && self.revalidate(),
             ),
+            SubmitAction::GrantEntry => SubmitEvent::Granted(self.grant_entry().await),
             SubmitAction::Send => SubmitEvent::Write(self.send().await),
             SubmitAction::RecordResponse => {
                 let recorded = self.record_response().await;
@@ -476,7 +482,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 argument
             }
         };
-        self.verified = Some(approved);
+        self.verified = Some(std::sync::Arc::new(approved));
         Verification::Authorized { argument }
     }
 
@@ -484,7 +490,7 @@ impl<I: SubmitIo> Run<'_, I> {
     /// observer check; nothing is stored. The first failing check's code is
     /// the one reported.
     fn admit(&mut self) -> bool {
-        let Some(verified) = self.verified.as_ref().map(ApprovedEffect::command) else {
+        let Some(verified) = self.verified.as_deref().map(ApprovedEffect::command) else {
             return false;
         };
         if let Some(retention) = self.cx.recipe.idempotency_retention()
@@ -572,7 +578,7 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn resume(&mut self) -> bool {
-        let Some(verified) = self.verified.as_ref().map(ApprovedEffect::command) else {
+        let Some(verified) = self.verified.as_deref().map(ApprovedEffect::command) else {
             return false;
         };
         match self
@@ -630,7 +636,7 @@ impl<I: SubmitIo> Run<'_, I> {
     async fn pre_entry_read(&mut self) -> PreEntryResult {
         let (Some(lease), Some(verified), Some(observer), Some(pointers)) = (
             &self.lease,
-            self.verified.as_ref().map(ApprovedEffect::command),
+            self.verified.as_deref().map(ApprovedEffect::command),
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
         ) else {
@@ -676,7 +682,7 @@ impl<I: SubmitIo> Run<'_, I> {
     async fn ceiling_read(&mut self) -> CeilingRead {
         let (Some(lease), Some(verified), Some(ceiling)) = (
             &self.lease,
-            self.verified.as_ref().map(ApprovedEffect::command),
+            self.verified.as_deref().map(ApprovedEffect::command),
             &self.ceiling,
         ) else {
             return CeilingRead::Unavailable;
@@ -712,16 +718,36 @@ impl<I: SubmitIo> Run<'_, I> {
         }
     }
 
-    async fn send(&mut self) -> WriteResult {
-        let (Some(lease), Some(verified)) = (
-            &self.lease,
-            self.verified.as_ref().map(ApprovedEffect::command),
-        ) else {
-            return WriteResult::NotEntered;
+    async fn grant_entry(&mut self) -> bool {
+        let validation = match self.io.entry_validation() {
+            Ok(validation) => validation,
+            Err(_) => return false,
         };
-        match self.io.write(lease, &verified.request).await {
-            Err(_) => WriteResult::NotEntered,
-            Ok(WriteTransportOutcome::Unknown) => WriteResult::Unknown,
+        let Some(approved) = &self.verified else {
+            return false;
+        };
+        let Some(claim) = self.claim.take() else {
+            return false;
+        };
+        let (claim, permit) = match claim
+            .grant_entry(std::sync::Arc::clone(approved), validation)
+            .await
+        {
+            Ok(granted) => granted,
+            // An ambiguous acknowledgement may follow a committed grant.
+            Err(_) => return false,
+        };
+        self.claim = Some(claim);
+        self.permit = Some(permit);
+        true
+    }
+
+    async fn send(&mut self) -> WriteResult {
+        let (Some(lease), Some(permit)) = (&self.lease, self.permit.take()) else {
+            return WriteResult::Unknown;
+        };
+        match self.io.write(lease, permit).await {
+            Err(_) | Ok(WriteTransportOutcome::Unknown) => WriteResult::Unknown,
             Ok(WriteTransportOutcome::ResponseRecorded {
                 status,
                 digest,
@@ -738,7 +764,7 @@ impl<I: SubmitIo> Run<'_, I> {
         let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) = (
             self.claim.take(),
             self.written.take(),
-            self.verified.as_ref().map(ApprovedEffect::command),
+            self.verified.as_deref().map(ApprovedEffect::command),
         ) else {
             return ResponseRecord::Failed;
         };

@@ -1,0 +1,15 @@
+{
+  "schema": "auths.effect-entry-fixture/1",
+  "scope": "native synthetic post-verification grant; no provider entry or installed authority claim",
+  "reserved_stage": "reserved",
+  "granted_stage": "entry-granted",
+  "restart_projection": "unknown",
+  "second_grant_refused": true,
+  "post_grant_nonentry_refused": true,
+  "entry_audit": {
+    "schema": "auths.effect-entry/1",
+    "granted_at": 1790000000,
+    "effect_id": "ea02c8d236290c397d294d889f8377411fa79271c555217251b2c19b69d5fef3",
+    "dependencies": []
+  }
+}

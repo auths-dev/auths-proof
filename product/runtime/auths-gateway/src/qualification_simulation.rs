@@ -163,15 +163,16 @@ impl SimulationProvider for RecordProvider {
 impl<P: ProviderPort> ProviderPort for OracleProvider<P> {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         assert_eq!(
             request_facts(request),
             self.expected,
             "independent wire oracle"
         );
         self.checked.fetch_add(1, Ordering::SeqCst);
-        self.inner.write(request).await
+        self.inner.write(permit).await
     }
 
     async fn action_read(

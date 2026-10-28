@@ -20,8 +20,8 @@ use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
-    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttempts, GatewayObserver, RequestHeader,
+    ClosedCredentialRead, CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts,
+    GatewayObserver, RequestHeader,
 };
 use auths_codec::{encode_observation_requirements, evidence_id, grant_signing_preimage};
 use auths_model::{
@@ -657,8 +657,9 @@ impl CountingProvider {
 impl ProviderPort for CountingProvider {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         self.writes.fetch_add(1, Ordering::SeqCst);
         let body: Value = serde_json::from_slice(request.body())
             .map_err(|_| GatewayTransportError::NotEntered)?;
@@ -722,6 +723,12 @@ struct HarnessIo<'a> {
 
 impl SubmitIo for HarnessIo<'_> {
     type Lease = ();
+
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        Ok(crate::entry::EntryValidation::Oracle {
+            now: self.clock().ok_or("test.clock")?,
+        })
+    }
 
     fn clock(&self) -> Option<u64> {
         Some(self.now)
@@ -795,9 +802,9 @@ impl SubmitIo for HarnessIo<'_> {
     async fn write(
         &self,
         _lease: &(),
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.harness.provider.write(request).await
+        self.harness.provider.write(permit).await
     }
 
     async fn action_read(

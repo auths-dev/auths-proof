@@ -25,6 +25,7 @@ mod configuration;
 mod credential_journal;
 mod echo_verify;
 pub mod effect;
+mod entry;
 mod engine;
 mod execution_witness;
 pub use execution_witness::GatewayExecutionWitness;

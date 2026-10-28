@@ -162,6 +162,10 @@ impl SharedConfiguration {
         }
     }
 
+    pub(crate) fn key(&self) -> GatewayAttemptKey {
+        self.key
+    }
+
     pub(crate) fn candidate(&self) -> [u8; 32] {
         self.installation
     }
@@ -264,6 +268,15 @@ impl SharedConfiguration {
                 },
             )
             .map_err(|_| CHANGED)
+    }
+
+    pub(crate) fn entry_snapshot(
+        &self,
+        bytes: &[u8],
+        gate: &QualificationGate,
+    ) -> Result<crate::qualification::FencedQualification, &'static str> {
+        let record = decode(bytes, &self.installation)?;
+        gate.entry_snapshot(&record.qualification)
     }
 
     /// Validates an already fenced snapshot; performs no nested store read.

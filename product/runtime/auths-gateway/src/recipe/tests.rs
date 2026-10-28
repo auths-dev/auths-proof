@@ -735,7 +735,7 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
         .await
         .expect("read")
         .expect("retained claim");
-    assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
+    assert_eq!(snapshot.stage(), GatewayAttemptStage::Reserved);
     assert!(matches!(
         restarted
             .claim(&request, *recipe.digest(), 1_790_000_000)
@@ -763,10 +763,35 @@ async fn response_and_observation_are_distinct_durable_stages() {
         crate::effect::fixture_policy().expect("policy"),
     )
     .expect("attempts");
-    let claim = store
-        .claim(&request, *recipe.digest(), 1_790_000_000)
+    let command = crate::scenario_tests::admitted(
+        &recipe,
+        &args,
+        [9; 32],
+        Vec::new(),
+        60,
+        Vec::new(),
+        1_790_000_000,
+    )
+    .expect("command");
+    let approved = Arc::new(
+        crate::effect::approve_driver_fixture(command, *recipe.digest(), 1_790_000_000, None)
+            .expect("approval"),
+    );
+    let crate::store::BoundedClaim::Claimed(claim) = store
+        .claim_bounded(&approved, 1_790_000_000)
         .await
-        .expect("claim");
+        .expect("claim")
+    else {
+        panic!("claim refused")
+    };
+    let (claim, permit) = claim
+        .grant_entry(
+            approved,
+            crate::entry::EntryValidation::Oracle { now: 1_790_000_000 },
+        )
+        .await
+        .expect("grant");
+    drop(permit);
     let response = claim
         .record_response(200, [3; 32], None)
         .await

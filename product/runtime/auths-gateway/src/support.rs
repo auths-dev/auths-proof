@@ -72,7 +72,8 @@ pub struct SupportFacts {
 const fn stage_token(stage: GatewayAttemptStage) -> &'static str {
     match stage {
         GatewayAttemptStage::NotEntered => "not-entered",
-        GatewayAttemptStage::Attempting => "attempting",
+        GatewayAttemptStage::Reserved => "reserved",
+        GatewayAttemptStage::EntryGranted => "entry-granted",
         GatewayAttemptStage::ResponseRecorded => "response-recorded",
         GatewayAttemptStage::Unknown => "unknown",
         GatewayAttemptStage::Observed => "observed",

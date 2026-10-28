@@ -251,13 +251,43 @@ source audit found the PostgreSQL health projection still reported literal schem
 6; it now derives the version from the active schema constant. Required semantic
 closure regeneration passed after that correction (one artifact-generation test).
 
+## Mutation entry grant checkpoint
+
+- Attempt `/5` now creates `Reserved`; the existing transition owner alone
+  permits `Reserved -> EntryGranted` and freezes its private grant audit.
+  Post-grant state cannot become `NotEntered`. A restart projects a grant to
+  unknown while retaining reservations as reservations in the journal.
+- The existing step machine requires an acknowledged `GrantEntry` before `Send`.
+  The runtime checks native original authority, exact approval, connection,
+  configuration, qualification, time and all count/sum slots under one fence.
+  Qualification evidence is frozen once to exclude process-local reload races.
+  Commissioning checks the current permanent budget against its acknowledged
+  pre-custody floor and merges retained revocation state in the same read set.
+- Every managed write port, including HTTPS, consumes a sealed one-use permit
+  and derives the request from its retained command. An ambiguous commit yields
+  no permit. Transport failures after the grant retain unknown, even before send.
+- Native `effect-entry.json` generation passed on `3cbe3ad8` plus this source:
+  one file-backed grant, stale second-grant refusal, immutable audit and
+  crash-before-send projection. The generator also emits valid native stage and
+  transition fuzz seeds; previous-schema seeds are retained as negative inputs.
+  This synthetic post-verification corpus does not prove installed authority.
+- Updated attempt-scenario and final semantic-closure generators passed. Native
+  CLI approval-envelope generation also passed and matched the unchanged corpus. New
+  file/PostgreSQL concurrent-grant, reducer and property-test source is authored;
+  broad suites, installed races, formal gates and hosted CI remain unexecuted.
+- P2 remains open: resumable reservations with fresh authority/approval, explicit
+  revisions, full private audit/projection treatment, installed clock/revocation
+  races and all persistence/transport failpoints. Formal translated output must
+  be regenerated against the changed shipping predicates. P3/P4 and all complete
+  acceptance gates remain open. No AP073 or delegation work was performed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | In progress | Finish installed first mutation cutover and native fixtures |
-| P2 | Adapter and shared configuration implemented | Reservation/grant reducer and fenced permit wiring |
+| P2 | Mutation grant wired | Reservation restart/revisions, full installed fault/race evidence and formal links |
 | P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
