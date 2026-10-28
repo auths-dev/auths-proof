@@ -1,6 +1,39 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "9fcaf0411200dcd052d7ae2d990439cd51775906a86b95e83351606373571689",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "meta_color": {
+        "kind": "text",
+        "label": "meta_color"
+      },
+      "notebook_id": {
+        "kind": "text",
+        "label": "notebook_id"
+      },
+      "pinned": {
+        "kind": "boolean",
+        "label": "pinned"
+      },
+      "priority": {
+        "kind": "integer",
+        "label": "priority",
+        "unit": "synthetic units"
+      },
+      "status": {
+        "kind": "text",
+        "label": "status"
+      },
+      "title": {
+        "kind": "text",
+        "label": "title"
+      }
+    }
+  },
+  "digest": "602048b64870798d1d5a32613e935fdba56243441a3a736d02fd7d674c4029f8",
   "operator_namespace": "notes-demo",
   "service": "notes",
   "tool": "createNote_v1",

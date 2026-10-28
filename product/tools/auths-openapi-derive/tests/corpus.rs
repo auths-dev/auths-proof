@@ -1,5 +1,6 @@
 //! The derivation corpus: every case's exact output bytes or exact rejection
-//! list, and every derived recipe compiled by the real gateway compiler.
+//! list, and every derived recipe refused until its review declaration is
+//! completed. Synthetic review declarations then exercise native transport compilation.
 //!
 //! Vendor documents are pinned by digest, not committed. Their cases run when
 //! `AUTHS_OPENAPI_CORPUS_DIR` holds `github.json`, `todoist.json`, and
@@ -62,7 +63,12 @@ fn document(case: &Value) -> Option<(Vec<u8>, String)> {
         .find(|entry| entry["vendor"] == vendor)
         .expect("vendor pinned in the published corpus");
     let name = format!("{}.json", vendor.to_ascii_lowercase());
-    let bytes = fs::read(Path::new(&directory).join(&name)).expect("vendor document");
+    let path = Path::new(&directory).join(&name);
+    if updating() && !path.exists() {
+        eprintln!("artifact generation pending for {vendor}: pinned input unavailable");
+        return None;
+    }
+    let bytes = fs::read(path).expect("vendor document");
     assert_eq!(
         bytes.len() as u64,
         pinned["source"]["bytes"].as_u64().unwrap(),
@@ -96,9 +102,27 @@ fn check_file(path: &Path, actual: &str) {
     assert_eq!(expected, actual, "{} differs", path.display());
 }
 
+/// Test-only semantic declarations, independent of the untrusted OpenAPI text.
+/// They permit compiler/differential tests, not installed human-review claims.
+fn complete_synthetic_review(recipe: &[u8]) -> Vec<u8> {
+    let mut value: Value = serde_json::from_slice(recipe).unwrap();
+    value["review"]["consequences"] =
+        json!(["Synthetic transport comparison only; no production review claim."]);
+    for (_, field) in value["review"]["fields"].as_object_mut().unwrap() {
+        if field["kind"] == "integer" {
+            field["unit"] = json!("synthetic units");
+        }
+    }
+    serde_json::to_vec(&value).unwrap()
+}
+
 fn review(recipe: &str, lock: &[u8]) -> Value {
-    let compiled = CompiledRecipe::compile(recipe.as_bytes(), lock)
-        .expect("derived recipe compiles under recipe check");
+    assert!(
+        CompiledRecipe::compile(recipe.as_bytes(), lock).is_err(),
+        "incomplete review must fail closed"
+    );
+    let compiled = CompiledRecipe::compile(&complete_synthetic_review(recipe.as_bytes()), lock)
+        .expect("explicit synthetic review permits native transport compilation");
     let header = match compiled.review().credential() {
         auths_gateway::CredentialRequirement::Bearer => "Authorization".to_owned(),
         auths_gateway::CredentialRequirement::HeaderApiKey { header } => header.clone(),
@@ -234,7 +258,7 @@ fn every_corpus_case_produces_its_exact_output() {
         "expected outputs without a case: {stale:?}"
     );
     if !skipped.is_empty() {
-        eprintln!("vendor cases skipped without AUTHS_OPENAPI_CORPUS_DIR: {skipped:?}");
+        eprintln!("vendor cases pending without pinned inputs: {skipped:?}");
     }
 }
 
@@ -307,7 +331,7 @@ fn derived_airtable_and_todoist_recipes_compare_with_the_hand_authored_fixtures(
     let hand = CompiledRecipe::compile(&hand_recipe, &hand_lock).unwrap();
     let airtable = derived("airtable-set-demo-status").unwrap();
     let ours = CompiledRecipe::compile(
-        airtable.recipe_json().as_bytes(),
+        &complete_synthetic_review(airtable.recipe_json().as_bytes()),
         &expected_lock("airtable-set-demo-status"),
     )
     .unwrap();
@@ -335,7 +359,7 @@ fn derived_airtable_and_todoist_recipes_compare_with_the_hand_authored_fixtures(
     let hand = CompiledRecipe::compile(&hand_recipe, &hand_lock).unwrap();
     let todoist = derived("todoist-rest-create-task").unwrap();
     let ours = CompiledRecipe::compile(
-        todoist.recipe_json().as_bytes(),
+        &complete_synthetic_review(todoist.recipe_json().as_bytes()),
         &expected_lock("todoist-rest-create-task"),
     )
     .unwrap();
@@ -371,7 +395,7 @@ fn derived_github_request_equals_the_hand_authored_request_up_to_profile_bounds(
     let (hand_recipe, hand_lock) = fixture("github");
     let hand = CompiledRecipe::compile(&hand_recipe, &hand_lock).unwrap();
     let ours = CompiledRecipe::compile(
-        github.recipe_json().as_bytes(),
+        &complete_synthetic_review(github.recipe_json().as_bytes()),
         &expected_lock("github-issues-create-fixed-repository"),
     )
     .unwrap();
@@ -379,11 +403,12 @@ fn derived_github_request_equals_the_hand_authored_request_up_to_profile_bounds(
     // hand-authored profile requires a 1-byte title and caps operation IDs at
     // 64 bytes, so the digests differ.
     assert_ne!(ours.digest_hex(), hand.digest_hex());
-    // With the hand-authored profile digest substituted, the derived request
+    // With the hand-authored profile digest and explicit review contract, the derived request
     // compiles to exactly the hand-authored recipe digest.
     let hand_source: Value = serde_json::from_slice(&hand_recipe).unwrap();
     let mut substituted: Value = serde_json::from_str(github.recipe_json()).unwrap();
     substituted["profile_schema_digest"] = hand_source["profile_schema_digest"].clone();
+    substituted["review"] = hand_source["review"].clone();
     let same =
         CompiledRecipe::compile(&serde_json::to_vec(&substituted).unwrap(), &hand_lock).unwrap();
     assert_eq!(same.digest_hex(), hand.digest_hex());

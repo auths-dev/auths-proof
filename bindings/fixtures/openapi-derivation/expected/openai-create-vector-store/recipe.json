@@ -1,5 +1,15 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [],
+    "fields": {
+      "name": {
+        "kind": "text",
+        "label": "name"
+      }
+    }
+  },
   "profile_schema_digest": "6682c07816a161a09e67d13c839a7bfabc363337ce348eda8fd8b707446be961",
   "service": "openai-vector-stores",
   "tool": "createVectorStore_v1",

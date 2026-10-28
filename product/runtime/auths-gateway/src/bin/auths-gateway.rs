@@ -3000,13 +3000,17 @@ mod unix {
         let review = effect
             .private_review()
             .map_err(|_| "gateway.effect.review-refused")?;
+        let rendered_review = review
+            .render_literal(auths_gateway::effect::LITERAL_REVIEW_RENDERER)
+            .map_err(|_| "gateway.effect.review-refused")?;
         let signing_message = request
             .signing_message()
             .map_err(|_| "gateway.effect.approval")?;
         let output = Zeroizing::new(
             serde_json_canonicalizer::to_vec(&serde_json::json!({
-                "schema": "auths.private-effect-signing/1",
-                "review": review,
+                "schema": "auths.private-effect-signing/2",
+                "renderer": auths_gateway::effect::LITERAL_REVIEW_RENDERER,
+                "literal_review": rendered_review.as_str(),
                 "approval_request": request,
                 "signing_message_hex": hex::encode(signing_message),
             }))
@@ -3015,15 +3019,16 @@ mod unix {
         if output.len() > auths_gateway::effect::MAX_PRIVATE_EFFECT_REVIEW_BYTES {
             return Err("gateway.effect.review-refused".into());
         }
+        std::io::stdout()
+            .write_all(&output)
+            .and_then(|()| std::io::stdout().flush())
+            .map_err(|_| "gateway.output")?;
         private_file(
             &request_out,
             &request
                 .to_private_bytes()
                 .map_err(|_| "gateway.effect.approval")?,
         )?;
-        std::io::stdout()
-            .write_all(&output)
-            .map_err(|_| "gateway.output")?;
         Ok(())
     }
 

@@ -179,6 +179,19 @@ Test rendering failures, substituted labels and changed review semantics. This
 establishes faithful, complete presentation under the declared contract, not a
 proof that the human understood it.
 
+The concrete recipe declaration is `auths.effect-review-contract/1` in recipe
+source `/3`: required consequences and one typed presentation for every
+non-binding profile argument. Integer presentations require explicit units.
+The operator supplies domain meaning; OpenAPI derivation produces an incomplete
+draft and cannot authorize these facts. Native review always includes the three
+binding arguments, destination, exact request, installation, reservation and
+recovery facts independently of recipe labels. Private review `/2` supports the
+complete literal renderer `auths.literal-complete-review/1`; control and bidi
+characters are escaped data, and output is never truncated. An installed frontend
+must preserve that contract and associate its displayed result with the exact
+signing request. Native fixture parity alone does not close the installed
+approval-channel or human-journey acceptance gate.
+
 ### 4.3 Closed transport and custody
 
 The private bound value contains the exact method, origin/path/query, noncredential headers, media type, body and closed observation plan. Transport accepts a stage-sealed effect capability, not a second set of URL/body/recipient parameters. Credential injection may fill only the approved credential slot for the bound connection/account/generation. Credentials themselves never enter effect serialization, public commitments, receipts, bindings or agent memory.

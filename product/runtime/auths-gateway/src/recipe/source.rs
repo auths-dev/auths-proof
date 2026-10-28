@@ -1,4 +1,4 @@
-//! The typed AST of `auths.gateway-recipe-source/2`.
+//! The typed AST of `auths.gateway-recipe-source/3`.
 //!
 //! Every struct refuses unknown members, and every optional member is omitted
 //! when absent, so re-serializing a parsed source under RFC 8785 gives the
@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 #[serde(deny_unknown_fields)]
 pub(super) struct RecipeSource {
     pub(super) schema: String,
+    pub(super) review: super::effect_review::ReviewContract,
     pub(super) profile_schema_digest: String,
     pub(super) service: String,
     pub(super) tool: String,

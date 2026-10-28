@@ -1,6 +1,19 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "d11322d4151684ab0117ae814b940dab627f0f4258527f400f1aa24a09dc5b22",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "p": {
+        "kind": "integer",
+        "label": "p",
+        "unit": "synthetic units"
+      }
+    }
+  },
+  "digest": "9955d6bbe8ea098e8171ae8d962ba1d2f2c98a427f845048c1f9f9f103b1937b",
   "operator_namespace": "hostile",
   "service": "hostile",
   "tool": "hFractionalBounds_v1",

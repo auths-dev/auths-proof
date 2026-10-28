@@ -208,7 +208,7 @@ def prepare(args):
     write_bytes(args.work / 'profile.lock.json', lock, new=True)
     review = child(args.gateway, ['review', '--recipe', args.work / 'recipe.json',
                                  '--profile-lock', args.work / 'profile.lock.json'])
-    require(review.get('schema') == 'auths.gateway-recipe-review/2', 'qualification.packets.native-review')
+    require(review.get('schema') == 'auths.gateway-recipe-review/3', 'qualification.packets.native-review')
     extension = None
     if reference is stripe_platform:
         extension = {}

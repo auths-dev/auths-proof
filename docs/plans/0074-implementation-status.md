@@ -113,42 +113,29 @@ No stage is complete merely because types, documentation or a happy path exist.
 
 ## Immediate implementation continuation
 
-The specification hardening pass adds explicit deployment non-bypassability,
-versioned review completeness, adapter-specific fencing, six compositional
-safety obligations, bounded operational recovery and a future AP073 composition
-boundary. These strengthen A01/A02/A04/A06/A11–A13/A15–A18/A20–A22 without
-claiming new executed evidence. The existing review and revalidation APIs do
-not yet meet review-completeness or transactional-fencing gates. The adapter
-mechanism remains an explicit open decision in ADR 0017 before P2 cutover.
+The checkpoint sections below are historical records; the phase and acceptance
+ledgers at the end describe current closure. Do not treat earlier "pending"
+notes as a reason to reimplement a later completed source cutover.
 
-1. Complete the versioned semantic review contract and full operator review round
-   trip in maintained consumers. Installed submit and commissioning now require
-   exact approval, but the native raw review projection does not yet establish
-   the newly required mandatory-field presentation contract. Update installed
-   binding tests and example/qualification authoring so original proof bytes are
-   preserved from review through submission; never synthesize human approval in
-   an ordinary application wrapper.
-2. Store the complete immutable binding in the existing attempt journal, with
-   replay keyed independently of the effect digest. Reuse the approved effect's
-   single owned command for send and reporting; reject changed binding as conflict.
-3. Refactor the existing transition/order owner to distinguish reservation from
-   durable entry. The current `Attempting` state must not remain the authority
-   for both. Validate full native authority and exact approval after acquiring
-   the store transaction lock; fence connection/configuration against the same
-   transaction. Publish consumed permits only after durable acknowledgement.
-4. Then finish acquisition/disclosure/ACK and AP070 direct cutover, installed
-   bindings, adapter fault/concurrency/process evidence and formal links.
-5. Regenerate semantic closure and all affected canonical/formal artifacts once
-   source stabilizes. Required hosted workflows have deliberately not been
-   observed yet. The draft's current CI is not completion evidence.
-
-The native artifact-generation run last passed for `7c79532a` plus the installed
-approval and native signing/frame fixture changes recorded above. CLI canonical
-envelope generation then passed against that same native corpus. These cover
-compilation, canonical policy/binding, private review and exact approval data,
-not installed transport or transactional admission. Subsequent refusal tests
-and input-zeroization edits are source-authored only. All unfulfilled AP074 gates
-remain open, and the goal remains active.
+1. Finish truthful public reservation/recovery projections and independently
+   authorized bounded observation. `Reserved` is not provider uncertainty, and
+   replay must not implicitly authorize provider reads. Preserve immutable
+   admission/grant history and the one-use transport boundary already wired.
+2. Complete typed acquisition, separate recipient disclosure and exact ACK in
+   the existing native owners. Bind and account for all credential-bearing
+   ancillary reads. Remove the competing AP070 Python decision owner and cut
+   maintained bindings over directly.
+3. Finish the installed authenticated review/approval journey. The native
+   versioned review contract and literal renderer are now wired; frontend
+   capability, transport/channel authentication and failure evidence remain.
+4. Add/complete installed authority expiry/revocation/configuration races,
+   adapter commit/ack faults and process/transport failpoints, plus differential
+   and generated-history evidence for A01–A22. Synthetic native fixtures are
+   deliberately narrower evidence.
+5. Regenerate final translated/refinement/performance artifacts and observe
+   required hosted CI only after implementation, fixtures and documentation are
+   complete. No hosted results have been observed yet. Full Todoist pinned-input
+   re-execution remains pending, without blocking other implementation work.
 
 ## Full-binding journal cutover (in progress)
 
@@ -311,12 +298,58 @@ closure regeneration passed after that correction (one artifact-generation test)
   projections, independent recovery authorization, installed fault/race evidence,
   acquisition/disclosure/ACK and translated formal artifacts remain open.
 
+## Native review-contract checkpoint
+
+- Recipe source `/3` requires `auths.effect-review-contract/1`; source `/2`
+  is refused. Every non-binding profile argument must have one compatible
+  presentation, with a bounded trusted label and explicit unit for integers.
+  Native binding fields, exact destination/request, installation, reservations,
+  limits, recovery declarations and uncertainty are always present in private
+  review. Consequences are mandatory operator-owned recipe data. The gateway
+  performs no provider-name inference or unit conversion.
+- Recipe review `/3`, private effect review `/2`, private signing output `/2`
+  and effect compiler `/3` make the cutover explicit. Review semantics participate
+  in the recipe digest and effect identity. There is one native full-value
+  renderer (`auths.literal-complete-review/1`), bounded to 1 MiB. It emits literal
+  ASCII JSON, escapes control/bidi/Unicode content, never interprets markup,
+  and refuses unknown renderer versions or oversized output. The CLI publishes
+  signing-request files only after complete local review output succeeds.
+- Native required artifact generation passed on `6d38bb1c` plus this source:
+  `recipe::tests::native_review_contract_fixture_is_current` and
+  `observed_tests::effect_native_tests::native_compilation_approval_and_reverification_keep_exact_request`
+  (one generator each). The former emits valid recipe fuzz seeds and exact
+  negative review inputs for missing fields/consequences, unsupported version,
+  wrong type, control labels and duplicate fields. The latter includes a hostile
+  bidi/content sentinel, lossless literal-render round trip and renderer refusal.
+  These establish native compilation/presentation only, not installed human
+  approval or human understanding. Entry and semantic-closure generators passed.
+  Native CLI approval-envelope construction passed and matched the regenerated
+  signed effect corpus exactly; it also compiled the updated binary.
+- OpenAPI derivation emits a source `/3` draft with incomplete consequences and
+  integer units. It cannot compile until an operator supplies those facts.
+  Derivation tests use explicitly synthetic declarations for transport comparison;
+  they do not turn descriptions from an untrusted document into review authority.
+- OpenAPI corpus artifact generation completed for local documents and pinned
+  GitHub/OpenAI inputs. Todoist's current URL does not match its pinned bytes;
+  the two full-vendor cases were explicitly skipped during generation. Its
+  derived recipe/review/output commitments were updated from the native-generated
+  excerpt after verifying the previously committed vendor and excerpt recipes
+  and profiles were byte-identical (the corpus requires this equivalence).
+  Existing vendor provenance remains unchanged. Full pinned-vendor re-execution
+  is pending; no digest pin was changed and ordinary configured verification
+  still fails for missing/mismatched files. Inputs retained for later generation:
+  `/tmp/auths-ap074-openapi-inputs` (GitHub/OpenAI only).
+- Remaining review work is the installed authenticated approval-channel journey,
+  supported frontend rendering and failure boundaries, privacy checks, and
+  cross-language/installed evidence. P2–P4 remain open and no complete A01–A22
+  acceptance claim follows from this checkpoint.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
-| P1 | Core binding and approval wired | Versioned semantic review completeness and installed approval journey |
+| P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Mutation grant and reservation restart wired | Public projections, independent recovery, installed fault/race evidence and formal links |
 | P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |

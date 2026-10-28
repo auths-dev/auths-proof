@@ -207,7 +207,8 @@ pub(crate) fn recipe_sources(
         {"kind": "field", "name": "record_id"}
     ]);
     let source = json!({
-        "schema": "auths.gateway-recipe-source/2", "profile_schema_digest": digest,
+        "schema": "auths.gateway-recipe-source/3", "profile_schema_digest": digest,
+        "review": crate::recipe::synthetic_review(&schema["fields"]),
         "service": SERVICE, "tool": TOOL, "operator_namespace": NAMESPACE,
         "credential": {"kind": "bearer"}, "origin": ORIGIN,
         "write": {"method": "PATCH", "path": path, "body": {"kind": "json", "value": {

@@ -622,7 +622,8 @@ fn form_body_renders_an_integer_field_as_decimal_text() {
         "service": "refunds", "tool": "create_refund_v1", "version": 1
     });
     let source = json!({
-        "schema": "auths.gateway-recipe-source/2", "profile_schema_digest": digest,
+        "schema": "auths.gateway-recipe-source/3", "profile_schema_digest": digest,
+        "review": crate::recipe::synthetic_review(&schema["fields"]),
         "service": "refunds", "tool": "create_refund_v1", "operator_namespace": "refunds",
         "credential": {"kind": "bearer"}, "origin": "https://api.stripe.com",
         "write": {"method": "POST",
@@ -1393,5 +1394,139 @@ proptest::proptest! {
             }
             Err(error) => proptest::prop_assert_eq!(error, GatewayRecipeError::UnsafePath),
         }
+    }
+}
+
+#[test]
+fn effect_review_contract_is_complete_typed_and_recipe_bound() {
+    let (airtable_recipe, airtable_lock) = fixture("airtable");
+    let source: Value = serde_json::from_slice(airtable_recipe).expect("source");
+    let original = compiled("airtable");
+    let reject = |source: &Value| {
+        assert!(
+            CompiledRecipe::compile(&serde_json::to_vec(source).expect("source"), airtable_lock)
+                .is_err()
+        );
+    };
+    let mut changed = source.clone();
+    changed["review"]["schema"] = json!("auths.effect-review-contract/999");
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]
+        .as_object_mut()
+        .expect("fields")
+        .remove("replacement");
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]["replacement"] =
+        json!({"kind": "integer", "label": "Replacement", "unit": "units"});
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]["replacement"]["label"] =
+        json!("Destination\nhttps://misleading.invalid");
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["consequences"] = json!([]);
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]["replacement"]["label"] = json!("New record status");
+    let relabeled = CompiledRecipe::compile(
+        &serde_json::to_vec(&changed).expect("source"),
+        airtable_lock,
+    )
+    .expect("reviewed label");
+    assert_ne!(
+        original.digest(),
+        relabeled.digest(),
+        "review semantics change the approved recipe"
+    );
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native corpus emits its bounded rejection cases and positive seeds together"
+)]
+fn native_review_contract_fixture_is_current() {
+    let (source_bytes, lock) = fixture("airtable");
+    let source: Value = serde_json::from_slice(source_bytes).expect("source");
+    let mut cases = Vec::new();
+    for (name, pointer, value) in [
+        (
+            "unsupported-version",
+            "/review/schema",
+            json!("auths.effect-review-contract/999"),
+        ),
+        ("missing-field", "/review/fields", json!({})),
+        ("missing-consequences", "/review/consequences", json!([])),
+        (
+            "misleading-control",
+            "/review/fields/replacement/label",
+            json!("Status\nDestination: misleading"),
+        ),
+        (
+            "wrong-type",
+            "/review/fields/replacement",
+            json!({"kind": "integer", "label": "Replacement", "unit": "count"}),
+        ),
+    ] {
+        let mut candidate = source.clone();
+        *candidate.pointer_mut(pointer).expect("existing field") = value;
+        let bytes = serde_json::to_vec(&candidate).expect("case");
+        let refusal = CompiledRecipe::compile(&bytes, lock).expect_err(name);
+        cases.push(json!({"name": name, "source_json": String::from_utf8(bytes).expect("JSON"), "code": refusal.code()}));
+    }
+    let review = &source["review"];
+    let fields = serde_json::to_string(&review["fields"]).expect("fields");
+    let duplicate = format!(
+        "{{\"replacement\":{},{}",
+        review["fields"]["replacement"],
+        &fields[1..]
+    );
+    let review_bytes = serde_json::to_string(review).expect("review");
+    let candidate = serde_json::to_string(&source)
+        .expect("source")
+        .replace(&review_bytes, &review_bytes.replace(&fields, &duplicate));
+    let refusal =
+        CompiledRecipe::compile(candidate.as_bytes(), lock).expect_err("duplicate review field");
+    cases
+        .push(json!({"name": "duplicate-field", "source_json": candidate, "code": refusal.code()}));
+    let corpus = serde_json::to_vec_pretty(&json!({
+        "schema": "auths.effect-review-contract-fixture/1",
+        "profile_lock": serde_json::from_slice::<Value>(lock).expect("profile lock"),
+        "source_schema": RECIPE_SOURCE_SCHEMA,
+        "review_schema": RECIPE_REVIEW_SCHEMA,
+        "accepted": compiled("airtable").review_document(),
+        "rejected": cases,
+    }))
+    .expect("corpus");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let path = root.join("../../../bindings/fixtures/gateway/effect-review-contract.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &corpus).expect("write corpus");
+    }
+    assert_eq!(std::fs::read(path).expect("corpus"), corpus);
+    for name in ["airtable", "todoist", "github", "stripe-refund-approval"] {
+        let (source, lock) = if name == "stripe-refund-approval" {
+            (
+                &include_bytes!("../../../../../examples/stripe-refund-approval/recipe.json")[..],
+                &include_bytes!("../../../../../examples/stripe-refund-approval/profile.lock.json")
+                    [..],
+            )
+        } else {
+            fixture(name)
+        };
+        CompiledRecipe::compile(source, lock).expect("positive recipe seed");
+        let mut seed = u32::try_from(source.len())
+            .expect("bounded source")
+            .to_be_bytes()
+            .to_vec();
+        seed.extend_from_slice(source);
+        seed.extend_from_slice(lock);
+        let path = root.join("fuzz/corpus/target_gateway_recipe").join(name);
+        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+            std::fs::write(&path, &seed).expect("seed");
+        }
+        assert_eq!(std::fs::read(path).expect("seed"), seed);
     }
 }

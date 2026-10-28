@@ -277,3 +277,29 @@ immutable initial evidence and refusal of a second grant. PostgreSQL parity
 source is authored; installed authority, process faults and full recovery
 remain separate evidence gates. A revision in the same store cannot detect
 whole-store rollback.
+
+
+## Recipe-owned review semantics
+
+Source `/3` adds one mandatory versioned review declaration. Native validation
+requires complete typed field coverage, bounded printable labels, explicit
+integer units and operator-authored consequences. These are presentation facts,
+not gateway-interpreted financial or provider semantics. The recipe digest and
+effect compiler `/3` bind them to the exact effect. Compilation refuses a draft,
+unknown version, duplicate/missing field, incompatible type or unsafe label.
+
+Private review `/2` carries the declaration's values from the sealed command,
+complete request, structured binding and actual connection identity/generation.
+The native literal renderer escapes untrusted text as JSON data and refuses
+unsupported versions or output limits. The CLI emits only that safe presentation
+with its exact signing statement and writes the request file after output succeeds.
+This is a local presentation guarantee, not proof of an authenticated external
+reviewer or of human understanding; installed channel/UI evidence remains open.
+
+OpenAPI derivation owns transport shape only. Its generated review declaration
+has empty consequences/units and cannot compile until the operator completes
+it. Test-only declarations support independent transport comparisons without
+silently approving business meaning from untrusted descriptions. The full
+Todoist vendor input currently fails the pinned digest; equivalent frozen native
+excerpt outputs update the render artifacts while full vendor execution remains
+explicitly pending. No source pin or verification rule was weakened.

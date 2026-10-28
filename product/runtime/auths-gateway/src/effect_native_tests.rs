@@ -43,7 +43,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     let observer = signer(h::OBSERVER_SEED);
     let recipe = recipe(
         &json!({
-            "replacement": {"type": "enum", "variants": ["private-sentinel-Approved", "Pending"]}
+            "replacement": {"kind": "string", "minimum": 1, "maximum": 64}
         }),
         &Value::Null,
     );
@@ -52,7 +52,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     let arguments = json!({
         "operation_id": "bound-native-1", "operator_namespace": NAMESPACE,
         "recipe_digest": recipe.digest_hex(), "record_id": RECORD,
-        "replacement": "private-sentinel-Approved"
+        "replacement": "private-sentinel-\u{202e}<tag>Approved"
     })
     .as_object()
     .expect("arguments")
@@ -103,6 +103,28 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         std::str::from_utf8(expected.body()).expect("body")
     );
     assert_eq!(review_json["native"]["request"]["url"], expected.url());
+    assert_eq!(review_json["schema"], "auths.private-effect-review/2");
+    assert_eq!(
+        review_json["semantic"]["contract"]["schema"],
+        "auths.effect-review-contract/1"
+    );
+    let literal = private_review
+        .render_literal("auths.literal-complete-review/1")
+        .expect("complete native rendering");
+    assert!(literal.is_ascii());
+    assert!(
+        literal.contains("\\u202e"),
+        "bidi controls remain escaped data"
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&literal).expect("literal JSON"),
+        review_json
+    );
+    assert!(
+        private_review
+            .render_literal("truncate-to-summary/1")
+            .is_err()
+    );
     assert!(!format!("{private_review:?}").contains("private-sentinel"));
     assert_eq!(
         &EffectBinding::from_private_bytes(&bytes).expect("binding data"),
@@ -136,7 +158,9 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         ),
     };
     let fixture = serde_json::to_vec_pretty(&json!({
-        "schema": "auths.effect-fixture/1",
+        "schema": "auths.effect-fixture/2",
+        "private_review": review_json,
+        "literal_review": literal.as_str(),
         "scope": "native compilation and exact approval; no entry or durability claim",
         "effect_id_hex": hex::encode(effect.binding().id().as_bytes()),
         "operation_key_hex": hex::encode(crate::GatewayAttemptKey::for_operation(&policy, expected.namespace(), expected.operation_id()).expect("native replay key").as_bytes()),

@@ -1,5 +1,36 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [],
+    "fields": {
+      "notebook_id": {
+        "kind": "text",
+        "label": "notebook_id"
+      },
+      "title": {
+        "kind": "text",
+        "label": "title"
+      },
+      "status": {
+        "kind": "text",
+        "label": "status"
+      },
+      "pinned": {
+        "kind": "boolean",
+        "label": "pinned"
+      },
+      "priority": {
+        "kind": "integer",
+        "label": "priority",
+        "unit": ""
+      },
+      "meta_color": {
+        "kind": "text",
+        "label": "meta_color"
+      }
+    }
+  },
   "profile_schema_digest": "3b7cf471aac444931be7ec82435618d77a3a50d90f1c855e0b0ba589e2135de3",
   "service": "notes",
   "tool": "createNote_v1",

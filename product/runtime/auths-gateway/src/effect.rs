@@ -24,7 +24,7 @@ pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/2";
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/2";
+const COMPILER: &str = "auths.gateway-effect-compiler/3";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -34,6 +34,8 @@ pub const MAX_EFFECT_APPROVAL_SECONDS: u64 = 3_600;
 /// Private human review can contain the exact body and full binding. Public
 /// activity/receipt projections have a different, smaller disclosure contract.
 pub const MAX_PRIVATE_EFFECT_REVIEW_BYTES: usize = 131_072;
+/// Native full-value, non-markup private review renderer.
+pub const LITERAL_REVIEW_RENDERER: &str = "auths.literal-complete-review/1";
 /// Maximum canonical operator effect policy, checked before decoding.
 pub const MAX_EFFECT_POLICY_BYTES: usize = 4_096;
 
@@ -215,6 +217,7 @@ pub(crate) fn approve_driver_fixture(
     )
     .map_err(|_| invalid())?;
     let effect = BoundEffect {
+        review: serde_json::json!({"scope": "synthetic post-verification oracle; no human review claim"}),
         binding,
         command,
         connection,
@@ -590,6 +593,7 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
 /// exact immutable compiler output. There is no public constructor, clone or
 /// deserializer. Compiling this value does not approve it or grant entry.
 pub struct BoundEffect {
+    review: serde_json::Value,
     binding: EffectBinding,
     command: VerifiedCommand,
     connection: ConnectionRecord,
@@ -606,7 +610,11 @@ pub struct PrivateEffectReview {
     schema: &'static str,
     effect_id_hex: String,
     binding_canonical: String,
+    binding: BindingWire,
+    installation: serde_json::Value,
     native: crate::GatewaySubmissionReview,
+    semantic: serde_json::Value,
+    renderer: &'static str,
 }
 
 #[cfg(unix)]
@@ -618,8 +626,40 @@ impl fmt::Debug for PrivateEffectReview {
 
 #[cfg(unix)]
 impl PrivateEffectReview {
-    /// Encodes the native private review; consumers display it without
-    /// reconstructing identity, provider bytes or authority facts themselves.
+    /// Renders complete private review as literal ASCII JSON. Non-ASCII and
+    /// control characters remain escaped data, including bidi controls. A
+    /// caller may not substitute a renderer that truncates or interprets markup.
+    ///
+    /// # Errors
+    /// Refuses unsupported renderers, encoding failures or output above 1 MiB.
+    pub fn render_literal(&self, renderer: &str) -> Result<Zeroizing<String>, EffectBindingError> {
+        use std::fmt::Write as _;
+        if renderer != self.renderer {
+            return Err(EffectBindingError::Unsupported);
+        }
+        self.to_private_bytes()?;
+        let json = Zeroizing::new(
+            serde_json::to_string_pretty(self).map_err(|_| EffectBindingError::Invalid)?,
+        );
+        let mut rendered = Zeroizing::new(String::new());
+        for character in json.chars() {
+            if character.is_ascii() {
+                rendered.push(character);
+            } else {
+                let mut units = [0; 2];
+                for unit in character.encode_utf16(&mut units) {
+                    write!(rendered, "\\u{unit:04x}").map_err(|_| EffectBindingError::Invalid)?;
+                }
+            }
+            if rendered.len() > 1_048_576 {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+        Ok(rendered)
+    }
+
+    /// Encodes machine-readable private review without reconstructing identity,
+    /// provider bytes or authority facts. Use `render_literal` for human display.
     ///
     /// # Errors
     /// Refuses an encoding failure or a review above the fixed byte limit.
@@ -669,7 +709,17 @@ impl BoundEffect {
             .map_err(|_| not_entered("gateway.effect.invalid-binding"))?
             .to_owned();
         Ok(PrivateEffectReview {
-            schema: "auths.private-effect-review/1",
+            schema: "auths.private-effect-review/2",
+            renderer: LITERAL_REVIEW_RENDERER,
+            binding: self.binding.wire.clone(),
+            installation: serde_json::json!({
+                "provider": self.connection.provider_kind().as_str(),
+                "alias": self.connection.alias().as_str(),
+                "connection_id": self.connection.connection_id().as_str(),
+                "credential_generation": self.connection.credential_generation().get(),
+                "connection_contract": self.connection.contract().as_str(),
+            }),
+            semantic: self.review.clone(),
             effect_id_hex: hex::encode(self.binding.id().as_bytes()),
             binding_canonical,
             native: crate::engine::review_command(&self.command)?,
@@ -1051,13 +1101,25 @@ fn bind_mutation(
             request: request_commitment(request)?,
         },
     })?;
-    Ok(BoundEffect {
+    let review = serde_json::json!({
+        "contract": installed.recipe.effect_review(&command.arguments).map_err(|_| EffectBindingError::Invalid)?,
+        "recipe": installed.recipe.review_document(),
+        "uncertainty": "Approval does not establish provider entry or outcome. Unknown outcomes do not authorize blind retry or refund.",
+    });
+    let effect = BoundEffect {
+        review,
         binding,
         command,
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
-    })
+    };
+    #[cfg(unix)]
+    effect
+        .private_review()
+        .map_err(|_| EffectBindingError::Invalid)?
+        .to_private_bytes()?;
+    Ok(effect)
 }
 
 /// Preserve all selected branches and evidence through the existing native

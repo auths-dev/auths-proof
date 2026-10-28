@@ -1,4 +1,4 @@
-//! Recipe source `auths.gateway-recipe-source/2`: compilation, operator
+//! Recipe source `auths.gateway-recipe-source/3`: compilation, operator
 //! review, recovery capability, and closed request construction.
 //!
 //! The compiler parses the source once into a typed AST, refuses anything
@@ -20,8 +20,11 @@ use url::{Host, Url};
 
 pub use auths_gateway_kernel::{construct, recovery};
 
+mod effect_review;
 mod lower;
 mod review;
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) use effect_review::synthetic_review;
 mod runtime;
 mod source;
 mod validate;
@@ -47,7 +50,7 @@ pub(crate) use runtime::{
 use source::{CredentialSource, IdempotencySource, PathSegment, RecipeSource};
 
 /// The only recipe source schema the compiler accepts.
-pub const RECIPE_SOURCE_SCHEMA: &str = "auths.gateway-recipe-source/2";
+pub const RECIPE_SOURCE_SCHEMA: &str = "auths.gateway-recipe-source/3";
 const MAX_SOURCE_BYTES: usize = 65_536;
 const MAX_LOCK_BYTES: usize = 65_536;
 const MAX_BODY_BYTES: usize = construct::MAX_BODY_BYTES;
@@ -513,7 +516,7 @@ pub struct CompiledRecipe {
 
 impl CompiledRecipe {
     /// Compiles source against the exact generated profile lock. Only
-    /// `auths.gateway-recipe-source/2` is accepted.
+    /// `auths.gateway-recipe-source/3` is accepted.
     ///
     /// # Errors
     /// Rejects malformed, unbounded, stale, or unsafe mappings with the code
@@ -544,6 +547,7 @@ impl CompiledRecipe {
         let fields = parse_root_fields(&lock.command_schema)?;
         let namespace = OperatorNamespace::parse(&source.operator_namespace)?;
         validate_binding_fields(&fields, &namespace)?;
+        source.review.validate(&fields)?;
         credential_requirement(&source.credential).validate()?;
         validate_origin(&source.origin)?;
         validate::validate_source(&source, &fields)?;
@@ -561,6 +565,14 @@ impl CompiledRecipe {
             digest,
             plans,
         })
+    }
+
+    /// Projects the declared complete review fields from already verified arguments.
+    pub(crate) fn effect_review(
+        &self,
+        arguments: &serde_json::Map<String, Value>,
+    ) -> Result<Value, GatewayRecipeError> {
+        self.source.review.project(arguments)
     }
 
     /// Returns the domain-separated compiled-recipe digest.

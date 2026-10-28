@@ -150,3 +150,14 @@ approval/deadline, retained count/sum slots at exhausted capacity and one fresh
 grant. PostgreSQL equivalent source is authored, not executed. These mechanics
 do not establish acquisition, disclosure, independent observation authority or
 installed end-to-end guarantees.
+
+
+Review completeness is now a closed presentation mechanism shared by the
+maintained recipes: typed complete field coverage, bounded labels/units and a
+literal native renderer. Domain consequences and units remain operator-owned
+recipe data; the gateway neither converts units nor infers meaning by provider.
+Recipe/effect identities bind that declaration. Native negative and rendering
+corpora cover missing/type/version/label/duplicate cases and hostile text.
+Installed reviewer authentication, frontend parity and domain qualification
+remain separate gates; the OpenAPI mapper deliberately emits an unusable draft
+until its review facts are supplied.

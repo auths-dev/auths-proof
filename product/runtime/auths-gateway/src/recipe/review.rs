@@ -1,4 +1,4 @@
-//! Operator review of a compiled recipe: `auths.gateway-recipe-review/2`.
+//! Operator review of a compiled recipe: `auths.gateway-recipe-review/3`.
 //!
 //! The review keeps every field of `/1` and adds each declaration of
 //! recipe source `/2` with the disclosure that says what the gateway can and
@@ -13,7 +13,7 @@ use super::{CompiledRecipe, CredentialRequirement, MAX_BODY_BYTES, WriteMethod, 
 use serde_json::{Value, json};
 
 /// The review schema both review commands print.
-pub const RECIPE_REVIEW_SCHEMA: &str = "auths.gateway-recipe-review/2";
+pub const RECIPE_REVIEW_SCHEMA: &str = "auths.gateway-recipe-review/3";
 /// The schema of the derived recovery capability.
 pub const RECOVERY_CAPABILITY_SCHEMA: &str = "auths.gateway-recovery-capability/1";
 
@@ -280,7 +280,7 @@ impl CompiledRecipe {
         }
     }
 
-    /// Renders `auths.gateway-recipe-review/2`, the document both
+    /// Renders `auths.gateway-recipe-review/3`, the document both
     /// `auths-gateway review` and `auths-node gateway recipe check` print.
     /// Optional declarations the recipe omits are `null`.
     #[must_use]
@@ -289,6 +289,7 @@ impl CompiledRecipe {
         let source = &self.source;
         let mut document = json!({
             "schema": RECIPE_REVIEW_SCHEMA,
+            "effect_review_contract": self.source.review,
             "digest": self.digest_hex(),
             "operator_namespace": self.namespace.as_str(),
             "service": review.service(),

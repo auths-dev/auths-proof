@@ -6,5 +6,6 @@
   omitted:    none
   overrides:  --literal item_id=7
   wrote:      profile.toml recipe.json derivation.json
+  review:     complete recipe.review consequences, labels and integer units; incomplete declarations cannot compile
   next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified
