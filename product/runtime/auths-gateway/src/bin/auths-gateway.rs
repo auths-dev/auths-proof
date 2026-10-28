@@ -279,6 +279,31 @@ mod unix {
             #[arg(long)]
             approval: PathBuf,
         },
+        /// Author a native content read call from private resource arguments.
+        /// No proof, approval, custody lease or provider entry is created.
+        EffectContentCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// Private JSON object containing only declared resource arguments.
+            #[arg(long)]
+            resource_arguments: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            call_out: PathBuf,
+        },
+        /// Author a native disclosure call from retained source provenance and
+        /// a private recipient proposal. Does not reserve or release content.
+        EffectDisclosureCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            target: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            call_out: PathBuf,
+        },
         /// Author the exact private call for an independently authorized
         /// recovery read. No proof, approval, reservation or entry is created.
         EffectRecoveryCall {
@@ -4420,6 +4445,58 @@ mod unix {
                     request_out,
                 )
                 .await
+            }
+            Command::EffectContentCall {
+                state_dir,
+                resource_arguments,
+                operation,
+                call_out,
+            } => {
+                if !call_out.is_absolute() {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let metadata = fs::symlink_metadata(&resource_arguments)
+                    .map_err(|_| "gateway.state.invalid-path")?;
+                if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let arguments = Zeroizing::new(read_bounded(&resource_arguments, 65_536)?);
+                let engine = operator_engine(&state_dir).await?;
+                let call = engine
+                    .content_authorization_call(&arguments, &operation)
+                    .await
+                    .map_err(|_| "gateway.acquisition.binding")?;
+                let bytes = Zeroizing::new(call.canonical_bytes().map_err(|_| "gateway.output")?);
+                private_file(&call_out, &bytes)?;
+                println!(
+                    "private content call saved; native proof and exact approval still required"
+                );
+                Ok(())
+            }
+            Command::EffectDisclosureCall {
+                state_dir,
+                target,
+                operation,
+                call_out,
+            } => {
+                if !call_out.is_absolute() {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let proposal = read_disclosure_target(&target)?;
+                let engine = operator_engine(&state_dir).await?;
+                let target = proposal
+                    .resolve(&engine)
+                    .await
+                    .map_err(|_| "gateway.disclosure.binding")?;
+                let call = engine
+                    .disclosure_authorization_call(&target, &operation)
+                    .map_err(|_| "gateway.disclosure.binding")?;
+                let bytes = Zeroizing::new(call.canonical_bytes().map_err(|_| "gateway.output")?);
+                private_file(&call_out, &bytes)?;
+                println!(
+                    "private disclosure call saved; native proof and exact approval still required"
+                );
+                Ok(())
             }
             Command::EffectRecoveryCall {
                 state_dir,

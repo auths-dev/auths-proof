@@ -1279,6 +1279,46 @@ impl GatewayEngine {
             .map_err(|_| not_entered("gateway.acquisition.binding"))
     }
 
+    /// Authors a private content call from a bounded, duplicate-free JSON object
+    /// of resource arguments and the installed connection. This is data only:
+    /// native proof, exact approval and final fenced entry remain required.
+    ///
+    /// # Errors
+    /// Refuses JSON over 65,536 bytes, duplicate members, nonobjects, unsupported
+    /// resource fields, invalid operation IDs and unavailable installation state.
+    pub async fn content_authorization_call(
+        &self,
+        resource_arguments: &[u8],
+        operation: &str,
+    ) -> Result<auths_profile_mcp::McpToolCall, GatewaySubmitResult> {
+        let invalid = || not_entered("gateway.acquisition.binding");
+        let arguments = crate::recipe::parse_provider_response(resource_arguments)
+            .and_then(|value| value.as_object().cloned())
+            .ok_or_else(invalid)?;
+        let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
+        let (loaded, _) = self.effect_compilation_inputs().await?;
+        crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
+            .and_then(|target| target.authorization_call(&self.recipe, &operation))
+            .map_err(|_| invalid())
+    }
+
+    /// Authors a private disclosure call from native retained-content provenance.
+    /// No socket authentication, reservation or delivery permission is created.
+    ///
+    /// # Errors
+    /// Refuses a mismatched recipe or invalid/reused source operation ID.
+    pub fn disclosure_authorization_call(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        operation: &str,
+    ) -> Result<auths_profile_mcp::McpToolCall, GatewaySubmitResult> {
+        let invalid = || not_entered("gateway.disclosure.binding");
+        let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
+        target
+            .authorization_call(&self.recipe, &operation)
+            .map_err(|_| invalid())
+    }
+
     /// Loads only validated retained provenance and proposes a private recipient
     /// binding. This authenticates neither a live peer nor release authority.
     ///

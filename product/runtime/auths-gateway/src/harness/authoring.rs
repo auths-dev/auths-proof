@@ -111,3 +111,15 @@ pub fn tool_fixture(call: &McpToolCall, now: u64) -> Result<ToolFixture, Harness
         action: fixture(encode_canonical_action(&canonical), "action")?,
     })
 }
+
+/// Fixed-key installed test trust for an explicit set of tools in one service.
+/// Every grant/action still has a single exact permission and is fully verified.
+///
+/// # Errors
+/// Refuses empty, duplicate, mixed-service or over-sixteen tool declarations.
+pub fn tools_context(calls: &[McpToolCall], now: u64) -> Result<Vec<u8>, HarnessError> {
+    let root = Signer::new(0x11);
+    let observer = Signer::new(0x33);
+    let context = super::context_for_tools(&root, &observer.principal, now, calls)?;
+    fixture(encode_verifier_context(&context), "context")
+}

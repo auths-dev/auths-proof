@@ -577,8 +577,29 @@ history and late-ACK methods carry native bytes unchanged; they implement no
 content projection, commitment, signing, accounting or retry decision. Recipient
 protocol execution stays in Rust. Native frame/CLI artifacts and socket-client
 cases are narrower than installed authority/UI/binding/hostile-process evidence;
-those full journeys, native call-authoring CLI integration and AP070 cutover remain
-required.
+authenticated UI/installed binding integration and AP070 cutover remain required.
+
+Native `effect-content-call` accepts a private resource-argument file and uses
+`ContentReadTarget` against the installed connection. It reuses the bounded
+65,536-byte duplicate-rejecting JSON leaf; extra fields, nonobjects and invalid
+resource values fail closed. `effect-disclosure-call` resolves the retained native
+source from its private recipient proposal and uses `DisclosureTarget`. Both save
+canonical native calls to new absolute 0600 files; neither creates authority,
+approval, reservation, a custody lease or external entry.
+
+`content-process-journey.json` now executes these commands, private native review,
+exact approval, the real daemon dispatcher and recipient CLI. A counting local
+HTTP double observes one content GET, one approved PATCH and one independently
+authorized observation GET. Restart preserves acquisition/disclosure history and
+refuses redelivery. In a second disclosure a separate native recipient process
+saves content/ACK but sends no ACK; killing both peers leaves unknown charged
+history after reopen, and exact late ACK refines it without another delivery.
+A separate operator process disables the connection before a newly approved
+release; the recipient receives no content. Public outputs exclude fixture
+content/credential sentinels. These are local file/process observations with
+public test keys simulating the reviewer, actor and recipient. They do not close
+human approval UI, installed language packages, hostile UID/egress containment,
+PostgreSQL, every crash boundary or live-provider qualification gates.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

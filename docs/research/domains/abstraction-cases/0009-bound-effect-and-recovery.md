@@ -688,3 +688,23 @@ TypeScript carry bounded envelopes and native result bytes; no shared semantic
 predicate, hash, signature or capacity rule moves into those wrappers. Frame,
 CLI refusal and native-client/file evidence have explicit narrow scopes. Full
 installed consumer, reference differential and isolation gates remain required.
+
+
+### Native authoring and process composition evidence
+
+The content/disclosure authoring commands reuse the native target constructors
+and canonical MCP encoding. The existing bounded duplicate-free JSON decoder is
+reused only for mechanical parsing; resource meaning remains in the reviewed
+recipe capability. No new recipe operation dispatch, hash owner, policy callback
+or transition rule is introduced. Test-only trust authoring now accepts an
+explicit bounded same-service tool set, while each real signed action/grant has
+its exact permission and still passes native verification.
+
+`content-process-journey.json` adds real CLI/daemon composition over the file
+adapter: separate acquisition/release, actual recipient ACK, restart no-redelivery,
+crash after recipient receipt before ACK, late evidence, approved write and
+independent read-back, and separate-process disable before release. The artifact
+records three actual provider requests and redacted native facts. Public fixed
+keys simulate actors; neither installed UI/language integration, isolated hostile
+agent containment nor PostgreSQL/full fault coverage is inferred. Differential
+reference and bounded performance exit gates remain open.

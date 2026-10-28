@@ -383,8 +383,26 @@ native signed read action. Release is separately authorized and reviewed with
 `effect-review --disclosure <private-proposal> --binding-out <new-private-file>`.
 The proposal is the closed native `AppDisclosureTarget`: source operation,
 recipient public key, exact UID/channel policy and delivery instance. Use native
-call authoring; the CLI authoring integration and full installed UI journey are
-still tracked by AP074 and are not completed by these controls.
+call authoring as follows; the authenticated UI journey remains tracked by AP074.
+
+1. Save only the declared resource arguments in an owner-private JSON object.
+   Run `effect-content-call --state-dir ... --resource-arguments /private/resource.json
+   --operation ... --call-out /private/read-call.json`. The output path must be
+   new and absolute. The native parser rejects duplicates, extra fields and
+   input above 65,536 bytes. Obtain native proof/action for the returned exact
+   call, then review with `effect-review --content` and obtain exact approval.
+2. Acquire through `content-acquire`. A recorded provider response is not a
+   delivery and does not authorize release.
+3. Save the private native recipient proposal. Run `effect-disclosure-call
+   --state-dir ... --target /private/target.json --operation ...
+   --call-out /private/disclosure-call.json`. This loads retained provenance,
+   not provider content from the network. Obtain independent proof/action and
+   review with `effect-review --disclosure /private/target.json --binding-out
+   /private/expected-binding.json`, then obtain exact approval.
+
+Both authoring commands preserve native canonical calls; they create no proof,
+approval, reservation, credential lease or transport permission. Resource data
+is not a caller-controlled URL/body/limit override.
 
 `disclosure-receive` requires the trusted expected-binding file, exact byte count,
 proposal and independent proof/action/approval. Pipe the recipient's raw 32-byte
@@ -402,3 +420,11 @@ that exact evidence without redelivery. A disconnect, unknown outcome or retaine
 grant must not trigger an automatic repeat. Python/TypeScript expose matching
 acquisition/history/ACK control methods returning native result bytes. Recipient
 handshake, binding/ACK interpretation and signing remain in Rust.
+
+
+The `content-process-journey.json` artifact runs the real local daemon, authoring,
+review and recipient CLI with a counting HTTP double. It exercises read/release,
+ACK-loss crash/reopen/no-redelivery/late ACK, an exact write and independent
+observation, plus separate-process disable before release. Public fixed keys
+simulate signing. This establishes neither human presence, installed language
+binding integration, hostile UID/egress isolation nor PostgreSQL durability.

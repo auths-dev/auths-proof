@@ -1044,3 +1044,24 @@ sockets. Native socket/file delivery cases now use the production recipient clie
 with an explicit control-frame shim; the native installed file grant still uses
 real approved authority. These are not a complete installed app dispatcher,
 recipient CLI process, language runtime, authenticated UI or hostile-agent claim.
+
+
+## Native authoring and process evidence
+
+Content/disclosure call-authoring APIs reuse `ContentReadTarget` and
+`DisclosureTarget` with installed recipe/connection and retained provenance.
+The CLI does not construct contracts or hashes. Content JSON reuses the existing
+65,536-byte duplicate-rejecting parser as a mechanical leaf, then the native
+recipe validates its closed resource fields. These operator-only authoring
+surfaces return canonical private data, never an execution capability.
+
+The real daemon/recipient CLI artifact now covers acquisition, disclosure and
+ACK, restart replay without redelivery, an approved mutation and independent
+provider-linked observation. A separate test recipient uses the shipping native
+client to retain ACK evidence without sending it; both peers are killed, and
+reopen preserves unknown charges until exact late ACK. A separate operator
+process disables before a further release and no bytes are delivered. These
+histories use the shared file adapter and public fixed test signing keys.
+Authenticated UI, installed language packages, complete fault/concurrency tests,
+PostgreSQL and hostile process isolation remain distinct incomplete obligations.
+No production transition predicate or wire schema changed in this increment.

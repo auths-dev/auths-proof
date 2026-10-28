@@ -1378,6 +1378,61 @@ closure regeneration passed after that correction (one artifact-generation test)
   execution or hosted CI observation ran. No A01–A22 case is closed. AP073 remains
   untouched; full installed process/adapters/UI and AP070 owner cutover remain.
 
+## Native call authoring and complete CLI process composition checkpoint
+
+- Based on `189bb1ea`. The preceding user turn was a status-only response, not
+  implementation progress; this continuation revalidated the clean worktree and
+  performed the next implementation/evidence step. No AP073 files or agents used.
+- Native `content_authorization_call` uses the existing bounded duplicate-free
+  JSON parser and `ContentReadTarget` against the installed connection. Native
+  `disclosure_authorization_call` uses `DisclosureTarget` from retained source
+  provenance. CLI `effect-content-call` and `effect-disclosure-call` save native
+  canonical calls to new absolute 0600 files. No duplicate contract/hash, proof,
+  approval, reservation, custody lease or transport authority is introduced.
+- `content_journey.rs` generates `content-process-journey.json` through actual
+  production CLI/daemon processes, native signed proofs/exact approvals, local
+  file custody/journal and a counting loopback HTTP double. Test-only fixed-key
+  trust authoring explicitly admits a bounded same-service tool set; each signed
+  action/grant retains a single permission and undergoes native verification.
+- The journey acquires content, authenticates a recipient CLI, saves exact bytes
+  and canonical ACK in 0600 files, confirms durable ACK, kills/restarts the daemon
+  and proves history replay produces neither new output files nor provider reads.
+  A second native recipient process receives bytes and retains ACK without sending
+  it; both peers are killed. Reopen reports unknown with one delivery/32 bytes
+  retained. Replay returns history without delivery; exact late ACK refines the
+  same charged journal, and repeated ACK is idempotent.
+- The same daemon then performs an exactly approved write and a separately
+  authorized recovery GET. The provider echo produces native `observed-by-provider`
+  evidence, distinct from state-match evidence and the original HTTP response.
+  Three total provider requests are asserted. Write/recovery replay adds none.
+  A separate operator process disables the connection before another approved
+  disclosure; it refuses with no content/ACK output. Historical ACK remains visible.
+- Public control results exclude content/credential sentinels. Resource authoring
+  rejects duplicate, extra, nonobject and 65,537-byte inputs, accepts the 65,536-byte
+  boundary and preserves existing output files. The native recipient trust channel
+  remains a test fixture, not an authenticated human UI or isolated hostile agent.
+- Artifact generation initially caught fixture API/import mistakes, the query's
+  expected percent encoding, and an incorrect test expectation that echo-linked
+  observation also sets state-match. The final assertions retain the native
+  distinction; production verification/reducer predicates were not weakened.
+- Executed artifact command:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --features testkit-harness,loopback-provider --test content_journey -- --exact native_content_process_journey_fixture_is_current`.
+  Final complete process/crash/resource-boundary generation passed one test in
+  3.08 seconds (one subprocess helper filtered from the parent run and invoked
+  explicitly as a separate recipient process inside the journey).
+- Required exact native content compilation, candidate compilation, recovery
+  acquisition and semantic-closure generation passed four tests in 32.62 seconds.
+  Content/candidate/recovery fixtures stayed byte-for-byte unchanged; the source
+  closure and embedded digest were refreshed. The final process fixture was
+  generated after the resource limit and output-preservation assertions landed.
+  No local broad build/test/lint/formal suite was run.
+- This strengthens A07/A08/A22 with real file/process composition; no entire
+  acceptance row closes. Authenticated UI, installed Python/TypeScript packages,
+  hostile UID/egress containment, PostgreSQL, remaining crash/race/fault points,
+  full recovery operations, AP070 ownership removal, differential/formal/performance
+  and required hosted evidence remain outstanding. No broad local gate or CI
+  observation was performed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1385,8 +1440,8 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition/disclosure runtime and application controls wired | Native call-authoring CLI, full installed recipient/binding/UI journeys; remove AP070 Python semantic owner |
-| P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
+| P3 | Acquisition/disclosure runtime, call authoring and CLI process composition wired | Installed bindings/authenticated UI, standalone read recipe and AP070 Python owner removal |
+| P4 | Partial CLI process journey | Differential, full faults/adapters, installed bindings/UI, formal/performance links and CI |
 
 ## Acceptance ledger
 
@@ -1403,7 +1458,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file corpus / connection disabled after authentication refuses entry | Independent-process revocation and installed journey pending |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / native ACK/reducer and socket-file corpus / actual send/ACK loss, reopen without redelivery and late ACK executed | Independent-process crash and installed runtime journey pending |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
@@ -1417,7 +1472,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |
 | A20 | Generated histories and shipping predicate refinement | Partial / 576 typed stage pairs, ACK histories and Kani source / pure corpus executed | Full generated concurrent histories and source-linked formal artifacts pending |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
-| A22 | Installed single-human/single-agent full journey/UI | Partial / candidate CLI and content application controls / candidate journey and content refusal-socket CLI executed | Full installed read/disclosure/write/observation, recipient CLI and authenticated UI |
+| A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
 
 ## Deployment assumptions retained
 

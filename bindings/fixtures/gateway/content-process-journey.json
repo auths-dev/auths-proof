@@ -1,0 +1,115 @@
+{
+  "schema": "auths.content-process-journey/1",
+  "scope": "production CLI and daemon processes, native proofs/exact approval, real file custody/journal and counting loopback HTTP; public fixed signing keys simulate reviewer, actor and recipient; no human presence, UID containment, installed language package, power loss or PostgreSQL claim",
+  "provider_requests": [
+    "GET /documents/recTEST0000000001?format=text%2Fplain HTTP/1.1",
+    "PATCH /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001 HTTP/1.1",
+    "GET /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001 HTTP/1.1"
+  ],
+  "acquisition": {
+    "outcome": "history",
+    "history": {
+      "kind": "acquisition",
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 32,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 32
+        }
+      }
+    }
+  },
+  "disclosure": {
+    "outcome": "history",
+    "history": {
+      "kind": "disclosure",
+      "snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 32,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    }
+  },
+  "mutation": {
+    "outcome": "response-recorded",
+    "status": 200
+  },
+  "observation": {
+    "outcome": "recovery-report",
+    "report": {
+      "schema": "auths.gateway-recovery/1",
+      "source": {
+        "stage": "observed-by-provider",
+        "revision": 4,
+        "response_status": 200,
+        "observation_match": null,
+        "provider_linked": true,
+        "recovery_received_at": "actual-runtime-time-checked"
+      },
+      "acquisition": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 125,
+        "response_version_ok": true
+      },
+      "disposition": "recorded"
+    }
+  },
+  "revoked_disclosure": {
+    "outcome": "refused",
+    "result": {
+      "outcome": "not-entered",
+      "code": "gateway.connection.unavailable"
+    }
+  },
+  "restart_replay_no_redelivery": true,
+  "crash_after_receipt_before_ack": {
+    "outcome": "history",
+    "history": {
+      "kind": "disclosure",
+      "snapshot": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 32,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    }
+  },
+  "late_ack_after_crash": {
+    "outcome": "history",
+    "history": {
+      "kind": "disclosure",
+      "snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 32,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    }
+  },
+  "late_ack_idempotent": true,
+  "private_recipient_outputs_mode": "0600",
+  "resource_authoring_rejects_duplicate_extra_nonobject_oversize": true,
+  "resource_limit_accepted_and_existing_call_not_overwritten": true,
+  "public_results_exclude_sentinel_content_and_credential": true
+}

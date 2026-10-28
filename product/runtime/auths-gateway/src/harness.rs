@@ -373,7 +373,7 @@ pub(crate) fn context_with_roots(
         depth,
         composition,
         &[RAW_KEY_V1],
-        &call(&Map::new())?,
+        &[call(&Map::new())?],
     )
 }
 
@@ -394,7 +394,7 @@ pub(crate) fn context_accepting(
         1,
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         methods,
-        &call(&Map::new())?,
+        &[call(&Map::new())?],
     )
 }
 
@@ -405,6 +405,15 @@ pub(crate) fn context_for_tool(
     now: u64,
     tool: &McpToolCall,
 ) -> Result<TrustedContext, HarnessError> {
+    context_for_tools(root, observer, now, std::slice::from_ref(tool))
+}
+
+pub(crate) fn context_for_tools(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    tools: &[McpToolCall],
+) -> Result<TrustedContext, HarnessError> {
     context_for(
         &[root],
         observer,
@@ -413,7 +422,7 @@ pub(crate) fn context_for_tool(
         1,
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         &[RAW_KEY_V1],
-        tool,
+        tools,
     )
 }
 
@@ -429,8 +438,16 @@ fn context_for(
     depth: u16,
     composition: CompositionRequirement,
     methods: &[&str],
-    unbound: &McpToolCall,
+    tools: &[McpToolCall],
 ) -> Result<TrustedContext, HarnessError> {
+    let unbound = tools.first().ok_or(HarnessError::Fixture("tools"))?;
+    if tools.len() > 16 || tools.iter().any(|tool| tool.service() != unbound.service()) {
+        return Err(HarnessError::Fixture("tools"));
+    }
+    let permissions = tools
+        .iter()
+        .map(|tool| fixture(tool.permission(), "permission"))
+        .collect::<Result<Vec<_>, _>>()?;
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
@@ -449,10 +466,7 @@ fn context_for(
                 root.principal.clone(),
                 vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
                 vec![fixture(unbound.profile_ref(), "profile")?],
-                fixture(
-                    PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
-                    "permissions",
-                )?,
+                fixture(PermissionSet::new(permissions.clone()), "permissions")?,
                 vec![fixture(
                     ResourceId::parse(&format!("mcp://{}/", unbound.service())),
                     "namespace",
