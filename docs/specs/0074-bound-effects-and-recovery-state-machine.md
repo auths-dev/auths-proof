@@ -152,7 +152,7 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
 The concrete native encoding is `auths.bound-effect/3`, with effect compiler
-`auths.gateway-effect-compiler/6`. Reservations use a closed window alternative:
+`auths.gateway-effect-compiler/7`. Reservations use a closed window alternative:
 fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
@@ -232,7 +232,7 @@ the approved recipe. Account for their entry and limits explicitly; they must no
 be invisible I/O outside the model. Acquiring those bytes does not authorize
 disclosing them to the agent.
 
-Mutation compiler `/5` retains an ordered prerequisite acquisition plan beside
+Mutation compiler `/7` retains an ordered prerequisite acquisition plan beside
 its verified command and commits the complete plan in the transport identity.
 The plan names at most seven requests: one account check, up to four denied
 capability checks, one pre-entry read and one relative-ceiling read. Each pins
@@ -245,7 +245,7 @@ these declarations. The declaration alone is neither a capacity reservation nor
 an entry permit; runtime must durably account and grant every constituent read
 through the shared journal before contacting the provider.
 
-The concrete journal encoding is `auths.gateway-attempt/10`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/11`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded
@@ -256,6 +256,17 @@ entry fences all required prerequisite records and allocations and requires
 recorded, fresh responses. Receipt time is immutable, and evidence age uses the
 earlier grant time conservatively. These requirements do not waive tighter
 native evidence freshness or independently authorized later observation.
+
+Independent recovery uses the same account/denied-capability subset, with at
+most five child reads. Its complete request commitment authenticates these
+declarations, and the native review renders their resolved requests and limits.
+The installation-only probe remains separate. A prerequisite source may be a
+reserved mutation or reserved independent recovery acquisition, never another
+prerequisite. Recovery final entry fences all child records and allocations and
+evaluates their account/capability predicates and freshness. The same consumed
+permit and retained-response runtime helper serves both parent types. No child
+recharges its parent's managed policy. The maximum recovery entry set is 48
+records within the existing 64-record bound.
 
 Final mutation entry must also evaluate each prerequisite's actual purpose against
 those retained responses. Signed pre-entry observations must have valid canonical

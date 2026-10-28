@@ -1,7 +1,7 @@
 {
   "schema": "auths.prerequisite-entry-fixture/1",
   "scope": "native signed compilation; real file journal with explicit-time oracle grants and synthetic responses; no provider send or installed authority claim",
-  "attempt_schema": "auths.gateway-attempt/10",
+  "attempt_schema": "auths.gateway-attempt/11",
   "cases": [
     {
       "recipe": "stripe",

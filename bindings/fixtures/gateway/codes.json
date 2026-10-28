@@ -105,14 +105,6 @@
       }
     },
     {
-      "code": "gateway.acquisition.ancillary-required",
-      "owner": "effect",
-      "stage": "before-claim",
-      "status": "new",
-      "epic": 74,
-      "case": null
-    },
-    {
       "code": "gateway.acquisition.binding",
       "owner": "effect",
       "stage": "compile",

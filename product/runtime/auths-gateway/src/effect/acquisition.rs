@@ -87,18 +87,28 @@ impl RecoveryReadTarget {
         &self.request
     }
 
-    pub(crate) fn journal_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
+    fn request_bytes(
+        &self,
+        prerequisites: &Prerequisites,
+    ) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
+        canonical(&json!({"request": self.read_wire(), "prerequisite_acquisitions": prerequisites}))
+    }
+
+    fn journal_plan(
+        &self,
+        prerequisites: &Prerequisites,
+    ) -> Result<RecoveryPlan, EffectBindingError> {
+        let transport = self.request_bytes(prerequisites)?;
         Ok(RecoveryPlan {
             source_binding: String::from_utf8(self.source.to_private_bytes()?.to_vec())
                 .map_err(|_| EffectBindingError::Invalid)?,
-            request: commitment(
-                "auths.effect-acquisition-request/1",
-                &canonical(&self.read_wire())?,
-            )?,
+            request: commitment("auths.effect-acquisition-request/2", &transport)?,
             contract: commitment(
                 "auths.gateway-recovery-read/1",
                 &canonical(&self.contract())?,
             )?,
+            transport_canonical: String::from_utf8(transport.to_vec())
+                .map_err(|_| EffectBindingError::Invalid)?,
             maximum_response_bytes: u64::try_from(self.request.maximum_response_bytes())
                 .map_err(|_| EffectBindingError::Invalid)?,
         })
@@ -111,6 +121,7 @@ impl RecoveryReadTarget {
         action_commitment: [u8; 32],
         native_authority: [u8; 32],
         bound: Option<&crate::bounds::BoundAdmission>,
+        prerequisites: &Prerequisites,
     ) -> Result<EffectBinding, GatewaySubmitResult> {
         let invalid = || not_entered("gateway.acquisition.binding");
         let connection = Zeroizing::new(
@@ -127,7 +138,7 @@ impl RecoveryReadTarget {
         {
             return Err(invalid());
         }
-        let plan = self.journal_plan().map_err(|_| invalid())?;
+        let plan = self.journal_plan(prerequisites).map_err(|_| invalid())?;
         let capacity = plan.capacity().map_err(|_| invalid())?;
         let mut reservations = capacity.reservations();
         reservations.extend(managed_reservations(
@@ -210,6 +221,7 @@ pub(crate) struct RecoveryPlan {
     pub(crate) source_binding: String,
     request: [u8; 32],
     contract: [u8; 32],
+    transport_canonical: String,
     maximum_response_bytes: u64,
 }
 
@@ -260,6 +272,22 @@ pub(crate) struct AcquisitionCapacity {
 }
 
 impl RecoveryPlan {
+    pub(crate) fn matches_target(
+        &self,
+        target: &RecoveryReadTarget,
+    ) -> Result<bool, EffectBindingError> {
+        let witness: Value = serde_json::from_slice(self.transport_canonical.as_bytes())
+            .map_err(|_| EffectBindingError::Invalid)?;
+        Ok(self.source()? == target.source
+            && self.maximum_response_bytes == target.request.maximum_response_bytes() as u64
+            && self.contract
+                == commitment(
+                    "auths.gateway-recovery-read/1",
+                    &canonical(&target.contract())?,
+                )?
+            && canonical(&witness["request"])? == canonical(&target.read_wire())?)
+    }
+
     pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
         EffectBinding::from_private_bytes(self.source_binding.as_bytes())
     }
@@ -291,6 +319,17 @@ impl RecoveryPlan {
     ) -> Result<AcquisitionCapacity, EffectBindingError> {
         let source = self.source()?;
         let capacity = self.capacity()?;
+        let transport = self.transport_canonical.as_bytes();
+        if transport.len() > MAX_EFFECT_BYTES
+            || self.request != commitment("auths.effect-acquisition-request/2", transport)?
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        let witness: Value =
+            serde_json::from_slice(transport).map_err(|_| EffectBindingError::Invalid)?;
+        if canonical(&witness)?.as_slice() != transport {
+            return Err(EffectBindingError::Invalid);
+        }
         if source.wire.namespace != effect.wire.namespace
             || source.wire.partition != effect.wire.partition
             || source.wire.epoch != effect.wire.epoch
@@ -354,6 +393,7 @@ impl AcquisitionCapacity {
 pub(super) struct VerifiedAcquisition {
     pub(super) target: RecoveryReadTarget,
     pub(super) bound: Option<crate::bounds::BoundAdmission>,
+    pub(super) prerequisites: Prerequisites,
     #[cfg(unix)]
     actors: Vec<auths_model::PrincipalId>,
     #[cfg(unix)]
@@ -363,6 +403,14 @@ pub(super) struct VerifiedAcquisition {
 }
 
 impl VerifiedAcquisition {
+    pub(super) fn journal_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
+        self.target.journal_plan(&self.prerequisites)
+    }
+
+    pub(super) fn request_bytes(&self) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
+        self.target.request_bytes(&self.prerequisites)
+    }
+
     #[cfg(unix)]
     pub(super) fn private_review(&self) -> Value {
         json!({
@@ -372,6 +420,7 @@ impl VerifiedAcquisition {
             "arguments": self.arguments,
             "method": "GET",
             "recovery": self.target.contract(),
+            "prerequisite_acquisitions": self.prerequisites,
         })
     }
 }
@@ -432,12 +481,16 @@ pub fn compile_recovery_acquisition(
         auths_codec::encode_canonical_action(verified.canonical_action()).map_err(|_| invalid())?;
     let action_commitment =
         commitment("auths.canonical-action.v1", &canonical_action).map_err(|_| invalid())?;
+    let prerequisites =
+        Prerequisites::credentials(installed.recipe, *installed.connection.account_commitment())
+            .map_err(|_| invalid())?;
     let binding = target.binding(
         installed,
         &operation,
         action_commitment,
         native_authority_commitment(sealed.portable(), installed.context).map_err(|_| invalid())?,
         bound.as_ref(),
+        &prerequisites,
     )?;
     let contract = target.contract();
     let effect = BoundEffect {
@@ -447,6 +500,7 @@ pub fn compile_recovery_acquisition(
         command: CompiledEffect::Acquisition(Box::new(VerifiedAcquisition {
             target: target.clone(),
             bound,
+            prerequisites,
             #[cfg(unix)]
             actors: branches.actors,
             #[cfg(unix)]

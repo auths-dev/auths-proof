@@ -115,6 +115,58 @@ pub(crate) trait SubmitIo {
     ) -> Option<ProviderResponse>;
 }
 
+/// Acquire one compiler-selected prerequisite through the shared journal and
+/// consumed permit. Both mutation and recovery use this transport sequence.
+pub(crate) async fn acquire_prerequisite<I: SubmitIo>(
+    attempts: &GatewayAttempts,
+    approved: &std::sync::Arc<ApprovedEffect>,
+    kind: PrerequisiteKind,
+    io: &I,
+    lease: &I::Lease,
+) -> Option<crate::store::PrerequisiteResponse> {
+    let started = io.clock()?;
+    let validation = io.entry_validation().ok()?;
+    match attempts
+        .claim_prerequisite(approved, kind, started, validation)
+        .await
+        .ok()?
+    {
+        crate::AcquisitionClaim::Reserved(reserved) => {
+            let validation = io.entry_validation().ok()?;
+            let entry_started = io.clock()?;
+            let (granted, permit) = reserved
+                .grant_entry(std::sync::Arc::clone(approved), validation, entry_started)
+                .await
+                .ok()?;
+            match io.acquire(lease, permit).await {
+                Some(response) => {
+                    let received_at = io.clock()?;
+                    granted
+                        .record_response(
+                            response.status,
+                            response.version_ok,
+                            &response.body,
+                            received_at,
+                        )
+                        .await
+                        .ok()?;
+                }
+                None => {
+                    let _ = granted.record_unknown().await;
+                    return None;
+                }
+            }
+        }
+        crate::AcquisitionClaim::Existing(_) => {}
+    }
+    // Only acknowledged, retained evidence is usable. Replays keep the
+    // original receipt time and cannot create another provider invocation.
+    let now = io.clock()?;
+    let recorded = attempts.read_prerequisite(approved, kind, now).await.ok()?;
+    (recorded.observed_at <= recorded.received_at && recorded.received_at <= now)
+        .then_some(recorded)
+}
+
 /// The installation one submission runs against.
 pub(crate) struct SubmitContext<'a> {
     pub(crate) recipe: &'a CompiledRecipe,
@@ -563,56 +615,14 @@ impl<I: SubmitIo> Run<'_, I> {
         &self,
         kind: PrerequisiteKind,
     ) -> Option<crate::store::PrerequisiteResponse> {
-        let lease = self.lease.as_ref()?;
-        let approved = self.verified.as_ref()?;
-        let started = self.io.clock()?;
-        let validation = self.io.entry_validation().ok()?;
-        match self
-            .cx
-            .attempts
-            .claim_prerequisite(approved, kind, started, validation)
-            .await
-            .ok()?
-        {
-            crate::AcquisitionClaim::Reserved(reserved) => {
-                let validation = self.io.entry_validation().ok()?;
-                let entry_started = self.io.clock()?;
-                let (granted, permit) = reserved
-                    .grant_entry(std::sync::Arc::clone(approved), validation, entry_started)
-                    .await
-                    .ok()?;
-                match self.io.acquire(lease, permit).await {
-                    Some(response) => {
-                        let received_at = self.io.clock()?;
-                        granted
-                            .record_response(
-                                response.status,
-                                response.version_ok,
-                                &response.body,
-                                received_at,
-                            )
-                            .await
-                            .ok()?;
-                    }
-                    None => {
-                        let _ = granted.record_unknown().await;
-                        return None;
-                    }
-                }
-            }
-            crate::AcquisitionClaim::Existing(_) => {}
-        }
-        // Only acknowledged, retained evidence is usable. Replays keep the
-        // original receipt time and cannot create another provider invocation.
-        let now = self.io.clock()?;
-        let recorded = self
-            .cx
-            .attempts
-            .read_prerequisite(approved, kind, now)
-            .await
-            .ok()?;
-        (recorded.observed_at <= recorded.received_at && recorded.received_at <= now)
-            .then_some(recorded)
+        acquire_prerequisite(
+            self.cx.attempts,
+            self.verified.as_ref()?,
+            kind,
+            self.io,
+            self.lease.as_ref()?,
+        )
+        .await
     }
 
     async fn read_account(&self) -> AccountResult {

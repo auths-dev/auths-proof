@@ -1,4 +1,4 @@
-//! Closed prerequisite acquisitions derived from a verified mutation and recipe.
+//! Closed prerequisite acquisitions derived from a verified effect and recipe.
 //! These declarations are committed by the parent effect and displayed by its
 //! native review. They grant neither read entry nor disclosure; the journal must
 //! independently acknowledge each one-use acquisition before transport.
@@ -14,7 +14,7 @@ const MAX_PREREQUISITES: usize = 7;
 const MAX_RESPONSE_BYTES: usize = 65_536;
 pub(crate) const MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS: u64 = 30;
 
-/// The complete ordered set for one mutation. Construction is private to the
+/// The complete ordered set for one mutation or independent recovery read. Construction is private to the
 /// native compiler; an application cannot append a request or select a purpose.
 #[derive(Serialize)]
 pub(super) struct Prerequisites(Vec<Prerequisite>);
@@ -130,17 +130,16 @@ impl Prerequisites {
         Self(Vec::new())
     }
 
-    pub(super) fn compile(
+    pub(super) fn credentials(
         recipe: &CompiledRecipe,
-        command: &VerifiedCommand,
         account: [u8; 32],
     ) -> Result<Self, EffectBindingError> {
         let mut plan = Self(Vec::new());
         let reads = recipe
             .credential_reads()
             .map_err(|_| EffectBindingError::Invalid)?;
-        // The onboarding probe is not a mutation prerequisite. Commissioning
-        // must acquire its own separately bound probe, never inherit this plan.
+        // The onboarding probe is not an installed mutation/recovery prerequisite.
+        // Candidate checks need their own authority, never inherit this plan.
         if let Some(guard) = recipe.guard_checks() {
             match (reads.account(), guard.account_pointer) {
                 (Some(read), Some(json_pointer)) => plan.push(
@@ -171,6 +170,16 @@ impl Prerequisites {
         } else if reads.account().is_some() || !reads.denied().is_empty() {
             return Err(EffectBindingError::Invalid);
         }
+        canonical(&plan)?;
+        Ok(plan)
+    }
+
+    pub(super) fn compile(
+        recipe: &CompiledRecipe,
+        command: &VerifiedCommand,
+        account: [u8; 32],
+    ) -> Result<Self, EffectBindingError> {
+        let mut plan = Self::credentials(recipe, account)?;
         match (
             command.request.pre_entry_read(),
             recipe.pre_entry_pointers(),
@@ -267,7 +276,7 @@ impl Purpose {
     }
 }
 
-/// Private membership witness for one read in the exact approved mutation.
+/// Private membership witness for one read in the exact approved parent effect.
 /// Audit decoding cannot construct the sealed request or grant transport entry.
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -324,13 +333,15 @@ impl PrerequisitePlan {
 
     fn declaration(&self) -> Result<Declaration, EffectBindingError> {
         let source = self.source()?;
-        let super::Protocol::Mutation { request } = source.wire.protocol else {
-            return Err(EffectBindingError::Invalid);
+        let (request, domain) = match source.wire.protocol {
+            super::Protocol::Mutation { request } => (request, "auths.effect-transport/1"),
+            super::Protocol::Acquisition { request, .. } => {
+                (request, "auths.effect-acquisition-request/2")
+            }
+            super::Protocol::Disclosure { .. } => return Err(EffectBindingError::Invalid),
         };
         let bytes = self.transport_canonical.as_bytes();
-        if bytes.len() > super::MAX_EFFECT_BYTES
-            || request != super::commitment("auths.effect-transport/1", bytes)?
-        {
+        if bytes.len() > super::MAX_EFFECT_BYTES || request != super::commitment(domain, bytes)? {
             return Err(EffectBindingError::Invalid);
         }
         // This bounded value is only an authenticated membership witness. It

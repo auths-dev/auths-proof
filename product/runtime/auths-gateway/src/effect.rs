@@ -22,6 +22,7 @@ mod acquisition;
 mod prerequisite;
 pub(crate) use acquisition::{
     AcquisitionCapacity, AcquisitionPlan, MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL,
+    RecoveryPlan,
 };
 pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
 use prerequisite::Prerequisites;
@@ -36,7 +37,7 @@ pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/6";
+const COMPILER: &str = "auths.gateway-effect-compiler/7";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -835,7 +836,13 @@ impl BoundEffect {
                             .map_err(|_| not_entered("gateway.effect.invalid-binding"))?;
                     review
                 }
-                CompiledEffect::Acquisition(_) => self.review.clone(),
+                CompiledEffect::Acquisition(command) => {
+                    let mut review = self.review.clone();
+                    review["prerequisite_acquisitions"] =
+                        serde_json::to_value(&command.prerequisites)
+                            .map_err(|_| not_entered("gateway.effect.invalid-binding"))?;
+                    review
+                }
             },
             effect_id_hex: hex::encode(self.binding.id().as_bytes()),
             binding_canonical,
@@ -1092,12 +1099,22 @@ impl ApprovedEffect {
         }
     }
 
+    pub(crate) fn recovery_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
+        match &self.effect.command {
+            CompiledEffect::Acquisition(command) => command.journal_plan(),
+            CompiledEffect::Mutation(_) => Err(EffectBindingError::Invalid),
+        }
+    }
+
+    fn prerequisites(&self) -> &Prerequisites {
+        match &self.effect.command {
+            CompiledEffect::Mutation(command) => &command.prerequisites,
+            CompiledEffect::Acquisition(command) => &command.prerequisites,
+        }
+    }
+
     pub(crate) fn prerequisite_plans(&self) -> Result<Vec<PrerequisitePlan>, EffectBindingError> {
-        let CompiledEffect::Mutation(mutation) = &self.effect.command else {
-            return Err(EffectBindingError::Invalid);
-        };
-        mutation
-            .prerequisites
+        self.prerequisites()
             .kinds()
             .map(|kind| self.prerequisite(kind).map(|(plan, _)| plan))
             .collect()
@@ -1107,11 +1124,13 @@ impl ApprovedEffect {
         &self,
         kind: PrerequisiteKind,
     ) -> Result<(PrerequisitePlan, ClosedPrerequisiteRead), EffectBindingError> {
-        let CompiledEffect::Mutation(mutation) = &self.effect.command else {
-            return Err(EffectBindingError::Invalid);
+        let (index, read) = self.prerequisites().select(kind)?;
+        let transport = match &self.effect.command {
+            CompiledEffect::Mutation(mutation) => {
+                request_bytes(&mutation.command.request, &mutation.prerequisites)?
+            }
+            CompiledEffect::Acquisition(command) => command.request_bytes()?,
         };
-        let (index, read) = mutation.prerequisites.select(kind)?;
-        let transport = request_bytes(&mutation.command.request, &mutation.prerequisites)?;
         let plan = PrerequisitePlan::new(self.effect.binding(), index, transport)?;
         Ok((plan, read.clone()))
     }

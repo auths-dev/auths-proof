@@ -365,3 +365,22 @@ corpus must cover count/sum exhaustion, retained unknown charges, window changes
 source/allocation collisions and missing/substituted membership. Full adapter
 concurrency and performance acceptance remain open until executed evidence is
 recorded in the AP074 ledger.
+
+### Credential prerequisites of independent recovery
+
+The account/denied-capability subset is identical between mutation and recovery:
+closed recipe reads, expected installed account, refused HTTP statuses, version
+checks, one invocation and full response ceiling, durable receipt, and 30-second
+conservative evidence age. Both paths now use the same compiler subset, journal,
+permit-consuming acquisition helper and native evidence predicates. Mutation
+keeps its additional pre-entry/relative-ceiling semantics. First-install probes
+and candidate credentials remain an independent authorization obligation.
+
+A recovery parent's request commitment authenticates its complete prerequisite
+witness. The existing child membership decoder accepts the closed mutation or
+recovery parent protocol and refuses disclosure; the source fence refuses a
+child as a parent. Final entry requires all child evidence under the same fence.
+The six-case recovery prerequisite corpus records the native predicate result
+separately from oracle journal grants, so synthetic wrong-account/capability
+histories cannot masquerade as installed entry-denial evidence. Installed
+transport, PostgreSQL and final formal/performance gates remain open.

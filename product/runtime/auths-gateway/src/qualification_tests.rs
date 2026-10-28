@@ -39,7 +39,7 @@ fn tuple_for(family: &str) -> QualificationTuple {
             "gateway_version": "1.0.0-rc.1",
             "gateway_build_sha256": digest("55"),
             "store_kind": "shared-file-v1",
-            "store_schema": "auths.gateway-attempt/10",
+            "store_schema": "auths.gateway-attempt/11",
             "credential_store_kind": "local-file-v1",
         },
     }))

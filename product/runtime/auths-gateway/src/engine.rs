@@ -1308,9 +1308,8 @@ impl GatewayEngine {
     /// # Errors
     /// Refuses native/approval/configuration failures before admission. Missing
     /// or unavailable state after uncertain persistence is indeterminate.
-    /// Recipes requiring additional credential reads currently fail closed;
-    /// those reads require their own acquisition admission before this path can
-    /// support them.
+    /// Account and denied-capability prerequisites use separately charged,
+    /// approved child acquisitions before final recovery entry.
     pub async fn acquire_recovery(
         &self,
         source_operation: &str,
@@ -1340,19 +1339,6 @@ impl GatewayEngine {
         now: u64,
         started: Instant,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
-        let reads = self
-            .recipe
-            .credential_reads()
-            .map_err(|_| not_entered("gateway.acquisition.binding"))?;
-        if reads.probe().is_some() || reads.account().is_some() || !reads.denied().is_empty() {
-            return match self.attempts.read_recovery(&approved).await {
-                Ok(Some(snapshot)) => Ok(snapshot),
-                Ok(None) => Err(not_entered("gateway.acquisition.ancillary-required")),
-                Err(_) => Err(GatewaySubmitResult::Indeterminate {
-                    code: "gateway.attempt.state-unavailable".to_owned(),
-                }),
-            };
-        }
         // Retained terminal history never needs preparation or custody.
         if let Some(snapshot) = self
             .attempts
@@ -1511,6 +1497,21 @@ impl GatewayEngine {
             .is_some_and(|guard| !io.secret_admitted(&lease, guard))
         {
             return Err("gateway.credential.mode-guard");
+        }
+        for plan in approved
+            .prerequisite_plans()
+            .map_err(|_| "gateway.acquisition.binding")?
+        {
+            let kind = plan.kind().map_err(|_| "gateway.acquisition.binding")?;
+            let evidence =
+                submit::acquire_prerequisite(&self.attempts, &approved, kind, io, &lease)
+                    .await
+                    .ok_or("gateway.entry.prerequisite-evidence")?;
+            crate::entry::validate_credential_evidence(
+                &self.recipe,
+                *approved.connection().account_commitment(),
+                &evidence,
+            )?;
         }
         let validation = io.entry_validation()?;
         let now = io.clock().ok_or("gateway.verify.clock-unavailable")?;

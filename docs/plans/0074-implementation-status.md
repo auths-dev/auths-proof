@@ -743,6 +743,44 @@ closure regeneration passed after that correction (one artifact-generation test)
   full installed/process/PostgreSQL/fault/formal/performance and hosted evidence
   remain required.
 
+## Recovery credential prerequisite checkpoint
+
+- Recovery compilation now includes the installed recipe's account and
+  denied-capability reads in its immutable request commitment and native
+  review. Compiler `/7` uses the complete acquisition transport witness;
+  journal `/11` rejects superseded recovery plans. The installation-only
+  credential probe remains an onboarding obligation.
+- Mutation and recovery share the credential-plan compiler, prerequisite
+  record/allowance, consumed-permit acquisition helper and account/capability
+  predicates. A child can enter only while its mutation or independent recovery
+  parent is reserved. Another prerequisite cannot be its parent. Recovery final
+  entry fences all required children/allocations and evaluates their purpose
+  and freshness alongside native authority, original source and managed slots.
+- The production recovery runtime no longer rejects recipes wholesale for
+  declared credential checks. It acquires and records them in order, stops on
+  a failed account/capability predicate, and validates them again at final
+  entry. Child replay loads original evidence; unknown children cannot remint
+  permits. Their explicit allowances do not charge the parent's managed budget
+  again. At most five recovery children give a maximum 48-record entry fence.
+- `recovery-prerequisites.json` covers recorded, missing, lost-permit, stale,
+  wrong-account and excess-capability histories using native Stripe recovery
+  proofs and real file state. Native actual-purpose evaluation is reported
+  separately from oracle entry. The corpus checks full human review, exact
+  recompile, missing-parent refusal, corrupted membership witnesses, retained
+  child charges and restart projections. It does not claim installed provider
+  transport or PostgreSQL evidence.
+- The prerequisite/recovery artifact generators passed after correcting a
+  missing type import and making the Stripe source fixture retain its required
+  response-derived refund locator. The fixture does not invent an observable
+  target for a source without that locator. Binding/approval, mutation entry,
+  admission, attempt/replay, code inventory, application framing and production
+  CLI/socket generators also passed. Final source closure is regenerated with
+  this checkpoint. No broad local gate or hosted CI has been observed.
+- Remaining: first-install and candidate-rotation read authorization/journaling,
+  safe replacement credentials, general acquisition, disclosure/ACK, Python
+  decision removal, authenticated UI/bindings and full installed/process/adapter/
+  formal/performance/CI acceptance. No A01–A22 criterion is fully closed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -750,7 +788,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation and ancillary reads, general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation reads, general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

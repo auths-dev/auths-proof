@@ -31,7 +31,6 @@ const ROWS: &[&str] = &[
     "gateway.recovery.unavailable effect recovery new 74 -",
     "gateway.acquisition.binding effect compile new 74 -",
     "gateway.acquisition.exhausted effect admission new 74 -",
-    "gateway.acquisition.ancillary-required effect before-claim new 74 -",
     "gateway.acquisition.unsupported-bounds effect compile new 74 -",
     "gateway.effect.protocol effect before-claim new 74 -",
     "gateway.recipe.echo-conflict GatewayRecipeError compile existing - R:form-echo-existing-field",

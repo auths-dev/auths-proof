@@ -466,13 +466,10 @@ impl GatewayAttempts {
         evaluated_at: u64,
         validation: crate::entry::EntryValidation,
     ) -> Result<AcquisitionClaim, GatewayAttemptError> {
-        let target = approved
-            .recovery_target()
-            .ok_or(GatewayAttemptError::InvalidTransition)?;
         let plan = AcquisitionPlan::Recovery(
-            target
-                .journal_plan()
-                .map_err(|_| GatewayAttemptError::Corrupt)?,
+            approved
+                .recovery_plan()
+                .map_err(|_| GatewayAttemptError::InvalidTransition)?,
         );
         self.claim_acquisition(approved, plan, evaluated_at, validation)
             .await
@@ -695,8 +692,8 @@ impl ReservedAcquisition {
                     .ok_or(GatewayAttemptError::InvalidTransition)?;
                 (
                     AcquisitionPlan::Recovery(
-                        target
-                            .journal_plan()
+                        approved
+                            .recovery_plan()
                             .map_err(|_| GatewayAttemptError::Corrupt)?,
                     ),
                     AcquisitionRequest::Recovery(target.closed_request().clone()),
@@ -733,6 +730,14 @@ impl ReservedAcquisition {
             keys.extend_from_slice(&dependencies);
             let native_end = keys.len();
             keys.extend(capacity::dependencies(&attempt.record.state.counters)?);
+            let counter_end = keys.len();
+            let prerequisites = match &plan {
+                AcquisitionPlan::Recovery(_) => approved
+                    .prerequisite_plans()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?,
+                AcquisitionPlan::Prerequisite(_) => Vec::new(),
+            };
+            keys.extend(prerequisite_dependencies(attempt.key, &prerequisites)?);
             let mut committed = None;
             attempt.store.fenced_replace(&keys, &mut |snapshots| {
                 if snapshots.len() != keys.len()
@@ -757,12 +762,11 @@ impl ReservedAcquisition {
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }
-                let source = decode(
-                    snapshots[1]
-                        .as_deref()
-                        .ok_or(GatewayAttemptError::Corrupt)?,
-                )?;
-                let source_matches = eligible_source(&plan, &source, self.source_key, attempt.key)?;
+                let source = snapshots[1]
+                    .as_deref()
+                    .ok_or(GatewayAttemptError::Corrupt)?;
+                let (source_matches, _) =
+                    eligible_source(&plan, source, self.source_key, attempt.key)?;
                 if !source_matches
                     || snapshots[2].as_deref()
                         != Some(canonical(&Allocation::new(&plan, attempt.key, slot)?)?.as_slice())
@@ -786,9 +790,26 @@ impl ReservedAcquisition {
                     &current.state.counters,
                     attempt.key,
                     bound,
-                    &snapshots[native_end..],
+                    &snapshots[native_end..counter_end],
                     now,
                 )?;
+                let acquired = validate_prerequisites(
+                    attempt.key,
+                    approved.effect().binding(),
+                    &prerequisites,
+                    &snapshots[counter_end..],
+                    now,
+                )?;
+                if matches!(plan, AcquisitionPlan::Recovery(_)) {
+                    validation
+                        .validate_prerequisite_evidence(
+                            &approved,
+                            &crate::GatewayPreEntry::default(),
+                            &acquired,
+                            now,
+                        )
+                        .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                }
                 let mut next = current.clone();
                 next.record_grant(
                     &approved,
@@ -939,26 +960,48 @@ pub(super) fn validate_prerequisites(
 
 fn eligible_source(
     plan: &AcquisitionPlan,
-    source: &Record,
+    source_bytes: &[u8],
     source_key: GatewayAttemptKey,
     key: GatewayAttemptKey,
-) -> Result<bool, GatewayAttemptError> {
-    Ok(match plan {
+) -> Result<(bool, u64), GatewayAttemptError> {
+    match plan {
         AcquisitionPlan::Recovery(plan) => {
-            source
-                .recovery_target()?
-                .journal_plan()
-                .map_err(|_| GatewayAttemptError::Corrupt)?
-                == *plan
+            let source = decode(source_bytes)?;
+            Ok((
+                plan.matches_target(&source.recovery_target()?)
+                    .map_err(|_| GatewayAttemptError::Corrupt)?,
+                source.evaluated_at,
+            ))
         }
         AcquisitionPlan::Prerequisite(plan) => {
-            source.state.stage == GatewayAttemptStage::Reserved
-                && source.entry.is_none()
-                && source.validate_header()?
-                    == plan.source().map_err(|_| GatewayAttemptError::Corrupt)?
-                && key == prerequisite_key(source_key, plan.index())
+            let expected = plan.source().map_err(|_| GatewayAttemptError::Corrupt)?;
+            let (binding, reserved, entered, evaluated_at) = if expected.is_mutation() {
+                let source = decode(source_bytes)?;
+                (
+                    source.validate_header()?,
+                    source.state.stage == GatewayAttemptStage::Reserved,
+                    source.entry.is_some(),
+                    source.evaluated_at,
+                )
+            } else {
+                let source: Record<AcquisitionState> = decode_as(source_bytes)?;
+                (
+                    source.validate_header()?,
+                    matches!(source.state.plan, AcquisitionPlan::Recovery(_))
+                        && matches!(source.state.phase, AcquisitionPhase::Reserved),
+                    source.entry.is_some(),
+                    source.evaluated_at,
+                )
+            };
+            Ok((
+                reserved
+                    && !entered
+                    && binding == expected
+                    && key == prerequisite_key(source_key, plan.index()),
+                evaluated_at,
+            ))
         }
-    })
+    }
 }
 
 fn insert_acquisition(
@@ -980,19 +1023,18 @@ fn insert_acquisition(
         if snapshots.len() != dependencies.len() || snapshots.is_empty() {
             return Err(GatewayAttemptError::Corrupt);
         }
-        let source = decode(
-            snapshots[0]
-                .as_deref()
-                .ok_or(GatewayAttemptError::Corrupt)?,
-        )?;
-        if !eligible_source(&record.state.plan, &source, source_key, key)? {
+        let source = snapshots[0]
+            .as_deref()
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let (eligible, source_at) = eligible_source(&record.state.plan, source, source_key, key)?;
+        if !eligible {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         admission.stamp(record, &snapshots[1..native_end])?;
         if let Some(candidate) = candidate {
             candidate.validate_predecessors(&snapshots[native_end..])?;
         }
-        if record.evaluated_at < source.evaluated_at {
+        if record.evaluated_at < source_at {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         encode(record)

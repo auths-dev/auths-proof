@@ -212,6 +212,8 @@ async fn native_prerequisite_compilation_fixture_is_current() {
         journals.push(journal_witness(&approved, &policy, base).await);
         if base == "stripe" {
             guard_evidence_fixture(&approved, &installed);
+            super::recovery_prerequisite_tests::fixture(&approved, &installed, &policy, &root)
+                .await;
         }
         cases.push(json!({
             "recipe": base,
@@ -237,7 +239,7 @@ async fn native_prerequisite_compilation_fixture_is_current() {
     let journal = serde_json::to_vec_pretty(&json!({
         "schema": "auths.prerequisite-entry-fixture/1",
         "scope": "native signed compilation; real file journal with explicit-time oracle grants and synthetic responses; no provider send or installed authority claim",
-        "attempt_schema": "auths.gateway-attempt/10",
+        "attempt_schema": "auths.gateway-attempt/11",
         "cases": journals,
     })).expect("journal fixture");
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -15,6 +15,9 @@ mod prerequisite_tests;
 #[path = "effect_read_budget_tests.rs"]
 mod read_budget_tests;
 
+#[path = "effect_recovery_prerequisite_tests.rs"]
+mod recovery_prerequisite_tests;
+
 /// Native read authority is independent of an expired source writer. File
 /// provenance is real; the source entry is a test grant with no provider send.
 #[tokio::test]
@@ -819,12 +822,10 @@ async fn exercise_recovery_refinement(
                 .await
                 .expect("terminal contract remains available for replay");
             assert!(
-                retained.journal_plan().expect("retained plan")
-                    == read
-                        .recovery_target()
-                        .expect("read target")
-                        .journal_plan()
-                        .expect("approved plan")
+                read.recovery_plan()
+                    .expect("approved plan")
+                    .matches_target(&retained)
+                    .expect("retained target")
             );
             assert!(
                 matches!(

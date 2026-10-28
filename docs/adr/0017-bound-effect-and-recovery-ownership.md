@@ -603,3 +603,30 @@ reservations, preserving the 34-reservation limit. Admission requires at most
 fence. Journal `/10` rejects the superseded acquisition layout. Compiler `/6`
 binds the read's managed reservation set. Independent acquisition/disclosure,
 credential replacement and installed race/fault evidence remain separate work.
+
+## Recovery credential prerequisites
+
+An independently authorized recovery read uses the same installed account and
+capability checks as mutation. Its native request commitment and human review
+include an ordered account/denied-capability acquisition plan derived from the
+pinned recipe and connection. The installation-only probe remains a separate
+onboarding obligation. The recovery action's source and recipe commitments fix
+which declarations are eligible; approval binds their complete resolved bytes.
+
+Use the existing prerequisite records, one-call/full-byte allocations, component
+keys, shared reducer and consumed transport permits. A child may name a reserved
+mutation or a reserved independent recovery acquisition; it cannot name another
+child. The parent must remain reserved at child entry. Recovery's final entry
+fences all required child records/allocations, freshness and actual account or
+capability results, together with its managed policy slots and original source.
+A failed or lost child never authorizes replayed I/O. Ancillary reads consume
+only their explicit child allowance; the parent managed read policy is not
+charged for every component.
+
+Compiler `/7` binds the complete read transport witness. Journal `/11` rejects
+old recovery plans and authenticates child membership against either closed
+parent protocol. Recovery has at most five prerequisites, for at most 48 final
+entry records including 32 managed slots and three native dependencies. The
+existing seven-prerequisite and 64-record bounds remain unchanged. No operator
+attestation is silently promoted into native effect authority: first-install
+and candidate-rotation authorization remain separate unfinished cutovers.

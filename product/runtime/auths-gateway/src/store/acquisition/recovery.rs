@@ -325,11 +325,9 @@ impl GatewayAttempts {
                 )?;
                 if source.binding_canonical != recovery_plan.source_binding
                     || !policy.contains(&source.validate_header()?)
-                    || source
-                        .recovery_target_data()?
-                        .journal_plan()
+                    || !recovery_plan
+                        .matches_target(&source.recovery_target_data()?)
                         .map_err(|_| GatewayAttemptError::Corrupt)?
-                        != *recovery_plan
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }

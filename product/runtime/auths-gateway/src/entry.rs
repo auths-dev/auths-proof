@@ -191,10 +191,10 @@ pub(crate) fn validate_prerequisite_evidence(
     now: u64,
 ) -> Result<(), &'static str> {
     use crate::effect::PrerequisiteKind;
-    use auths_gateway_kernel::order::{AccountResult, DeniedResult, PreEntryResult};
+    use auths_gateway_kernel::order::PreEntryResult;
     use sha2::{Digest as _, Sha256};
     let invalid = "gateway.entry.prerequisite-evidence";
-    let command = approved.command().ok_or(invalid)?;
+    let command = approved.command();
     let plans = approved.prerequisite_plans().map_err(|_| invalid)?;
     if acquired.len() != plans.len() {
         return Err(invalid);
@@ -212,31 +212,15 @@ pub(crate) fn validate_prerequisite_evidence(
             return Err(invalid);
         }
         match evidence.kind {
-            PrerequisiteKind::Account => {
-                let guard = installed.recipe.guard_checks().ok_or(invalid)?;
-                let pointer = guard.account_pointer.as_deref().ok_or(invalid)?;
-                if crate::submit::account_result(
-                    Some(&evidence.response),
-                    pointer,
-                    Some(*installed.connection.account_commitment()),
-                ) != AccountResult::Equal
-                {
-                    return Err(invalid);
-                }
-            }
-            PrerequisiteKind::DeniedCapability(index) => {
-                let guard = installed.recipe.guard_checks().ok_or(invalid)?;
-                let refused = guard
-                    .denied_refused
-                    .get(usize::from(index))
-                    .ok_or(invalid)?;
-                if crate::submit::denied_result(Some(&evidence.response), refused)
-                    != DeniedResult::Refused
-                {
-                    return Err(invalid);
-                }
+            PrerequisiteKind::Account | PrerequisiteKind::DeniedCapability(_) => {
+                validate_credential_evidence(
+                    installed.recipe,
+                    *installed.connection.account_commitment(),
+                    evidence,
+                )?;
             }
             PrerequisiteKind::PreEntry => {
+                let command = command.ok_or(invalid)?;
                 let observer = observer.ok_or(invalid)?;
                 let read = command.request.pre_entry_read().ok_or(invalid)?;
                 let pointers = installed.recipe.pre_entry_pointers().ok_or(invalid)?;
@@ -269,6 +253,7 @@ pub(crate) fn validate_prerequisite_evidence(
                 saw_observations = true;
             }
             PrerequisiteKind::RelativeCeiling => {
+                let command = command.ok_or(invalid)?;
                 let ceiling = installed.recipe.ceiling_check().ok_or(invalid)?;
                 let body = evidence.response.usable_body().ok_or(invalid)?;
                 let argument = ceiling.argument_value(&command.arguments).ok_or(invalid)?;
@@ -300,4 +285,33 @@ pub(crate) fn validate_prerequisite_evidence(
         return Err(invalid);
     }
     Ok(())
+}
+
+/// Shared account/capability meaning for mutation and recovery prerequisites.
+/// This does not grant entry; the final fence also checks freshness/membership.
+pub(crate) fn validate_credential_evidence(
+    recipe: &CompiledRecipe,
+    account: [u8; 32],
+    evidence: &crate::store::PrerequisiteResponse,
+) -> Result<(), &'static str> {
+    use crate::effect::PrerequisiteKind;
+    use auths_gateway_kernel::order::{AccountResult, DeniedResult};
+    let invalid = "gateway.entry.prerequisite-evidence";
+    let guard = recipe.guard_checks().ok_or(invalid)?;
+    let valid = match evidence.kind {
+        PrerequisiteKind::Account => {
+            let pointer = guard.account_pointer.as_deref().ok_or(invalid)?;
+            crate::submit::account_result(Some(&evidence.response), pointer, Some(account))
+                == AccountResult::Equal
+        }
+        PrerequisiteKind::DeniedCapability(index) => {
+            let refused = guard
+                .denied_refused
+                .get(usize::from(index))
+                .ok_or(invalid)?;
+            crate::submit::denied_result(Some(&evidence.response), refused) == DeniedResult::Refused
+        }
+        _ => false,
+    };
+    if valid { Ok(()) } else { Err(invalid) }
 }
