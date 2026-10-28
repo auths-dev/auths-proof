@@ -1,0 +1,13 @@
+{
+  "schema": "auths.effect-fixture/1",
+  "scope": "native compilation and exact approval; no entry or durability claim",
+  "effect_id_hex": "dcc67ab66bf0a0228ef5ca9f4b1b73486c179a166b3232e6b754c0c2ce90c3a6",
+  "binding_canonical": "{\"action\":[130,155,174,42,161,212,222,153,202,43,10,122,87,97,242,35,27,223,112,47,125,115,208,48,115,251,106,13,76,12,240,142],\"compiler\":\"auths.gateway-effect-compiler/1\",\"connection\":[84,123,152,238,89,4,230,133,112,194,246,32,202,254,47,205,177,99,33,243,125,34,37,69,106,219,38,241,75,213,43,35],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"observer-demo\",\"native_authority\":[193,217,12,57,120,59,81,187,101,197,67,79,50,171,103,204,73,150,97,36,251,157,111,73,52,61,93,202,254,31,40,162],\"operation\":\"bound-native-1\",\"partition\":\"synthetic-partition\",\"protocol\":{\"kind\":\"mutation\",\"request\":[43,38,114,196,183,50,144,76,215,249,233,36,35,247,40,103,124,60,28,79,139,77,216,235,230,90,48,212,198,93,122,100]},\"qualification_policy\":\"optional\",\"recipe\":[207,200,179,182,92,125,118,36,245,192,56,244,158,141,121,135,43,50,81,109,250,115,160,58,153,160,42,118,35,205,44,193],\"reservations\":[],\"schema\":\"auths.bound-effect/1\",\"scope\":{\"kind\":\"unscoped\"}}",
+  "approval_canonical": "{\"request\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"effect\":[220,198,122,182,107,240,160,34,142,245,202,159,75,27,115,72,108,23,154,22,107,50,50,230,183,84,192,194,206,144,195,166],\"expires_at\":1790000030,\"not_before\":1790000000,\"schema\":\"auths.exact-effect-approval/1\"},\"signature_b64\":\"gWTY_M_iYTYQ7TjwNwG9h-9W3kGRgUFW0K8YdLpKXZBdtdmWumu5xEjPLVWhx74vlIvrastFVrhwTKUyEHEUCA\"}",
+  "approver_public_key_hex": "e8da63a40ca687c87cfce05cb24a786c7e75cc49c70db5573f026f1c6a86ceaa",
+  "request_method": "PATCH",
+  "request_url": "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001",
+  "request_body": "{\"fields\":{\"DemoStatus\":\"private-sentinel-Approved\",\"auths_echo\":\"auths-e1-e38d866bf40628b9f92313a8dc13515ad20b2b63498935834e2c6c3435545424\"}}",
+  "evaluated_at": 1790000000,
+  "approval_expires_at": 1790000030
+}

@@ -45,7 +45,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         &json!({
             "replacement": {"type": "enum", "variants": ["private-sentinel-Approved", "Pending"]}
         }),
-        &json!({"verified": []}),
+        &Value::Null,
     );
     let context = context(&root, &observer.principal, None);
     let connection = connection(&recipe);

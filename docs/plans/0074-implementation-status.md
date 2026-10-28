@@ -42,8 +42,15 @@ No stage is complete merely because types, documentation or a happy path exist.
   Native signature validation does not replace resource authority or live entry.
 - Source tests authored for identity mutations, canonical/duplicate/limit cases,
   approval substitution/expiry and a real native signed-proof compilation path.
-- A targeted native fixture-generation test was started with
-  `AUTHS_UPDATE_FIXTURES=1`; compilation/generation is pending at this checkpoint.
+- Draft PR: https://github.com/auths-dev/auths-proof/pull/213, initially pushed at
+  `005dfd42`. GitHub connector PR creation lacked permission; authenticated `gh`
+  created the draft. No workflow results have been inspected.
+- The targeted native fixture-generation test completed with one passing test
+  after correcting an invalid empty precondition declaration in the test recipe.
+  Command: `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact observed_tests::effect_native_tests::native_compilation_approval_and_reverification_keep_exact_request`.
+  Artifact: `bindings/fixtures/gateway/effect-binding.json`. This run used
+  `005dfd42` plus the committed null-precondition fixture correction; its scope
+  is compilation, canonical round-trip and exact approval, not A01 completion.
   This local run constructs the required canonical artifact; it is not a broad
   pre-push verification run. No hosted workflows observed or formal gates run.
 - Existing submission still uses the baseline path. P1 is not closed until the
@@ -68,7 +75,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 
 | Case | Required evidence | Implementation / authored / executed | Limitation or next work |
 | --- | --- | --- | --- |
-| A01 | Same bound identity and exact request across review/approval/send | Pending / no / no | Cut over mutation |
+| A01 | Same bound identity and exact request across review/approval/send | Partial / partial / compilation-only | Execution cutover pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Pending / no / no | Full binding comparison |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Pending / no / no | Atomic journal admission |
@@ -85,7 +92,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A15 | Recovery actor differs; original authority revoked | Pending / no / no | Separate recovery authority |
 | A16 | Cross-task/recipe/partition substitution | Pending / no / no | Scope and epoch binding |
 | A17 | Sentinel privacy across errors/logs/public bindings | Pending / no / no | Private audit/public separation |
-| A18 | Canonical/malformed/duplicate/limit binding corpus | Pending / no / no | Native codecs/thin wrappers |
+| A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |
 | A20 | Generated histories and shipping predicate refinement | Pending / no / no | Update linked artifacts |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
