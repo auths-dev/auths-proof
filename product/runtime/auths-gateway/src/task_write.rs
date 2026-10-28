@@ -113,7 +113,9 @@ impl ApprovedTaskWrite {
     }
 }
 
-fn request_commitment(verified: &VerifiedCommand) -> Result<String, GatewaySubmitResult> {
+pub(crate) fn request_commitment(
+    verified: &VerifiedCommand,
+) -> Result<String, GatewaySubmitResult> {
     let request = &verified.request;
     let header_pairs: Vec<_> = request
         .headers()

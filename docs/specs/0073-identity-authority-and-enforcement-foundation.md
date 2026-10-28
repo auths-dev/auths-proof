@@ -2,7 +2,7 @@
 
 - **Status:** Architecture and implementation program in progress. Initial verification contracts are implemented; the complete program and new execution paths are not qualified.
 - **Date:** 26 October 2026.
-- **Updated:** 28 October 2026; implementation goal active. Enrollment, task audience/admission, disclosure permits and enrolled-writer approval are implemented in source; exact-revision evidence remains pending. No acceptance criterion is yet closed.
+- **Updated:** 28 October 2026; implementation goal active. Enrollment, task audience/admission, disclosure permits, enrolled-writer approval and durable task write entry are implemented in source; exact-revision evidence remains pending. No acceptance criterion is yet closed.
 - **Mission:** Build an authorization and identity layer for human–agent, machine–agent, and agent–agent work.
 - **Repository decision:** Evolve this monorepo through direct subsystem replacements. Compatibility with disposable prelaunch state is not a requirement.
 - **Starting revision:** `9b1fe3c202a202750704730aebc47e0585a24470` on `codex/ap-spec-071`.
@@ -128,7 +128,12 @@ and retained operator revocation in one protected record and transaction. It
 rechecks trusted time inside the lock and root association on reopening. This
 source integration still awaits hosted behavioral evidence. Operation admission and ancestor charging now require the native root; pending-root
 tasks refuse resource operations. Enrolled child disclosure and exact-write admission
-are implemented in source. The isolated provider workflow and child recovery
+are implemented in source. Task writes now persist a single entry grant under the
+same lock as participant revocation and consume a noncloneable permit carrying
+the exact closed request. The grant is conservative evidence of permission to
+send, not proof of delivery; a lost permit never reopens entry after restart.
+Native status freshness across the verification-to-lock interval and formal
+refinement of this new transition remain open. The isolated provider workflow and child recovery
 qualification remain incomplete. See the
 [task-journal contract](../plans/0073-engagement-participant-contract.md#14-native-root-and-enrollment-in-the-existing-task-journal).
 

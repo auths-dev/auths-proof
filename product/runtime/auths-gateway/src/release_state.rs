@@ -32,9 +32,11 @@ use thiserror::Error;
 
 mod delivery;
 mod participants;
+mod write_entry;
 pub(crate) use delivery::{EnteredRelease, ReleaseDeliveryBinding};
+pub(crate) use write_entry::EnteredTaskWrite;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/12";
+const SCHEMA: &str = "auths.gateway-agent-task-state/13";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -80,6 +82,7 @@ pub(crate) struct ReleaseTaskPolicy {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WriteOperation {
+    entry: write_entry::WriteEntry,
     writer: crate::participant_enrollment::EnrolledParticipant,
     /// Recorded at reservation so activity can find the exact attempt even
     /// when one task uses recipes with different replay namespaces.
@@ -853,6 +856,7 @@ impl ReleaseTaskState {
         self.writes.insert(
             intent.operation_id.clone(),
             WriteOperation {
+                entry: write_entry::WriteEntry::Reserved,
                 writer: intent.writer.clone(),
                 operator_namespace: operator_namespace.to_owned(),
                 resource_handle: intent.resource_handle.clone(),
@@ -1444,7 +1448,8 @@ impl ReleaseTaskState {
             return Err(ReleaseStateError::Corrupt);
         }
         for (operation_id, write) in &self.writes {
-            if !bounded_text(operation_id, 128)
+            if !write.entry.valid_for(self.not_before, self.expires_at)
+                || !bounded_text(operation_id, 128)
                 || crate::OperatorNamespace::parse(&write.operator_namespace).is_err()
                 || self.operations.contains_key(operation_id)
                 || !valid_digest(&write.action_commitment)

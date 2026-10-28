@@ -1876,3 +1876,291 @@ fn enrolled_writer_review_fixture_matches_native_approval_payload() {
     }
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }
+
+fn reserved_child_write(
+    fixture: &Fixture,
+) -> (
+    crate::task_write::ApprovedTaskWrite,
+    crate::engine::VerifiedCommand,
+    [u8; 32],
+) {
+    fixture.bootstrap().unwrap();
+    let child = fixture.enroll(&fixture.enrollment()).unwrap();
+    let (approval, command) = fixture.write_as(true, "entry-write");
+    fixture
+        .ledger()
+        .reserve_write_with_namespace(&approval, &command, harness::NAMESPACE, &fixture.time, None)
+        .unwrap();
+    (approval, command, child)
+}
+
+#[test]
+fn write_entry_orders_revocation_and_never_reopens_after_restart() {
+    for revoke_first in [true, false] {
+        let fixture = Fixture::with_writes(true);
+        let (approval, command, child) = reserved_child_write(&fixture);
+        if revoke_first {
+            fixture.ledger().revoke_participant(TASK, child).unwrap();
+        }
+        let before = fixture.digest();
+        let entered = fixture.ledger().enter_write(
+            &approval,
+            command.clone(),
+            &fixture.pins,
+            &fixture.time,
+            None,
+        );
+        if revoke_first {
+            assert_eq!(entered.err(), Some(ReleaseStateError::Inactive));
+            assert_eq!(fixture.digest(), before);
+        } else {
+            // Losing a granted in-memory permit models a crash before socket entry.
+            drop(entered.unwrap());
+            let reopened = fixture.ledger().load(TASK).unwrap().unwrap();
+            let stored = serde_json::to_value(&reopened).unwrap();
+            assert_eq!(
+                stored["writes"]["entry-write"]["entry"],
+                json!({"stage": "granted", "at": NOW})
+            );
+            assert_eq!(
+                fixture
+                    .ledger()
+                    .enter_write(
+                        &approval,
+                        command.clone(),
+                        &fixture.pins,
+                        &fixture.time,
+                        None,
+                    )
+                    .err(),
+                Some(ReleaseStateError::Replay)
+            );
+            fixture.ledger().revoke_participant(TASK, child).unwrap();
+            assert_eq!(
+                fixture
+                    .ledger()
+                    .enter_write(&approval, command, &fixture.pins, &fixture.time, None,)
+                    .err(),
+                Some(ReleaseStateError::Inactive)
+            );
+        }
+        assert_eq!(
+            fixture.ledger().load(TASK).unwrap().unwrap().write_count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn write_entry_refuses_writer_request_and_preflight_substitution() {
+    let fixture = Fixture::with_writes(true);
+    let (approval, command, _) = reserved_child_write(&fixture);
+    let before = fixture.digest();
+    let (_, root_command) = fixture.write("entry-write");
+    assert_eq!(
+        fixture
+            .ledger()
+            .enter_write(&approval, root_command, &fixture.pins, &fixture.time, None,)
+            .err(),
+        Some(ReleaseStateError::Binding)
+    );
+    for field in [
+        "request_commitment",
+        "action_commitment",
+        "recipe_digest",
+        "task_commitment",
+    ] {
+        let mut substituted = serde_json::to_value(approval.intent()).unwrap();
+        substituted[field] = json!("ef".repeat(32));
+        let changed = crate::task_write::ApprovedTaskWrite::from_test_intent(
+            serde_json::from_value(substituted).unwrap(),
+        );
+        assert_eq!(
+            fixture
+                .ledger()
+                .enter_write(
+                    &changed,
+                    command.clone(),
+                    &fixture.pins,
+                    &fixture.time,
+                    None,
+                )
+                .err(),
+            Some(ReleaseStateError::Binding)
+        );
+        assert_eq!(fixture.digest(), before);
+    }
+    assert_eq!(
+        fixture
+            .ledger()
+            .enter_write(&approval, command, &fixture.pins, &fixture.time, Some(NOW),)
+            .err(),
+        Some(ReleaseStateError::Binding)
+    );
+    assert_eq!(fixture.digest(), before);
+}
+
+#[test]
+fn concurrent_write_entry_mints_only_one_exact_request_permit() {
+    let fixture = Fixture::with_writes(true);
+    let (approval, command, _) = reserved_child_write(&fixture);
+    let barrier = std::sync::Barrier::new(2);
+    let enter = || {
+        barrier.wait();
+        fixture
+            .ledger()
+            .enter_write(
+                &approval,
+                command.clone(),
+                &fixture.pins,
+                &fixture.time,
+                None,
+            )
+            .map(|permit| *permit.into_request().action_commitment())
+    };
+    let results = std::thread::scope(|scope| {
+        let first = scope.spawn(enter);
+        let second = scope.spawn(enter);
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| **result == Err(ReleaseStateError::Replay))
+            .count(),
+        1
+    );
+    assert_eq!(
+        results.into_iter().find_map(Result::ok).unwrap(),
+        *command.request.action_commitment()
+    );
+    assert_eq!(
+        fixture.ledger().load(TASK).unwrap().unwrap().write_count(),
+        1
+    );
+}
+
+#[test]
+fn write_entry_samples_expiry_after_acquiring_the_revocation_lock() {
+    let fixture = Fixture::with_writes(true);
+    let (approval, command, _) = reserved_child_write(&fixture);
+    let before = fixture.digest();
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(fixture.path.join(".release.lock"))
+        .unwrap();
+    rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive).unwrap();
+    std::thread::scope(|scope| {
+        let (started, ready) = std::sync::mpsc::channel();
+        let fixture = &fixture;
+        let worker = scope.spawn(move || {
+            started.send(()).unwrap();
+            fixture
+                .ledger()
+                .enter_write(&approval, command, &fixture.pins, &fixture.time, None)
+                .map(|_| ())
+        });
+        ready.recv().unwrap();
+        fixture.clock.set(NOW + 600);
+        drop(lock);
+        assert_eq!(worker.join().unwrap(), Err(ReleaseStateError::Inactive));
+    });
+    assert_eq!(fixture.digest(), before);
+}
+
+#[test]
+fn concurrent_revocation_and_write_entry_have_one_durable_order() {
+    let fixture = Fixture::with_writes(true);
+    let (approval, command, child) = reserved_child_write(&fixture);
+    let barrier = std::sync::Barrier::new(2);
+    let result = std::thread::scope(|scope| {
+        let entry = scope.spawn(|| {
+            barrier.wait();
+            fixture
+                .ledger()
+                .enter_write(
+                    &approval,
+                    command.clone(),
+                    &fixture.pins,
+                    &fixture.time,
+                    None,
+                )
+                .map(|_| ())
+        });
+        let revoke = scope.spawn(|| {
+            barrier.wait();
+            fixture.ledger().revoke_participant(TASK, child).unwrap();
+        });
+        revoke.join().unwrap();
+        entry.join().unwrap()
+    });
+    let state = fixture.ledger().load(TASK).unwrap().unwrap();
+    assert!(!state.write_participant_active(&approval.intent().writer, NOW));
+    assert_eq!(state.write_count(), 1);
+    let state = serde_json::to_value(state).unwrap();
+    match result {
+        Ok(()) => assert_eq!(state["writes"]["entry-write"]["entry"]["stage"], "granted"),
+        Err(ReleaseStateError::Inactive) => {
+            assert_eq!(state["writes"]["entry-write"]["entry"]["stage"], "reserved")
+        }
+        other => panic!("entry must have one lock order relative to revocation: {other:?}"),
+    }
+    assert_eq!(
+        fixture
+            .ledger()
+            .enter_write(&approval, command, &fixture.pins, &fixture.time, None,)
+            .err(),
+        Some(ReleaseStateError::Inactive)
+    );
+}
+
+#[test]
+fn stored_write_entry_refuses_missing_unknown_and_out_of_window_grants() {
+    let fixture = Fixture::with_writes(true);
+    let _reserved = reserved_child_write(&fixture);
+    let path = std::fs::read_dir(&fixture.path)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .unwrap();
+    let original = std::fs::read(&path).unwrap();
+    for entry in [
+        serde_json::Value::Null,
+        json!({"stage": "unknown"}),
+        json!({"stage": "reserved", "at": NOW}),
+        json!({"stage": "granted", "at": NOW - 11}),
+        json!({"stage": "granted", "at": NOW + 600}),
+    ] {
+        let mut stored: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        if entry.is_null() {
+            stored["writes"]["entry-write"]
+                .as_object_mut()
+                .unwrap()
+                .remove("entry");
+        } else {
+            stored["writes"]["entry-write"]["entry"] = entry;
+        }
+        std::fs::write(&path, serde_json_canonicalizer::to_vec(&stored).unwrap()).unwrap();
+        assert_eq!(
+            fixture.ledger().load(TASK).err(),
+            Some(ReleaseStateError::Corrupt)
+        );
+    }
+    let mut obsolete: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    obsolete["schema"] = json!("auths.gateway-agent-task-state/12");
+    std::fs::write(&path, serde_json_canonicalizer::to_vec(&obsolete).unwrap()).unwrap();
+    assert_eq!(
+        fixture.ledger().load(TASK).err(),
+        Some(ReleaseStateError::Corrupt)
+    );
+    std::fs::write(&path, original).unwrap();
+    assert_eq!(
+        fixture.ledger().load(TASK).unwrap().unwrap().write_count(),
+        1
+    );
+}

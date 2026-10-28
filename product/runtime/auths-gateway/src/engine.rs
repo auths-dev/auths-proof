@@ -3229,6 +3229,35 @@ struct EngineIo<'a> {
 
 impl EngineIo<'_> {
     #[cfg(unix)]
+    fn enter_task_write(
+        &self,
+    ) -> Result<Option<crate::release_state::EnteredTaskWrite>, GatewayTransportError> {
+        let Some(admission) = &self.task_write else {
+            return Ok(None);
+        };
+        let now = self
+            .engine
+            .execution_time()
+            .ok_or(GatewayTransportError::NotEntered)?;
+        // Re-run native verification at current time against installed evidence;
+        // the earlier admission snapshot is not a live entry permit.
+        let verified = self
+            .verify(now)
+            .map_err(|_| GatewayTransportError::NotEntered)?;
+        admission
+            .ledger
+            .enter_write(
+                admission.approved,
+                verified,
+                admission.pins,
+                &self.engine.qualification,
+                admission.preflight_valid_until,
+            )
+            .map(Some)
+            .map_err(|_| GatewayTransportError::NotEntered)
+    }
+
+    #[cfg(unix)]
     fn task_write_active(&self) -> bool {
         self.task_write.as_ref().is_none_or(|admission| {
             self.engine.execution_time().is_some_and(|now| {
@@ -3562,6 +3591,12 @@ impl SubmitIo for EngineIo<'_> {
         }
         match self.prepared.get() {
             Some(prepared) => {
+                #[cfg(unix)]
+                let entered_request = self
+                    .enter_task_write()?
+                    .map(crate::release_state::EnteredTaskWrite::into_request);
+                #[cfg(unix)]
+                let request = entered_request.as_ref().unwrap_or(request);
                 let outcome = LeasedTransport {
                     transport: &prepared.transport,
                     lease,
@@ -4989,6 +5024,8 @@ pub(crate) mod tests {
                 .replace(&loaded, &ready)
                 .await
                 .expect("install task descriptor");
+            let provider_journal = FileReleaseTaskLedger::open(root_path.clone()).unwrap();
+            let expected_writer = intent.writer.clone();
             let provider = tokio::spawn(async move {
                 const BODY: &[u8] =
                     br#"{"id":"recTEST0000000001","fields":{"DemoStatus":"Approved"}}"#;
@@ -5009,6 +5046,16 @@ pub(crate) mod tests {
                             break end;
                         }
                     };
+                    let durable = provider_journal.load("task-installed-1").unwrap().unwrap();
+                    let durable = serde_json::to_value(durable).unwrap();
+                    assert_eq!(
+                        durable["writes"]["write-installed-1"]["entry"]["stage"],
+                        "granted"
+                    );
+                    assert_eq!(
+                        durable["writes"]["write-installed-1"]["writer"],
+                        serde_json::to_value(&expected_writer).unwrap()
+                    );
                     let head = String::from_utf8(bytes[..end].to_vec()).expect("request head");
                     assert!(
                         head.contains("Bearer pat-materialized"),

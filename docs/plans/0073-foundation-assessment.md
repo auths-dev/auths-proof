@@ -1072,3 +1072,56 @@ passed after those repairs. Downstream behavior is still unverified. Source
 closure construction passed with 399 other tests filtered out; semantic inventory
 412 advances identity 154 and public SDK 151. These are source inventory updates,
 not additional qualified protocol claims.
+
+## 31. Task write entry and revocation share one durable order
+
+The task journal now persists a mandatory write-entry state, `reserved` or
+`granted` with trusted transaction time (schema 13, direct obsolete-state
+rejection). `enter_write` validates the immutable task installation, exact
+reservation and request, enrolled writer, full native resource ancestry, current
+task/participant/grant windows and populate-preflight deadline under the same
+lock as revocation. It reuses reservation's scope predicate without charging
+capacity twice. Only successful persistence returns a noncloneable,
+nonserializable `EnteredTaskWrite` carrying the verified closed request.
+
+`EngineIo::write` now reverifies the native proof against current time and the
+installed verifier context, obtains the journal permit, consumes its request,
+and then enters the existing leased transport. The earlier participant-active
+checks remain useful pre-custody checks but are no longer the only ordering
+mechanism before a write. No provider branch, credential callback, transport
+retry or second executor is introduced. The existing translated submit machine
+is unchanged; its formal evidence does not prove this new task transition.
+
+The linearization point is a durable grant to enter, not proof of provider
+receipt. Revocation first prevents the grant; a grant first may finish or become
+unknown after revocation. Dropping the permit or crashing before the socket
+retains the charge and permanently refuses a new grant. The independent attempt
+journal still owns not-entered, response and observation facts. This deliberately
+conservative two-journal protocol does not claim an atomic network transaction.
+The activity/audit presentation still needs to expose these distinct facts.
+
+New source tests cover both deterministic revocation orders, a concurrent
+revocation race, concurrent duplicate entry, writer/request/recipe/action/task
+substitution, expired preflight, time advancing while the revocation lock is
+held, restart after a dropped permit, mandatory state fields, invalid grant time
+and old-schema refusal. The installed company → machine → A → B test now reads
+the journal at the provider socket and requires the correct writer and durable
+entry grant before responding. These tests await hosted execution.
+
+The preceding fixture/lint repair is pushed as `25f11876`. CI 40608400324 remains
+pinned to `92ae3ce2`; its preflight failed on the repaired test lints and its fast
+Lean job was still running at this checkpoint. No behavior result for the entry
+change is claimed. Source-manifest construction is limited compilation/artifact
+evidence; it must not be substituted for the required hosted tests.
+
+Remaining enforcement work includes equivalent provider-read entry ordering,
+complete status/approval freshness dependencies across verification and entry,
+independent recovery authority after participant revocation, process crash fault
+histories, explicit task activity/audit entry facts, whole-store rollback
+protection and formal refinement. External operator/bootstrap ceremonies,
+isolation, lifecycle, federation and the remaining F01–F16 program are still open.
+
+For this source revision, source-closure construction passed with 405 behavioral
+tests filtered out. Semantic inventory 413 advances identity 155/public SDK 152;
+formatting and diff checks passed. This generation step compiled the added tests
+but did not execute them. Hosted validation remains required.

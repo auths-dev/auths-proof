@@ -963,8 +963,8 @@ attribution, deliberately not a permit. `ReleaseTaskState::write_participant`
 returns retained metadata for native actors; `admit_write_participant` separately
 checks the full active native scope ancestry and exact writer under the existing
 journal lock. `ExactWriteIntent.writer` is mandatory. Confirmation tool v2 and
-effect-plan tool/schema/domain v2 reject obsolete authoring; journal schema 12
-rejects obsolete state. The ordinary request commitment domain is unchanged
+effect-plan tool/schema/domain v2 reject obsolete authoring; journal schema 13
+(§21) rejects obsolete state. The ordinary request commitment domain is unchanged
 because its provider-byte meaning is unchanged.
 
 `TaskWriteReview` contains the exact intent, ordinary closed-request projection,
@@ -1057,3 +1057,68 @@ and a loopback provider write plus read-back. It is source-level evidence for
 that sequence; it does not implement the browser ceremonies, prove process
 isolation or qualify a real provider. Those remain explicit external workflow
 work, together with issuer custody and binding-byte conformance.
+
+## 21. Durable task write entry ordered against revocation
+
+The task journal owns the participant/revocation decision and retained write
+charge. The attempt journal owns transport outcomes. Their distinct records must
+not be collapsed into a claim that a network provider participates in a local
+transaction. This is a task-protocol transition within the existing gateway;
+no provider semantic capability or callback is introduced.
+
+Before:
+
+```mermaid
+flowchart LR
+    R[Reserve task write] --> C[Claim attempt]
+    C --> L[Lease and reload]
+    L --> A[Read participant active flag]
+    A --> W[Provider write]
+    V[Concurrent revocation] -. race .-> W
+```
+
+Required transition:
+
+```mermaid
+flowchart LR
+    R[Reserve exact task write] --> C[Claim attempt]
+    C --> L[Lease and reload]
+    L --> N[Reverify native action and exact approved intent]
+    N --> J[Task lock: validate pins ancestry scope time and reservation]
+    V[Revoke under same task lock] --> J
+    J --> E[Persist entry grant once]
+    E --> P[Return noncloneable in-memory permit]
+    P --> W[Consume permit for its closed provider request]
+    W --> O[Record response or unknown in attempt journal]
+```
+
+The linearization point is the successful durable entry grant, not socket entry.
+Revocation persisted before this point prevents a new permit. Revocation after it
+cannot recall an in-flight effect; the already granted send may finish or become
+unknown. A second entry request is refused even when the first process died before
+sending. No charge is refunded by dropped permits, transport failure or restart.
+Existing explicit provider-idempotency/reconciliation semantics remain separate;
+a new task-entry permit must never be inferred from a retained attempt alone.
+
+State schema 13 adds mandatory `entry` to each exact write reservation: `reserved`
+or `granted` with its trusted transaction time. Old state is rejected directly.
+A granted record must have a time inside the task window. This record is a
+conservative entry grant; it is not a delivery receipt. The attempt journal may
+still prove not-entered or provide an observed result. A crash between the two
+journals retains the reservation and requires inspection/reconciliation, never an
+automatic second write.
+
+Entry reuses the same native scope/ancestry predicate as reservation but performs
+no second budget debit. It also checks the immutable task installation, exact
+writer, recipe, request/action commitments, operation namespace and connection
+pins, current task/participant validity, and preflight deadline. The runtime
+reverifies the proof immediately before this transition; retained native grant
+and action windows are checked again at locked transaction time. Full status
+freshness dependencies across that interval and independent recovery authority
+remain additional work and are not proven by this transition.
+
+Required evidence includes revocation-before-entry, entry-before-revocation,
+concurrent duplicate entry, request/writer substitution, expired entry,
+crash-after-grant/reopen denial, and installed native provider execution. Formal
+qualification must separately cover the new shipping transition; the existing
+translated submit machine does not imply a proof of the task journal.

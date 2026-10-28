@@ -105,7 +105,7 @@ impl ReleaseTaskState {
     }
 
     /// Fresh eligibility check used by the existing pre-entry guard. This is
-    /// not an atomic provider-entry permit: that ordering remains separate.
+    /// not an entry permit: `enter_write` separately orders the durable grant.
     pub(crate) fn write_participant_active(
         &self,
         writer: &crate::participant_enrollment::EnrolledParticipant,
@@ -140,6 +140,25 @@ impl ReleaseTaskState {
         intent: &ExactWriteIntent,
         now: u64,
     ) -> Result<(), ReleaseStateError> {
+        let path = self.authorize_write_participant(verified, intent, now)?;
+        self.require_new_operation(&intent.operation_id)?;
+        self.require_capacity(
+            &path,
+            ParticipantCeilings {
+                writes: 1,
+                ..ParticipantCeilings::default()
+            },
+        )
+    }
+
+    /// Shared eligibility predicate for reservation and durable entry. Entry
+    /// checks an existing reservation and must not debit capacity a second time.
+    pub(super) fn authorize_write_participant(
+        &self,
+        verified: &crate::engine::VerifiedCommand,
+        intent: &ExactWriteIntent,
+        now: u64,
+    ) -> Result<Vec<ParentEnrollmentPins>, ReleaseStateError> {
         let [authority] = verified.authorities.as_slice() else {
             return Err(ReleaseStateError::Binding);
         };
@@ -183,14 +202,7 @@ impl ReleaseTaskState {
         ) {
             return Err(ReleaseStateError::Binding);
         }
-        self.require_new_operation(&intent.operation_id)?;
-        self.require_capacity(
-            &path,
-            ParticipantCeilings {
-                writes: 1,
-                ..ParticipantCeilings::default()
-            },
-        )
+        Ok(path)
     }
 
     pub(super) fn admit_disclosure_participant(
