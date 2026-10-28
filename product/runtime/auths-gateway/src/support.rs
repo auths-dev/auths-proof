@@ -8,12 +8,12 @@
 //! identifier, or raw header therefore has no member to arrive through. An
 //! attempt appears as the digest that keys it and its stage.
 
-use crate::{GatewayAttemptStage, QualificationStatus};
+use crate::{AcquisitionStage, GatewayAttemptStage, GatewayOperationStage, QualificationStatus};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// The schema of the archive.
-pub const SUPPORT_BUNDLE_SCHEMA: &str = "auths.gateway-support-bundle/1";
+pub const SUPPORT_BUNDLE_SCHEMA: &str = "auths.gateway-support-bundle/2";
 /// The most attempts one archive lists.
 pub const MAX_SUPPORT_ATTEMPTS: usize = 256;
 
@@ -64,20 +64,29 @@ pub struct SupportFacts {
     pub connection: Option<SupportConnection>,
     /// Stored attempts as key digest and stage, at most
     /// [`MAX_SUPPORT_ATTEMPTS`]; `None` when the store could not be read.
-    pub attempts: Option<Vec<([u8; 32], GatewayAttemptStage)>>,
+    pub attempts: Option<Vec<([u8; 32], GatewayOperationStage)>>,
     /// Whether the store holds more attempts than were listed.
     pub attempts_truncated: bool,
 }
 
-const fn stage_token(stage: GatewayAttemptStage) -> &'static str {
+const fn stage_token(stage: GatewayOperationStage) -> &'static str {
     match stage {
-        GatewayAttemptStage::NotEntered => "not-entered",
-        GatewayAttemptStage::Reserved => "reserved",
-        GatewayAttemptStage::EntryGranted => "entry-granted",
-        GatewayAttemptStage::ResponseRecorded => "response-recorded",
-        GatewayAttemptStage::Unknown => "unknown",
-        GatewayAttemptStage::Observed => "observed",
-        GatewayAttemptStage::ObservedByProvider => "observed-by-provider",
+        GatewayOperationStage::Mutation(stage) => match stage {
+            GatewayAttemptStage::NotEntered => "not-entered",
+            GatewayAttemptStage::Reserved => "reserved",
+            GatewayAttemptStage::EntryGranted => "entry-granted",
+            GatewayAttemptStage::ResponseRecorded => "response-recorded",
+            GatewayAttemptStage::Unknown => "unknown",
+            GatewayAttemptStage::Observed => "observed",
+            GatewayAttemptStage::ObservedByProvider => "observed-by-provider",
+        },
+        GatewayOperationStage::Acquisition(stage) => match stage {
+            AcquisitionStage::Reserved => "reserved",
+            AcquisitionStage::EntryGranted => "entry-granted",
+            AcquisitionStage::NotEntered => "not-entered",
+            AcquisitionStage::Unknown => "unknown",
+            AcquisitionStage::ResponseRecorded => "response-recorded",
+        },
     }
 }
 
@@ -100,6 +109,7 @@ struct Connection {
 #[derive(Serialize)]
 struct Attempt {
     key_sha256: String,
+    protocol: &'static str,
     stage: &'static str,
 }
 
@@ -107,7 +117,7 @@ struct Attempt {
 struct Attempts {
     listed: usize,
     truncated: bool,
-    by_stage: BTreeMap<&'static str, u64>,
+    by_stage: BTreeMap<&'static str, BTreeMap<&'static str, u64>>,
     identifiers: Vec<Attempt>,
 }
 
@@ -157,7 +167,11 @@ pub fn support_bundle(facts: &SupportFacts) -> Result<Vec<u8>, &'static str> {
         let listed = &available[..available.len().min(MAX_SUPPORT_ATTEMPTS)];
         let mut by_stage = BTreeMap::new();
         for (_, stage) in listed {
-            *by_stage.entry(stage_token(*stage)).or_insert(0_u64) += 1;
+            *by_stage
+                .entry(stage.protocol())
+                .or_insert_with(BTreeMap::new)
+                .entry(stage_token(*stage))
+                .or_insert(0_u64) += 1;
         }
         Attempts {
             listed: listed.len(),
@@ -167,6 +181,7 @@ pub fn support_bundle(facts: &SupportFacts) -> Result<Vec<u8>, &'static str> {
                 .iter()
                 .map(|(key, stage)| Attempt {
                     key_sha256: hex::encode(key),
+                    protocol: stage.protocol(),
                     stage: stage_token(*stage),
                 })
                 .collect(),
@@ -243,9 +258,22 @@ mod tests {
                 in_flight: 0,
             }),
             attempts: Some(vec![
-                ([9; 32], GatewayAttemptStage::Unknown),
-                ([8; 32], GatewayAttemptStage::ObservedByProvider),
-                ([7; 32], GatewayAttemptStage::Unknown),
+                (
+                    [9; 32],
+                    GatewayOperationStage::Mutation(GatewayAttemptStage::Unknown),
+                ),
+                (
+                    [8; 32],
+                    GatewayOperationStage::Mutation(GatewayAttemptStage::ObservedByProvider),
+                ),
+                (
+                    [7; 32],
+                    GatewayOperationStage::Mutation(GatewayAttemptStage::Unknown),
+                ),
+                (
+                    [6; 32],
+                    GatewayOperationStage::Acquisition(AcquisitionStage::Unknown),
+                ),
             ]),
             attempts_truncated: false,
         }
@@ -260,7 +288,12 @@ mod tests {
         assert_eq!(archive["credential_store_kind"], "aws-secrets-manager-v1");
         assert_eq!(archive["qualification"]["state"], "stale");
         assert_eq!(archive["connection"]["state"], "disabled");
-        assert_eq!(archive["attempts"]["by_stage"]["unknown"], 2);
+        assert_eq!(archive["attempts"]["by_stage"]["mutation"]["unknown"], 2);
+        assert_eq!(archive["attempts"]["by_stage"]["acquisition"]["unknown"], 1);
+        assert_eq!(
+            archive["attempts"]["identifiers"][3]["protocol"],
+            "acquisition"
+        );
         assert_eq!(
             archive["attempts"]["identifiers"][1]["key_sha256"],
             "08".repeat(32)
@@ -288,7 +321,13 @@ mod tests {
             ])
         );
         let mut many = facts();
-        many.attempts = Some(vec![([5; 32], GatewayAttemptStage::NotEntered); 400]);
+        many.attempts = Some(vec![
+            (
+                [5; 32],
+                GatewayOperationStage::Mutation(GatewayAttemptStage::NotEntered)
+            );
+            400
+        ]);
         many.attempts_truncated = false;
         let bytes = support_bundle(&many).expect("archive");
         let archive: serde_json::Value = serde_json::from_slice(&bytes).expect("JSON");

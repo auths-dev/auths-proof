@@ -356,3 +356,33 @@ checks as mutation compilation. The literal renderer and signing-request path
 remain shared. No new provider endpoint or read execution is introduced by this
 checkpoint; direct operator re-observation and ancillary reads still require
 the acquisition admission/entry cutover before completion.
+
+
+## Recovery acquisition journal and entry
+
+The next cutover uses attempt journal `/7`: a common immutable header and entry
+history with a closed typed mutation/acquisition payload. It uses the same
+transition predicate, record codec and durable transaction ports. Acquisition
+responses cannot become mutation observations through a protocol or stage tag.
+Support bundle `/2` distinguishes the protocol in both counts and retained stages.
+
+One atomic admission stores the read claim and a permanent allocation holding
+one invocation and the maximum response bytes. The allocation binds distinct
+count and byte keys to the source effect; new read IDs share its fixed 16 slots.
+The existing file batch and PostgreSQL transaction implement this insert.
+PostgreSQL source schema `/8` adds the non-expiring allocation kind directly;
+there is no migration/legacy reader. Sweeping does not refund allocations.
+
+The final read grant uses the existing writer fence over the read attempt,
+source attempt, allocation and current installed dependencies. It rechecks the
+exact source-derived target and fresh read authority. A durable acknowledgement
+returns a one-use permit that the bounded transport consumes; a persisted grant
+alone returns unknown history. Response bytes stay in the private journal and
+do not themselves refine the mutation or authorize content disclosure.
+
+The runtime path refuses recipes requiring additional credential reads until
+those have their own accounted acquisition paths. Source-evidence freshness,
+credential replacement, managed bounds, public execution routes and removal of
+existing raw observation/ancillary paths remain required work. The native file
+corpus uses synthetic entry validation and response bytes; it is narrow durable
+mechanism evidence, not an installed authority or transport claim.

@@ -158,7 +158,7 @@ fn a_support_bundle_holds_no_planted_canary() {
 
     let offline = bundle(&state, &planted);
     let archive: serde_json::Value = serde_json::from_slice(&offline).expect("archive");
-    assert_eq!(archive["schema"], "auths.gateway-support-bundle/1");
+    assert_eq!(archive["schema"], "auths.gateway-support-bundle/2");
     assert_eq!(archive["recipe_sha256"], digest.as_str());
     assert_eq!(archive["deployment"], "development");
     assert_eq!(archive["attempts"]["listed"], 0);

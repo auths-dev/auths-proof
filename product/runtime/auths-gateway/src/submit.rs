@@ -227,8 +227,15 @@ pub(crate) fn denied_result(response: Option<&ProviderResponse>, refused: &[u16]
 
 /// Ends the in-flight count of one entry when dropped, so a count taken
 /// before the final reload is released on every path.
-struct InFlight<'a, I: SubmitIo> {
+pub(crate) struct InFlight<'a, I: SubmitIo> {
     io: &'a I,
+}
+
+impl<'a, I: SubmitIo> InFlight<'a, I> {
+    pub(crate) fn enter(io: &'a I) -> Self {
+        io.enter();
+        Self { io }
+    }
 }
 
 impl<I: SubmitIo> Drop for InFlight<'_, I> {
@@ -378,8 +385,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 // Counted before the reload, so an admin change committed
                 // after this point is seen by the reload, and one committed
                 // before it waits for this entry.
-                self.io.enter();
-                self.in_flight = Some(InFlight { io: self.io });
+                self.in_flight = Some(InFlight::enter(self.io));
                 SubmitEvent::Reload(self.io.reload().await)
             }
             SubmitAction::Lease(_) => {

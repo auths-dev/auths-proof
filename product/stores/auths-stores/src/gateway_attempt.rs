@@ -2,7 +2,7 @@
 //!
 //! This is a mechanism only: all-or-none insert-once batches, a
 //! compare-and-swap replacement, and a bounded sweep of expired slots, over
-//! bounded bytes tagged with one of six closed record kinds. The gateway
+//! bounded bytes tagged with one of seven closed record kinds. The gateway
 //! owns every record format, its stages, and which replacements are valid.
 
 use crate::lifecycle::{PostgresLifecycleStore, map_postgres_error};
@@ -97,6 +97,8 @@ pub enum GatewayRecordKind {
     CommissioningBudget,
     /// Installed effect policy/configuration and shared qualification memory.
     EffectConfiguration,
+    /// Permanent effect capacity allocation; never swept or refunded by age.
+    EffectAllocation,
 }
 
 impl GatewayRecordKind {
@@ -110,6 +112,7 @@ impl GatewayRecordKind {
             Self::Connection => "connection",
             Self::CommissioningBudget => "commissioning-budget",
             Self::EffectConfiguration => "effect-configuration",
+            Self::EffectAllocation => "effect-allocation",
         }
     }
 
@@ -123,6 +126,7 @@ impl GatewayRecordKind {
             "connection" => Some(Self::Connection),
             "commissioning-budget" => Some(Self::CommissioningBudget),
             "effect-configuration" => Some(Self::EffectConfiguration),
+            "effect-allocation" => Some(Self::EffectAllocation),
             _ => None,
         }
     }
@@ -508,7 +512,7 @@ mod tests {
             bounded(&vec![0; MAX_GATEWAY_RECORD_BYTES + 1]),
             Err(StoreError::LimitExceeded)
         );
-        let schema = include_str!("../migrations/postgres_lifecycle_v7.sql");
+        let schema = include_str!("../migrations/postgres_lifecycle_v8.sql");
         assert!(
             schema.contains("octet_length(record_bytes) BETWEEN 1 AND 262144"),
             "the schema bound and the Rust bound are the same"
@@ -520,6 +524,7 @@ mod tests {
             "connection",
             "commissioning-budget",
             "effect-configuration",
+            "effect-allocation",
         ] {
             assert_eq!(
                 GatewayRecordKind::parse(kind).map(GatewayRecordKind::as_str),

@@ -1351,6 +1351,138 @@ impl GatewayEngine {
         )
     }
 
+    /// Acquires one separately authorized bounded recovery response. The result
+    /// describes acquisition only; it does not disclose content or record a
+    /// mutation observation. Replay reads only the existing journal.
+    ///
+    /// # Errors
+    /// Refuses native/approval/configuration failures before admission. Missing
+    /// or unavailable state after uncertain persistence is indeterminate.
+    /// Recipes requiring additional credential reads currently fail closed;
+    /// those reads require their own acquisition admission before this path can
+    /// support them.
+    pub async fn acquire_recovery(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let effect = self
+            .compile_recovery_effect(source_operation, proof, action)
+            .await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        let reads = self
+            .recipe
+            .credential_reads()
+            .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        if reads.probe().is_some() || reads.account().is_some() || !reads.denied().is_empty() {
+            return match self.attempts.read_recovery(&approved).await {
+                Ok(Some(snapshot)) => Ok(snapshot),
+                Ok(None) => Err(not_entered("gateway.acquisition.ancillary-required")),
+                Err(_) => Err(GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                }),
+            };
+        }
+        let reserved = match self.attempts.claim_recovery(&approved, now).await {
+            Ok(crate::AcquisitionClaim::Existing(snapshot)) => return Ok(snapshot),
+            Ok(crate::AcquisitionClaim::Reserved(reserved)) => reserved,
+            Err(crate::GatewayAttemptError::BindingConflict) => {
+                return Err(not_entered("gateway.effect.operation-conflict"));
+            }
+            Err(_) => return self.recovery_projection(&approved).await,
+        };
+        match self
+            .run_recovery_reservation(*reserved, Arc::clone(&approved), now, started)
+            .await
+        {
+            Ok(snapshot) => Ok(snapshot),
+            Err(_) => self.recovery_projection(&approved).await,
+        }
+    }
+
+    async fn recovery_projection(
+        &self,
+        approved: &ApprovedEffect,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        self.attempts
+            .read_recovery(approved)
+            .await
+            .ok()
+            .flatten()
+            .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })
+    }
+
+    async fn run_recovery_reservation(
+        &self,
+        reserved: crate::ReservedAcquisition,
+        approved: Arc<ApprovedEffect>,
+        now: u64,
+        started: Instant,
+    ) -> Result<crate::AcquisitionSnapshot, &'static str> {
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await?;
+        let fresh = io.clock().ok_or("gateway.verify.clock-unavailable")?;
+        io.revalidate(&approved, fresh)
+            .map_err(|_| "gateway.effect.authority-unavailable")?;
+        let _flight = submit::InFlight::enter(&io);
+        let lease = io.lease().await.ok_or("gateway.credential.unavailable")?;
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !io.secret_admitted(&lease, guard))
+        {
+            return Err("gateway.credential.mode-guard");
+        }
+        let validation = io.entry_validation()?;
+        let (granted, permit) = reserved
+            .grant_entry(approved, validation, now)
+            .await
+            .map_err(|_| "gateway.entry.unavailable")?;
+        let prepared = io.prepared.get().ok_or("gateway.entry.unprepared")?;
+        match prepared.transport.recovery_read(permit, &lease).await {
+            Some(response) => match io.clock() {
+                Some(received_at) => {
+                    granted
+                        .record_response(
+                            response.status,
+                            response.version_ok,
+                            &response.body,
+                            received_at,
+                        )
+                        .await
+                }
+                None => granted.record_unknown().await,
+            },
+            None => granted.record_unknown().await,
+        }
+        .map_err(|_| "gateway.attempt.state-unavailable")
+    }
+
     async fn recovery_compilation_target(
         &self,
         source_operation: &str,

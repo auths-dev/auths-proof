@@ -83,6 +83,27 @@ impl RecoveryReadTarget {
         })
     }
 
+    pub(crate) fn closed_request(&self) -> &crate::ClosedObservationRequest {
+        &self.request
+    }
+
+    pub(crate) fn journal_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
+        Ok(RecoveryPlan {
+            source_binding: String::from_utf8(self.source.to_private_bytes()?.to_vec())
+                .map_err(|_| EffectBindingError::Invalid)?,
+            request: commitment(
+                "auths.effect-acquisition-request/1",
+                &canonical(&self.read_wire())?,
+            )?,
+            contract: commitment(
+                "auths.gateway-recovery-read/1",
+                &canonical(&self.contract())?,
+            )?,
+            maximum_response_bytes: u64::try_from(self.request.maximum_response_bytes())
+                .map_err(|_| EffectBindingError::Invalid)?,
+        })
+    }
+
     fn binding(
         &self,
         installed: &EffectInstallation<'_>,
@@ -105,34 +126,8 @@ impl RecoveryReadTarget {
         {
             return Err(invalid());
         }
-        let maximum =
-            u64::try_from(self.request.maximum_response_bytes()).map_err(|_| invalid())?;
-        let reservations = [
-            (Unit::AcquisitionCount, 1, MAX_RECOVERY_ATTEMPTS),
-            (
-                Unit::ResponseBytes,
-                maximum,
-                MAX_RECOVERY_ATTEMPTS * maximum,
-            ),
-        ]
-        .into_iter()
-        .map(|(unit, amount, ceiling)| {
-            Ok(Reservation {
-                key: commitment(
-                    "auths.recovery-capacity/1",
-                    &canonical(&(self.source.id().as_bytes(), unit))?,
-                )?,
-                unit,
-                amount,
-                ceiling,
-                window: ReservationWindow::SourceLifetime,
-            })
-        })
-        .collect::<Result<Vec<_>, EffectBindingError>>()
-        .map_err(|_| invalid())?;
-        let mut reservations = reservations;
-        reservations.sort_by_key(|entry| (entry.key, entry.unit));
-        let contract = self.contract();
+        let plan = self.journal_plan().map_err(|_| invalid())?;
+        let capacity = plan.capacity().map_err(|_| invalid())?;
         EffectBinding::new(BindingWire {
             schema: EFFECT_BINDING_SCHEMA.to_owned(),
             namespace: installed.recipe.namespace().as_str().to_owned(),
@@ -151,19 +146,11 @@ impl RecoveryReadTarget {
             approval_policy: ApprovalPolicy::Exact {
                 approver: installed.approver,
             },
-            reservations,
+            reservations: capacity.reservations(),
             protocol: Protocol::Acquisition {
-                request: commitment(
-                    "auths.effect-acquisition-request/1",
-                    &canonical(&self.read_wire()).map_err(|_| invalid())?,
-                )
-                .map_err(|_| invalid())?,
-                projection: commitment(
-                    "auths.gateway-recovery-read/1",
-                    &canonical(&contract).map_err(|_| invalid())?,
-                )
-                .map_err(|_| invalid())?,
-                maximum_response_bytes: maximum,
+                request: plan.request,
+                projection: plan.contract,
+                maximum_response_bytes: plan.maximum_response_bytes,
             },
         })
         .map_err(|_| invalid())
@@ -204,6 +191,101 @@ impl RecoveryReadTarget {
         .ok_or(EffectBindingError::Invalid)?;
         McpToolCall::new(recipe.service(), RECOVERY_READ_TOOL, arguments)
             .map_err(|_| EffectBindingError::Invalid)
+    }
+}
+
+/// Private immutable journal projection of the native recovery compiler. It
+/// carries no proof or transport capability and is checked against the binding.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RecoveryPlan {
+    pub(crate) source_binding: String,
+    request: [u8; 32],
+    contract: [u8; 32],
+    maximum_response_bytes: u64,
+}
+
+pub(crate) struct RecoveryCapacity {
+    pub(crate) count_key: [u8; 32],
+    pub(crate) bytes_key: [u8; 32],
+    pub(crate) maximum_bytes: u64,
+    pub(crate) attempts: u64,
+}
+
+impl RecoveryPlan {
+    pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
+        EffectBinding::from_private_bytes(self.source_binding.as_bytes())
+    }
+
+    pub(crate) fn capacity(&self) -> Result<RecoveryCapacity, EffectBindingError> {
+        let source = self.source()?;
+        if !(1..=65_536).contains(&self.maximum_response_bytes)
+            || !matches!(source.wire.protocol, Protocol::Mutation { .. })
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        let key = |unit| {
+            commitment(
+                "auths.recovery-capacity/1",
+                &canonical(&(source.id().as_bytes(), unit))?,
+            )
+        };
+        Ok(RecoveryCapacity {
+            count_key: key(Unit::AcquisitionCount)?,
+            bytes_key: key(Unit::ResponseBytes)?,
+            maximum_bytes: self.maximum_response_bytes,
+            attempts: MAX_RECOVERY_ATTEMPTS,
+        })
+    }
+
+    pub(crate) fn validate(
+        &self,
+        effect: &EffectBinding,
+    ) -> Result<RecoveryCapacity, EffectBindingError> {
+        let source = self.source()?;
+        let capacity = self.capacity()?;
+        if source.wire.namespace != effect.wire.namespace
+            || source.wire.partition != effect.wire.partition
+            || source.wire.epoch != effect.wire.epoch
+            || source.wire.recipe != effect.wire.recipe
+            || source.wire.credential_generation != effect.wire.credential_generation
+            || source.wire.scope != effect.wire.scope
+            || source.wire.connection != effect.wire.connection
+            || source.wire.operation == effect.wire.operation
+            || effect.wire.protocol
+                != (Protocol::Acquisition {
+                    request: self.request,
+                    projection: self.contract,
+                    maximum_response_bytes: self.maximum_response_bytes,
+                })
+            || effect.wire.reservations != capacity.reservations()
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(capacity)
+    }
+}
+
+impl RecoveryCapacity {
+    fn reservations(&self) -> Vec<Reservation> {
+        let mut reservations = vec![
+            Reservation {
+                key: self.count_key,
+                unit: Unit::AcquisitionCount,
+                amount: 1,
+                ceiling: self.attempts,
+                window: ReservationWindow::SourceLifetime,
+            },
+            Reservation {
+                key: self.bytes_key,
+                unit: Unit::ResponseBytes,
+                amount: self.maximum_bytes,
+                ceiling: self.attempts * self.maximum_bytes,
+                window: ReservationWindow::SourceLifetime,
+            },
+        ];
+        reservations.sort_by_key(|entry| (entry.key, entry.unit));
+        reservations
     }
 }
 

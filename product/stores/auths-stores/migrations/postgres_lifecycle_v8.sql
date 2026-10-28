@@ -1,13 +1,13 @@
 CREATE TABLE auths_lifecycle_store_meta (
     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-    schema_version INTEGER NOT NULL CHECK (schema_version = 7),
+    schema_version INTEGER NOT NULL CHECK (schema_version = 8),
     contract_id TEXT NOT NULL CHECK (
         contract_id = 'auths.lifecycle.transactional-store/4'
     )
 );
 
 INSERT INTO auths_lifecycle_store_meta (singleton, schema_version, contract_id)
-VALUES (TRUE, 7, 'auths.lifecycle.transactional-store/4');
+VALUES (TRUE, 8, 'auths.lifecycle.transactional-store/4');
 
 CREATE TABLE auths_lifecycle_records (
     workflow_id TEXT PRIMARY KEY CHECK (
@@ -55,7 +55,7 @@ CREATE TABLE auths_recovery_leases (
 CREATE TABLE auths_gateway_records (
     record_key BYTEA PRIMARY KEY CHECK (octet_length(record_key) = 32),
     record_kind TEXT NOT NULL CHECK (
-        record_kind IN ('attempt', 'count-slot', 'sum-slot', 'connection', 'commissioning-budget', 'effect-configuration')
+        record_kind IN ('attempt', 'count-slot', 'sum-slot', 'connection', 'commissioning-budget', 'effect-configuration', 'effect-allocation')
     ),
     expires_at BIGINT NULL CHECK (expires_at IS NULL OR expires_at >= 0),
     record_bytes BYTEA NOT NULL CHECK (

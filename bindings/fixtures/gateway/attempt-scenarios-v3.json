@@ -1,6 +1,6 @@
 {
   "schema": "auths.gateway-attempt-scenarios/3",
-  "attempt_schema": "auths.gateway-attempt/6",
+  "attempt_schema": "auths.gateway-attempt/7",
   "recipes": "hostile-recipes-v2.json",
   "evaluated_at": 1790000000,
   "defaults": {

@@ -138,13 +138,14 @@ pub use separation::{
     principals_overlap,
 };
 pub use store::{
-    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
-    GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,
-    GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel, GatewayFenceDecision,
-    GatewayInsert, GatewayObservationFact, GatewayPreEntry, GatewayProviderEvidence,
+    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, ClaimedGatewayAttempt,
+    FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey, GatewayAttemptSnapshot,
+    GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts, GatewayCounterEntry,
+    GatewayCounterKind, GatewayEvidenceChannel, GatewayFenceDecision, GatewayInsert,
+    GatewayObservationFact, GatewayOperationStage, GatewayPreEntry, GatewayProviderEvidence,
     GatewayRecordEntry, GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt,
-    PostgresGatewayAttemptStore, PrivateDirectoryError, check_private_directory,
-    check_private_directory_owned_by, pre_entry_digest,
+    PostgresGatewayAttemptStore, PrivateDirectoryError, ReservedAcquisition,
+    check_private_directory, check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{
     MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,

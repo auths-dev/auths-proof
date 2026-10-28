@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/6`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/7`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/6";
+const SCHEMA: &str = "auths.gateway-attempt/7";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -169,6 +169,24 @@ impl std::fmt::Debug for GatewayProviderEvidence {
             .field("evidence_bytes", &self.evidence.len())
             .field("observed_at", &self.observed_at)
             .finish()
+    }
+}
+
+/// Typed conservative projection of one operation in the shared journal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GatewayOperationStage {
+    /// Provider mutation facts, including supported independent observations.
+    Mutation(GatewayAttemptStage),
+    /// Provider acquisition facts; never mutation success or recipient delivery.
+    Acquisition(AcquisitionStage),
+}
+
+impl GatewayOperationStage {
+    pub(crate) const fn protocol(self) -> &'static str {
+        match self {
+            Self::Mutation(_) => "mutation",
+            Self::Acquisition(_) => "acquisition",
+        }
     }
 }
 
@@ -484,7 +502,7 @@ impl PreEntryWire {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Record {
+struct Record<S = MutationState> {
     revision: u64,
     schema: String,
     binding_canonical: String,
@@ -495,12 +513,218 @@ struct Record {
     recipe_digest: String,
     nonce: String,
     evaluated_at: u64,
-    stage: GatewayAttemptStage,
     entry: Option<EntryAudit>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    refusal: Option<String>,
+    state: S,
+}
+
+impl<S> Record<S> {
+    fn new(
+        binding: &EffectBinding,
+        approval: &ExactEffectApproval,
+        evaluated_at: u64,
+        state: S,
+    ) -> Result<Self, GatewayAttemptError> {
+        let mut nonce = [0_u8; 16];
+        getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
+        Ok(Record {
+            revision: 1,
+            schema: SCHEMA.to_owned(),
+            binding_canonical: String::from_utf8(
+                binding
+                    .to_private_bytes()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?
+                    .to_vec(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+            approval_canonical: String::from_utf8(
+                approval
+                    .to_private_bytes()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?
+                    .to_vec(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+            namespace: binding.journal_identity().0.to_owned(),
+            operation_id: binding.journal_identity().1.to_owned(),
+            action_commitment: hex::encode(binding.journal_identity().2),
+            recipe_digest: hex::encode(binding.journal_identity().3),
+            nonce: hex::encode(nonce),
+            evaluated_at,
+            entry: None,
+            state,
+        })
+    }
+
+    fn validate_header(&self) -> Result<EffectBinding, GatewayAttemptError> {
+        let binding = EffectBinding::from_private_bytes(self.binding_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let approval = ExactEffectApproval::from_private_bytes(self.approval_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        binding
+            .validate_recorded_approval(&approval, self.evaluated_at)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let (namespace, operation, action, recipe) = binding.journal_identity();
+        if namespace != self.namespace
+            || operation != self.operation_id
+            || hex::encode(action) != self.action_commitment
+            || hex::encode(recipe) != self.recipe_digest
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if self.entry.as_ref().is_some_and(|entry| {
+            entry.schema != "auths.effect-entry/2"
+                || entry.revision < 2
+                || entry.revision > self.revision
+                || entry.authorization_started_at < self.evaluated_at
+                || entry.granted_at < entry.authorization_started_at
+                || entry.granted_at < self.evaluated_at
+                || entry.granted_at > MAX_JSON_INTEGER
+                || entry.effect_id != hex::encode(binding.id().as_bytes())
+                || entry.dependencies.len() >= auths_stores::MAX_GATEWAY_FENCE_RECORDS
+                || entry
+                    .dependencies
+                    .iter()
+                    .any(|value| digest_bytes(value).is_err())
+        }) {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if let Some(entry) = &self.entry {
+            let approval =
+                ExactEffectApproval::from_private_bytes(entry.approval_canonical.as_bytes())
+                    .map_err(|_| GatewayAttemptError::Corrupt)?;
+            binding
+                .validate_recorded_approval(&approval, entry.granted_at)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            if let Some(pre_entry) = &entry.pre_entry {
+                pre_entry.decode()?;
+            }
+        }
+        if self.schema != SCHEMA
+            || self.nonce.len() != 32
+            || !self
+                .nonce
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(binding)
+    }
+
+    fn record_grant(
+        &mut self,
+        approved: &ApprovedEffect,
+        authorization_started_at: u64,
+        now: u64,
+        pre_entry: Option<PreEntryWire>,
+        dependencies: &[Option<Vec<u8>>],
+    ) -> Result<(), GatewayAttemptError> {
+        if self.entry.is_some() || authorization_started_at < self.evaluated_at {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        self.entry = Some(EntryAudit {
+            revision: self.revision,
+            authorization_started_at,
+            pre_entry,
+            approval_canonical: String::from_utf8(
+                approved
+                    .approval()
+                    .to_private_bytes()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?
+                    .to_vec(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+            schema: "auths.effect-entry/2".to_owned(),
+            granted_at: now,
+            effect_id: hex::encode(approved.effect().binding().id().as_bytes()),
+            dependencies: dependencies
+                .iter()
+                .map(|bytes| {
+                    let bytes = bytes.as_deref().ok_or(GatewayAttemptError::Corrupt)?;
+                    auths_codec::domain_commitment("auths.effect-entry-dependency/1", bytes)
+                        .map(|digest| hex::encode(digest.as_bytes()))
+                        .map_err(|_| GatewayAttemptError::Corrupt)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        });
+        Ok(())
+    }
+
+    fn map_state<T>(
+        self,
+        map: impl FnOnce(S) -> Result<T, GatewayAttemptError>,
+    ) -> Result<Record<T>, GatewayAttemptError> {
+        Ok(Record {
+            revision: self.revision,
+            schema: self.schema,
+            binding_canonical: self.binding_canonical,
+            approval_canonical: self.approval_canonical,
+            namespace: self.namespace,
+            operation_id: self.operation_id,
+            action_commitment: self.action_commitment,
+            recipe_digest: self.recipe_digest,
+            nonce: self.nonce,
+            evaluated_at: self.evaluated_at,
+            entry: self.entry,
+            state: map(self.state)?,
+        })
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(
+    tag = "protocol",
+    content = "facts",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+enum ProtocolState {
+    Mutation(MutationState),
+    Acquisition(acquisition::AcquisitionState),
+}
+
+mod acquisition;
+pub(crate) use acquisition::AcquisitionEntryPermit;
+pub use acquisition::{
+    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, ReservedAcquisition,
+};
+
+trait JournalProtocol: Clone + Sized {
+    fn wrap(self) -> ProtocolState;
+    fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError>;
+    fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError>;
+    fn validate(record: &Record<Self>) -> Result<(), GatewayAttemptError>;
+}
+
+impl JournalProtocol for MutationState {
+    fn wrap(self) -> ProtocolState {
+        ProtocolState::Mutation(self)
+    }
+    fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError> {
+        match state {
+            ProtocolState::Mutation(state) => Ok(state),
+            ProtocolState::Acquisition(_) => Err(GatewayAttemptError::BindingConflict),
+        }
+    }
+    fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError> {
+        record.view()
+    }
+    fn validate(record: &Record<Self>) -> Result<(), GatewayAttemptError> {
+        record.snapshot(false).map(|_| ())
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct MutationState {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     counters: Vec<CounterWire>,
+    stage: GatewayAttemptStage,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    refusal: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     response_status: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -555,6 +779,58 @@ fn canonical<T: Serialize>(value: &T) -> Result<Vec<u8>, GatewayAttemptError> {
 }
 
 impl Record {
+    fn counters(&self) -> Result<Vec<GatewayCounterEntry>, GatewayAttemptError> {
+        if self.state.counters.len() > MAX_COUNTERS {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let counters = self
+            .state
+            .counters
+            .iter()
+            .map(|entry| {
+                Ok(GatewayCounterEntry {
+                    kind: entry.kind,
+                    counter: digest_bytes(&entry.counter)?,
+                    slot: entry.slot,
+                })
+            })
+            .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
+        if counters.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(counters)
+    }
+
+    fn recovery_target(&self) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let binding = self.validate_header()?;
+        let link = self.link();
+        let stage_resolvable = match self.state.stage {
+            GatewayAttemptStage::EntryGranted | GatewayAttemptStage::Unknown => {
+                transition::resolves_unknown(link)
+            }
+            GatewayAttemptStage::ResponseRecorded => transition::has_link(link),
+            GatewayAttemptStage::Reserved
+            | GatewayAttemptStage::NotEntered
+            | GatewayAttemptStage::Observed
+            | GatewayAttemptStage::ObservedByProvider => false,
+        };
+        if !stage_resolvable {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let request = self
+            .observation_request()
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        let echo = self
+            .state
+            .observation_plan
+            .as_ref()
+            .filter(|plan| plan.echo_pointer.is_some())
+            .map(|_| self.echo_token())
+            .transpose()?;
+        crate::effect::RecoveryReadTarget::from_journal(binding, request, echo)
+            .map_err(|_| GatewayAttemptError::Corrupt)
+    }
+
     fn echo_token(&self) -> Result<String, GatewayAttemptError> {
         let namespace =
             OperatorNamespace::parse(&self.namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
@@ -568,26 +844,28 @@ impl Record {
     }
 
     fn link(&self) -> Link {
-        self.observation_plan
+        self.state
+            .observation_plan
             .as_ref()
             .map_or(Link::None, ObservationTemplate::link)
     }
 
     /// The projection the translated transition rule inspects.
     fn view(&self) -> Result<AttemptView, GatewayAttemptError> {
-        let reading = match (self.observation_match, self.observation_fact) {
+        let reading = match (self.state.observation_match, self.state.observation_fact) {
             (None, None) => Reading::None,
             (Some(true), None) => Reading::Match,
             (Some(false), None) => Reading::Mismatch,
             (Some(false), Some(GatewayObservationFact::EchoMismatch)) => Reading::EchoMismatch,
             (Some(true) | None, Some(_)) => return Err(GatewayAttemptError::Corrupt),
         };
-        let response = match (self.response_status, &self.response_digest) {
+        let response = match (self.state.response_status, &self.state.response_digest) {
             (None, None) => Vec::new(),
             (Some(status), Some(digest)) => canonical(&(status, digest))?,
             _ => return Err(GatewayAttemptError::Corrupt),
         };
         Ok(AttemptView {
+            protocol: transition::Protocol::Mutation,
             revision: self.revision,
             entry: self
                 .entry
@@ -605,12 +883,13 @@ impl Record {
                 recipe_digest: &self.recipe_digest,
                 nonce: &self.nonce,
                 evaluated_at: self.evaluated_at,
-                counters: &self.counters,
-                observation_plan: self.observation_plan.as_ref(),
+                counters: &self.state.counters,
+                observation_plan: self.state.observation_plan.as_ref(),
             })?,
-            stage: self.stage.kernel(),
-            refusal: self.refusal.is_some(),
+            stage: self.state.stage.kernel(),
+            refusal: self.state.refusal.is_some(),
             pre_entry: self
+                .state
                 .pre_entry
                 .as_ref()
                 .map(canonical)
@@ -618,14 +897,15 @@ impl Record {
                 .unwrap_or_default(),
             response,
             locator: self
+                .state
                 .response_locator
                 .as_ref()
                 .map(canonical)
                 .transpose()?
                 .unwrap_or_default(),
             reading,
-            evidence: self.provider_evidence.is_some(),
-            observation: self.observation_plan.is_some(),
+            evidence: self.state.provider_evidence.is_some(),
+            observation: self.state.observation_plan.is_some(),
             link: self.link(),
         })
     }
@@ -633,30 +913,10 @@ impl Record {
     /// The read-back request of the stored plan and locator, when one can
     /// be built.
     fn observation_request(&self) -> Option<ClosedObservationRequest> {
-        self.observation_plan
+        self.state
+            .observation_plan
             .as_ref()?
-            .request(self.response_locator.as_ref())
-    }
-
-    fn counters(&self) -> Result<Vec<GatewayCounterEntry>, GatewayAttemptError> {
-        if self.counters.len() > MAX_COUNTERS {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        let counters = self
-            .counters
-            .iter()
-            .map(|entry| {
-                Ok(GatewayCounterEntry {
-                    kind: entry.kind,
-                    counter: digest_bytes(&entry.counter)?,
-                    slot: entry.slot,
-                })
-            })
-            .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
-        if counters.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        Ok(counters)
+            .request(self.state.response_locator.as_ref())
     }
 
     fn validate_reservations(
@@ -756,7 +1016,7 @@ impl Record {
     }
 
     fn locator_valid(&self) -> bool {
-        match (&self.response_locator, &self.observation_plan) {
+        match (&self.state.response_locator, &self.state.observation_plan) {
             (None, _) => true,
             (Some(_), None) => false,
             (Some(locator), Some(plan)) => {
@@ -771,48 +1031,8 @@ impl Record {
     }
 
     fn snapshot(&self, recovered: bool) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        let binding = EffectBinding::from_private_bytes(self.binding_canonical.as_bytes())
-            .map_err(|_| GatewayAttemptError::Corrupt)?;
-        let approval = ExactEffectApproval::from_private_bytes(self.approval_canonical.as_bytes())
-            .map_err(|_| GatewayAttemptError::Corrupt)?;
-        binding
-            .validate_recorded_approval(&approval, self.evaluated_at)
-            .map_err(|_| GatewayAttemptError::Corrupt)?;
-        let (namespace, operation, action, recipe) = binding.journal_identity();
-        if namespace != self.namespace
-            || operation != self.operation_id
-            || hex::encode(action) != self.action_commitment
-            || hex::encode(recipe) != self.recipe_digest
-        {
+        if !self.validate_header()?.is_mutation() {
             return Err(GatewayAttemptError::Corrupt);
-        }
-        if self.entry.as_ref().is_some_and(|entry| {
-            entry.schema != "auths.effect-entry/2"
-                || entry.revision < 2
-                || entry.revision > self.revision
-                || entry.authorization_started_at < self.evaluated_at
-                || entry.granted_at < entry.authorization_started_at
-                || entry.granted_at < self.evaluated_at
-                || entry.granted_at > MAX_JSON_INTEGER
-                || entry.effect_id != hex::encode(binding.id().as_bytes())
-                || entry.dependencies.len() > 3
-                || entry
-                    .dependencies
-                    .iter()
-                    .any(|value| digest_bytes(value).is_err())
-        }) {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        if let Some(entry) = &self.entry {
-            let approval =
-                ExactEffectApproval::from_private_bytes(entry.approval_canonical.as_bytes())
-                    .map_err(|_| GatewayAttemptError::Corrupt)?;
-            binding
-                .validate_recorded_approval(&approval, entry.granted_at)
-                .map_err(|_| GatewayAttemptError::Corrupt)?;
-            if let Some(pre_entry) = &entry.pre_entry {
-                pre_entry.decode()?;
-            }
         }
         if self.schema != SCHEMA
             || self.nonce.len() != 32
@@ -820,8 +1040,9 @@ impl Record {
                 .nonce
                 .bytes()
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            || !self.refusal.as_deref().is_none_or(valid_code)
+            || !self.state.refusal.as_deref().is_none_or(valid_code)
             || !self
+                .state
                 .observation_plan
                 .as_ref()
                 .is_none_or(ObservationTemplate::valid)
@@ -837,17 +1058,19 @@ impl Record {
         let action_commitment = digest_bytes(&self.action_commitment)?;
         let recipe_digest = digest_bytes(&self.recipe_digest)?;
         let response_digest = self
+            .state
             .response_digest
             .as_deref()
             .map(digest_bytes)
             .transpose()?;
         if self
+            .state
             .response_status
             .is_some_and(|status| !(100..=599).contains(&status))
         {
             return Err(GatewayAttemptError::Corrupt);
         }
-        let provider_evidence = match &self.provider_evidence {
+        let provider_evidence = match &self.state.provider_evidence {
             Some(wire) => {
                 let locator = self
                     .observation_request()
@@ -859,7 +1082,9 @@ impl Record {
         let pre_entry = self
             .entry
             .as_ref()
-            .map_or(self.pre_entry.as_ref(), |entry| entry.pre_entry.as_ref())
+            .map_or(self.state.pre_entry.as_ref(), |entry| {
+                entry.pre_entry.as_ref()
+            })
             .map(PreEntryWire::decode)
             .transpose()?;
         Ok(GatewayAttemptSnapshot {
@@ -869,18 +1094,18 @@ impl Record {
             action_commitment,
             recipe_digest,
             evaluated_at: self.evaluated_at,
-            stage: if recovered && self.stage == GatewayAttemptStage::EntryGranted {
+            stage: if recovered && self.state.stage == GatewayAttemptStage::EntryGranted {
                 GatewayAttemptStage::Unknown
             } else {
-                self.stage
+                self.state.stage
             },
-            refusal: self.refusal.clone(),
+            refusal: self.state.refusal.clone(),
             counters: self.counters()?,
-            response_status: self.response_status,
+            response_status: self.state.response_status,
             response_digest,
-            response_locator: self.response_locator.clone(),
-            observation_match: self.observation_match,
-            observation_fact: self.observation_fact,
+            response_locator: self.state.response_locator.clone(),
+            observation_match: self.state.observation_match,
+            observation_fact: self.state.observation_fact,
             provider_evidence,
             pre_entry,
         })
@@ -1302,6 +1527,7 @@ impl FileGatewayAttemptStore {
             GatewayRecordKind::Connection => "conn-",
             GatewayRecordKind::CommissioningBudget => "commission-",
             GatewayRecordKind::EffectConfiguration => "config-",
+            GatewayRecordKind::EffectAllocation => "allocation-",
         };
         format!("{prefix}{}.json", hex::encode(key.as_bytes()))
     }
@@ -1552,10 +1778,17 @@ impl FileGatewayAttemptStore {
 
 /// A record or batch file name this store writes.
 fn valid_file_name(name: &str) -> bool {
-    let Some(rest) = ["claim-", "slot-", "sum-", "conn-", "commission-", "config-"]
-        .iter()
-        .find_map(|prefix| name.strip_prefix(prefix))
-    else {
+    let Some(rest) = [
+        "claim-",
+        "slot-",
+        "sum-",
+        "conn-",
+        "commission-",
+        "config-",
+        "allocation-",
+    ]
+    .iter()
+    .find_map(|prefix| name.strip_prefix(prefix)) else {
         return false;
     };
     rest.strip_suffix(".json").is_some_and(|key| {
@@ -1856,44 +2089,25 @@ fn claim_record(
     approval: &ExactEffectApproval,
     evaluated_at: u64,
 ) -> Result<Record, GatewayAttemptError> {
-    let mut nonce = [0_u8; 16];
-    getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
-    let record = Record {
-        revision: 1,
-        schema: SCHEMA.to_owned(),
-        binding_canonical: String::from_utf8(
-            binding
-                .to_private_bytes()
-                .map_err(|_| GatewayAttemptError::Corrupt)?
-                .to_vec(),
-        )
-        .map_err(|_| GatewayAttemptError::Corrupt)?,
-        approval_canonical: String::from_utf8(
-            approval
-                .to_private_bytes()
-                .map_err(|_| GatewayAttemptError::Corrupt)?
-                .to_vec(),
-        )
-        .map_err(|_| GatewayAttemptError::Corrupt)?,
-        namespace: request.namespace().as_str().to_owned(),
-        operation_id: request.operation_id().as_str().to_owned(),
-        action_commitment: hex::encode(request.action_commitment()),
-        recipe_digest: hex::encode(binding.journal_identity().3),
-        nonce: hex::encode(nonce),
+    let record = Record::new(
+        binding,
+        approval,
         evaluated_at,
-        stage: GatewayAttemptStage::Reserved,
-        entry: None,
-        refusal: None,
-        counters: Vec::new(),
-        response_status: None,
-        response_digest: None,
-        response_locator: None,
-        observation_plan: request.observation_template().cloned(),
-        observation_match: None,
-        observation_fact: None,
-        provider_evidence: None,
-        pre_entry: None,
-    };
+        MutationState {
+            counters: Vec::new(),
+            stage: GatewayAttemptStage::Reserved,
+            refusal: None,
+            response_status: None,
+            response_digest: None,
+            response_locator: None,
+            observation_plan: request.observation_template().cloned(),
+            observation_match: None,
+            observation_fact: None,
+            provider_evidence: None,
+            pre_entry: None,
+        },
+    );
+    let record = record?;
     record.snapshot(false)?;
     Ok(record)
 }
@@ -2002,7 +2216,7 @@ impl GatewayAttempts {
     pub async fn stages(
         &self,
         limit: usize,
-    ) -> Result<Vec<(String, GatewayAttemptStage)>, GatewayAttemptError> {
+    ) -> Result<Vec<(String, GatewayOperationStage)>, GatewayAttemptError> {
         let store = Arc::clone(&self.store);
         let policy = self.policy.clone();
         blocking(move || {
@@ -2012,7 +2226,7 @@ impl GatewayAttempts {
                 .filter_map(|key| {
                     let stage = store
                         .load(GatewayRecordKind::Attempt, &key)
-                        .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose())
+                        .and_then(|bytes| bytes.map(|bytes| decode_protocol(&bytes)).transpose())
                         .and_then(|record| {
                             let Some(record) = record else {
                                 return Ok(None);
@@ -2024,12 +2238,26 @@ impl GatewayAttempts {
                             if !policy.contains(&binding) {
                                 return Ok(None);
                             }
-                            record.snapshot(true).map(Some)
+                            let stage = match &record.state {
+                                ProtocolState::Mutation(_) => GatewayOperationStage::Mutation(
+                                    record
+                                        .map_state(MutationState::extract)?
+                                        .snapshot(true)?
+                                        .stage(),
+                                ),
+                                ProtocolState::Acquisition(_) => {
+                                    GatewayOperationStage::Acquisition(
+                                        record
+                                            .map_state(acquisition::AcquisitionState::extract)?
+                                            .snapshot()?
+                                            .stage,
+                                    )
+                                }
+                            };
+                            Ok(Some(stage))
                         });
                     match stage {
-                        Ok(Some(snapshot)) => {
-                            Some(Ok((hex::encode(key.as_bytes()), snapshot.stage())))
-                        }
+                        Ok(Some(snapshot)) => Some(Ok((hex::encode(key.as_bytes()), snapshot))),
                         // Deleted between the listing and the read.
                         Ok(None) => None,
                         Err(error) => Some(Err(error)),
@@ -2102,20 +2330,8 @@ impl GatewayAttempts {
             return Ok(None);
         };
         record.snapshot(false)?;
-        let link = record.link();
-        let stage_resolvable = match record.stage {
-            GatewayAttemptStage::EntryGranted | GatewayAttemptStage::Unknown => {
-                transition::resolves_unknown(link)
-            }
-            GatewayAttemptStage::ResponseRecorded => transition::has_link(link),
-            GatewayAttemptStage::Reserved
-            | GatewayAttemptStage::NotEntered
-            | GatewayAttemptStage::Observed
-            | GatewayAttemptStage::ObservedByProvider => false,
-        };
-        let resumable = stage_resolvable
-            && record.recipe_digest == hex::encode(recipe_digest)
-            && record.observation_request().is_some();
+        let resumable =
+            record.recipe_digest == hex::encode(recipe_digest) && record.recovery_target().is_ok();
         let key = self.key(namespace, operation_id)?;
         Ok(resumable.then(|| ObservableGatewayAttempt {
             attempt: Attempt {
@@ -2165,17 +2381,17 @@ impl GatewayAttempts {
 }
 
 /// One loaded or claimed attempt and the exact bytes it was read as.
-struct Attempt {
+struct Attempt<S = MutationState> {
     store: Arc<dyn GatewayAttemptStore>,
     key: GatewayAttemptKey,
     stored: Vec<u8>,
-    record: Record,
+    record: Record<S>,
 }
 
-impl Attempt {
+impl<S: JournalProtocol> Attempt<S> {
     /// Persists `next` only as a valid stage change from the exact stored
     /// record; a concurrent change by another process is a conflict.
-    async fn advance(mut self, mut next: Record) -> Result<Self, GatewayAttemptError> {
+    async fn advance(mut self, mut next: Record<S>) -> Result<Self, GatewayAttemptError> {
         next.revision = self
             .record
             .revision
@@ -2251,7 +2467,7 @@ impl ClaimedGatewayAttempt {
                         .as_deref()
                         .ok_or(GatewayAttemptError::Corrupt)?,
                 )?;
-                if current.stage != GatewayAttemptStage::Reserved
+                if current.state.stage != GatewayAttemptStage::Reserved
                     || current.binding_canonical.as_bytes()
                         != approved
                             .effect()
@@ -2280,40 +2496,15 @@ impl ClaimedGatewayAttempt {
                     &snapshots[dependency_end..],
                     now,
                 )?;
-                if authorization_started_at < current.evaluated_at {
-                    return Err(GatewayAttemptError::InvalidTransition);
-                }
                 let mut next = current.clone();
-                next.revision = current
-                    .revision
-                    .checked_add(1)
-                    .ok_or(GatewayAttemptError::InvalidTransition)?;
-                next.stage = GatewayAttemptStage::EntryGranted;
-                next.entry = Some(EntryAudit {
-                    revision: next.revision,
+                next.record_grant(
+                    &approved,
                     authorization_started_at,
-                    pre_entry: pre_entry.clone(),
-                    approval_canonical: String::from_utf8(
-                        approved
-                            .approval()
-                            .to_private_bytes()
-                            .map_err(|_| GatewayAttemptError::Corrupt)?
-                            .to_vec(),
-                    )
-                    .map_err(|_| GatewayAttemptError::Corrupt)?,
-                    schema: "auths.effect-entry/2".to_owned(),
-                    granted_at: now,
-                    effect_id: hex::encode(approved.effect().binding().id().as_bytes()),
-                    dependencies: snapshots[1..dependency_end]
-                        .iter()
-                        .map(|bytes| {
-                            let bytes = bytes.as_deref().ok_or(GatewayAttemptError::Corrupt)?;
-                            auths_codec::domain_commitment("auths.effect-entry-dependency/1", bytes)
-                                .map(|digest| hex::encode(digest.as_bytes()))
-                                .map_err(|_| GatewayAttemptError::Corrupt)
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                });
+                    now,
+                    pre_entry.clone(),
+                    &snapshots[1..dependency_end],
+                )?;
+                next.state.stage = GatewayAttemptStage::EntryGranted;
                 if !valid_transition(&current, &next)? {
                     return Err(GatewayAttemptError::InvalidTransition);
                 }
@@ -2348,15 +2539,15 @@ impl ClaimedGatewayAttempt {
         self,
         pre_entry: &GatewayPreEntry,
     ) -> Result<Self, GatewayAttemptError> {
-        if self.attempt.record.stage != GatewayAttemptStage::Reserved {
+        if self.attempt.record.state.stage != GatewayAttemptStage::Reserved {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let fresh = PreEntryWire::encode(pre_entry)?;
-        if self.attempt.record.pre_entry.is_some() {
+        if self.attempt.record.state.pre_entry.is_some() {
             return Ok(self);
         }
         let mut next = self.attempt.record.clone();
-        next.pre_entry = fresh;
+        next.state.pre_entry = fresh;
         Ok(Self {
             attempt: self.attempt.advance(next).await?,
         })
@@ -2373,12 +2564,12 @@ impl ClaimedGatewayAttempt {
         pre_entry: Option<&GatewayPreEntry>,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::NotEntered;
-        next.refusal = Some(refusal.to_owned());
+        next.state.stage = GatewayAttemptStage::NotEntered;
+        next.state.refusal = Some(refusal.to_owned());
         if let Some(pre_entry) = pre_entry
-            && next.pre_entry.is_none()
+            && next.state.pre_entry.is_none()
         {
-            next.pre_entry = PreEntryWire::encode(pre_entry)?;
+            next.state.pre_entry = PreEntryWire::encode(pre_entry)?;
         }
         self.attempt.advance(next).await?.record.snapshot(false)
     }
@@ -2389,7 +2580,7 @@ impl ClaimedGatewayAttempt {
     /// Persistence failure does not permit a retry.
     pub async fn record_unknown(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::Unknown;
+        next.state.stage = GatewayAttemptStage::Unknown;
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -2408,10 +2599,10 @@ impl ClaimedGatewayAttempt {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::ResponseRecorded;
-        next.response_status = Some(status);
-        next.response_digest = Some(hex::encode(digest));
-        next.response_locator = locator;
+        next.state.stage = GatewayAttemptStage::ResponseRecorded;
+        next.state.response_status = Some(status);
+        next.state.response_digest = Some(hex::encode(digest));
+        next.state.response_locator = locator;
         Ok(ObservableGatewayAttempt {
             attempt: self.attempt.advance(next).await?,
         })
@@ -2463,15 +2654,7 @@ impl ObservableGatewayAttempt {
     pub fn recovery_target(
         &self,
     ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
-        let binding = crate::effect::EffectBinding::from_private_bytes(
-            self.attempt.record.binding_canonical.as_bytes(),
-        )
-        .map_err(|_| GatewayAttemptError::Corrupt)?;
-        let request = self
-            .observation_request()
-            .ok_or(GatewayAttemptError::InvalidTransition)?;
-        crate::effect::RecoveryReadTarget::from_journal(binding, request, self.echo_token())
-            .map_err(|_| GatewayAttemptError::Corrupt)
+        self.attempt.record.recovery_target()
     }
 
     /// Returns this attempt's echo token, derived from the stored verified
@@ -2480,6 +2663,7 @@ impl ObservableGatewayAttempt {
     pub fn echo_token(&self) -> Option<String> {
         self.attempt
             .record
+            .state
             .observation_plan
             .as_ref()
             .filter(|plan| plan.echo_pointer.is_some())
@@ -2496,8 +2680,8 @@ impl ObservableGatewayAttempt {
         matched: bool,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::Observed;
-        next.observation_match = Some(matched);
+        next.state.stage = GatewayAttemptStage::Observed;
+        next.state.observation_match = Some(matched);
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -2508,9 +2692,9 @@ impl ObservableGatewayAttempt {
     /// Persistence failure retains only the recorded response.
     pub async fn record_echo_mismatch(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::Observed;
-        next.observation_match = Some(false);
-        next.observation_fact = Some(GatewayObservationFact::EchoMismatch);
+        next.state.stage = GatewayAttemptStage::Observed;
+        next.state.observation_match = Some(false);
+        next.state.observation_fact = Some(GatewayObservationFact::EchoMismatch);
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -2531,6 +2715,7 @@ impl ObservableGatewayAttempt {
             .observation_request()
             .filter(|_| {
                 record
+                    .state
                     .observation_plan
                     .as_ref()
                     .is_some_and(|plan| plan.echo_pointer.is_some())
@@ -2540,7 +2725,7 @@ impl ObservableGatewayAttempt {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let mut next = record.clone();
-        next.provider_evidence = Some(EvidenceWire {
+        next.state.provider_evidence = Some(EvidenceWire {
             channel: GatewayEvidenceChannel::ReadBack,
             locator: locator.url().to_owned(),
             echo: record.echo_token()?,
@@ -2548,13 +2733,15 @@ impl ObservableGatewayAttempt {
             evidence_b64: Base64::encode_string(evidence),
             observed_at,
         });
-        next.stage = GatewayAttemptStage::ObservedByProvider;
+        next.state.stage = GatewayAttemptStage::ObservedByProvider;
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 }
 
-fn encode(record: &Record) -> Result<Vec<u8>, GatewayAttemptError> {
-    let bytes = serde_json::to_vec(record).map_err(|_| GatewayAttemptError::Corrupt)?;
+fn encode<S: JournalProtocol>(record: &Record<S>) -> Result<Vec<u8>, GatewayAttemptError> {
+    let record = record.clone();
+    let wire = record.map_state(|state| Ok(state.wrap()))?;
+    let bytes = serde_json::to_vec(&wire).map_err(|_| GatewayAttemptError::Corrupt)?;
     if bytes.is_empty() || bytes.len() > MAX_RECORD_BYTES {
         return Err(GatewayAttemptError::Corrupt);
     }
@@ -2573,8 +2760,7 @@ fn existing_binding(
         let bytes = store
             .load(GatewayRecordKind::Attempt, &key)?
             .ok_or(GatewayAttemptError::Corrupt)?;
-        let record = decode(&bytes)?;
-        record.snapshot(false)?;
+        let record = decode_protocol(&bytes)?;
         Ok::<_, GatewayAttemptError>(record.binding_canonical == expected)
     })();
     match checked {
@@ -2585,10 +2771,33 @@ fn existing_binding(
 }
 
 fn decode(bytes: &[u8]) -> Result<Record, GatewayAttemptError> {
+    decode_as(bytes)
+}
+
+fn decode_as<S: JournalProtocol>(bytes: &[u8]) -> Result<Record<S>, GatewayAttemptError> {
+    decode_protocol(bytes)?.map_state(S::extract)
+}
+
+fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttemptError> {
     if bytes.is_empty() || bytes.len() > MAX_RECORD_BYTES {
         return Err(GatewayAttemptError::Corrupt);
     }
-    serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)
+    let record: Record<ProtocolState> =
+        serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+    record.validate_header()?;
+    match &record.state {
+        ProtocolState::Mutation(_) => {
+            let typed = record.clone().map_state(MutationState::extract)?;
+            MutationState::validate(&typed)?;
+        }
+        ProtocolState::Acquisition(_) => {
+            let typed = record
+                .clone()
+                .map_state(acquisition::AcquisitionState::extract)?;
+            acquisition::AcquisitionState::validate(&typed)?;
+        }
+    }
+    Ok(record)
 }
 
 /// The snapshot of one stored record's bytes, for the fuzz targets.
@@ -2606,8 +2815,11 @@ pub(crate) fn fuzz_transition(old: &[u8], new: &[u8]) -> Option<bool> {
 
 /// Whether `new` may replace `old`: the translated transition rule on both
 /// projections, and a fully valid `new`.
-fn valid_transition(old: &Record, new: &Record) -> Result<bool, GatewayAttemptError> {
-    Ok(transition::valid_transition(&old.view()?, &new.view()?) && new.snapshot(false).is_ok())
+fn valid_transition<S: JournalProtocol>(
+    old: &Record<S>,
+    new: &Record<S>,
+) -> Result<bool, GatewayAttemptError> {
+    Ok(transition::valid_transition(&S::view(old)?, &S::view(new)?) && S::validate(new).is_ok())
 }
 
 fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
@@ -2733,8 +2945,8 @@ fn store_exhausted(
     code: &'static str,
 ) -> Result<Reserved, GatewayAttemptError> {
     let mut record = base.clone();
-    record.stage = GatewayAttemptStage::NotEntered;
-    record.refusal = Some(code.to_owned());
+    record.state.stage = GatewayAttemptStage::NotEntered;
+    record.state.refusal = Some(code.to_owned());
     record.snapshot(false)?;
     store.insert(&GatewayRecordEntry {
         kind: GatewayRecordKind::Attempt,
@@ -2779,7 +2991,7 @@ fn claim_batch(
         )
         .collect();
     counters.sort_unstable();
-    record.counters = counters
+    record.state.counters = counters
         .iter()
         .map(|entry| CounterWire {
             kind: entry.kind,
@@ -2972,7 +3184,7 @@ impl GatewayAttempts {
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }
-                if record.stage != GatewayAttemptStage::Reserved {
+                if record.state.stage != GatewayAttemptStage::Reserved {
                     return Err(GatewayAttemptError::Replay);
                 }
                 // This handle grants no entry. A fresh fenced CAS still checks

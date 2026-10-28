@@ -38,7 +38,7 @@ const fn listed(from: Stage, to: Stage) -> bool {
     )
 }
 
-const FIXED: [&str; 10] = [
+const FIXED: [&str; 9] = [
     "schema",
     "binding_canonical",
     "approval_canonical",
@@ -48,7 +48,6 @@ const FIXED: [&str; 10] = [
     "recipe_digest",
     "nonce",
     "evaluated_at",
-    "counters",
 ];
 
 fuzz_target!(|data: &[u8]| {
@@ -77,6 +76,11 @@ fuzz_target!(|data: &[u8]| {
     if from != Stage::Reserved || to != Stage::EntryGranted {
         assert_eq!(old.get("entry"), new.get("entry"), "entry grant changed");
     }
+    assert_eq!(old["state"]["protocol"], new["state"]["protocol"]);
+    assert_eq!(
+        old["state"]["facts"]["counters"],
+        new["state"]["facts"]["counters"]
+    );
     for field in FIXED {
         assert_eq!(old.get(field), new.get(field), "{field} changed");
     }

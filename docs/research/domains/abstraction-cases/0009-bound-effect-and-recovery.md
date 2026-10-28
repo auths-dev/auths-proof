@@ -196,3 +196,23 @@ source mutation. Its source entry uses a test oracle and sends no provider
 request. It proves compilation only: conserved acquisition charging, fresh
 transactional read entry, credential replacement, installed review channels and
 bounded observation execution remain open evidence gates.
+
+
+## Recovery acquisition mechanism checkpoint
+
+The shared journal now encodes typed mutation/acquisition payloads under one
+header, codec and transition predicate. The concrete recovery-read payload
+binds the full source, request and capacity plan. It does not reuse mutation
+observation facts or introduce a second transition reducer. Permanent allocation
+slots conserve one call and its maximum bytes together; the source effect, not
+the read operation ID, owns capacity. The final existing adapter fence compares
+the exact source/claim/allocation and fresh authority before granting a permit.
+
+`bindings/fixtures/gateway/recovery-entry.json` is constructed by the native
+recovery fixture using signed proofs and the real file adapter. Its entry check
+and provider response are synthetic. It exercises same-reservation replay,
+stale grant refusal, permit loss/reopen, 16 concurrent contenders for 15 remaining
+slots, permanent retention, private response history and mixed-protocol stage
+projection. It establishes neither provider execution nor installed revocation,
+PostgreSQL parity, process crash behavior, source-evidence freshness or disclosure.
+Those remain required independent evidence and cutover gates.

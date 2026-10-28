@@ -343,6 +343,25 @@ impl GatewayHttpTransport {
         .await
     }
 
+    /// Consumes one newly acknowledged acquisition grant and sends its exact
+    /// native request once. No caller supplies replacement URL or byte limits.
+    pub(crate) async fn recovery_read(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+        lease: &StoredSecretLease,
+    ) -> Option<ProviderResponse> {
+        let secret = lease.expose(Instant::now()).ok()?;
+        let request = permit.request();
+        self.read(
+            reqwest::Method::GET,
+            request.url(),
+            request.headers(),
+            request.maximum_response_bytes(),
+            secret,
+        )
+        .await
+    }
+
     /// One bounded read with `secret`: the complete response of any status,
     /// or `None` after a transport failure or an oversized body. Redirects
     /// are never followed, so a 3xx comes back as its own status.

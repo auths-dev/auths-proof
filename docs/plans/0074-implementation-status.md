@@ -411,6 +411,48 @@ closure regeneration passed after that correction (one artifact-generation test)
   Existing direct operator re-observation and all ancillary reads still need
   replacement. No full acceptance gate, broad local suite or hosted CI is claimed.
 
+## Recovery acquisition journal checkpoint
+
+- Attempt journal `/7` has one common immutable header, approval history, entry
+  audit and codec with closed mutation/acquisition state alternatives. Both
+  protocols use the existing kernel transition predicate and adapter fence.
+  Acquisition cannot acquire mutation observation facts or change protocol.
+  Support bundle `/2` projects protocol and stage separately.
+- Recovery admission atomically inserts the read claim and one permanent
+  `auths.effect-allocation/1` slot charging one invocation and the bound maximum
+  response bytes. All read IDs share the source's 16-slot capacity. Equal replay
+  retains the original allocation; exhaustion records an uncharged refusal;
+  sweeping never refunds source-lifetime allocation. PostgreSQL source schema
+  `/8` admits this non-expiring kind; obsolete disposable schemas are rejected.
+- A read grant fences the read record, exact observable source, allocation and
+  installed authority/configuration/connection dependencies. Only acknowledged
+  persistence returns a one-use read permit. Lost permits project unknown and
+  cannot be reconstructed. Bounded response bytes remain private; public facts
+  distinguish acquisition response from mutation observation and disclosure ACK.
+- `GatewayEngine::acquire_recovery` now connects native read approval, admission,
+  custody, final grant, permit-consuming transport and response recording.
+  Recipes needing additional credential reads fail closed until those reads
+  have their own acquisition accounting. No application/operator execution route
+  or source-evidence refinement has been cut over by this checkpoint.
+- The native recovery artifact generator passed on `964764f2` plus this source:
+  real signed reader proofs, file journal, repeated reservation without charging,
+  single grant and stale contender refusal, reopen after permit loss, concurrent
+  competition for the last 15 of 16 slots, no sweep refund, bounded private
+  response/replay and mixed-protocol support projection. Entry validation and
+  provider response are synthetic. This is not installed authority, actual
+  provider transport, independent-process or PostgreSQL execution evidence.
+- Mutation entry/replay, attempt scenarios, stable/production codes, custody and
+  qualification schema/verification artifact generators also passed on this
+  source. Native mutation binding and final semantic-closure construction passed;
+  CLI approval-envelope construction matched the signed corpus exactly. The new
+  kernel protocol negative tests and revised Kani oracle are
+  authored, not executed. Translated formal artifacts and hosted CI remain open.
+- Still required: admission/current-configuration ordering, safe replacement
+  credentials and managed read-policy bounds, freshness-bound refinement of the
+  source, all ancillary read cutovers, typed disclosure/ACK, authenticated UI and
+  bindings, installed fault/race evidence and final formal/CI gates. No A01–A22
+  acceptance criterion is closed by this checkpoint.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -418,7 +460,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Mutation grant and reservation restart wired | Public projections, independent recovery, installed fault/race evidence and formal links |
-| P3 | Recovery compilation started | Acquisition admission/entry, disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery acquisition journal and runtime entry wired | Ancillary read/source-evidence cutover, disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -443,7 +485,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
 | A13 | Lock wait and independent evidence expiries | Pending / no / no | Clock/full verifier inside boundary |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
-| A15 | Recovery actor differs; original authority revoked | Partial / native compiler fixture / compilation only | Bounded recovery entry, revocation and installed execution |
+| A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file journal / synthetic entry only | Source refinement, revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Pending / no / no | Private audit/public separation |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |

@@ -19,7 +19,7 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 mod acquisition;
-pub(crate) use acquisition::RECOVERY_READ_TOOL;
+pub(crate) use acquisition::{RECOVERY_READ_TOOL, RecoveryCapacity, RecoveryPlan};
 pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
@@ -454,6 +454,10 @@ fn canonical<T: Serialize>(value: &T) -> Result<Zeroizing<Vec<u8>>, EffectBindin
 }
 
 impl EffectBinding {
+    pub(crate) fn is_mutation(&self) -> bool {
+        matches!(self.wire.protocol, Protocol::Mutation { .. })
+    }
+
     pub(crate) fn journal_identity(&self) -> (&str, &str, &[u8; 32], &[u8; 32]) {
         (
             &self.wire.namespace,
@@ -985,6 +989,13 @@ impl ApprovedEffect {
         match &self.effect.command {
             CompiledEffect::Mutation(command) => Some(command),
             CompiledEffect::Acquisition(_) => None,
+        }
+    }
+
+    pub(crate) fn recovery_target(&self) -> Option<&RecoveryReadTarget> {
+        match &self.effect.command {
+            CompiledEffect::Mutation(_) => None,
+            CompiledEffect::Acquisition(command) => Some(&command.target),
         }
     }
 

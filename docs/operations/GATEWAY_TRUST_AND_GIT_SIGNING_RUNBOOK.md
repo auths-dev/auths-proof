@@ -72,10 +72,13 @@ These are private authoring/review operations. They perform no credential lease,
 provider call or admission. The writer's proof or exact approval cannot serve as
 the read's authority. Source and current connection/generation must match in this
 compiler; changed credentials and managed read-policy bounds currently refuse.
-A compiled read cannot be sent through mutation `submit`. Recovery execution and
-accounting remain under implementation, so these commands are not a completed
-recovery journey. Installed authenticated review, frontend, and full concurrency/
-fault evidence also remain open AP074 requirements.
+A compiled read cannot be sent through mutation `submit`. The native runtime now
+has a separate recovery acquisition entry point with permanent count/byte
+allocation and a durable one-use grant. It refuses recipes needing additional
+credential reads until those reads are accounted for. The commands above still
+perform authoring/review only. Source-evidence refinement, public execution
+routes, installed authenticated review, frontend, and full concurrency/fault
+evidence remain open AP074 requirements.
 
 A production installation names its operator only through a signed
 `auths.gateway-operator-attestation/2` statement. `operator-request` prints
@@ -149,11 +152,14 @@ held which key, is operator evidence and is not produced by this code.
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
-  `auths.lifecycle.postgresql/7`; it installs only into an empty database.
+  `auths.lifecycle.postgresql/8`; it installs only into an empty database.
   A database created with an obsolete schema is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
-  `auths.gateway-attempt/6`; a store holding obsolete records is refused as
-  corrupt, so the file store's attempts directory is recreated too.
+  `auths.gateway-attempt/7`; a store holding obsolete records is refused as
+  corrupt, so the file store's attempts directory is recreated too. The journal
+  keeps typed mutation/acquisition facts under one header. Recovery allocations
+  are permanent source-lifetime count/byte reservations and are never swept.
+  Support bundle `/2` reports protocol and stage separately.
 - **Several gateway processes** may serve from the same database. Each
   logical operation is claimed once, by an insert-once row; stage changes are
   compare-and-swap on the exact stored record. A second process that loses a

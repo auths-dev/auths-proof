@@ -253,7 +253,7 @@ async fn native_recovery_acquisition_fixture_is_current() {
             .read(recipe.namespace(), &operation)
             .await
             .expect("read"),
-        Some(before)
+        Some(before.clone())
     );
     let fixture = json!({
         "schema": "auths.gateway-recovery-compilation-fixture/1",
@@ -273,6 +273,225 @@ async fn native_recovery_acquisition_fixture_is_current() {
         std::fs::write(&path, &bytes).expect("write fixture");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), bytes);
+    let mut reads = vec![Arc::new(approved)];
+    for index in 2..=17 {
+        let call = target
+            .authorization_call(
+                &recipe,
+                &LogicalOperationId::parse(&format!("read-{index}")).expect("read operation"),
+            )
+            .expect("native read call");
+        let read = submission_for_call(&root, &reader, &read_grant, &call, &[]);
+        let effect = compile_recovery_acquisition(
+            &read_installation,
+            &target,
+            NOW + 2,
+            &read.proof,
+            &read.action,
+        )
+        .expect("native read effect");
+        let request = effect
+            .approval_request(NOW + 2, NOW + 100)
+            .expect("read request");
+        let signature = key
+            .sign(&request.signing_message().expect("message"))
+            .to_bytes();
+        reads.push(Arc::new(
+            effect
+                .approve(request.with_signature(signature), &public, NOW + 2)
+                .expect("exact read approval"),
+        ));
+    }
+    let corpus = exercise_recovery_journal(&attempts, &root_path, policy.clone(), reads).await;
+    assert_eq!(
+        attempts
+            .read(recipe.namespace(), &operation)
+            .await
+            .expect("source read"),
+        Some(before)
+    );
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/recovery-entry.json");
+    let bytes = serde_json::to_vec_pretty(&corpus).expect("recovery entry corpus");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &bytes).expect("write recovery entry corpus");
+    }
+    assert_eq!(std::fs::read(path).expect("recovery entry corpus"), bytes);
+}
+
+/// Real file-journal race and restart evidence. Both source and read entry use
+/// a test validation oracle, and the response is synthetic; no installed
+/// credential, real provider call or source observation is claimed.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one bounded native journal history produces the corpus"
+)]
+async fn exercise_recovery_journal(
+    attempts: &crate::GatewayAttempts,
+    path: &std::path::Path,
+    policy: EffectPolicy,
+    reads: Vec<std::sync::Arc<crate::effect::ApprovedEffect>>,
+) -> Value {
+    use crate::{AcquisitionClaim, AcquisitionStage};
+    use std::sync::Arc;
+    let first = Arc::clone(&reads[0]);
+    let AcquisitionClaim::Reserved(reserved) = attempts
+        .claim_recovery(&first, NOW + 2)
+        .await
+        .expect("reserve read")
+    else {
+        panic!("reserved read");
+    };
+    let reserved_view = reserved.snapshot().expect("snapshot");
+    assert_eq!(reserved_view.stage, AcquisitionStage::Reserved);
+    assert_eq!(reserved_view.reserved_calls, 1);
+    let AcquisitionClaim::Reserved(stale) = attempts
+        .claim_recovery(&first, NOW + 2)
+        .await
+        .expect("reopen equal read")
+    else {
+        panic!("reopened read");
+    };
+    assert_eq!(stale.snapshot().expect("snapshot"), reserved_view);
+    let (granted, permit) = reserved
+        .grant_entry(
+            Arc::clone(&first),
+            crate::entry::EntryValidation::Oracle { now: NOW + 3 },
+            NOW + 2,
+        )
+        .await
+        .expect("unique read grant");
+    assert!(permit.request().url().starts_with("https://"));
+    drop(permit);
+    drop(granted);
+    assert!(
+        stale
+            .grant_entry(
+                Arc::clone(&first),
+                crate::entry::EntryValidation::Oracle { now: NOW + 3 },
+                NOW + 2
+            )
+            .await
+            .is_err()
+    );
+    let reopened = crate::GatewayAttempts::new(
+        Arc::new(crate::FileGatewayAttemptStore::open(path).expect("reopened file store")),
+        policy,
+    )
+    .expect("attempt owner");
+    let AcquisitionClaim::Existing(replay) = reopened
+        .claim_recovery(&first, NOW + 3)
+        .await
+        .expect("replay after permit loss")
+    else {
+        panic!("history only");
+    };
+    assert_eq!(replay.stage, AcquisitionStage::Unknown);
+    assert_eq!(replay.revision, 2);
+    assert_eq!(replay.reserved_calls, 1);
+    assert_eq!(replay.reserved_bytes, reserved_view.reserved_bytes);
+    assert_eq!(
+        reopened
+            .sweep_expired(NOW + 864_000, 1024)
+            .await
+            .expect("sweep"),
+        0
+    );
+    let mut tasks = tokio::task::JoinSet::new();
+    for (index, approved) in reads.iter().enumerate().skip(1) {
+        let approved = Arc::clone(approved);
+        let attempts = reopened.clone();
+        tasks.spawn(async move {
+            (
+                index,
+                attempts
+                    .claim_recovery(&approved, NOW + 2)
+                    .await
+                    .expect("race admission"),
+            )
+        });
+    }
+    let mut winners = Vec::new();
+    let mut exhausted = 0;
+    while let Some(result) = tasks.join_next().await {
+        let (index, claim) = result.expect("joined race");
+        match claim {
+            AcquisitionClaim::Reserved(reserved) => winners.push((index, reserved)),
+            AcquisitionClaim::Existing(snapshot) => {
+                assert_eq!(snapshot.stage, AcquisitionStage::NotEntered);
+                assert_eq!(snapshot.reserved_calls, 0);
+                assert_eq!(snapshot.reserved_bytes, 0);
+                exhausted += 1;
+            }
+        }
+    }
+    assert_eq!(winners.len(), 15);
+    assert_eq!(exhausted, 1);
+    winners.sort_by_key(|(index, _)| *index);
+    let (index, reserved) = winners.remove(0);
+    let (granted, permit) = reserved
+        .grant_entry(
+            Arc::clone(&reads[index]),
+            crate::entry::EntryValidation::Oracle { now: NOW + 3 },
+            NOW + 2,
+        )
+        .await
+        .expect("response case grant");
+    drop(permit);
+    let response = granted
+        .record_response(200, true, b"{}", NOW + 4)
+        .await
+        .expect("synthetic response record");
+    assert_eq!(response.stage, AcquisitionStage::ResponseRecorded);
+    assert_eq!(response.response_bytes, Some(2));
+    assert_eq!(response.reserved_calls, 1);
+    assert_eq!(response.reserved_bytes, reserved_view.reserved_bytes);
+    let AcquisitionClaim::Existing(history) = reopened
+        .claim_recovery(&reads[index], NOW + 4)
+        .await
+        .expect("response replay")
+    else {
+        panic!("response history only");
+    };
+    assert_eq!(history, response);
+    let mut retained_calls = 0;
+    let mut retained_bytes = 0;
+    for approved in &reads {
+        let snapshot = reopened
+            .read_recovery(approved)
+            .await
+            .expect("read history")
+            .expect("record");
+        retained_calls += snapshot.reserved_calls;
+        retained_bytes += snapshot.reserved_bytes;
+    }
+    assert_eq!(retained_calls, 16);
+    assert_eq!(retained_bytes, 16 * reserved_view.reserved_bytes);
+    let stages = reopened.stages(64).await.expect("mixed journal projection");
+    let mutation_count = stages
+        .iter()
+        .filter(|(_, stage)| matches!(stage, crate::GatewayOperationStage::Mutation(_)))
+        .count();
+    let acquisition_count = stages
+        .iter()
+        .filter(|(_, stage)| matches!(stage, crate::GatewayOperationStage::Acquisition(_)))
+        .count();
+    assert_eq!((mutation_count, acquisition_count), (1, 17));
+    assert!(!stages.iter().any(|(_, stage)| matches!(
+        stage,
+        crate::GatewayOperationStage::Acquisition(AcquisitionStage::EntryGranted)
+    )));
+    json!({
+        "schema": "auths.recovery-entry-fixture/1",
+        "scope": "native read proofs and file journal; synthetic entry validation and response; no provider or installed-authority claim",
+        "admission": {"calls": 1, "bytes": reserved_view.reserved_bytes, "reopen_does_not_charge": true},
+        "permit_loss": {"stage": "unknown", "revision": replay.revision, "stale_grant_refused": true},
+        "race": {"remaining_capacity": 15, "contenders": 16, "winners": 15, "exhausted": exhausted},
+        "retention": {"calls": retained_calls, "bytes": retained_bytes, "sweep_removed": 0},
+        "response": {"stage": "response-recorded", "revision": response.revision, "received_bytes": 2, "replay_preserves_facts": true},
+        "source_journal_unchanged": true,
+        "mixed_projection": {"mutations": mutation_count, "acquisitions": acquisition_count, "grants_project_unknown": true},
+    })
 }
 
 fn connection(recipe: &CompiledRecipe) -> ConnectionRecord {

@@ -14,6 +14,15 @@
 
 use alloc::vec::Vec;
 
+/// Closed external boundary whose facts a journal record may carry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Protocol {
+    /// A provider mutation may be refined by separate observation evidence.
+    Mutation,
+    /// A bounded acquisition records a response, never mutation success.
+    Acquisition,
+}
+
 /// The stage of an attempt record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Stage {
@@ -60,6 +69,8 @@ pub enum Link {
 /// The fields of one stored attempt record the transition rule inspects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttemptView {
+    /// Typed protocol; transitions cannot change it.
+    pub protocol: Protocol,
     /// Monotonic journal revision, bounded to exact JSON integers.
     pub revision: u64,
     /// Canonical bytes of the fields no transition may change.
@@ -229,7 +240,8 @@ pub const fn has_reading(reading: Reading) -> bool {
 #[must_use]
 pub fn consistent(view: &AttemptView) -> bool {
     let has_response = !absent(&view.response);
-    view.revision > 0
+    protocol_consistent(view)
+        && view.revision > 0
         && view.revision <= 9_007_199_254_740_991
         && requires_entry(view.stage) == !absent(&view.entry)
         && refusal_stage(view.stage) == view.refusal
@@ -241,6 +253,38 @@ pub fn consistent(view: &AttemptView) -> bool {
         && provider_stage(view.stage) == view.evidence
         && (!view.evidence || has_link(view.link))
         && (!view.evidence || has_response || resolves_unknown(view.link))
+}
+
+/// Acquisition cannot carry mutation observations, locators or pre-entry reads.
+#[must_use]
+pub fn protocol_consistent(view: &AttemptView) -> bool {
+    match view.protocol {
+        Protocol::Mutation => true,
+        Protocol::Acquisition => {
+            matches!(
+                view.stage,
+                Stage::Reserved
+                    | Stage::EntryGranted
+                    | Stage::NotEntered
+                    | Stage::Unknown
+                    | Stage::ResponseRecorded
+            ) && absent(&view.pre_entry)
+                && absent(&view.locator)
+                && !view.observation
+                && !view.evidence
+                && matches!(view.reading, Reading::None)
+                && matches!(view.link, Link::None)
+        }
+    }
+}
+
+/// Protocol identity is immutable independently of the encoded fixed fields.
+#[must_use]
+pub const fn same_protocol(left: Protocol, right: Protocol) -> bool {
+    matches!(
+        (left, right),
+        (Protocol::Mutation, Protocol::Mutation) | (Protocol::Acquisition, Protocol::Acquisition)
+    )
 }
 
 /// Whether the state requires an immutable entry grant.
@@ -363,7 +407,8 @@ pub const fn link_equal(left: Link, right: Link) -> bool {
 /// consistent with its stage.
 #[must_use]
 pub fn valid_transition(old: &AttemptView, new: &AttemptView) -> bool {
-    old.revision < 9_007_199_254_740_991
+    same_protocol(old.protocol, new.protocol)
+        && old.revision < 9_007_199_254_740_991
         && new.revision == old.revision + 1
         && consistent(old)
         && entry_kept(old, new)
@@ -398,6 +443,7 @@ mod tests {
             Vec::new()
         };
         AttemptView {
+            protocol: Protocol::Mutation,
             revision: 1,
             entry: if requires_entry(stage) {
                 alloc::vec![7]
@@ -425,6 +471,43 @@ mod tests {
         let mut next = new.clone();
         next.revision = old.revision + 1;
         valid_transition(old, &next)
+    }
+
+    #[test]
+    fn acquisition_cannot_gain_mutation_facts_or_change_protocol() {
+        let acquisition = |stage| {
+            let mut value = view(stage, Link::None);
+            value.protocol = Protocol::Acquisition;
+            value.observation = false;
+            value
+        };
+        let reserved = acquisition(Stage::Reserved);
+        let granted = acquisition(Stage::EntryGranted);
+        let response = acquisition(Stage::ResponseRecorded);
+        assert!(transition(&reserved, &granted));
+        assert!(transition(&granted, &response));
+        assert!(!transition(
+            &reserved,
+            &view(Stage::EntryGranted, Link::None)
+        ));
+        assert!(!transition(&view(Stage::Reserved, Link::None), &granted));
+        for stage in [Stage::Observed, Stage::ObservedByProvider] {
+            assert!(!consistent(&acquisition(stage)));
+            assert!(!transition(&response, &acquisition(stage)));
+        }
+        let mut checkpoint = reserved.clone();
+        checkpoint.pre_entry = vec![9];
+        assert!(!consistent(&checkpoint));
+        assert!(!transition(&reserved, &checkpoint));
+        let mut changed = response.clone();
+        changed.locator = vec![1];
+        assert!(!transition(&granted, &changed));
+        changed = response.clone();
+        changed.observation = true;
+        assert!(!consistent(&changed));
+        changed = response.clone();
+        changed.link = Link::Verified;
+        assert!(!consistent(&changed));
     }
 
     #[test]
@@ -568,6 +651,11 @@ mod proofs {
 
     fn any_view() -> AttemptView {
         AttemptView {
+            protocol: if kani::any() {
+                Protocol::Mutation
+            } else {
+                Protocol::Acquisition
+            },
             revision: kani::any(),
             entry: any_bytes(),
             fixed: any_bytes(),
@@ -628,7 +716,20 @@ mod proofs {
                     && (response || view.link == Link::Verified)
             }
         };
+        let protocol = match view.protocol {
+            Protocol::Mutation => true,
+            Protocol::Acquisition => {
+                !matches!(view.stage, Stage::Observed | Stage::ObservedByProvider)
+                    && view.pre_entry.is_empty()
+                    && view.locator.is_empty()
+                    && view.reading == Reading::None
+                    && !view.evidence
+                    && !view.observation
+                    && view.link == Link::None
+            }
+        };
         shape
+            && protocol
             && view.revision > 0
             && view.revision <= 9_007_199_254_740_991
             && (view.locator.is_empty() || response)
@@ -687,6 +788,7 @@ mod proofs {
         let expected = old.revision < 9_007_199_254_740_991
             && new.revision == old.revision + 1
             && old.fixed == new.fixed
+            && old.protocol == new.protocol
             && entry
             && fields_match_stage(&old)
             && old.observation == new.observation
