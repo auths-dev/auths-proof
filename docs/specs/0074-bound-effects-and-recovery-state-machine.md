@@ -17,6 +17,36 @@ Implement two architectural changes together:
 
 The first complete demonstration is one human authorizing one agent to acquire a bounded resource, receive an authorized disclosure, and perform one exactly approved mutation followed by independent observation. A deterministic provider fixture must exercise actual transport and restart boundaries. Expanding participant enrollment, delegation trees, federation, identity recovery or native resource enforcement is outside this specification.
 
+### Managed boundary and retained AP070 reference
+
+AP074 establishes one authorization, admission, execution and recovery authority
+for each **managed gateway operation**. AP070 remains an independently
+implemented, application-owned Google read demonstration with its existing
+Python/SQLite decisions, credentials, routes and explicitly narrower claims.
+Its migration is deferred until managed Google Drive access is intentionally
+productized; it is not an AP074 completion requirement. Preserve the broker and
+its independent reference value. Sharing offline native verification does not
+make its application admission or receipts managed gateway facts.
+
+One managed operation MUST NOT have two independently authoritative decision
+systems. Consequently the gateway MUST NOT delegate a managed grant to AP070,
+load its provider adapter as a runtime callback, give it gateway-managed
+credentials/permits, or accept its SQLite decisions/receipts as native entry or
+recovery evidence. Inventories and deployment policy must distinguish credentials,
+channels, operation namespaces and receipt claims. Independent application-held
+credentials or external writers remain outside managed containment; their
+existence must not be hidden by a managed guarantee. If an application-owned
+reference is reachable by a managed agent, the deployment must still prove that
+it cannot exercise managed credentials or authorize the same managed effect.
+
+Retain independent reference/differential tests and document semantic differences;
+do not force an application-owned reference to use the implementation it tests.
+A future managed Google integration must use native approved capabilities and one
+native journal, with provider-specific metadata/custody evidence reviewed then.
+No Google metadata capability, OAuth refresh integration or AP070 Python-owner
+removal is required to establish the generic gateway foundation. Native bounded
+acquisition/disclosure and all A01–A22 evidence remain mandatory.
+
 This is a prerequisite foundation for those later features. Do not import the AP073 branch wholesale, copy its unfinished task protocol, or make this work depend on its merge. Its findings may inform adversarial cases after independent verification against this baseline.
 
 The work must replace competing interpretations, not add another wrapper around them. Completion requires maintained consumers to use the new owner and superseded managed execution paths to be removed. It does not require replacing sound cryptography, the native verifier, established recipes or the whole repository.
@@ -34,12 +64,12 @@ This inventory is based on source at the baseline, not a claim of exhaustive rev
 | [`transition.rs`](../../product/runtime/auths-gateway-kernel/src/transition.rs), [`recovery.rs`](../../product/runtime/auths-gateway-kernel/src/recovery.rs), [`outcome.rs`](../../product/runtime/auths-gateway-kernel/src/outcome.rs) | Attempt transition rules, recovery capability and truthful outcome predicates. | Preserve their invariants and formal links while making reservation, entry and disclosure explicit. |
 | [`GatewayAttempts`](../../product/runtime/auths-gateway/src/store.rs) | Attempt records, atomic bounded claims, counters, file and PostgreSQL adapters. | Use one logical effect journal and one transaction contract. Do not add an independently authoritative task ledger. |
 | [`auths-lifecycle`](../../product/runtime/auths-lifecycle/src/lib.rs), especially [`operation.rs`](../../product/runtime/auths-lifecycle/src/operation.rs) and [`sealed.rs`](../../product/runtime/auths-lifecycle/src/sealed.rs) | Versioned identities, preparation commitments, lifecycle relations and store acknowledgements used by reference consumers. | Compare and reuse exact mechanisms. Document why retained reference models are not a second production owner. Do not invent a third lifecycle framework. |
-| AP070 [`admission.py`](../../demos/google-employee-delegation/broker/src/employee_read_demo/admission.py), [`read_executor.py`](../../demos/google-employee-delegation/broker/src/employee_read_demo/read_executor.py) and [`receipts.py`](../../demos/google-employee-delegation/broker/src/employee_read_demo/receipts.py) | Demo-owned SQLite read accounting, release decisions and receipt orchestration. | Move shared effect/recovery decisions into the Rust owner; retain presentation and provider-specific reference behavior at the appropriate boundary. |
+| AP070 [`admission.py`](../../demos/google-employee-delegation/broker/src/employee_read_demo/admission.py), [`read_executor.py`](../../demos/google-employee-delegation/broker/src/employee_read_demo/read_executor.py) and [`receipts.py`](../../demos/google-employee-delegation/broker/src/employee_read_demo/receipts.py) | Demo-owned SQLite read accounting, release decisions and receipt orchestration. | Retain as an independently application-owned reference with narrower claims. Compare shared contracts and document differences; do not use its decisions for managed gateway operations. Migration is deferred. |
 | [`DeploymentClock`](../../product/runtime/auths-gateway/src/qualification.rs) | An existing deployment time/trust boundary. | Strengthen this contract where necessary. Do not introduce clocks in individual handlers or reinterpret signed event time. |
 
 Main contains AP070, not the AP071/AP073 native task read/write implementation. This specification must be implementable without files that exist only on those branches.
 
-Before consolidation:
+Baseline managed and independent reference paths:
 
 ```mermaid
 flowchart TB
@@ -51,6 +81,7 @@ flowchart TB
     J --> WR[Write outcome projection]
     S --> RR[Read receipt projection]
     L[Lifecycle reference contracts] -. separate ownership mapping .-> J
+    S -. retained independent reference; no managed authority .-> J
 ```
 
 Target:
@@ -69,7 +100,8 @@ flowchart TB
     X --> E[Typed response, acknowledgement or uncertainty evidence]
     E --> R
     J --> V[Native receipt and activity projections]
-    V --> UI[Thin bindings and UI]
+    V --> UI[Thin managed bindings and UI]
+    REF[Independent application-owned AP070 reference] -. differential comparison only .-> R
 ```
 
 “One” means one semantic owner and one atomic admission authority per partition. It does not mean one global process, one physical database table, one mutable object passed everywhere or a single linear lifecycle for all effect kinds.
@@ -92,7 +124,7 @@ Use a closed protocol sum with typed data for **provider acquisition**, **recipi
 
 A provider name, arbitrary operation string, callback, runtime plugin or untyped map MUST NOT select hidden authorization or recovery behavior. Provider paths, mappings and supported observations remain reviewed, digest-bound recipe data. A new gateway capability must satisfy the repository abstraction process.
 
-The implementation must write an abstraction case comparing at least the existing mutation path, AP070 acquisition/release path and lifecycle reference model, including divergent semantics. Compare two maintained mutation recipes with different recovery capabilities. If the normal extraction threshold is not met, an ADR must justify the narrowly identical mechanism. This is an implementation deliverable, not permission to skip evidence gates.
+The implementation must write an abstraction case comparing at least the existing mutation path, the independently application-owned AP070 acquisition/release reference and lifecycle reference model, including divergent semantics and distinct claim boundaries. Retaining that independence is required; migration is not the comparison gate. Compare two maintained mutation recipes with different recovery capabilities. If the normal extraction threshold is not met, an ADR must justify the narrowly identical mechanism. This is an implementation deliverable, not permission to skip evidence gates.
 
 ### 3.3 Direct cutover
 
@@ -387,8 +419,9 @@ adjuncts, missing content, custom tools and write injection under the reserved
 read tool. A real CLI/daemon fixture installs it under read/release-only native
 trust, refuses mutation submission/review and mutation recovery from acquired
 content, and performs exactly one content GET plus authenticated disclosure.
-This supports standalone native reads; Google metadata gating, credential refresh,
-AP070 owner removal, authenticated UI and installed language evidence remain open.
+This supports standalone native reads. Authenticated UI and installed language
+evidence remain required. Google metadata, credential refresh and AP070 migration
+are deferred provider-integration work outside AP074 completion.
 
 Explicit content acquisition is a versioned opt-in recipe capability,
 `content.schema = auths.gateway-content-read/1`, within recipe source `/3`.
@@ -466,8 +499,8 @@ or new provider permit. Unknown/oversized responses retain their full charges.
 The public acquisition projection reports only `ready { bytes }` or
 `rejected { code }`, never the private key, content digest, hiding commitment or
 plaintext. A ready result grants no disclosure authority. Standalone read-only
-installation, AP070 metadata predicates and installed
-CLI/binding journeys remain required for the cutover.
+installation and installed managed CLI/binding journeys remain required. AP070
+metadata and broker integration are separately deferred.
 
 The journal's sealed `RetainedContent` is private provenance, with no public
 plaintext accessor or deserializer. Loading requires the exact namespace,
@@ -599,7 +632,8 @@ history and late-ACK methods carry native bytes unchanged; they implement no
 content projection, commitment, signing, accounting or retry decision. Recipient
 protocol execution stays in Rust. Native frame/CLI artifacts and socket-client
 cases are narrower than installed authority/UI/binding/hostile-process evidence;
-authenticated UI/installed binding integration and AP070 cutover remain required.
+authenticated UI/installed managed binding integration remains required. AP070
+remains an independent application-owned reference; its cutover is deferred.
 
 Native `effect-content-call` accepts a private resource-argument file and uses
 `ContentReadTarget` against the installed connection. It reuses the bounded
@@ -630,8 +664,9 @@ trashed semantics, malformed input and the existing 16 KiB bound. The reference
 reader uses one typed domain validator; malformed MIME/decimal inputs deny.
 Historical duplicate, alternate-encoding, nonboolean-trash and Unicode-size
 acceptance are explicitly marked for stricter native refusal. This corpus is an
-input to the required native metadata capability/differential extraction; it does
-not complete that capability, token refresh or Python journal cutover.
+optional input to future managed Google capability/differential extraction. The
+existing broker and corpus are preserved; native Google metadata, token refresh
+and Python journal migration are deferred rather than AP074 exit gates.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
@@ -859,7 +894,15 @@ The implementation should expose a small set of Rust-owned operations, with exac
 
 Centralize clocks, canonicalization, effect comparisons, charge transitions and receipt claims at these owners. Do not scatter fixes across Python presenters, HTTP routes, CLI handlers or recipe branches. UI and SDKs must consume the same native review and state projection, including unknown and not-entered distinctions.
 
-For the AP070 read demonstration, remove independent Python decisions for the shared contract in the same cutover. Provider-specific reference code may remain outside the shared gateway; production managed I/O must use approved data-only capabilities. Inventory every retained weaker application-owned path and label its claim accurately. Do not turn a demo adapter into a runtime callback loaded by the gateway.
+Managed gateway consumers must call the native shared owner directly; remove
+competing decisions for the same managed operation in that cutover. AP070 is a
+retained independently application-owned reference, not such a managed consumer.
+Keep its broker and narrower claims intact and use its independent behavior for
+comparison where contracts overlap. Inventory retained application-owned paths,
+credentials and claims, and prove they cannot bypass the managed deployment's
+credential/channel boundary. Do not load a reference adapter into the gateway or
+promote its decisions/receipts to managed authority. Future managed Google access
+requires its own explicit integration decision and one native admission owner.
 
 ## 8. Hard limits and stable failures
 
@@ -929,10 +972,10 @@ All rows require reproducible artifacts, expected journal state, expected extern
 | A16 | Cross-task, cross-recipe and cross-partition substitutions use otherwise valid proofs and identical resource names. No mixed authority or shared-state aliasing. |
 | A17 | Capture logs, errors, public receipts and binding output with sentinel secrets/private content. No sensitive bytes or guessable public content commitments escape. |
 | A18 | Canonical valid, malformed, duplicate, noncanonical and limit/limit-plus-one cases agree across Rust and every affected public binding. |
-| A19 | Differential corpus covers two mutation recipes with distinct recovery capabilities, plus acquisition/disclosure, against retained references. No provider-specific branch enters the shared owner. |
+| A19 | Differential corpus covers two mutation recipes with distinct recovery capabilities, plus acquisition/disclosure, against independent retained references. Preserve reference independence and document contract differences; AP070 may remain an application-owned reference without migration. No provider-specific branch enters the shared owner. |
 | A20 | Model-generated event sequences and concurrent histories exercise every transition and illegal edge. Formal/refinement artifacts identify the actual shipping pure predicates and assumptions. |
 | A21 | Replay retention, terminal tombstones, stale cache/configuration and supported rollback-floor failures cannot resurrect entry authority. Unsupported whole-store rollback is explicitly excluded. |
-| A22 | Installed packages and native runtime execute the complete single-human/single-agent read, disclosure, exact write and observation journey; UI distinguishes grant, response, ACK, observation and unknown. |
+| A22 | Installed packages and native runtime execute the complete managed single-human/single-agent read, disclosure, exact write and observation journey; UI distinguishes grant, response, ACK, observation and unknown. Use an approved native recipe and real local transport; Google/AP070 integration is not required and an application-owned broker cannot substitute for managed evidence. |
 
 The same rows additionally require the following hardening cases; these are
 part of their exit gates, not optional follow-up work:
@@ -943,7 +986,7 @@ part of their exit gates, not optional follow-up work:
 | A04, A06, A12, A13 | Independent processes race dependency changes against the final grant on both adapters, including state in distinct physical records. Histories satisfy the named fencing mechanism; existing reservations are not charged twice. |
 | A11, A15, A22 | Exhaust reconciliation attempts/bytes/time; age its evidence; make authority/store unavailable. Retained charges and escalation remain visible; administrative annotations cannot manufacture non-entry or retry authority. |
 | A16, A20 | Scope/participant and charge inputs cannot create a second admission authority. Exercise the current unscoped/single-agent boundary and reject unsupported delegation representations; no AP073 implementation is required. |
-| A17, A21, A22 | Hostile isolated agent exercises the complete interface inventory, obsolete endpoints and alternate credential/transport routes. Assert no unauthorized managed provider calls and document the actual isolation assumptions. |
+| A17, A21, A22 | Hostile isolated agent exercises the complete managed interface inventory, obsolete endpoints and alternate credential/transport routes. Assert no unauthorized managed provider calls and document the actual isolation assumptions. Retained application-owned references must not expose managed credentials, permits or an alternate authority for the same managed effect; verify the applicable deployment separation. |
 
 Use external call counters and process failpoints, not only mocked return values or tests asserting the implementation's own intermediate flags. Exercise real local sockets, process restart and the maintained PostgreSQL fixture. Provider-specific live qualification remains a separate claim; no cloud credential should be necessary for the local foundation journey.
 
@@ -962,18 +1005,18 @@ Measure native verification, compilation, transaction/lock duration, memory boun
 | P0: map and decide | Baseline source/consumer inventory; ownership ADR and abstraction case; canonical field, limit and state tables; retain/replace list. | Every existing invariant and production/reference owner accounted for. No implementation built on an unresolved competing owner. |
 | P1: bind one mutation | Native immutable effect, review/approval, deterministic request compilation and thin binding entry points. | E01–E05 on one maintained mutation path; adversarial binding corpus authored; direct cutover removes duplicate reconstruction. |
 | P2: central durable mutation | Sole reducer/journal for reservations, entry, response, unknown and observation, with file/PostgreSQL adapters. | R01–R10 for mutation; restart/concurrency/fault evidence implemented; no dual task/attempt authority. |
-| P3: acquisition and disclosure | Typed read/release protocol in the same owner, explicit source/recipient binding and ACK handling; thin AP070 consumer. | Independent read/disclosure charges and permissions; ACK loss/revocation/replay cases implemented; Python stops deciding shared transitions. |
+| P3: acquisition and disclosure | Typed managed read/release protocol in the same native owner, explicit source/recipient binding and ACK handling; thin managed bindings. | Independent read/disclosure charges and permissions; ACK loss/revocation/replay cases implemented; no managed consumer independently decides shared transitions. AP070 remains an independent reference. |
 | P4: close integration and evidence | Second recipe differential cases, installed bindings, full local journey, native projections, formal links and final hosted checks. | A01–A22 addressed with exact-revision evidence, documented assumptions and no unsupported claims. |
 
 Commit coherent changes along the way. Keep a durable acceptance ledger separating implemented, source-tested, executed, externally qualified and blocked. Do not mark a phase complete merely because its types exist or the happy path works.
 
-Observe CI only after the specification's implementation is complete, as requested by the user. Follow the repository's GitHub-first policy: construct necessary generated artifacts locally; do not run duplicate broad local suites by default. Once implementation, fixtures and documentation are complete, push the finished branch, inspect required hosted workflows on that exact revision, repair failures, and repeat until the required evidence is resolved. Report external blockers rather than weakening checks or pretending a skipped job passed.
+Follow the repository's GitHub-first policy: construct necessary generated artifacts locally and avoid duplicate broad local suites by default. The user has explicitly authorized early CI failure triage; this does not replace final verification. Once implementation, fixtures and documentation are complete, push the finished branch, inspect every required hosted workflow on that exact revision, repair failures, and repeat until the required evidence is resolved. Report external blockers rather than weakening checks or pretending a skipped job passed.
 
 The foundation is not complete until required behavioral and hosted evidence passes. Delaying CI observation is not a waiver of verification. No merge or deployment is authorized by this spec.
 
 ## 13. Completion and handoff boundary
 
-Done means both central contracts own the maintained paths, obsolete managed interpretations are removed, interfaces and bindings are updated, source-linked formal and operational evidence are current, and the acceptance ledger contains actual results. The result must be a reviewable implementation with a concise explanation of changed behavior, tests and remaining deployment assumptions.
+Done means both central contracts own the maintained managed paths, obsolete managed interpretations are removed, interfaces and bindings are updated, source-linked formal and operational evidence are current, and the acceptance ledger contains actual results. The result must be a reviewable implementation with a concise explanation of changed behavior, tests and remaining deployment assumptions.
 
 Only after this foundation is closed should multi-agent delegation add participant trees and ancestor budget allocation on top. Those features must consume the established effect and recovery contracts instead of creating their own parallel journals, approval identities or retry rules.
 

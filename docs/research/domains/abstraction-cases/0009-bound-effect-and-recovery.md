@@ -16,10 +16,10 @@ Owner: product gateway/kernel, per [ADR 0017](../../../adr/0017-bound-effect-and
 | File attempt adapter | Private files, flock, fsync/rename, batch rollback, CAS | Retain durability; add bounded transactional validation/fencing |
 | PostgreSQL gateway records | Atomic batch, byte CAS, commit acknowledgement | Retain mechanism; extend shared transaction boundary |
 | Lifecycle `operation` / `sealed` | Preparation commitments, validated store ACK, profile-specific lifecycle | Reference semantics; no second managed gateway owner |
-| AP070 `AdmissionStore` / `ProviderAttemptLedger` | SQLite task counters, challenge/release decisions, per-GET records | Remove shared decisions in native cutover |
-| AP070 `execute_read` / `ReceiptStore` | Provider-specific fetch, release orchestration, Python receipt claims | Thin consumer of native stages and projections |
+| AP070 `AdmissionStore` / `ProviderAttemptLedger` | Application-owned SQLite task counters, challenge/release decisions, per-GET records | Retain independent reference and narrower claims; never authorize managed gateway effects |
+| AP070 `execute_read` / `ReceiptStore` | Application-owned fetch, release orchestration and receipt claims | Preserve broker/reference; do not promote its facts to managed entry/recovery evidence |
 | TS `gateway.ts`, Python native runtime, gateway app/admin | Socket/binding routes and views | Expose native construction and state; no local effect hashes |
-| AP070 Drive adapter | Metadata/content GETs and provenance checks | Retain independent provider reference; managed I/O uses closed recipe |
+| AP070 Drive adapter | Application-owned metadata/content GETs and provenance checks | Retain independent reference; any future managed Google integration needs separately reviewed native capabilities |
 | Gateway observer / audit / harness / commissioning | Signed observations, audit facts, local fixtures, bounded operator authority | Update identities and stages atomically; do not bypass commissioning bounds |
 
 ## Comparison and extraction classification
@@ -101,7 +101,9 @@ unknown keeps charges. Pre-entry refusal only releases declared releasable units
 
 Replace affected formats and call sites in one bounded PR. No production
 compatibility path, migration or dual journal. Reference models remain explicitly
-test-only. Formal work must update translated shipping predicates and refinement
+test-only or independently application-owned with explicit narrower claims.
+They cannot exercise managed credentials or become a second managed authority.
+Formal work must update translated shipping predicates and refinement
 links, not claim a hand-written model proves runtime code. Adapter assumptions
 include lock/commit durability, clock trust, recipient authentication and provider
 observation integrity; whole-store rollback without an external anchor is excluded.
@@ -748,5 +750,31 @@ native bounded UTF-8/typed decoding must refuse them. It does not authorize
 weakening native parsing to match a weaker historical reference. Status/media,
 lease, native resource authority, prerequisite freshness and actual content entry
 remain separate gates. Native metadata capability/refinement, request selection,
-refresh custody and AP070's Python journal removal are still required; this
-provider reference is an extraction input, not proof of their implementation.
+refresh custody and AP070 migration are deferred future integration. This
+provider reference is retained independently, not proof of managed Google access.
+
+
+### Owner decision: retain AP070 independence
+
+AP074 closes the general-purpose managed gateway contract. Its single-owner
+requirement is per managed operation, not a requirement that every independent
+application use the gateway. Preserve AP070's Python broker, SQLite journal,
+credential custody and narrower receipts as an independent application-owned
+reference. Only shared, explicitly comparable contracts participate in
+differential evidence; document differences instead of forcing equivalence or
+rewriting the oracle to call the implementation it tests. Native read/disclosure
+must still have an independent reference corpus; this decision does not waive it.
+
+The observed source separation is concrete: AP070's compose starts its broker
+and relays with its own SQLite state and token vault; its agent transport calls
+its own execute_read, not GatewayClient/application sockets. The gateway does not
+load the Google adapter. These are source/configuration observations, not proof
+of every deployed isolation arrangement. Required managed hostile-process tests
+must enforce credential/channel separation and reject alternate managed paths.
+Sharing provider credentials, trusting AP070 receipts as native evidence or
+letting it authorize the same managed effect would violate the boundary.
+
+Native acquisition/disclosure, full installed managed journey/UI, two mutation
+recipe differentials, every file/PostgreSQL concurrency/crash/fault case and all
+formal/performance/hosted gates remain mandatory. Google metadata, OAuth refresh
+and migration are deferred until explicitly productizing managed Google access.

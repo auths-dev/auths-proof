@@ -10,6 +10,24 @@ but its profile states include partial effects and proven non-effect with
 different recovery semantics. None can be treated as interchangeable merely
 because each has a journal.
 
+### Scope clarification: independent application-owned references
+
+The owner's subsequent decision retains AP070 as an independent runnable
+application-owned reference. Its Python/SQLite broker is not a second authority
+for a managed gateway operation and need not migrate to establish AP074.
+Preserve its existing narrower claims and differential value. No managed grant,
+credential, permit or native recovery decision may be delegated to it; its
+receipts cannot be substituted for gateway evidence. Inventory the distinct
+channels, state and credentials and enforce the managed deployment boundary.
+Independent external credentials/writers remain an explicitly excluded threat.
+
+Future managed Google productization requires a reviewed native integration and
+one native journal for those managed effects. Google metadata/refresh and AP070
+owner removal are deferred, while every generic native, binding/UI, file and
+PostgreSQL concurrency/crash/fault, formal and containment gate remains required.
+Historical checkpoints below describe earlier implementation scope; this decision
+and the current specification/acceptance ledger govern remaining work.
+
 Keep pure managed transitions in `auths-gateway-kernel::transition`, orchestration
 in `auths-gateway::submit`, and the logical journal in `auths-gateway::store`.
 Extend those owners; do not introduce a parallel executor or task ledger.
@@ -1089,6 +1107,6 @@ the complete declared content GET separately. No `GET` is added to write methods
 
 The required evidence is a bounded source/lock negative corpus, native
 mutation-refusal and real read-only install/acquisition/disclosure process
-journey. Google metadata semantics, token refresh custody and AP070's Python
-owner removal remain separate required cutovers; supporting a content-only recipe
-does not establish those provider capabilities or their equivalence.
+journey. Google metadata, token refresh custody and AP070 owner migration are
+deferred integration work. Supporting a content-only recipe establishes neither
+those optional provider capabilities nor AP070 equivalence.

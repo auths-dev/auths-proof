@@ -7,7 +7,9 @@ in this checkout, on `codex/effect-recovery-foundation`. Finish the immutable
 native bound effect and the gateway's sole recovery/transaction owner, including
 mutation, bounded acquisition, separate recipient disclosure, exact approval,
 fresh entry authorization, immutable evidence and truthful native projections.
-Cut maintained consumers over directly; remove competing managed decisions.
+Cut maintained managed consumers over directly; remove competing decisions for
+the same managed operation. Retain AP070 as an independent application-owned
+reference with narrower claims; its migration is deferred, not an AP074 gate.
 Preserve the native verifier, reviewed recipe compiler, conservative recovery,
 durable adapter guarantees and source-linked formal claims.
 
@@ -17,13 +19,15 @@ formal/refinement links and bounded performance measurements. Commit coherent
 changes. The user's subsequent instruction on 28 October overrides the initial
 push timing: commit the current slice, push explicitly to
 `origin codex/effect-recovery-foundation`, open a new draft PR against main, then
-continue with incremental commits. Finish source, fixtures and documentation
-before observing required hosted workflows on the exact head. Repair failures; do not
+continue with incremental commits. The subsequent explicit CI-triage request
+authorizes investigating failures before implementation is complete. Final
+required hosted workflows must still pass on the completed head. Repair failures; do not
 merge or deploy. Local generation needed to construct artifacts is permitted;
 do not duplicate hosted build/test/lint/formal gates before the first push.
 
 Never touch the paused AP073 checkout or import its unfinished implementation.
-Do not expand participant trees, federation, token systems or agent delegation.
+Do not expand participant trees, federation or token systems. Only the explicitly
+requested isolated CI subagent is authorized; this is not delegation product work.
 No stage is complete merely because types, documentation or a happy path exist.
 
 ## Baseline and working record
@@ -117,25 +121,52 @@ The checkpoint sections below are historical records; the phase and acceptance
 ledgers at the end describe current closure. Do not treat earlier "pending"
 notes as a reason to reimplement a later completed source cutover.
 
-1. Finish independently authorized bounded observation and full native recovery
-   actions/charge/evidence projections. Public `Reserved` and zero-provider-I/O
-   application replay are now implemented. Preserve immutable
-   admission/grant history and the one-use transport boundary already wired.
-2. Complete typed acquisition, separate recipient disclosure and exact ACK in
-   the existing native owners. Bind and account for all credential-bearing
-   ancillary reads. Remove the competing AP070 Python decision owner and cut
-   maintained bindings over directly.
-3. Finish the installed authenticated review/approval journey. The native
-   versioned review contract and literal renderer are now wired; frontend
-   capability, transport/channel authentication and failure evidence remain.
-4. Add/complete installed authority expiry/revocation/configuration races,
-   adapter commit/ack faults and process/transport failpoints, plus differential
-   and generated-history evidence for A01–A22. Synthetic native fixtures are
-   deliberately narrower evidence.
-5. Regenerate final translated/refinement/performance artifacts and observe
-   required hosted CI only after implementation, fixtures and documentation are
-   complete. No hosted results have been observed yet. Full Todoist pinned-input
-   re-execution remains pending, without blocking other implementation work.
+1. Resolve hosted CI failures using the real native approval/recovery contracts.
+   Preserve tests and scope claims; no fake approvals or weakened gates.
+2. Close file/PostgreSQL independent-process capacity, dependency-race, crash and
+   ambiguous-ack evidence. Prove the final fencing order and managed deployment's
+   non-bypassability with real transport, counters and restricted processes.
+3. Finish native recovery actions/charge/evidence projections and the installed
+   authenticated human review/approval plus managed binding/UI journey.
+4. Complete two mutation recipe and independent read/disclosure differentials,
+   generated histories, source-linked formal/refinement and bounded performance.
+5. Pass all final required hosted checks on the completed revision. Keep AP070's
+   independently application-owned broker/reference intact. Google metadata,
+   OAuth refresh and migration are future integration, not completion blockers.
+
+## Current owner decision: AP070 remains independent
+
+The user's explicit scope decision supersedes historical checkpoint requirements
+below that called for AP070 migration. AP074 owns canonical authorization,
+admission, execution and recovery for managed gateway operations. AP070 retains
+its own Python/SQLite broker, token custody, routes and narrower claims as an
+independent reference. No migration is required for AP074 closure; no native
+acquisition/disclosure, adapter, crash/concurrency, binding/UI, containment,
+differential, formal/performance or hosted gate is waived or marked complete.
+
+Prior AP070 work is preserved in `fb5c5a0a`: `google_drive.py` now delegates pure
+metadata checks to new `google_metadata.py`, receives a typed MIME representation,
+and returns typed denials for malformed MIME/decimal values. A 36-case pure
+reference corpus/generator was added. No admission.py, read_executor.py,
+receipts.py, token vault, broker routes or SQLite ownership was deleted or
+migrated. Only the pure generator ran; no full broker or live Google claim follows.
+No further AP070 source changes are authorized by this scope update.
+
+Source/configuration observations supporting safe deferral: AP070's compose runs
+its own broker/relays and SQLite state; its agent transport calls execute_read
+and TokenVault. It does not call GatewayClient or a managed application socket;
+the gateway does not load the Google adapter. Compliance inventories separate
+its application-owned state/protocols from managed gateway state. This is not a
+runtime containment proof. Required managed evidence must still establish that
+references cannot obtain managed credentials/permits, authorize the same managed
+operation, or have their receipts accepted as native entry/recovery facts.
+Independent application-held provider credentials/external writers are outside
+managed containment and must stay explicit in deployment claims.
+
+Future managed Google productization requires its own reviewed capability,
+metadata/custody evidence and one native journal. AP070 remains useful for
+independent comparisons; document divergences rather than rewriting the oracle
+to consume the implementation it is meant to test.
 
 ## Full-binding journal cutover (in progress)
 
@@ -1524,6 +1555,41 @@ closure regeneration passed after that correction (one artifact-generation test)
   both supported content paths, token refresh custody, bindings/UI and removal of
   the competing Python shared state owner remain open. No A01–A22 gate closes.
 
+## Integrated native CI fixes and preserved acceptance scope
+
+- The isolated CI agent's `e705e05c` and `890b42cd` were reviewed and integrated as
+  `4bbff153` and `40662227`. The test harness now compiles real native source
+  effects with a connection descriptor and revalidates them. Its explicitly
+  private fixed-key control plane supplies test approvals to installed SDK
+  consumers; it is not a human approval or production endpoint.
+- Chained-step recovery installs write/recovery trust before entry, keeps replay
+  Unknown without a read, and uses an independent reader proof/exact approval,
+  real reservation/one-use permit and journal refinement. The final-entry fence
+  remains explicitly a unit-test oracle; installed fencing is separate evidence.
+  Ordinary write tests assert ResponseRecorded and no implicit observation.
+- Agent verification at the isolated source commits: 14 file observed tests,
+  15 TLS PostgreSQL observed/bounds tests (isolated project/port 55449, removed
+  afterward), 19 bounds tests plus 1 expected PostgreSQL ignore, 4 audit tests,
+  packed Node and Python observation consumers, 4 Python public API tests, API
+  snapshot check and 6 qualification tests passed. These are focused hosted-failure
+  reproductions, not a claim that the integrated branch passed final hosted CI.
+- Original hosted roots at `c80902ab`: [preflight freeze](https://github.com/auths-dev/auths-proof/actions/runs/40783379364/job/123151257660),
+  [Python API](https://github.com/auths-dev/auths-proof/actions/runs/40783379255/job/123150389757),
+  [Python runner](https://github.com/auths-dev/auths-proof/actions/runs/40783379255/job/123150389685),
+  [TS API](https://github.com/auths-dev/auths-proof/actions/runs/40783379522/job/123151940534),
+  [installed Node](https://github.com/auths-dev/auths-proof/actions/runs/40783379522/job/123151940374),
+  [PostgreSQL](https://github.com/auths-dev/auths-proof/actions/runs/40783379447/job/123150390095),
+  [qualification](https://github.com/auths-dev/auths-proof/actions/runs/40783379390/job/123152045258),
+  [operator simulation](https://github.com/auths-dev/auths-proof/actions/runs/40783379435/job/123152776374).
+- Maintained Stripe/Airtable demos, north-star and scaffold workflows still need
+  proper effect-policy/exact approval integration. These are managed consumer
+  requirements and remain required. They cannot be waived by retaining AP070.
+- Integrated required artifact generation passed six exact native generators in
+  35.57 seconds before the small chain-helper extraction; only source closure
+  changed. Final closure-only regeneration after that extraction passed one
+  exact generator in 0.08 seconds. No AP070 migration, test ignore, authorization
+  bypass or completed A01–A22 claim is made.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1531,7 +1597,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition/disclosure runtime, call authoring and CLI process composition wired | Installed bindings/authenticated UI, Google metadata/refresh and AP070 Python owner removal |
+| P3 | Acquisition/disclosure runtime, call authoring and CLI process composition wired | Installed managed bindings/authenticated UI and full native read/release evidence; AP070 stays independent |
 | P4 | Partial CLI process journey | Differential, full faults/adapters, installed bindings/UI, formal/performance links and CI |
 
 ## Acceptance ledger
@@ -1560,7 +1626,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
-| A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |
+| A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / independent references retained / no complete differential corpus | Preserve AP070 reference independence; complete comparable native contracts without broker migration |
 | A20 | Generated histories and shipping predicate refinement | Partial / 576 typed stage pairs, ACK histories and Kani source / pure corpus executed | Full generated concurrent histories and source-linked formal artifacts pending |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |

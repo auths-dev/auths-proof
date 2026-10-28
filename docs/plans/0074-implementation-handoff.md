@@ -1,8 +1,9 @@
 # AP-SPEC-074 implementation handoff
 
-This prompt is for a new agent working in the already-created worktree. It is not
-an instruction to resume the paused AP073 implementation. The specification is
-complete as a handoff document; the implementation described by it has not begun.
+This prompt is for an agent continuing the existing AP074 worktree. It is not
+an instruction to resume paused AP073 work. Implementation is in progress;
+`0074-implementation-status.md` is the authoritative current evidence ledger.
+Initial worktree-creation facts below are retained as historical context.
 
 ## Copy/paste prompt
 
@@ -44,6 +45,18 @@ ADR and abstraction case, then perform bounded direct cutovers through P1–P4.
 Centralize shared semantic decisions; do not scatter independent clock, hash,
 approval, retry or accounting fixes through routes, demos and bindings.
 
+Scope clarification: preserve AP070 as an independently implemented,
+application-owned Google broker/reference with its existing narrower claims.
+Do not delete, rewrite or migrate its Python/SQLite admission, execution or
+receipts as part of AP074. Migration, Google metadata and OAuth refresh are
+optional future productization, not AP074 exit gates. Compare retained reference
+behavior without making it consume the implementation it tests. Every managed
+gateway operation must still have one native authority/journal; never give the
+reference managed credentials/permits, use it as an alternate managed route, or
+interpret its receipts as managed guarantees. Preserve all native acquisition,
+disclosure, installed binding/UI, file/PostgreSQL, fault/concurrency, containment,
+formal and A01–A22 requirements. Prioritize those core gates and CI fixes.
+
 The shared model must retain typed differences between acquisition, disclosure
 and mutation. A provider response, receipt signature, state match and recipient
 ACK establish different facts. An unknown outcome must never authorize a blind
@@ -64,8 +77,10 @@ Record external assumptions and unsupported rollback guarantees precisely.
 Commit coherent implementation changes along the way using Conventional Commits.
 Follow the repository's GitHub-first verification policy. Generate required
 artifacts locally as needed to construct the change; do not duplicate broad local
-build/test/lint/formal suites without the policy's justification. Observe CI only
-after the spec implementation, fixtures and documentation are complete. Then push
+build/test/lint/formal suites without the policy's justification. The user has
+explicitly authorized early isolated CI triage; fix actual failures without
+weakening contracts. Final hosted verification still requires the completed
+implementation, fixtures and documentation on its exact revision. Push
 explicitly to origin codex/effect-recovery-foundation (never to main), open/update
 a draft PR against main, observe all required hosted workflows on the exact head,
 repair failures and repeat. Do not merge or deploy.
@@ -81,7 +96,7 @@ removed duplicate paths, and remaining deployment assumptions. Do not resume
 multi-agent delegation as an automatic follow-on.
 ```
 
-## Current handoff facts
+## Initial handoff facts (historical)
 
 - This worktree was created from freshly fetched `origin/main`, independently of
   draft PR #212 and its uncommitted changes.
