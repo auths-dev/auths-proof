@@ -590,7 +590,7 @@ async fn replaced_in_between_is_authorized_inside_the_documented_window(backend:
     assert_eq!(harness.provider.counts().0, 1);
 }
 
-async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backend: Backend) {
+fn chain_harness(backend: Backend) -> Harness {
     let root = signer(h::ROOT_SEED);
     let observer = GatewayObserver::from_test_seed(h::OBSERVER_SEED);
     // Both exact tool permissions are installed before the source enters. No
@@ -604,14 +604,18 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backe
         &[call(&Map::new()), recovery_tool],
     )
     .expect("write and recovery trust");
-    let harness = Harness::with(
+    Harness::with(
         chained_recipe(),
         trust,
         observer,
         root,
         signer(0x22),
         backend,
-    );
+    )
+}
+
+async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backend: Backend) {
+    let harness = chain_harness(backend);
     let first = harness.sign(
         None,
         &harness.arguments(
