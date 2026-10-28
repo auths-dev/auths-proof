@@ -6,12 +6,13 @@
 use super::{EffectBindingError, canonical};
 use crate::engine::VerifiedCommand;
 use crate::{ClosedActionRead, ClosedCredentialRead, CompiledRecipe};
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
 
 /// Account, four denied-capability reads, pre-entry and relative ceiling.
 const MAX_PREREQUISITES: usize = 7;
 const MAX_RESPONSE_BYTES: usize = 65_536;
+pub(crate) const MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS: u64 = 30;
 
 /// The complete ordered set for one mutation. Construction is private to the
 /// native compiler; an application cannot append a request or select a purpose.
@@ -21,26 +22,26 @@ pub(super) struct Prerequisites(Vec<Prerequisite>);
 #[derive(Serialize)]
 struct Prerequisite {
     purpose: Purpose,
-    request: Read,
+    request: ClosedPrerequisiteRead,
     maximum_calls: u64,
     maximum_transport_seconds: u64,
     maximum_evidence_age_seconds: u64,
     disclosure: Disclosure,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum Disclosure {
     None,
 }
 
-#[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum Purpose {
     Account {
         json_pointer: String,
         expected_account_commitment: [u8; 32],
-        commitment_domain: &'static str,
+        commitment_domain: String,
     },
     DeniedCapability {
         index: u8,
@@ -62,12 +63,13 @@ enum Purpose {
 }
 
 /// Retain the compiler's sealed read, not separately reconstructed URL data.
-enum Read {
+#[derive(Clone)]
+pub(crate) enum ClosedPrerequisiteRead {
     Credential(ClosedCredentialRead),
     Action(ClosedActionRead),
 }
 
-impl Serialize for Read {
+impl Serialize for ClosedPrerequisiteRead {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         #[derive(Serialize)]
         struct Request<'a> {
@@ -101,6 +103,26 @@ impl Serialize for Read {
 }
 
 impl Prerequisites {
+    pub(super) fn kinds(&self) -> impl Iterator<Item = PrerequisiteKind> + '_ {
+        self.0.iter().map(|declaration| declaration.purpose.kind())
+    }
+
+    pub(super) fn select(
+        &self,
+        kind: PrerequisiteKind,
+    ) -> Result<(u8, &ClosedPrerequisiteRead), EffectBindingError> {
+        let (index, declaration) = self
+            .0
+            .iter()
+            .enumerate()
+            .find(|(_, declaration)| declaration.purpose.kind() == kind)
+            .ok_or(EffectBindingError::Invalid)?;
+        Ok((
+            u8::try_from(index).map_err(|_| EffectBindingError::Invalid)?,
+            &declaration.request,
+        ))
+    }
+
     /// Synthetic store/driver oracles have no installed recipe/connection and
     /// make no claim that they bind or authorize actual prerequisite reads.
     #[cfg(any(test, feature = "testkit-harness"))]
@@ -125,9 +147,9 @@ impl Prerequisites {
                     Purpose::Account {
                         json_pointer,
                         expected_account_commitment: account,
-                        commitment_domain: "auths.gateway-account/1",
+                        commitment_domain: "auths.gateway-account/1".to_owned(),
                     },
-                    Read::Credential(read.clone()),
+                    ClosedPrerequisiteRead::Credential(read.clone()),
                 )?,
                 (None, None) => {}
                 _ => return Err(EffectBindingError::Invalid),
@@ -143,7 +165,7 @@ impl Prerequisites {
                         index: u8::try_from(index).map_err(|_| EffectBindingError::Invalid)?,
                         refused_statuses,
                     },
-                    Read::Credential(read.clone()),
+                    ClosedPrerequisiteRead::Credential(read.clone()),
                 )?;
             }
         } else if reads.account().is_some() || !reads.denied().is_empty() {
@@ -158,7 +180,7 @@ impl Prerequisites {
                     json_pointers: pointers.to_vec(),
                     native_authority: command.native_authority,
                 },
-                Read::Action(read.clone()),
+                ClosedPrerequisiteRead::Action(read.clone()),
             )?,
             (None, None) => {}
             _ => return Err(EffectBindingError::Invalid),
@@ -191,7 +213,7 @@ impl Prerequisites {
                         subtract_pointer: ceiling.subtract_pointer,
                         binds,
                     },
-                    Read::Action(read.clone()),
+                    ClosedPrerequisiteRead::Action(read.clone()),
                 )?;
             }
             (None, None) => {}
@@ -201,10 +223,14 @@ impl Prerequisites {
         Ok(plan)
     }
 
-    fn push(&mut self, purpose: Purpose, request: Read) -> Result<(), EffectBindingError> {
+    fn push(
+        &mut self,
+        purpose: Purpose,
+        request: ClosedPrerequisiteRead,
+    ) -> Result<(), EffectBindingError> {
         let maximum = match &request {
-            Read::Credential(read) => read.maximum_response_bytes(),
-            Read::Action(read) => read.maximum_response_bytes(),
+            ClosedPrerequisiteRead::Credential(read) => read.maximum_response_bytes(),
+            ClosedPrerequisiteRead::Action(read) => read.maximum_response_bytes(),
         };
         if self.0.len() >= MAX_PREREQUISITES || !(1..=MAX_RESPONSE_BYTES).contains(&maximum) {
             return Err(EffectBindingError::Invalid);
@@ -214,9 +240,161 @@ impl Prerequisites {
             request,
             maximum_calls: 1,
             maximum_transport_seconds: 15,
-            maximum_evidence_age_seconds: 30,
+            maximum_evidence_age_seconds: MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS,
             disclosure: Disclosure::None,
         });
         Ok(())
+    }
+}
+
+/// Closed selectors address compiler-owned declarations, never caller URLs.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum PrerequisiteKind {
+    Account,
+    DeniedCapability(u8),
+    PreEntry,
+    RelativeCeiling,
+}
+
+impl Purpose {
+    const fn kind(&self) -> PrerequisiteKind {
+        match self {
+            Self::Account { .. } => PrerequisiteKind::Account,
+            Self::DeniedCapability { index, .. } => PrerequisiteKind::DeniedCapability(*index),
+            Self::PreEntry { .. } => PrerequisiteKind::PreEntry,
+            Self::RelativeCeiling { .. } => PrerequisiteKind::RelativeCeiling,
+        }
+    }
+}
+
+/// Private membership witness for one read in the exact approved mutation.
+/// Audit decoding cannot construct the sealed request or grant transport entry.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PrerequisitePlan {
+    source_binding: String,
+    transport_canonical: String,
+    index: u8,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Declaration {
+    purpose: Purpose,
+    request: RequestAudit,
+    maximum_calls: u64,
+    maximum_transport_seconds: u64,
+    maximum_evidence_age_seconds: u64,
+    disclosure: Disclosure,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RequestAudit {
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    maximum_response_bytes: u64,
+}
+
+impl PrerequisitePlan {
+    pub(super) fn new(
+        source: &super::EffectBinding,
+        index: u8,
+        transport: zeroize::Zeroizing<Vec<u8>>,
+    ) -> Result<Self, EffectBindingError> {
+        let plan = Self {
+            source_binding: String::from_utf8(source.to_private_bytes()?.to_vec())
+                .map_err(|_| EffectBindingError::Invalid)?,
+            transport_canonical: String::from_utf8(transport.to_vec())
+                .map_err(|_| EffectBindingError::Invalid)?,
+            index,
+        };
+        plan.validate(source)?;
+        Ok(plan)
+    }
+
+    pub(crate) const fn index(&self) -> u8 {
+        self.index
+    }
+
+    pub(crate) fn source(&self) -> Result<super::EffectBinding, EffectBindingError> {
+        super::EffectBinding::from_private_bytes(self.source_binding.as_bytes())
+    }
+
+    fn declaration(&self) -> Result<Declaration, EffectBindingError> {
+        let source = self.source()?;
+        let super::Protocol::Mutation { request } = source.wire.protocol else {
+            return Err(EffectBindingError::Invalid);
+        };
+        let bytes = self.transport_canonical.as_bytes();
+        if bytes.len() > super::MAX_EFFECT_BYTES
+            || request != super::commitment("auths.effect-transport/1", bytes)?
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        // This bounded value is only an authenticated membership witness. It
+        // never supplies a URL, header or body to the transport implementation.
+        let witness: Value =
+            serde_json::from_slice(bytes).map_err(|_| EffectBindingError::Invalid)?;
+        if canonical(&witness)?.as_slice() != bytes {
+            return Err(EffectBindingError::Invalid);
+        }
+        let declarations = witness
+            .get("prerequisite_acquisitions")
+            .and_then(Value::as_array)
+            .ok_or(EffectBindingError::Invalid)?;
+        if declarations.len() > MAX_PREREQUISITES {
+            return Err(EffectBindingError::Invalid);
+        }
+        let declaration: Declaration = serde_json::from_value(
+            declarations
+                .get(usize::from(self.index))
+                .ok_or(EffectBindingError::Invalid)?
+                .clone(),
+        )
+        .map_err(|_| EffectBindingError::Invalid)?;
+        if declaration.maximum_calls != 1
+            || declaration.maximum_transport_seconds != 15
+            || declaration.maximum_evidence_age_seconds != MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS
+            || declaration.disclosure != Disclosure::None
+            || !matches!(declaration.request.method.as_str(), "GET" | "HEAD")
+            || !(1..=MAX_RESPONSE_BYTES as u64)
+                .contains(&declaration.request.maximum_response_bytes)
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(declaration)
+    }
+
+    pub(crate) fn kind(&self) -> Result<PrerequisiteKind, EffectBindingError> {
+        Ok(self.declaration()?.purpose.kind())
+    }
+
+    pub(crate) fn capacity(&self) -> Result<super::AcquisitionCapacity, EffectBindingError> {
+        let source = self.source()?;
+        let declaration = self.declaration()?;
+        let key = |unit| {
+            super::commitment(
+                "auths.prerequisite-capacity/1",
+                &canonical(&(source.id().as_bytes(), self.index, unit))?,
+            )
+        };
+        Ok(super::AcquisitionCapacity {
+            count_key: key(super::Unit::AcquisitionCount)?,
+            bytes_key: key(super::Unit::ResponseBytes)?,
+            maximum_bytes: declaration.request.maximum_response_bytes,
+            attempts: 1,
+        })
+    }
+
+    pub(crate) fn validate(
+        &self,
+        effect: &super::EffectBinding,
+    ) -> Result<super::AcquisitionCapacity, EffectBindingError> {
+        if self.source()? != *effect {
+            return Err(EffectBindingError::Invalid);
+        }
+        self.capacity()
     }
 }

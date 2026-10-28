@@ -436,3 +436,46 @@ for only its enumerated recipe-derived reads; it is not general read authority
 or authority to repeat an uncertain read. The native fixture establishes signed
 compilation/review only, not entry eligibility, accounting, transport or the
 installed human channel.
+
+
+## Durable prerequisite acquisitions
+
+Journal `/9` stores a closed acquisition-plan alternative: independently
+approved recovery, or one enumerated prerequisite of the exact approved
+mutation. Both use the existing acquisition states, transition predicate,
+permanent allocation slots, fenced grant and response persistence. There is no
+new approval envelope, task ledger or retry decision owner. Old journal records
+are refused directly; the PostgreSQL storage schema remains `/8` because its
+existing record kinds and transaction contract suffice.
+
+A prerequisite record retains the parent binding and exact approval plus its
+ordinal and a bounded canonical transport membership witness. Decoding checks
+the witness against the parent transport commitment and checks the declaration's
+one-call, response-byte, transport, freshness and no-disclosure limits. Audit
+witnesses never construct transport requests. The permit carries the original
+sealed compiler read. The component replay key derives from the parent's logical
+operation key and ordinal, not its effect digest; a changed binding cannot
+create another component under the same operation. Its permanent allocation
+charges one invocation and the full response ceiling, including unknown entry.
+
+The acquisition grant fence includes its record, the reserved parent, its
+allocation and current native entry dependencies. A parent that already entered
+or became not-entered cannot issue a prerequisite permit. Only acknowledged
+publication returns a permit. Concurrent stale handles, replay and reopened
+entry grants cannot issue another. Recorded responses retain their receipt
+time; pre-entry evidence uses the earlier grant time conservatively. Loading
+history does not refresh either timestamp.
+
+Submission's account, denied-capability, pre-entry and relative-ceiling reads now
+consume these permits. It evaluates a response only after durable recording. The
+final mutation fence includes every required child record and allocation and
+refuses missing, uncertain or stale responses. Seven prerequisites add at most
+14 dependencies; together with 34 mutation slots, the parent and three installed
+dependencies this uses at most 52 of the existing 64-record fence limit.
+
+This source cutover does not close installed evidence: tighter native observer
+freshness at the final lock boundary, complete selected-evidence provenance,
+ordered initial admission, all application/onboarding reads and disclosure still
+need completion. The file fixture uses native compilation but explicit-time
+oracle grants and synthetic responses; it is not provider transport, installed
+native entry or PostgreSQL qualification.

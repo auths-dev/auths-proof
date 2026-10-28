@@ -226,6 +226,18 @@ these declarations. The declaration alone is neither a capacity reservation nor
 an entry permit; runtime must durably account and grant every constituent read
 through the shared journal before contacting the provider.
 
+The concrete journal encoding is `auths.gateway-attempt/9`. Each prerequisite
+has a component replay key derived from the parent's logical operation key and
+its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
+and a typed acquisition record retaining the parent's exact approval. A bounded
+canonical parent transport witness proves membership; it cannot construct a
+transport request. Granting a read requires a still-reserved parent under the
+same fence as its allocation and current native dependencies. Final mutation
+entry fences all required prerequisite records and allocations and requires
+recorded, fresh responses. Receipt time is immutable, and evidence age uses the
+earlier grant time conservatively. These requirements do not waive tighter
+native evidence freshness or independently authorized later observation.
+
 Independent recovery compilation uses the reserved native MCP tool
 `auths_gateway_recovery_read_v1`; a mutation recipe cannot claim that name.
 Its `auths.gateway-recovery-read/1` contract binds the retained source effect

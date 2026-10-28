@@ -82,6 +82,28 @@ impl ProviderResponse {
 /// is the pinned HTTPS transport holding one credential lease; tests supply a
 /// counting provider. No method may retry a write.
 pub(crate) trait ProviderPort {
+    /// Shared sealed acquisition path, including counting test providers.
+    async fn acquire(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse> {
+        match permit.request() {
+            crate::store::AcquisitionRequest::Recovery(read) => {
+                self.action_read(read.url(), read.headers(), read.maximum_response_bytes())
+                    .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Action(read),
+            ) => {
+                self.action_read(read.url(), read.headers(), read.maximum_response_bytes())
+                    .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Credential(read),
+            ) => self.credential_read(read).await,
+        }
+    }
+
     /// Sends one closed write after a durable claim.
     async fn write(
         &self,
@@ -345,21 +367,39 @@ impl GatewayHttpTransport {
 
     /// Consumes one newly acknowledged acquisition grant and sends its exact
     /// native request once. No caller supplies replacement URL or byte limits.
-    pub(crate) async fn recovery_read(
+    pub(crate) async fn acquire(
         &self,
         permit: crate::store::AcquisitionEntryPermit,
         lease: &StoredSecretLease,
     ) -> Option<ProviderResponse> {
         let secret = lease.expose(Instant::now()).ok()?;
-        let request = permit.request();
-        self.read(
-            reqwest::Method::GET,
-            request.url(),
-            request.headers(),
-            request.maximum_response_bytes(),
-            secret,
-        )
-        .await
+        match permit.request() {
+            crate::store::AcquisitionRequest::Recovery(request) => {
+                self.read(
+                    reqwest::Method::GET,
+                    request.url(),
+                    request.headers(),
+                    request.maximum_response_bytes(),
+                    secret,
+                )
+                .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Action(read),
+            ) => {
+                self.read(
+                    reqwest::Method::GET,
+                    read.url(),
+                    read.headers(),
+                    read.maximum_response_bytes(),
+                    secret,
+                )
+                .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Credential(read),
+            ) => self.credential_read(read, secret).await,
+        }
     }
 
     /// One bounded read with `secret`: the complete response of any status,

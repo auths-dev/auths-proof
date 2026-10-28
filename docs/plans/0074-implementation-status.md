@@ -561,6 +561,44 @@ closure regeneration passed after that correction (one artifact-generation test)
   one-use permits. No A01–A22 criterion closes; installed UI/bindings, disclosure,
   replacement credentials, ordered admission, faults and formal/CI remain open.
 
+## Durable prerequisite checkpoint
+
+- Journal `/9` now has a closed recovery/prerequisite acquisition-plan variant.
+  Both use the existing shared codec, reducer, permanent count/byte allocation,
+  fenced entry and response persistence. PostgreSQL storage schema stays `/8`;
+  its current record kinds suffice. Obsolete attempt records are rejected.
+- A prerequisite's component key binds the parent logical operation and compiler
+  ordinal, so a changed binding cannot evade replay by changing its digest.
+  Its bounded canonical transport witness proves approved plan membership but
+  cannot construct a transport request. Only the retained sealed read reaches
+  the permit and transport.
+- Read grants fence the child, still-reserved parent, allocation and current
+  native dependencies. Submission's account, denied, pre-entry and ceiling
+  reads now consume these permits. Responses are evaluated only after durable
+  recording. Lost permits/responses remain charged and cannot be reminted.
+- Final mutation entry fences every required child response and allocation and
+  refuses missing, uncertain, future or stale evidence. Receipt timestamps are
+  immutable; signed pre-entry observations and ceiling bases use the earlier
+  acquisition grant time conservatively. Seven reads add 14 dependencies, for
+  at most 52 of the existing 64-record fence bound.
+- `prerequisite-entry.json` adds eight file-journal histories across native
+  Stripe/Airtable plans: recorded response, missing read, lost permit and stale
+  response. Equal reservations preserve capacity, competing handles cannot
+  both grant, reopening returns history, substituted membership fails, and
+  future/stale reads are unusable. This uses explicit-time oracle grants and
+  synthetic bodies with zero provider calls. In particular, the Airtable case
+  does not establish installed pre-entry requirement eligibility.
+- Required artifact generators passed (one exact test each): prerequisite
+  compilation/entry, independent recovery, mutation entry/fuzz seeds, native
+  replay projection and semantic closure. Earlier compilation attempts caught
+  stale test-only raw-read calls and zeroizing-buffer type mismatches, corrected
+  before generation passed. No broad local suite or hosted CI was observed.
+- Still open: ordered initial admission, tighter selected observer evidence
+  validation at the final fence, full prerequisite fault/transport/PostgreSQL
+  evidence, application/onboarding reads, safe credential replacement and read
+  policy bounds, disclosure/ACK, Python-owner removal, installed UI/bindings,
+  formal/performance and final CI. No A01–A22 criterion closes at this checkpoint.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -568,7 +606,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery acquisition/refinement and operator route wired | Remaining read cutovers, disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery and prerequisite acquisition routes wired | Application/onboarding read cutovers, disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -582,7 +620,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter cases / no | Execute concurrent binding conflicts and recovery cutover |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file fixture | Full adapter concurrency and all units pending |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file fixtures including prerequisite charges | Full adapter concurrency and all units pending |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |
@@ -591,7 +629,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A10 | Timeout/denial/response/state-match distinction | Pending / no / no | Native projection |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
-| A13 | Lock wait and independent evidence expiries | Pending / no / no | Clock/full verifier inside boundary |
+| A13 | Lock wait and independent evidence expiries | Partial / narrow prerequisite cases / file fixture only | Lock-wait races and tighter selected observer freshness pending |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |

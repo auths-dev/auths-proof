@@ -9,7 +9,7 @@
 //! installed transport and credential store; the tests supply a counting
 //! provider double through the same driver.
 
-use crate::effect::ApprovedEffect;
+use crate::effect::{ApprovedEffect, PrerequisiteKind};
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
 use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES};
@@ -18,8 +18,8 @@ use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
-    ClaimedGatewayAttempt, ClosedCredentialRead, CompiledRecipe, GatewayAttemptError,
-    GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis, RequestHeader,
+    ClaimedGatewayAttempt, CompiledRecipe, GatewayAttemptError, GatewayAttempts, GatewayObserver,
+    GatewayPreEntry, GatewayRelativeBasis,
 };
 use auths_gateway_kernel::order::{
     AccountResult, CeilingRead, ClaimResult, DeniedResult, PreEntryResult, Refusal, ResponseRecord,
@@ -107,21 +107,11 @@ pub(crate) trait SubmitIo {
         permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
-    /// Performs one bounded GET of an action read or observation under
-    /// `lease`.
-    async fn action_read(
+    /// Consumes one durably acknowledged permit for an exact compiled read.
+    async fn acquire(
         &self,
         lease: &Self::Lease,
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
-    ) -> Option<ProviderResponse>;
-
-    /// Performs one credential read under `lease`.
-    async fn credential_read(
-        &self,
-        lease: &Self::Lease,
-        read: &ClosedCredentialRead,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse>;
 }
 
@@ -569,47 +559,98 @@ impl<I: SubmitIo> Run<'_, I> {
         }
     }
 
+    async fn acquire_prerequisite(
+        &self,
+        kind: PrerequisiteKind,
+    ) -> Option<crate::store::PrerequisiteResponse> {
+        let lease = self.lease.as_ref()?;
+        let approved = self.verified.as_ref()?;
+        let started = self.io.clock()?;
+        match self
+            .cx
+            .attempts
+            .claim_prerequisite(approved, kind, started)
+            .await
+            .ok()?
+        {
+            crate::AcquisitionClaim::Reserved(reserved) => {
+                let validation = self.io.entry_validation().ok()?;
+                let (granted, permit) = reserved
+                    .grant_entry(std::sync::Arc::clone(approved), validation, started)
+                    .await
+                    .ok()?;
+                match self.io.acquire(lease, permit).await {
+                    Some(response) => {
+                        let received_at = self.io.clock()?;
+                        granted
+                            .record_response(
+                                response.status,
+                                response.version_ok,
+                                &response.body,
+                                received_at,
+                            )
+                            .await
+                            .ok()?;
+                    }
+                    None => {
+                        let _ = granted.record_unknown().await;
+                        return None;
+                    }
+                }
+            }
+            crate::AcquisitionClaim::Existing(_) => {}
+        }
+        // Only acknowledged, retained evidence is usable. Replays keep the
+        // original receipt time and cannot create another provider invocation.
+        let now = self.io.clock()?;
+        let recorded = self
+            .cx
+            .attempts
+            .read_prerequisite(approved, kind, now)
+            .await
+            .ok()?;
+        (recorded.observed_at <= recorded.received_at && recorded.received_at <= now)
+            .then_some(recorded)
+    }
+
     async fn read_account(&self) -> AccountResult {
-        let (Some(lease), Some(pointer)) = (
-            &self.lease,
-            self.guard
-                .as_ref()
-                .and_then(|guard| guard.account_pointer.as_deref()),
-        ) else {
+        let Some(pointer) = self
+            .guard
+            .as_ref()
+            .and_then(|guard| guard.account_pointer.as_deref())
+        else {
             return AccountResult::Unavailable;
         };
-        let Ok(reads) = self.cx.recipe.credential_reads() else {
-            return AccountResult::Unavailable;
-        };
-        let Some(read) = reads.account() else {
-            return AccountResult::Unavailable;
-        };
-        let response = self.io.credential_read(lease, read).await;
-        account_result(response.as_ref(), pointer, self.io.account_commitment())
+        let acquired = self.acquire_prerequisite(PrerequisiteKind::Account).await;
+        account_result(
+            acquired.as_ref().map(|acquired| &acquired.response),
+            pointer,
+            self.io.account_commitment(),
+        )
     }
 
     async fn denied_read(&self, index: usize) -> DeniedResult {
-        let (Some(lease), Some(refused)) = (
-            &self.lease,
-            self.guard
-                .as_ref()
-                .and_then(|guard| guard.denied_refused.get(index)),
-        ) else {
+        let Some(refused) = self
+            .guard
+            .as_ref()
+            .and_then(|guard| guard.denied_refused.get(index))
+        else {
             return DeniedResult::Unavailable;
         };
-        let Ok(reads) = self.cx.recipe.credential_reads() else {
+        let Ok(index) = u8::try_from(index) else {
             return DeniedResult::Unavailable;
         };
-        let Some(read) = reads.denied().get(index) else {
-            return DeniedResult::Unavailable;
-        };
-        let response = self.io.credential_read(lease, read).await;
-        denied_result(response.as_ref(), refused)
+        let acquired = self
+            .acquire_prerequisite(PrerequisiteKind::DeniedCapability(index))
+            .await;
+        denied_result(
+            acquired.as_ref().map(|acquired| &acquired.response),
+            refused,
+        )
     }
 
     async fn pre_entry_read(&mut self) -> PreEntryResult {
-        let (Some(lease), Some(verified), Some(observer), Some(pointers)) = (
-            &self.lease,
+        let (Some(verified), Some(observer), Some(pointers)) = (
             self.verified.as_deref().and_then(ApprovedEffect::command),
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
@@ -619,18 +660,11 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(read) = verified.request.pre_entry_read() else {
             return PreEntryResult::Unavailable;
         };
-        let Some(observed_at) = self.io.clock() else {
+        let Some(acquired) = self.acquire_prerequisite(PrerequisiteKind::PreEntry).await else {
             return PreEntryResult::Unavailable;
         };
-        let response = self
-            .io
-            .action_read(
-                lease,
-                read.url(),
-                read.headers(),
-                read.maximum_response_bytes(),
-            )
-            .await;
+        let observed_at = acquired.observed_at;
+        let response = Some(acquired.response);
         let Some(observations) = response
             .as_ref()
             .and_then(ProviderResponse::usable_body)
@@ -654,28 +688,20 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn ceiling_read(&mut self) -> CeilingRead {
-        let (Some(lease), Some(verified), Some(ceiling)) = (
-            &self.lease,
+        let (Some(verified), Some(ceiling)) = (
             self.verified.as_deref().and_then(ApprovedEffect::command),
             &self.ceiling,
         ) else {
             return CeilingRead::Unavailable;
         };
-        let Some(read) = verified.request.relative_ceiling_read() else {
+        let Some(acquired) = self
+            .acquire_prerequisite(PrerequisiteKind::RelativeCeiling)
+            .await
+        else {
             return CeilingRead::Unavailable;
         };
-        let Some(read_at) = self.io.clock() else {
-            return CeilingRead::Unavailable;
-        };
-        let response = self
-            .io
-            .action_read(
-                lease,
-                read.url(),
-                read.headers(),
-                read.maximum_response_bytes(),
-            )
-            .await;
+        let read_at = acquired.observed_at;
+        let response = Some(acquired.response);
         let Some(body) = response.as_ref().and_then(ProviderResponse::usable_body) else {
             return CeilingRead::Unavailable;
         };

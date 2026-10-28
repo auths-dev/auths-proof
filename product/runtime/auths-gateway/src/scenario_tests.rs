@@ -262,7 +262,13 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         now: u64,
         recipe: &CompiledRecipe,
     ) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
-        crate::effect::approve_driver_fixture(self.verified.clone()?, *recipe.digest(), now, None)
+        crate::effect::approve_recipe_fixture(
+            self.verified.clone()?,
+            recipe,
+            self.account,
+            now,
+            None,
+        )
     }
 
     fn revalidate(
@@ -318,24 +324,12 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         self.provider.write(permit).await
     }
 
-    async fn action_read(
+    async fn acquire(
         &self,
         _lease: &(),
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse> {
-        self.provider
-            .action_read(url, headers, maximum_response_bytes)
-            .await
-    }
-
-    async fn credential_read(
-        &self,
-        _lease: &(),
-        read: &ClosedCredentialRead,
-    ) -> Option<ProviderResponse> {
-        self.provider.credential_read(read).await
+        self.provider.acquire(permit).await
     }
 }
 
@@ -491,8 +485,8 @@ async fn reobserve_operator<P: ProviderPort>(
     }
     let observation = attempt.observation_request()?;
     let response = io
+        .provider
         .action_read(
-            &lease,
             observation.url(),
             observation.headers(),
             observation.maximum_response_bytes(),
@@ -1492,7 +1486,7 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
 async fn attempt_scenarios(backend: Backend) {
     let corpus = corpus(SCENARIOS);
     assert_eq!(corpus["schema"], "auths.gateway-attempt-scenarios/3");
-    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/8");
+    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/9");
     let recipes = self::corpus(corpus["recipes"].as_str().expect("recipes"));
     let mut ran = 0;
     for case in corpus["cases"].as_array().expect("cases") {
@@ -1621,7 +1615,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             "gateway_semantic_closure_sha256": crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
             "target": {"os": "linux", "arch": "x86_64", "gateway_package": "auths-gateway",
                 "gateway_version": "1.0.0-rc.1", "gateway_build_sha256": "55".repeat(32),
-                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/8",
+                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/9",
                 "credential_store_kind": "local-file-v1"}
         }))
         .expect("tuple");

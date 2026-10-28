@@ -422,7 +422,9 @@ async fn exercise_recovery_journal(
         )
         .await
         .expect("unique read grant");
-    assert!(permit.request().url().starts_with("https://"));
+    assert!(
+        matches!(permit.request(), crate::store::AcquisitionRequest::Recovery(read) if read.url().starts_with("https://"))
+    );
     drop(permit);
     drop(granted);
     assert!(

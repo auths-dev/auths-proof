@@ -21,10 +21,14 @@ use zeroize::Zeroizing;
 mod acquisition;
 mod prerequisite;
 pub(crate) use acquisition::{
-    MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL, RecoveryCapacity, RecoveryPlan,
+    AcquisitionCapacity, AcquisitionPlan, MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL,
 };
 pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
 use prerequisite::Prerequisites;
+pub(crate) use prerequisite::{
+    ClosedPrerequisiteRead, MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS, PrerequisiteKind,
+    PrerequisitePlan,
+};
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
 pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
@@ -189,6 +193,36 @@ pub(crate) fn approve_driver_fixture(
     now: u64,
     approval: Option<ExactEffectApproval>,
 ) -> Result<ApprovedEffect, GatewaySubmitResult> {
+    approve_driver_with_plan(
+        command,
+        recipe_digest,
+        now,
+        approval,
+        Prerequisites::oracle_empty(),
+    )
+}
+
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) fn approve_recipe_fixture(
+    command: VerifiedCommand,
+    recipe: &CompiledRecipe,
+    account: [u8; 32],
+    now: u64,
+    approval: Option<ExactEffectApproval>,
+) -> Result<ApprovedEffect, GatewaySubmitResult> {
+    let prerequisites = Prerequisites::compile(recipe, &command, account)
+        .map_err(|_| not_entered("test.effect.fixture-invalid"))?;
+    approve_driver_with_plan(command, *recipe.digest(), now, approval, prerequisites)
+}
+
+#[cfg(any(test, feature = "testkit-harness"))]
+fn approve_driver_with_plan(
+    command: VerifiedCommand,
+    recipe_digest: [u8; 32],
+    now: u64,
+    approval: Option<ExactEffectApproval>,
+    prerequisites: Prerequisites,
+) -> Result<ApprovedEffect, GatewaySubmitResult> {
     use auths_connections::{
         ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionState, ProviderKind, SemanticId,
     };
@@ -217,19 +251,23 @@ pub(crate) fn approve_driver_fixture(
         None,
     )
     .map_err(|_| invalid())?;
-    let binding = store_binding_fixture(
+    let mut binding = store_binding_fixture(
         &command.request,
         recipe_digest,
         command.native_authority,
         &fixture_policy().map_err(|_| invalid())?,
     )
     .map_err(|_| invalid())?;
+    binding.wire.protocol = Protocol::Mutation {
+        request: request_commitment(&command.request, &prerequisites).map_err(|_| invalid())?,
+    };
+    binding = EffectBinding::new(binding.wire).map_err(|_| invalid())?;
     let effect = BoundEffect {
         review: serde_json::json!({"scope": "synthetic post-verification oracle; no human review claim"}),
         binding,
         command: CompiledEffect::Mutation(Box::new(VerifiedMutation {
             command,
-            prerequisites: Prerequisites::oracle_empty(),
+            prerequisites,
         })),
         connection,
         proof: Zeroizing::new(Vec::new()),
@@ -1020,6 +1058,30 @@ impl ApprovedEffect {
         }
     }
 
+    pub(crate) fn prerequisite_plans(&self) -> Result<Vec<PrerequisitePlan>, EffectBindingError> {
+        let CompiledEffect::Mutation(mutation) = &self.effect.command else {
+            return Err(EffectBindingError::Invalid);
+        };
+        mutation
+            .prerequisites
+            .kinds()
+            .map(|kind| self.prerequisite(kind).map(|(plan, _)| plan))
+            .collect()
+    }
+
+    pub(crate) fn prerequisite(
+        &self,
+        kind: PrerequisiteKind,
+    ) -> Result<(PrerequisitePlan, ClosedPrerequisiteRead), EffectBindingError> {
+        let CompiledEffect::Mutation(mutation) = &self.effect.command else {
+            return Err(EffectBindingError::Invalid);
+        };
+        let (index, read) = mutation.prerequisites.select(kind)?;
+        let transport = request_bytes(&mutation.command.request, &mutation.prerequisites)?;
+        let plan = PrerequisitePlan::new(self.effect.binding(), index, transport)?;
+        Ok((plan, read.clone()))
+    }
+
     pub(crate) fn connection(&self) -> &ConnectionRecord {
         &self.effect.connection
     }
@@ -1278,6 +1340,16 @@ fn request_commitment(
     request: &ClosedProviderRequest,
     prerequisites: &Prerequisites,
 ) -> Result<[u8; 32], EffectBindingError> {
+    commitment(
+        "auths.effect-transport/1",
+        &request_bytes(request, prerequisites)?,
+    )
+}
+
+fn request_bytes(
+    request: &ClosedProviderRequest,
+    prerequisites: &Prerequisites,
+) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
     let wire = RequestWire {
         method: request.method().as_str(),
         url: request.url(),
@@ -1294,8 +1366,7 @@ fn request_commitment(
         observation: request.observation_template(),
         prerequisite_acquisitions: prerequisites,
     };
-    let bytes = canonical(&wire)?;
-    commitment("auths.effect-transport/1", &bytes)
+    canonical(&wire)
 }
 
 #[cfg(test)]

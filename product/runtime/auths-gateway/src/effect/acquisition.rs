@@ -205,7 +205,46 @@ pub(crate) struct RecoveryPlan {
     maximum_response_bytes: u64,
 }
 
-pub(crate) struct RecoveryCapacity {
+/// The same acquisition journal admits independent recovery reads and the
+/// enumerated prerequisites of one exact approved mutation. Their source
+/// eligibility is distinct; neither variant authorizes disclosure.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(
+    tag = "kind",
+    content = "plan",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+pub(crate) enum AcquisitionPlan {
+    Recovery(RecoveryPlan),
+    Prerequisite(PrerequisitePlan),
+}
+
+impl AcquisitionPlan {
+    pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
+        match self {
+            Self::Recovery(plan) => plan.source(),
+            Self::Prerequisite(plan) => plan.source(),
+        }
+    }
+    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
+        match self {
+            Self::Recovery(plan) => plan.capacity(),
+            Self::Prerequisite(plan) => plan.capacity(),
+        }
+    }
+    pub(crate) fn validate(
+        &self,
+        binding: &EffectBinding,
+    ) -> Result<AcquisitionCapacity, EffectBindingError> {
+        match self {
+            Self::Recovery(plan) => plan.validate(binding),
+            Self::Prerequisite(plan) => plan.validate(binding),
+        }
+    }
+}
+
+pub(crate) struct AcquisitionCapacity {
     pub(crate) count_key: [u8; 32],
     pub(crate) bytes_key: [u8; 32],
     pub(crate) maximum_bytes: u64,
@@ -217,7 +256,7 @@ impl RecoveryPlan {
         EffectBinding::from_private_bytes(self.source_binding.as_bytes())
     }
 
-    pub(crate) fn capacity(&self) -> Result<RecoveryCapacity, EffectBindingError> {
+    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
         let source = self.source()?;
         if !(1..=65_536).contains(&self.maximum_response_bytes)
             || !matches!(source.wire.protocol, Protocol::Mutation { .. })
@@ -230,7 +269,7 @@ impl RecoveryPlan {
                 &canonical(&(source.id().as_bytes(), unit))?,
             )
         };
-        Ok(RecoveryCapacity {
+        Ok(AcquisitionCapacity {
             count_key: key(Unit::AcquisitionCount)?,
             bytes_key: key(Unit::ResponseBytes)?,
             maximum_bytes: self.maximum_response_bytes,
@@ -241,7 +280,7 @@ impl RecoveryPlan {
     pub(crate) fn validate(
         &self,
         effect: &EffectBinding,
-    ) -> Result<RecoveryCapacity, EffectBindingError> {
+    ) -> Result<AcquisitionCapacity, EffectBindingError> {
         let source = self.source()?;
         let capacity = self.capacity()?;
         if source.wire.namespace != effect.wire.namespace
@@ -266,7 +305,7 @@ impl RecoveryPlan {
     }
 }
 
-impl RecoveryCapacity {
+impl AcquisitionCapacity {
     fn reservations(&self) -> Vec<Reservation> {
         let mut reservations = vec![
             Reservation {

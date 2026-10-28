@@ -3,7 +3,9 @@
 //! the same adapter fence. No stored grant can recreate a read permit.
 
 use super::*;
-use crate::effect::{RecoveryCapacity, RecoveryPlan};
+use crate::effect::{
+    AcquisitionCapacity, AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind,
+};
 
 mod recovery;
 pub(super) use recovery::RecoveryEvidenceLink;
@@ -51,7 +53,7 @@ pub enum AcquisitionStage {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AcquisitionState {
-    plan: RecoveryPlan,
+    plan: AcquisitionPlan,
     allocation: Option<u64>,
     phase: AcquisitionPhase,
 }
@@ -178,7 +180,7 @@ impl JournalProtocol for AcquisitionState {
 }
 
 impl AcquisitionResponse {
-    fn body(&self, capacity: &RecoveryCapacity) -> Result<Vec<u8>, GatewayAttemptError> {
+    fn body(&self, capacity: &AcquisitionCapacity) -> Result<Vec<u8>, GatewayAttemptError> {
         if self.body_b64.len() > MAX_EVIDENCE_BYTES.div_ceil(3) * 4 {
             return Err(GatewayAttemptError::Corrupt);
         }
@@ -249,7 +251,7 @@ struct Allocation {
 
 impl Allocation {
     fn new(
-        plan: &RecoveryPlan,
+        plan: &AcquisitionPlan,
         key: GatewayAttemptKey,
         slot: u64,
     ) -> Result<Self, GatewayAttemptError> {
@@ -271,7 +273,7 @@ impl Allocation {
     }
 }
 
-fn allocation_key(capacity: &RecoveryCapacity, slot: u64) -> GatewayAttemptKey {
+fn allocation_key(capacity: &AcquisitionCapacity, slot: u64) -> GatewayAttemptKey {
     GatewayAttemptKey(crate::bounds::count_slot_key(&capacity.count_key, slot))
 }
 
@@ -289,7 +291,85 @@ pub struct ReservedAcquisition {
     source_key: GatewayAttemptKey,
 }
 
+pub(crate) struct PrerequisiteResponse {
+    pub(crate) response: crate::transport::ProviderResponse,
+    pub(crate) received_at: u64,
+    pub(crate) observed_at: u64,
+}
+
+impl Record<AcquisitionState> {
+    fn prerequisite_response(&self, now: u64) -> Result<PrerequisiteResponse, GatewayAttemptError> {
+        if !matches!(self.state.plan, AcquisitionPlan::Prerequisite(_)) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let AcquisitionPhase::ResponseRecorded { response } = &self.state.phase else {
+            return Err(GatewayAttemptError::InvalidTransition);
+        };
+        // The response can describe state sampled before receipt. Use the
+        // grant's earlier time for evidence freshness; preserve receipt time
+        // separately rather than refreshing either during replay.
+        let observed_at = self
+            .entry
+            .as_ref()
+            .ok_or(GatewayAttemptError::Corrupt)?
+            .granted_at;
+        if now < response.received_at
+            || !now
+                .checked_sub(observed_at)
+                .is_some_and(|age| age <= crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
+        {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let capacity = self
+            .state
+            .plan
+            .capacity()
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        Ok(PrerequisiteResponse {
+            response: crate::transport::ProviderResponse {
+                status: response.status,
+                version_ok: response.version_ok,
+                body: response.body(&capacity)?,
+            },
+            received_at: response.received_at,
+            observed_at,
+        })
+    }
+}
+
 impl GatewayAttempts {
+    pub(crate) async fn read_prerequisite(
+        &self,
+        approved: &ApprovedEffect,
+        kind: PrerequisiteKind,
+        now: u64,
+    ) -> Result<PrerequisiteResponse, GatewayAttemptError> {
+        let (plan, _) = approved
+            .prerequisite(kind)
+            .map_err(|_| GatewayAttemptError::BindingConflict)?;
+        let binding = approved.effect().binding();
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let (namespace, operation, _, _) = binding.journal_identity();
+        let parent = self.key(
+            &OperatorNamespace::parse(namespace).map_err(|_| GatewayAttemptError::Corrupt)?,
+            &LogicalOperationId::parse(operation).map_err(|_| GatewayAttemptError::Corrupt)?,
+        )?;
+        let key = prerequisite_key(parent, plan.index());
+        let store = Arc::clone(&self.store);
+        let bytes = blocking(move || store.load(GatewayRecordKind::Attempt, &key))
+            .await?
+            .ok_or(GatewayAttemptError::Unavailable)?;
+        let record: Record<AcquisitionState> = decode_as(&bytes)?;
+        if record.validate_header()? != *binding
+            || record.state.plan != AcquisitionPlan::Prerequisite(plan)
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        record.prerequisite_response(now)
+    }
+
     /// Returns retained facts for this exact approved read, without any I/O
     /// outside the journal. A stored grant projects unknown, never a permit.
     ///
@@ -343,9 +423,33 @@ impl GatewayAttempts {
         let target = approved
             .recovery_target()
             .ok_or(GatewayAttemptError::InvalidTransition)?;
-        let plan = target
-            .journal_plan()
-            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let plan = AcquisitionPlan::Recovery(
+            target
+                .journal_plan()
+                .map_err(|_| GatewayAttemptError::Corrupt)?,
+        );
+        self.claim_acquisition(approved, plan, evaluated_at).await
+    }
+
+    pub(crate) async fn claim_prerequisite(
+        &self,
+        approved: &ApprovedEffect,
+        kind: PrerequisiteKind,
+        evaluated_at: u64,
+    ) -> Result<AcquisitionClaim, GatewayAttemptError> {
+        let (plan, _) = approved
+            .prerequisite(kind)
+            .map_err(|_| GatewayAttemptError::BindingConflict)?;
+        self.claim_acquisition(approved, AcquisitionPlan::Prerequisite(plan), evaluated_at)
+            .await
+    }
+
+    async fn claim_acquisition(
+        &self,
+        approved: &ApprovedEffect,
+        plan: AcquisitionPlan,
+        evaluated_at: u64,
+    ) -> Result<AcquisitionClaim, GatewayAttemptError> {
         let binding = approved.effect().binding();
         let capacity = plan
             .validate(binding)
@@ -363,6 +467,11 @@ impl GatewayAttempts {
         let source_operation = LogicalOperationId::parse(source.journal_identity().1)
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         let source_key = self.key(&namespace, &source_operation)?;
+        let key = match &plan {
+            AcquisitionPlan::Recovery(_) => key,
+            AcquisitionPlan::Prerequisite(plan) => prerequisite_key(source_key, plan.index()),
+        };
+        let expected_plan = plan.clone();
         let base = Record::new(
             binding,
             approved.approval(),
@@ -433,11 +542,12 @@ impl GatewayAttempts {
                     .await?
                     .ok_or(GatewayAttemptError::Unavailable)?;
                 let record: Record<AcquisitionState> = decode_as(&bytes)?;
-                if record.binding_canonical.as_bytes()
-                    != binding
-                        .to_private_bytes()
-                        .map_err(|_| GatewayAttemptError::Corrupt)?
-                        .as_slice()
+                if record.state.plan != expected_plan
+                    || record.binding_canonical.as_bytes()
+                        != binding
+                            .to_private_bytes()
+                            .map_err(|_| GatewayAttemptError::Corrupt)?
+                            .as_slice()
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }
@@ -476,13 +586,31 @@ impl ReservedAcquisition {
         validation: crate::entry::EntryValidation,
         authorization_started_at: u64,
     ) -> Result<(GrantedAcquisition, AcquisitionEntryPermit), GatewayAttemptError> {
-        let target = approved
-            .recovery_target()
-            .ok_or(GatewayAttemptError::InvalidTransition)?;
-        let request = target.closed_request().clone();
-        let plan = target
-            .journal_plan()
-            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let (plan, request) = match &self.attempt.record.state.plan {
+            AcquisitionPlan::Recovery(_) => {
+                let target = approved
+                    .recovery_target()
+                    .ok_or(GatewayAttemptError::InvalidTransition)?;
+                (
+                    AcquisitionPlan::Recovery(
+                        target
+                            .journal_plan()
+                            .map_err(|_| GatewayAttemptError::Corrupt)?,
+                    ),
+                    AcquisitionRequest::Recovery(target.closed_request().clone()),
+                )
+            }
+            AcquisitionPlan::Prerequisite(plan) => {
+                let kind = plan.kind().map_err(|_| GatewayAttemptError::Corrupt)?;
+                let (plan, read) = approved
+                    .prerequisite(kind)
+                    .map_err(|_| GatewayAttemptError::BindingConflict)?;
+                (
+                    AcquisitionPlan::Prerequisite(plan),
+                    AcquisitionRequest::Prerequisite(read),
+                )
+            }
+        };
         blocking(move || {
             let mut attempt = self.attempt;
             let capacity = plan.capacity().map_err(|_| GatewayAttemptError::Corrupt)?;
@@ -530,11 +658,23 @@ impl ReservedAcquisition {
                         .as_deref()
                         .ok_or(GatewayAttemptError::Corrupt)?,
                 )?;
-                let source_target = source.recovery_target()?;
-                if source_target
-                    .journal_plan()
-                    .map_err(|_| GatewayAttemptError::Corrupt)?
-                    != plan
+                let source_matches = match &plan {
+                    AcquisitionPlan::Recovery(plan) => {
+                        source
+                            .recovery_target()?
+                            .journal_plan()
+                            .map_err(|_| GatewayAttemptError::Corrupt)?
+                            == *plan
+                    }
+                    AcquisitionPlan::Prerequisite(plan) => {
+                        source.state.stage == GatewayAttemptStage::Reserved
+                            && source.entry.is_none()
+                            && source.validate_header()?
+                                == plan.source().map_err(|_| GatewayAttemptError::Corrupt)?
+                            && attempt.key == prerequisite_key(self.source_key, plan.index())
+                    }
+                };
+                if !source_matches
                     || snapshots[2].as_deref()
                         != Some(canonical(&Allocation::new(&plan, attempt.key, slot)?)?.as_slice())
                 {
@@ -574,13 +714,18 @@ impl ReservedAcquisition {
     }
 }
 
+pub(crate) enum AcquisitionRequest {
+    Recovery(ClosedObservationRequest),
+    Prerequisite(ClosedPrerequisiteRead),
+}
+
 pub(crate) struct AcquisitionEntryPermit {
     _approved: Arc<ApprovedEffect>,
-    request: ClosedObservationRequest,
+    request: AcquisitionRequest,
 }
 
 impl AcquisitionEntryPermit {
-    pub(crate) fn request(&self) -> &ClosedObservationRequest {
+    pub(crate) fn request(&self) -> &AcquisitionRequest {
         &self.request
     }
 }
@@ -624,4 +769,63 @@ impl GrantedAcquisition {
         };
         self.attempt.advance(next).await?.record.snapshot()
     }
+}
+
+/// Component identity deliberately excludes the effect digest: changing the
+/// approval under the same logical operation and ordinal must conflict.
+pub(super) fn prerequisite_key(parent: GatewayAttemptKey, index: u8) -> GatewayAttemptKey {
+    let mut hash = Sha256::new();
+    hash.update(b"auths.gateway-prerequisite-key/1\0");
+    hash.update(parent.as_bytes());
+    hash.update([index]);
+    GatewayAttemptKey(hash.finalize().into())
+}
+
+/// Final mutation entry observes exactly these child records and permanent
+/// allocations under the same writer fence as its authority and mutation slots.
+pub(super) fn prerequisite_dependencies(
+    parent: GatewayAttemptKey,
+    plans: &[crate::effect::PrerequisitePlan],
+) -> Result<Vec<(GatewayRecordKind, GatewayAttemptKey)>, GatewayAttemptError> {
+    let mut keys = Vec::with_capacity(plans.len() * 2);
+    for plan in plans {
+        let capacity = plan.capacity().map_err(|_| GatewayAttemptError::Corrupt)?;
+        keys.push((
+            GatewayRecordKind::Attempt,
+            prerequisite_key(parent, plan.index()),
+        ));
+        keys.push((
+            GatewayRecordKind::EffectAllocation,
+            allocation_key(&capacity, 0),
+        ));
+    }
+    Ok(keys)
+}
+
+pub(super) fn validate_prerequisites(
+    parent: GatewayAttemptKey,
+    binding: &EffectBinding,
+    plans: &[crate::effect::PrerequisitePlan],
+    snapshots: &[Option<Vec<u8>>],
+    now: u64,
+) -> Result<(), GatewayAttemptError> {
+    if snapshots.len() != plans.len() * 2 {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    for (plan, rows) in plans.iter().zip(snapshots.chunks_exact(2)) {
+        let record: Record<AcquisitionState> =
+            decode_as(rows[0].as_deref().ok_or(GatewayAttemptError::Corrupt)?)?;
+        let expected = AcquisitionPlan::Prerequisite(plan.clone());
+        let key = prerequisite_key(parent, plan.index());
+        if record.validate_header()? != *binding
+            || record.state.plan != expected
+            || record.state.allocation != Some(0)
+            || rows[1].as_deref()
+                != Some(canonical(&Allocation::new(&expected, key, 0)?)?.as_slice())
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        record.prerequisite_response(now)?;
+    }
+    Ok(())
 }

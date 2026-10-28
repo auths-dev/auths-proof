@@ -288,6 +288,9 @@ impl GatewayAttempts {
                 .load(GatewayRecordKind::Attempt, &read_key)?
                 .ok_or(GatewayAttemptError::Unavailable)?;
             let read: Record<AcquisitionState> = decode_as(&bytes)?;
+            let AcquisitionPlan::Recovery(recovery_plan) = &read.state.plan else {
+                return Err(GatewayAttemptError::BindingConflict);
+            };
             let binding = read.validate_header()?;
             let capacity = read
                 .state
@@ -320,13 +323,13 @@ impl GatewayAttempts {
                         .as_deref()
                         .ok_or(GatewayAttemptError::Unavailable)?,
                 )?;
-                if source.binding_canonical != read.state.plan.source_binding
+                if source.binding_canonical != recovery_plan.source_binding
                     || !policy.contains(&source.validate_header()?)
                     || source
                         .recovery_target_data()?
                         .journal_plan()
                         .map_err(|_| GatewayAttemptError::Corrupt)?
-                        != read.state.plan
+                        != *recovery_plan
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }

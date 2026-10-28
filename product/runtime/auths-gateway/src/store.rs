@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/8`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/9`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/8";
+const SCHEMA: &str = "auths.gateway-attempt/9";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -702,11 +702,11 @@ enum ProtocolState {
 }
 
 mod acquisition;
-pub(crate) use acquisition::AcquisitionEntryPermit;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, GatewayRecoveryReport,
     RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
 };
+pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
 
 trait JournalProtocol: Clone + Sized {
     fn wrap(self) -> ProtocolState;
@@ -2492,6 +2492,9 @@ impl ClaimedGatewayAttempt {
             let mut attempt = self.attempt;
             let dependencies = validation.dependencies();
             let counters = attempt.record.counters()?;
+            let prerequisites = approved
+                .prerequisite_plans()
+                .map_err(|_| GatewayAttemptError::InvalidTransition)?;
             let mut keys = vec![(GatewayRecordKind::Attempt, attempt.key)];
             keys.extend_from_slice(&dependencies);
             keys.extend(counters.iter().map(|counter| match counter.kind {
@@ -2507,6 +2510,11 @@ impl ClaimedGatewayAttempt {
                     GatewayAttemptKey(crate::bounds::sum_slot_key(&counter.counter, counter.slot)),
                 ),
             }));
+            let counter_end = keys.len();
+            keys.extend(acquisition::prerequisite_dependencies(
+                attempt.key,
+                &prerequisites,
+            )?);
             let mut committed = None;
             attempt.store.fenced_replace(&keys, &mut |snapshots| {
                 if snapshots.len() != keys.len()
@@ -2545,7 +2553,14 @@ impl ClaimedGatewayAttempt {
                         .ok_or(GatewayAttemptError::InvalidTransition)?
                         .bound
                         .as_ref(),
-                    &snapshots[dependency_end..],
+                    &snapshots[dependency_end..counter_end],
+                    now,
+                )?;
+                acquisition::validate_prerequisites(
+                    attempt.key,
+                    approved.effect().binding(),
+                    &prerequisites,
+                    &snapshots[counter_end..],
                     now,
                 )?;
                 let mut next = current.clone();
@@ -2554,7 +2569,7 @@ impl ClaimedGatewayAttempt {
                     authorization_started_at,
                     now,
                     pre_entry.clone(),
-                    &snapshots[1..dependency_end],
+                    &snapshots[1..],
                 )?;
                 next.state.stage = GatewayAttemptStage::EntryGranted;
                 if !valid_transition(&current, &next)? {

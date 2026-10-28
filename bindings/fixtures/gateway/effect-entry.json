@@ -24,7 +24,10 @@
       "schema": "auths.effect-entry/2",
       "granted_at": 1790000061,
       "effect_id": "329645e5218740b6c41f6cddece4cc724e96016804f46ce54d3efb88dd4a039e",
-      "dependencies": []
+      "dependencies": [
+        "55aab28f95092b9b9abc5dce74fcd3a13b02a2f54250893bed28852ac45fa264",
+        "f2e4936daf26963e87b15bc36f0cdd7d548fbe5e291e318f65867fcd9156f7b2"
+      ]
     }
   },
   "scope": "native synthetic post-verification grant; no provider entry or installed authority claim",

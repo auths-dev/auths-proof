@@ -22,9 +22,8 @@ use crate::transport::{
     WriteTransportOutcome,
 };
 use crate::{
-    ClosedCredentialRead, ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe,
-    GatewayAttempts, GatewayConnectionDescriptor, GatewayEvidenceChannel, GatewayProviderEvidence,
-    RequestHeader,
+    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, GatewayAttempts,
+    GatewayConnectionDescriptor, GatewayEvidenceChannel, GatewayProviderEvidence,
 };
 use auths_connections::{
     ConnectionAlias, ConnectionCredentialStore, ConnectionProfile, ConnectionRecord,
@@ -1492,7 +1491,7 @@ impl GatewayEngine {
             .await
             .map_err(|_| "gateway.entry.unavailable")?;
         let prepared = io.prepared.get().ok_or("gateway.entry.unprepared")?;
-        match prepared.transport.recovery_read(permit, &lease).await {
+        match prepared.transport.acquire(permit, &lease).await {
             Some(response) => match io.clock() {
                 Some(received_at) => {
                     granted
@@ -2022,34 +2021,13 @@ impl SubmitIo for EngineIo<'_> {
         }
     }
 
-    async fn action_read(
+    async fn acquire(
         &self,
         lease: &StoredSecretLease,
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse> {
         let prepared = self.prepared.get()?;
-        LeasedTransport {
-            transport: &prepared.transport,
-            lease,
-        }
-        .action_read(url, headers, maximum_response_bytes)
-        .await
-    }
-
-    async fn credential_read(
-        &self,
-        lease: &StoredSecretLease,
-        read: &ClosedCredentialRead,
-    ) -> Option<ProviderResponse> {
-        let prepared = self.prepared.get()?;
-        LeasedTransport {
-            transport: &prepared.transport,
-            lease,
-        }
-        .credential_read(read)
-        .await
+        prepared.transport.acquire(permit, lease).await
     }
 }
 

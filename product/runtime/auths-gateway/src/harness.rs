@@ -781,7 +781,14 @@ impl SubmitIo for HarnessIo<'_> {
             self.proof,
             self.action,
         )?;
-        crate::effect::approve_driver_fixture(command, *recipe.digest(), now, self.approval.clone())
+        crate::effect::approve_recipe_fixture(
+            command,
+            recipe,
+            self.account_commitment()
+                .ok_or_else(|| crate::engine::not_entered("test.account"))?,
+            now,
+            self.approval.clone(),
+        )
     }
 
     fn revalidate(
@@ -842,25 +849,12 @@ impl SubmitIo for HarnessIo<'_> {
         self.harness.provider.write(permit).await
     }
 
-    async fn action_read(
+    async fn acquire(
         &self,
         _lease: &(),
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse> {
-        self.harness
-            .provider
-            .action_read(url, headers, maximum_response_bytes)
-            .await
-    }
-
-    async fn credential_read(
-        &self,
-        _lease: &(),
-        read: &ClosedCredentialRead,
-    ) -> Option<ProviderResponse> {
-        self.harness.provider.credential_read(read).await
+        self.harness.provider.acquire(permit).await
     }
 }
 

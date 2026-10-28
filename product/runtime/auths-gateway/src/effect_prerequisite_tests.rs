@@ -3,12 +3,12 @@
 
 use super::*;
 
-#[test]
+#[tokio::test]
 #[allow(
     clippy::too_many_lines,
     reason = "one signed compilation corpus keeps each declaration and its witness together"
 )]
-fn native_prerequisite_compilation_fixture_is_current() {
+async fn native_prerequisite_compilation_fixture_is_current() {
     let corpus: Value = serde_json::from_slice(include_bytes!(
         "../../../../bindings/fixtures/gateway/hostile-recipes-v2.json"
     ))
@@ -25,6 +25,7 @@ fn native_prerequisite_compilation_fixture_is_current() {
     let policy =
         EffectPolicy::new("synthetic-prerequisites".to_owned(), 1, public).expect("policy");
     let mut cases = Vec::new();
+    let mut journals = Vec::new();
     for base in ["stripe", "airtable-pre-entry"] {
         let recipe = CompiledRecipe::compile(
             &serde_json::to_vec(&corpus["bases"][base]["recipe"]).expect("source"),
@@ -188,7 +189,7 @@ fn native_prerequisite_compilation_fixture_is_current() {
             Err(crate::effect::EffectBindingError::Unsupported),
         );
         let approval_request = effect
-            .approval_request(NOW, NOW + 30)
+            .approval_request(NOW, NOW + 60)
             .expect("approval request");
         let signature = key
             .sign(&approval_request.signing_message().expect("message"))
@@ -200,6 +201,8 @@ fn native_prerequisite_compilation_fixture_is_current() {
         approved
             .validate_for_entry(&installed, NOW + 1)
             .expect("same native compilation and plan");
+        let approved = std::sync::Arc::new(approved);
+        journals.push(journal_witness(&approved, &policy, base).await);
         cases.push(json!({
             "recipe": base,
             "effect_id_hex": hex::encode(approved.effect().binding().id().as_bytes()),
@@ -221,4 +224,175 @@ fn native_prerequisite_compilation_fixture_is_current() {
         std::fs::write(&path, &fixture).expect("write fixture");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+    let journal = serde_json::to_vec_pretty(&json!({
+        "schema": "auths.prerequisite-entry-fixture/1",
+        "scope": "native signed compilation; real file journal with explicit-time oracle grants and synthetic responses; no provider send or installed authority claim",
+        "attempt_schema": "auths.gateway-attempt/9",
+        "cases": journals,
+    })).expect("journal fixture");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/prerequisite-entry.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &journal).expect("write journal fixture");
+    }
+    assert_eq!(std::fs::read(path).expect("journal fixture"), journal);
+}
+
+async fn journal_witness(
+    approved: &std::sync::Arc<crate::effect::ApprovedEffect>,
+    policy: &EffectPolicy,
+    recipe: &str,
+) -> Value {
+    use crate::entry::EntryValidation;
+    use crate::{AcquisitionClaim, AcquisitionStage, GatewayAttempts};
+    use std::sync::Arc;
+    let plans = approved.prerequisite_plans().expect("closed plans");
+    let mut histories = Vec::new();
+    for history in [
+        "recorded-response",
+        "lost-permit",
+        "missing-read",
+        "stale-response",
+    ] {
+        let lose_permit = history == "lost-permit";
+        let directory = tempfile::tempdir().expect("directory");
+        let path = std::fs::canonicalize(directory.path())
+            .expect("canonical directory")
+            .join("journal");
+        let store = Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("journal"));
+        let attempts = GatewayAttempts::new(store, policy.clone()).expect("attempts");
+        let crate::store::BoundedClaim::Claimed(parent) = attempts
+            .claim_bounded(approved, NOW)
+            .await
+            .expect("parent claim")
+        else {
+            panic!("parent reservation")
+        };
+        let mut snapshots = Vec::new();
+        for plan in plans.iter().filter(|_| history != "missing-read") {
+            let kind = plan.kind().expect("closed purpose");
+            let capacity = plan
+                .validate(approved.effect().binding())
+                .expect("membership");
+            assert_eq!(capacity.attempts, 1);
+            let mut corrupted = serde_json::to_value(plan).expect("plan audit");
+            corrupted["transport_canonical"] = json!("{}");
+            let corrupted: crate::effect::PrerequisitePlan =
+                serde_json::from_value(corrupted).expect("audit only");
+            assert!(corrupted.validate(approved.effect().binding()).is_err());
+            let AcquisitionClaim::Reserved(reserved) = attempts
+                .claim_prerequisite(approved, kind, NOW)
+                .await
+                .expect("read claim")
+            else {
+                panic!("reserved")
+            };
+            let AcquisitionClaim::Reserved(stale) = attempts
+                .claim_prerequisite(approved, kind, NOW)
+                .await
+                .expect("equal reservation")
+            else {
+                panic!("equal reservation")
+            };
+            assert_eq!(
+                reserved.snapshot().expect("snapshot"),
+                stale.snapshot().expect("snapshot")
+            );
+            let (granted, permit) = reserved
+                .grant_entry(
+                    Arc::clone(approved),
+                    EntryValidation::Oracle { now: NOW },
+                    NOW,
+                )
+                .await
+                .expect("read grant");
+            assert!(matches!(
+                permit.request(),
+                crate::store::AcquisitionRequest::Prerequisite(_)
+            ));
+            drop(permit);
+            assert!(
+                stale
+                    .grant_entry(
+                        Arc::clone(approved),
+                        EntryValidation::Oracle { now: NOW },
+                        NOW
+                    )
+                    .await
+                    .is_err()
+            );
+            if lose_permit {
+                drop(granted);
+            } else {
+                granted
+                    .record_response(200, true, b"{}", NOW + 1)
+                    .await
+                    .expect("retained synthetic response");
+                let response = attempts
+                    .read_prerequisite(approved, kind, NOW + 2)
+                    .await
+                    .expect("fresh response");
+                assert_eq!(response.received_at, NOW + 1);
+                assert_eq!(response.observed_at, NOW);
+                assert!(
+                    attempts
+                        .read_prerequisite(approved, kind, NOW)
+                        .await
+                        .is_err(),
+                    "future response cannot be fresh"
+                );
+                assert!(
+                    attempts
+                        .read_prerequisite(approved, kind, NOW + 32)
+                        .await
+                        .is_err()
+                );
+            }
+            let reopened = GatewayAttempts::new(
+                Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("reopen journal")),
+                policy.clone(),
+            )
+            .expect("reopened attempts");
+            let AcquisitionClaim::Existing(snapshot) = reopened
+                .claim_prerequisite(approved, kind, NOW + 2)
+                .await
+                .expect("replay")
+            else {
+                panic!("no second permit")
+            };
+            assert_eq!(
+                snapshot.stage,
+                if lose_permit {
+                    AcquisitionStage::Unknown
+                } else {
+                    AcquisitionStage::ResponseRecorded
+                }
+            );
+            assert_eq!(snapshot.reserved_calls, 1);
+            assert_eq!(snapshot.reserved_bytes, capacity.maximum_bytes);
+            snapshots.push(json!(snapshot));
+        }
+        let grant = parent
+            .grant_entry(
+                Arc::clone(approved),
+                EntryValidation::Oracle {
+                    now: if history == "stale-response" {
+                        NOW + 31
+                    } else {
+                        NOW + 2
+                    },
+                },
+                NOW,
+                &crate::GatewayPreEntry::default(),
+            )
+            .await;
+        assert_eq!(grant.is_ok(), history == "recorded-response");
+        drop(grant);
+        histories.push(
+            json!({ "history": history, "lost_read_permits": lose_permit, "reopened_reads": snapshots,
+            "second_read_grants": 0, "write_grant": history == "recorded-response", "provider_calls": 0,
+            "stale_evidence_refused": !lose_permit }),
+        );
+    }
+    json!({ "recipe": recipe, "histories": histories })
 }

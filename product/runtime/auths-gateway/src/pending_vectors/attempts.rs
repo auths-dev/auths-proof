@@ -19,7 +19,7 @@ use serde_json::{Map, Value, json};
 
 pub(crate) const FILE: &str = "attempt-scenarios-v3.json";
 const SCHEMA: &str = "auths.gateway-attempt-scenarios/3";
-const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/8";
+const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/9";
 const STRIPE_VERSION: &str = "2025-03-31.basil";
 const ACCOUNT: &str = "acct_TESTACCOUNT01";
 const PLATFORM: &str = "acct_TESTPLATFORM1";

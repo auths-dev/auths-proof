@@ -270,3 +270,24 @@ compiler refusal. The Airtable case has no pre-entry observation requirement;
 it tests compilation, not admission eligibility. The fixture has no provider,
 custody, durable acquisition or human-channel claim. Runtime accounting,
 independent differential execution and installed evidence remain required.
+
+
+## Prerequisite journal cutover
+
+The same acquisition transition/adapter mechanism now handles the two compared
+prerequisite plans. Their authority differs from recovery: a prerequisite uses
+its exact parent's approved enumeration while the parent remains reserved;
+recovery uses an independent read proof/approval and an eligible unresolved
+source. A closed plan variant and source check preserve that distinction.
+Neither path decodes audit data into a transport request or grants disclosure.
+
+`prerequisite-entry.json` records file-journal histories for both compiled plans:
+missing reads, recorded responses, lost permits and stale responses. Equal
+reservations retain their charges, only one concurrent handle wins entry,
+reopening cannot remint a permit, response times are preserved, and final write
+entry requires fresh recorded child facts and their original allocations.
+Membership-witness substitution is rejected. Grants use an explicit-time oracle
+and responses are synthetic; no provider calls occur. The Airtable compilation
+case still has no native pre-entry requirement and does not establish installed
+mutation eligibility. Differential semantic evaluation, actual transport,
+process faults, PostgreSQL and tighter observer freshness remain exit gates.
