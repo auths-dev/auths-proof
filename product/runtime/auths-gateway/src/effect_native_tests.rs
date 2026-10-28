@@ -59,6 +59,8 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     .clone();
     let grant = grant(&root, &agent, None);
     let submission = submission(&root, &agent, &grant, &arguments, &[]);
+    let key = SigningKey::from_bytes(&[29; 32]);
+    let public = key.verifying_key().to_bytes();
     let installed = EffectInstallation {
         recipe: &recipe,
         context: &context,
@@ -66,6 +68,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         partition: "synthetic-partition",
         epoch: 1,
         qualification: crate::QualificationPolicy::Optional,
+        approver: public,
     };
     let effect = compile_mutation_effect(&installed, NOW, &submission.proof, &submission.action)
         .expect("native effect");
@@ -93,8 +96,6 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
             .contains("private-sentinel")
     );
     assert!(!format!("{effect:?}").contains("private-sentinel"));
-    let key = SigningKey::from_bytes(&[29; 32]);
-    let public = key.verifying_key().to_bytes();
     let review = effect
         .approval_request(public, NOW, NOW + 30)
         .expect("review");
@@ -130,6 +131,27 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     assert_eq!(approved.effect().private_request().body(), expected.body());
     assert!(approved.validate_approval(&public, NOW + 29).is_ok());
     assert!(approved.validate_approval(&public, NOW + 30).is_err());
+    assert!(approved.validate_for_entry(&installed, NOW + 29).is_ok());
+    assert!(approved.validate_for_entry(&installed, NOW + 30).is_err());
+    let late_request = later
+        .approval_request(public, NOW + 3_570, NOW + 3_605)
+        .expect("approval spanning native action expiry");
+    let late_signature = key
+        .sign(&late_request.signing_message().expect("message"))
+        .to_bytes();
+    let late = later
+        .approve(
+            late_request.with_signature(late_signature),
+            &public,
+            NOW + 3_570,
+        )
+        .expect("late approval");
+    assert!(late.validate_for_entry(&installed, NOW + 3_599).is_ok());
+    assert!(late.validate_approval(&public, NOW + 3_601).is_ok());
+    assert!(
+        late.validate_for_entry(&installed, NOW + 3_601).is_err(),
+        "a current human approval must not revive expired native resource authority"
+    );
     let changed_installation = EffectInstallation {
         epoch: 2,
         ..installed

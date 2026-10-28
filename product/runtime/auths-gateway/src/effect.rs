@@ -111,6 +111,12 @@ enum Protocol {
     },
 }
 
+#[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum ApprovalPolicy {
+    Exact { approver: [u8; 32] },
+}
+
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 struct BindingWire {
@@ -127,6 +133,7 @@ struct BindingWire {
     connection: [u8; 32],
     credential_generation: u64,
     qualification_policy: String,
+    approval_policy: ApprovalPolicy,
     reservations: Vec<Reservation>,
     protocol: Protocol,
 }
@@ -232,6 +239,10 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     {
         return Err(EffectBindingError::Invalid);
     }
+    let ApprovalPolicy::Exact { approver } = wire.approval_policy;
+    if VerifyingKey::from_bytes(&approver).map_or(true, |key| key.is_weak()) {
+        return Err(EffectBindingError::Invalid);
+    }
     let mut previous = None;
     for reservation in &wire.reservations {
         let key = (reservation.key, reservation.unit);
@@ -293,6 +304,8 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
 pub struct BoundEffect {
     binding: EffectBinding,
     command: VerifiedCommand,
+    proof: Zeroizing<Vec<u8>>,
+    action: Zeroizing<Vec<u8>>,
 }
 
 impl fmt::Debug for BoundEffect {
@@ -326,6 +339,9 @@ impl BoundEffect {
         not_before: u64,
         expires_at: u64,
     ) -> Result<EffectApprovalRequest, EffectBindingError> {
+        if self.binding.wire.approval_policy != (ApprovalPolicy::Exact { approver }) {
+            return Err(EffectBindingError::Invalid);
+        }
         let request = EffectApprovalRequest {
             schema: APPROVAL_SCHEMA.to_owned(),
             effect: *self.binding.id().as_bytes(),
@@ -349,6 +365,13 @@ impl BoundEffect {
         installed_approver: &[u8; 32],
         now: u64,
     ) -> Result<ApprovedEffect, EffectBindingError> {
+        if self.binding.wire.approval_policy
+            != (ApprovalPolicy::Exact {
+                approver: *installed_approver,
+            })
+        {
+            return Err(EffectBindingError::Invalid);
+        }
         approval.verify(self.binding.id(), installed_approver, now)?;
         Ok(ApprovedEffect {
             effect: self,
@@ -521,6 +544,30 @@ impl ApprovedEffect {
         self.approval
             .verify(self.effect.binding.id(), installed_approver, now)
     }
+
+    /// Re-runs the full native verifier on this effect's retained original
+    /// proof/action and recompiles against current installation inputs. Every
+    /// selected branch, evidence dependency, request and charge must still
+    /// produce the original binding. This is the semantic check the admission
+    /// transaction must call after acquiring its lock and sampling time; calling
+    /// it earlier alone does not fence revocation or configuration changes.
+    ///
+    /// # Errors
+    /// Returns native refusal, changed binding or expired/untrusted approval.
+    pub fn validate_for_entry(
+        &self,
+        installed: &EffectInstallation<'_>,
+        now: u64,
+    ) -> Result<(), GatewaySubmitResult> {
+        self.validate_approval(&installed.approver, now)
+            .map_err(|_| not_entered("gateway.effect.approval"))?;
+        let fresh =
+            compile_mutation_effect(installed, now, &self.effect.proof, &self.effect.action)?;
+        if fresh.binding != self.effect.binding {
+            return Err(not_entered("gateway.effect.binding-changed"));
+        }
+        Ok(())
+    }
 }
 
 /// Pinned deployment inputs for effect-free compilation. The caller must be
@@ -539,6 +586,8 @@ pub struct EffectInstallation<'a> {
     pub epoch: u64,
     /// Installed recipe qualification requirement.
     pub qualification: QualificationPolicy,
+    /// Exact human approver key pinned independently by installation policy.
+    pub approver: [u8; 32],
 }
 
 /// Verifies natively and compiles one mutation into an immutable bound effect.
@@ -556,12 +605,15 @@ pub fn compile_mutation_effect(
     GatewayConnectionDescriptor::from_record(installed.connection, installed.recipe)
         .map_err(|_| not_entered("gateway.effect.installation"))?;
     let command = verify_detailed(installed.recipe, installed.context, now, proof, action)?;
-    bind_mutation(installed, command).map_err(|_| not_entered("gateway.effect.invalid-binding"))
+    bind_mutation(installed, command, proof, action)
+        .map_err(|_| not_entered("gateway.effect.invalid-binding"))
 }
 
 fn bind_mutation(
     installed: &EffectInstallation<'_>,
     command: VerifiedCommand,
+    proof: &[u8],
+    action: &[u8],
 ) -> Result<BoundEffect, EffectBindingError> {
     let request = &command.request;
     let mut reservations = Vec::new();
@@ -608,12 +660,20 @@ fn bind_mutation(
         connection: commitment("auths.effect-installation/1", &connection)?,
         credential_generation: installed.connection.credential_generation().get(),
         qualification_policy: installed.qualification.as_str().to_owned(),
+        approval_policy: ApprovalPolicy::Exact {
+            approver: installed.approver,
+        },
         reservations,
         protocol: Protocol::Mutation {
             request: request_commitment(request)?,
         },
     })?;
-    Ok(BoundEffect { binding, command })
+    Ok(BoundEffect {
+        binding,
+        command,
+        proof: Zeroizing::new(proof.to_vec()),
+        action: Zeroizing::new(action.to_vec()),
+    })
 }
 
 /// Preserve all selected branches and evidence through the existing native
@@ -733,6 +793,9 @@ mod tests {
             connection: [4; 32],
             credential_generation: 1,
             qualification_policy: "required".to_owned(),
+            approval_policy: ApprovalPolicy::Exact {
+                approver: SigningKey::from_bytes(&[19; 32]).verifying_key().to_bytes(),
+            },
             reservations: vec![Reservation {
                 key: [5; 32],
                 unit: Unit::MutationCount,
@@ -795,7 +858,7 @@ mod tests {
     #[test]
     fn every_binding_dimension_changes_identity_without_evading_replay_key() {
         let original = EffectBinding::new(wire()).expect("binding");
-        for dimension in 0..12 {
+        for dimension in 0..13 {
             let mut changed = wire();
             match dimension {
                 0 => changed.action[0] ^= 1,
@@ -813,7 +876,12 @@ mod tests {
                 8 => changed.reservations[0].ceiling += 1,
                 9 => changed.reservations[0].window_index += 1,
                 10 => changed.reservations[0].window_seconds += 1,
-                _ => changed.protocol = Protocol::Mutation { request: [8; 32] },
+                11 => changed.protocol = Protocol::Mutation { request: [8; 32] },
+                _ => {
+                    changed.approval_policy = ApprovalPolicy::Exact {
+                        approver: SigningKey::from_bytes(&[20; 32]).verifying_key().to_bytes(),
+                    }
+                }
             }
             let changed = EffectBinding::new(changed).expect("changed binding");
             assert!(original.same_operation(&changed), "dimension {dimension}");

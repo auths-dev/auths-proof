@@ -56,6 +56,13 @@ No stage is complete merely because types, documentation or a happy path exist.
 - Existing submission still uses the baseline path. P1 is not closed until the
   installed review/approval/admission path replaces it. No new effect can yet be
   submitted, and the new sealed compilation API grants no execution authority.
+- Added entry validation over the retained original proof/action. It re-runs the
+  full verifier, compares the complete newly compiled binding, and checks the
+  original human approval at the supplied transaction time. The installed exact
+  approver policy is itself in the effect identity. The same native fixture
+  generation test passes after this change, including independently expiring
+  resource authority while human approval remains current. Transactional wiring
+  and fencing are still pending; this API alone makes no linearization claim.
 
 ## Phase gates
 
