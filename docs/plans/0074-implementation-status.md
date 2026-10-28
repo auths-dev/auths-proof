@@ -1476,6 +1476,30 @@ closure regeneration passed after that correction (one artifact-generation test)
   custody, AP070 Python state-owner removal, installed language/UI, hostile
   containment and complete adapter/fault/formal/performance evidence still remain.
 
+## User-requested CI triage and inventory correction checkpoint
+
+- After the explicit user request to delegate CI failures, an isolated CI agent
+  inspected hosted failures at `c80902ab`. Main implementation continued without
+  shared-file edits. The first isolated fix `991c223d` was reviewed and integrated
+  as `9c939036` after the read-only increment `cfaa8596` was committed.
+- That fix updates the Python gateway export inventory from 17 to 18 (total190),
+  the TypeScript declaration digest, Python3.9 runner matrices/artifact names to
+  Ubuntu24.04, and both qualification family corpus/contract source hashes.
+  Qualification assumptions and declarations were preserved. The agent reports
+  the API snapshot check and six focused qualification tests passing; exact
+  commands/hosted job links are to be recorded with its completed report.
+- Hosted preflight also found the semantic freeze stale. Required artifact
+  construction `cargo xtask semantic-freeze --update` identified nine changed
+  subjects. Freeze391 and only those subject versions were advanced; regeneration
+  succeeded. The current formal source closure did not change. This refresh is
+  not a formal proof execution or a completed hosted gate.
+- Remaining reported CI roots include stale native/installed tests expecting
+  implicit observation, obsolete raw re-observation simulation calls, and demos
+  lacking exact native effect approval/installation policy. CI fixes must use
+  actual native authorization/recovery or truthful response-only expectations;
+  tests/approvals may not be bypassed. Investigation continues in the isolated
+  checkout, with deeper maintained demo integration still part of AP074.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1498,9 +1522,9 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission, prerequisite and managed read charge fixtures | Full adapter concurrency and all units pending |
-| A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
+| A05 | Crash at every persistence/transport boundary | Partial / real daemon/recipient crash after receipt before ACK / charged unknown and exact late ACK executed | Remaining persistence/send boundaries and PostgreSQL |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
-| A07 | Revoke between acquisition and disclosure | Partial / socket-file corpus / connection disabled after authentication refuses entry | Independent-process revocation and installed journey pending |
+| A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
