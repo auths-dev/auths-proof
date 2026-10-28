@@ -1,7 +1,7 @@
 # AP073 engagement and participant contract
 
-**Status:** implementation contract, 27 October 2026. Native enrollment verification, a bounded tree and operator-session publication into the task journal are implemented.
-Mandatory participant admission, retained ancestor accounting, task-specific native audiences, typed deferred-child scopes and bounded CLI preparation are implemented in source. Binding authoring forwards explicit audiences. End-to-end external authoring, child delivery/write integration and exact-revision qualification remain incomplete. This document resolves the next bounded
+**Status:** implementation contract, 28 October 2026. Native enrollment verification, a bounded tree and operator-session publication into the task journal are implemented.
+Mandatory participant admission, retained ancestor accounting, task-specific native audiences, typed deferred-child scopes and bounded CLI preparation are implemented in source. Binding authoring forwards explicit audiences. Enrolled disclosure permits and exact-writer approval are implemented in source. End-to-end external authoring, provider execution/recovery evidence and exact-revision qualification remain incomplete. This document resolves the next bounded
 design decisions under [AP-SPEC-073](../specs/0073-identity-authority-and-enforcement-foundation.md).
 The [assessment](0073-foundation-assessment.md) records actual evidence.
 

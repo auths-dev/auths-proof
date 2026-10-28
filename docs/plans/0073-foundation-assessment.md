@@ -1000,3 +1000,12 @@ passed (including its gateway library dependency). The closure constructor
 passed with 397 behavior tests filtered out. Semantic inventory 410 advances
 identity 152 and public SDK 149; other protocol identities remain unchanged.
 Formatting and diff checks passed. These checks do not substitute for full CI.
+
+Writer cutover committed and pushed as
+`7349ca5b280cee0bd97660c747da52b859ebc9ab`; draft PR #212 describes the current
+implementation and remaining program. Its full CI dispatch is still pending
+while the preceding `164dd84c` run finishes fast Lean feedback, preserving that
+run's result instead of cancelling it through the workflow concurrency group.
+Next work must dispatch the new revision after that run terminates, inspect
+behavioral failures, and complete the external operator bootstrap and isolated
+child provider flow. No goal or acceptance criterion is closed by this checkpoint.
