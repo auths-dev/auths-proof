@@ -57,6 +57,9 @@ pub use commissioning::{
     CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
 };
 
+#[path = "candidate_runtime.rs"]
+mod candidate;
+
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -1340,18 +1343,18 @@ impl GatewayEngine {
         started: Instant,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         // Retained terminal history never needs preparation or custody.
-        if let Some(snapshot) = self
-            .attempts
-            .read_recovery(&approved)
-            .await
-            .map_err(|error| match error {
-                crate::GatewayAttemptError::BindingConflict => {
-                    not_entered("gateway.effect.operation-conflict")
-                }
-                _ => GatewaySubmitResult::Indeterminate {
-                    code: "gateway.attempt.state-unavailable".to_owned(),
-                },
-            })?
+        if let Some(snapshot) =
+            self.attempts
+                .read_acquisition(&approved)
+                .await
+                .map_err(|error| match error {
+                    crate::GatewayAttemptError::BindingConflict => {
+                        not_entered("gateway.effect.operation-conflict")
+                    }
+                    _ => GatewaySubmitResult::Indeterminate {
+                        code: "gateway.attempt.state-unavailable".to_owned(),
+                    },
+                })?
             && snapshot.stage != crate::AcquisitionStage::Reserved
         {
             return Ok(snapshot);
@@ -1473,7 +1476,7 @@ impl GatewayEngine {
         approved: &ApprovedEffect,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         self.attempts
-            .read_recovery(approved)
+            .read_acquisition(approved)
             .await
             .ok()
             .flatten()
@@ -1498,45 +1501,8 @@ impl GatewayEngine {
         {
             return Err("gateway.credential.mode-guard");
         }
-        for plan in approved
-            .prerequisite_plans()
-            .map_err(|_| "gateway.acquisition.binding")?
-        {
-            let kind = plan.kind().map_err(|_| "gateway.acquisition.binding")?;
-            let evidence =
-                submit::acquire_prerequisite(&self.attempts, &approved, kind, io, &lease)
-                    .await
-                    .ok_or("gateway.entry.prerequisite-evidence")?;
-            crate::entry::validate_credential_evidence(
-                &self.recipe,
-                *approved.connection().account_commitment(),
-                &evidence,
-            )?;
-        }
-        let validation = io.entry_validation()?;
-        let now = io.clock().ok_or("gateway.verify.clock-unavailable")?;
-        let (granted, permit) = reserved
-            .grant_entry(approved, validation, now)
+        submit::complete_acquisition(&self.attempts, &self.recipe, approved, reserved, io, &lease)
             .await
-            .map_err(|_| "gateway.entry.unavailable")?;
-        let prepared = io.prepared.get().ok_or("gateway.entry.unprepared")?;
-        match prepared.transport.acquire(permit, &lease).await {
-            Some(response) => match io.clock() {
-                Some(received_at) => {
-                    granted
-                        .record_response(
-                            response.status,
-                            response.version_ok,
-                            &response.body,
-                            received_at,
-                        )
-                        .await
-                }
-                None => granted.record_unknown().await,
-            },
-            None => granted.record_unknown().await,
-        }
-        .map_err(|_| "gateway.attempt.state-unavailable")
     }
 
     async fn recovery_compilation_target(
@@ -1665,6 +1631,16 @@ impl GatewayEngine {
         if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
+        Ok(PreparedEntry {
+            loaded,
+            transport: self.prepare_transport(&descriptor)?,
+        })
+    }
+
+    fn prepare_transport(
+        &self,
+        descriptor: &GatewayConnectionDescriptor,
+    ) -> Result<GatewayHttpTransport, &'static str> {
         #[cfg(feature = "loopback-provider")]
         if let Some(port) = self.loopback_port {
             return GatewayHttpTransport::prepare_loopback(
@@ -1672,17 +1648,11 @@ impl GatewayEngine {
                 descriptor.credential(),
                 port,
             )
-            .map(|transport| PreparedEntry {
-                loaded,
-                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
-            })
+            .map(|transport| transport.with_witness(Arc::clone(&self.execution_witness)))
             .map_err(|_| "gateway.transport.preparation");
         }
         GatewayHttpTransport::prepare(&self.recipe, descriptor.credential())
-            .map(|transport| PreparedEntry {
-                loaded,
-                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
-            })
+            .map(|transport| transport.with_witness(Arc::clone(&self.execution_witness)))
             .map_err(|_| "gateway.transport.preparation")
     }
 
@@ -1813,7 +1783,9 @@ impl SubmitIo for EngineIo<'_> {
                     .map(|observer| observer.principal().clone()),
                 policy: self.engine.effect_policy.clone(),
                 configuration: self.engine.shared_configuration()?,
-                connection: prepared.loaded.clone(),
+                connection: crate::entry::EntryConnection::Installed(Box::new(
+                    prepared.loaded.clone(),
+                )),
                 connection_key: crate::connection_key(
                     self.engine.connection.provider(),
                     self.engine.connection.alias(),

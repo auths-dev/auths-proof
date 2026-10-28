@@ -305,7 +305,7 @@ pub(super) async fn fixture(
         )
         .expect("attempts");
         let snapshot = reopened
-            .read_recovery(&approved)
+            .read_acquisition(&approved)
             .await
             .expect("history")
             .expect("parent");

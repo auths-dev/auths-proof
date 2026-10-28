@@ -115,32 +115,70 @@ pub(crate) trait SubmitIo {
     ) -> Option<ProviderResponse>;
 }
 
+/// Narrow port for the common prerequisite acquisition sequence. It adds no
+/// authorization or transition semantics; the journal remains the sole owner.
+pub(crate) trait AcquisitionIo {
+    type Lease;
+    fn acquisition_enter(&self);
+    fn acquisition_leave(&self);
+    fn acquisition_clock(&self) -> Option<u64>;
+    fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str>;
+    async fn acquisition_send(
+        &self,
+        lease: &Self::Lease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse>;
+}
+
+impl<T: SubmitIo> AcquisitionIo for T {
+    type Lease = T::Lease;
+    fn acquisition_enter(&self) {
+        self.enter();
+    }
+    fn acquisition_leave(&self) {
+        self.leave();
+    }
+    fn acquisition_clock(&self) -> Option<u64> {
+        self.clock()
+    }
+    fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        self.entry_validation()
+    }
+    async fn acquisition_send(
+        &self,
+        lease: &Self::Lease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse> {
+        self.acquire(lease, permit).await
+    }
+}
+
 /// Acquire one compiler-selected prerequisite through the shared journal and
 /// consumed permit. Both mutation and recovery use this transport sequence.
-pub(crate) async fn acquire_prerequisite<I: SubmitIo>(
+pub(crate) async fn acquire_prerequisite<I: AcquisitionIo>(
     attempts: &GatewayAttempts,
     approved: &std::sync::Arc<ApprovedEffect>,
     kind: PrerequisiteKind,
     io: &I,
     lease: &I::Lease,
 ) -> Option<crate::store::PrerequisiteResponse> {
-    let started = io.clock()?;
-    let validation = io.entry_validation().ok()?;
+    let started = io.acquisition_clock()?;
+    let validation = io.acquisition_validation().ok()?;
     match attempts
         .claim_prerequisite(approved, kind, started, validation)
         .await
         .ok()?
     {
         crate::AcquisitionClaim::Reserved(reserved) => {
-            let validation = io.entry_validation().ok()?;
-            let entry_started = io.clock()?;
+            let validation = io.acquisition_validation().ok()?;
+            let entry_started = io.acquisition_clock()?;
             let (granted, permit) = reserved
                 .grant_entry(std::sync::Arc::clone(approved), validation, entry_started)
                 .await
                 .ok()?;
-            match io.acquire(lease, permit).await {
+            match io.acquisition_send(lease, permit).await {
                 Some(response) => {
-                    let received_at = io.clock()?;
+                    let received_at = io.acquisition_clock()?;
                     granted
                         .record_response(
                             response.status,
@@ -161,10 +199,60 @@ pub(crate) async fn acquire_prerequisite<I: SubmitIo>(
     }
     // Only acknowledged, retained evidence is usable. Replays keep the
     // original receipt time and cannot create another provider invocation.
-    let now = io.clock()?;
+    let now = io.acquisition_clock()?;
     let recorded = attempts.read_prerequisite(approved, kind, now).await.ok()?;
     (recorded.observed_at <= recorded.received_at && recorded.received_at <= now)
         .then_some(recorded)
+}
+/// Runs the same ordered credential prerequisites and primary read for recovery
+/// and staged candidates. Only durably retained responses feed native predicates.
+pub(crate) async fn complete_acquisition<I: AcquisitionIo>(
+    attempts: &GatewayAttempts,
+    recipe: &CompiledRecipe,
+    approved: std::sync::Arc<ApprovedEffect>,
+    reserved: crate::ReservedAcquisition,
+    io: &I,
+    lease: &I::Lease,
+) -> Result<crate::AcquisitionSnapshot, &'static str> {
+    for plan in approved
+        .prerequisite_plans()
+        .map_err(|_| "gateway.acquisition.binding")?
+    {
+        let kind = plan.kind().map_err(|_| "gateway.acquisition.binding")?;
+        let evidence = acquire_prerequisite(attempts, &approved, kind, io, lease)
+            .await
+            .ok_or("gateway.entry.prerequisite-evidence")?;
+        crate::entry::validate_credential_evidence(
+            recipe,
+            *approved.connection().account_commitment(),
+            &evidence,
+        )?;
+    }
+    let validation = io.acquisition_validation()?;
+    let now = io
+        .acquisition_clock()
+        .ok_or("gateway.verify.clock-unavailable")?;
+    let (granted, permit) = reserved
+        .grant_entry(approved, validation, now)
+        .await
+        .map_err(|_| "gateway.entry.unavailable")?;
+    match io.acquisition_send(lease, permit).await {
+        Some(response) => match io.acquisition_clock() {
+            Some(received_at) => {
+                granted
+                    .record_response(
+                        response.status,
+                        response.version_ok,
+                        &response.body,
+                        received_at,
+                    )
+                    .await
+            }
+            None => granted.record_unknown().await,
+        },
+        None => granted.record_unknown().await,
+    }
+    .map_err(|_| "gateway.attempt.state-unavailable")
 }
 
 /// The installation one submission runs against.
@@ -265,20 +353,20 @@ pub(crate) fn denied_result(response: Option<&ProviderResponse>, refused: &[u16]
 
 /// Ends the in-flight count of one entry when dropped, so a count taken
 /// before the final reload is released on every path.
-pub(crate) struct InFlight<'a, I: SubmitIo> {
+pub(crate) struct InFlight<'a, I: AcquisitionIo> {
     io: &'a I,
 }
 
-impl<'a, I: SubmitIo> InFlight<'a, I> {
+impl<'a, I: AcquisitionIo> InFlight<'a, I> {
     pub(crate) fn enter(io: &'a I) -> Self {
-        io.enter();
+        io.acquisition_enter();
         Self { io }
     }
 }
 
-impl<I: SubmitIo> Drop for InFlight<'_, I> {
+impl<I: AcquisitionIo> Drop for InFlight<'_, I> {
     fn drop(&mut self) {
-        self.io.leave();
+        self.io.acquisition_leave();
     }
 }
 

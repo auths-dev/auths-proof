@@ -814,6 +814,46 @@ closure regeneration passed after that correction (one artifact-generation test)
   on `15b3cad1` plus this source. No broad local gate or hosted CI was run; no
   A01–A22 acceptance criterion closes.
 
+## Candidate acquisition journal/runtime checkpoint
+
+- Journal `/12` adds candidate source plans to the shared acquisition owner.
+  Admission pins the actual expected predecessor or first-install absence;
+  ordinary and candidate entry share native verification/configuration/approval
+  checks. Candidate checks preserve disabled state and still require the exact
+  workload/profile. Revocation or any predecessor replacement prevents later
+  child and primary grants. The source/native dependency on the same connection
+  row is read once, with both predicates evaluated against that snapshot.
+- Entry audit `/3` records absence separately from a present record commitment.
+  Native candidate histories exposed the previous all-present audit assumption;
+  the explicit layout change makes first-install grants representable without
+  weakening mandatory dependency checks. Old layouts are refused.
+- The engine candidate acquisition API leases the exact staged credential after
+  admission and uses the shared ordered-read helper. It validates earlier probe,
+  account and capability responses before primary entry; final entry repeats
+  their actual predicates/freshness. Response/unknown facts retain allocations
+  and never grant publication. Cross-proposal allocation collision checks prevent
+  a credential identity from changing its already established byte ceiling.
+- The native candidate artifact generator covers first install, active/disabled
+  rotation, HEAD-final and probe-only variants using actual native fence checking
+  and real file state. Histories cover missing/bad/stale children, predecessor
+  changes before admission/child/main entry, lost main permits, replay and reopen.
+  Configuration/clock and response bodies are synthetic; no installed provider,
+  publication or PostgreSQL claim is made. A capacity fixture initially reused
+  equal limits; its probe-only recipe now changes the limit to exercise refusal.
+- Artifact construction passed on `f0a364fd` plus this source: 36 candidate
+  journal histories and three cross-proposal capacity cases; recovery/prerequisite
+  compilation, binding/approval, actual prerequisite predicates, admission/entry,
+  replay, attempt, code/custody, application frame/CLI and final semantic closure.
+  One extraction build required correcting a moved helper's module qualifier;
+  the new capacity case required actually differing byte ceilings. These were
+  corrected before successful regeneration. No broad local suite or hosted CI
+  was run or observed.
+- Remaining onboarding work: durable staging/authoring CLI, retained final-purpose
+  validation and safely fenced publication, then removal of the old raw check
+  paths. General acquisition/disclosure/ACK, safe recovery credential replacement,
+  Python-owner removal, authenticated UI/bindings and full acceptance evidence
+  remain open. No A01–A22 criterion is fully closed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -821,7 +861,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation execution (candidate compilation authored), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation staging/publication (candidate acquisition API wired), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

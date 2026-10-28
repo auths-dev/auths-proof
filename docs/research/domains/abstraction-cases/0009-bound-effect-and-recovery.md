@@ -406,3 +406,24 @@ recovery and orphan-child routes. It is compiler/predicate and route-refusal
 evidence only. The candidate journal admission, staged custody, ordered current
 or absence validation, transport and publication cutover remain required; this
 checkpoint does not promote an operator attestation into native read authority.
+
+
+## Candidate acquisition runtime checkpoint
+
+The candidate plan is now another closed source alternative of the existing
+acquisition owner, with connection/predecessor eligibility kept distinct from
+recovery's source mutation. Physical dependency deduplication preserves both
+source and native checks on the same snapshot. Native authority, qualification,
+exact approval and workload/profile checks remain in `entry.rs`; disabled
+candidate rotation is explicit and cannot authorize an ordinary mutation.
+The shared acquisition runtime consumes the same permits and retained-response
+predicates. There is no new reducer, provider callback or public content path.
+
+`candidate-journal.json` records actual native fenced validation with signed
+proofs and real file persistence for first install, active/disabled rotation,
+HEAD-final and probe-only plans. Histories cover absent/changed predecessors,
+changes before child/main grants, missing/bad/stale child evidence, lost main
+permits and restart. Cross-proposal capacity checks preserve the credential's
+first byte ceiling. Configuration and time are test-controlled; provider bodies
+are synthetic. These artifacts do not establish installed provider execution,
+PostgreSQL conformance, final-check acceptance or credential publication.

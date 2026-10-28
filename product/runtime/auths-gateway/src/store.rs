@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/11`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/12`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/11";
+const SCHEMA: &str = "auths.gateway-attempt/12";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -586,7 +586,7 @@ impl<S> Record<S> {
             return Err(GatewayAttemptError::Corrupt);
         }
         if self.entry.as_ref().is_some_and(|entry| {
-            entry.schema != "auths.effect-entry/2"
+            entry.schema != "auths.effect-entry/3"
                 || entry.revision < 2
                 || entry.revision > self.revision
                 || entry.authorization_started_at < self.evaluated_at
@@ -598,6 +598,7 @@ impl<S> Record<S> {
                 || entry
                     .dependencies
                     .iter()
+                    .flatten()
                     .any(|value| digest_bytes(value).is_err())
         }) {
             return Err(GatewayAttemptError::Corrupt);
@@ -652,16 +653,20 @@ impl<S> Record<S> {
                     .to_vec(),
             )
             .map_err(|_| GatewayAttemptError::Corrupt)?,
-            schema: "auths.effect-entry/2".to_owned(),
+            schema: "auths.effect-entry/3".to_owned(),
             granted_at: now,
             effect_id: hex::encode(approved.effect().binding().id().as_bytes()),
             dependencies: dependencies
                 .iter()
                 .map(|bytes| {
-                    let bytes = bytes.as_deref().ok_or(GatewayAttemptError::Corrupt)?;
-                    auths_codec::domain_commitment("auths.effect-entry-dependency/1", bytes)
-                        .map(|digest| hex::encode(digest.as_bytes()))
-                        .map_err(|_| GatewayAttemptError::Corrupt)
+                    bytes
+                        .as_deref()
+                        .map(|bytes| {
+                            auths_codec::domain_commitment("auths.effect-entry-dependency/1", bytes)
+                                .map(|digest| hex::encode(digest.as_bytes()))
+                                .map_err(|_| GatewayAttemptError::Corrupt)
+                        })
+                        .transpose()
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         });
@@ -774,7 +779,8 @@ struct EntryAudit {
     schema: String,
     granted_at: u64,
     effect_id: String,
-    dependencies: Vec<String>,
+    // None records an explicitly checked absence, distinct from empty bytes.
+    dependencies: Vec<Option<String>>,
 }
 
 /// The fields no transition may change, in a fixed order.

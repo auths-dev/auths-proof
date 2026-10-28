@@ -177,7 +177,7 @@ pub(super) async fn corpus(
             compile("budget-read-1", NOW + 2),
             compile("budget-read-2", NOW + 2),
         ];
-        let compiled = reads[0].recovery_bound().expect("managed budget");
+        let compiled = reads[0].acquisition_bound().expect("managed budget");
         assert_eq!(compiled.argument, maximum);
         assert_eq!(compiled.counts.len(), 1);
         assert_eq!(compiled.sums.len(), usize::from(sum_calls.is_some()));
@@ -223,7 +223,7 @@ pub(super) async fn corpus(
         assert_eq!(refused.len(), 1);
         let (winner, handle) = winners.pop().expect("winner");
         let approved = &reads[winner];
-        let compiled = approved.recovery_bound().expect("bound");
+        let compiled = approved.acquisition_bound().expect("bound");
         let counter_key = crate::GatewayAttemptKey::from_bytes(crate::bounds::count_slot_key(
             &compiled.counts[0].key,
             prior_slots,

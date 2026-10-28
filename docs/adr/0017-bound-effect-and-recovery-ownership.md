@@ -655,3 +655,32 @@ ceiling and declared one-call child allowances. Current native count/byte polici
 also apply. This checkpoint adds compilation and review only. Candidate staging,
 fresh absent/current-record fencing, shared journal admission, actual checks and
 publication are required before production onboarding can use this target.
+
+
+## Candidate acquisition admission and execution
+
+Candidate checks now use a typed plan in the existing acquisition journal.
+Their source dependency is the exact expected connection row, including a
+fenced absence for first install. The same native entry checker handles a
+published connection or a sealed candidate; candidate reads may preserve a
+disabled predecessor, but require the pinned workload/profile and refuse
+revocation or any predecessor change. Child entry checks both its reserved
+parent and the candidate's current connection dependency. Final primary entry
+also checks all retained child predicates and freshness.
+
+The source and native connection dependency can name the same physical row.
+The fence reads it once and maps that snapshot to both checks. This is index
+bookkeeping, not a second validation authority. Entry audit `/3` records a
+checked absence as null, distinct from a present record's commitment. Journal
+`/12` rejects the superseded encoding. No missing dependency is implicitly
+accepted; the typed candidate predicate alone admits first-install absence.
+
+Lifetime allocations are append-only and retain a fixed byte ceiling for one
+credential identity. A competing proposal with that identity cannot change the
+ceiling after an allocation exists. The shared read runtime executes ordered
+prerequisites, evaluates retained native evidence, consumes one primary permit
+and records response/unknown. Mutation prerequisites, recovery and candidates
+use the same helper. `acquire_candidate_credential` leases only the exact already
+staged candidate and returns redacted acquisition facts. It does not publish the
+credential. CLI staging, final-purpose validation, safely fenced publication and
+removal of the old onboarding/rotation read routes remain required.

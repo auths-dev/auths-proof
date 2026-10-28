@@ -20,6 +20,7 @@ use zeroize::Zeroizing;
 
 mod acquisition;
 mod candidate;
+pub(crate) use candidate::CandidatePlan;
 pub use candidate::{
     CANDIDATE_CHECK_TOOL, CandidateCredentialTarget, compile_candidate_credential,
 };
@@ -1089,6 +1090,22 @@ impl ApprovedEffect {
         }
     }
 
+    pub(crate) fn candidate_target(&self) -> Option<&CandidateCredentialTarget> {
+        match &self.effect.command {
+            CompiledEffect::Acquisition(command) => match &command.target {
+                acquisition::AcquisitionTarget::Candidate(target) => Some(target),
+                acquisition::AcquisitionTarget::Recovery(_) => None,
+            },
+            CompiledEffect::Mutation(_) => None,
+        }
+    }
+
+    pub(crate) fn candidate_plan(&self) -> Result<CandidatePlan, EffectBindingError> {
+        self.candidate_target()
+            .ok_or(EffectBindingError::Invalid)?
+            .journal_plan()
+    }
+
     pub(crate) fn recovery_target(&self) -> Option<&RecoveryReadTarget> {
         match &self.effect.command {
             CompiledEffect::Mutation(_) => None,
@@ -1099,7 +1116,7 @@ impl ApprovedEffect {
         }
     }
 
-    pub(crate) fn recovery_bound(&self) -> Option<&crate::bounds::BoundAdmission> {
+    pub(crate) fn acquisition_bound(&self) -> Option<&crate::bounds::BoundAdmission> {
         match &self.effect.command {
             CompiledEffect::Mutation(_) => None,
             CompiledEffect::Acquisition(command) => command.bound.as_ref(),

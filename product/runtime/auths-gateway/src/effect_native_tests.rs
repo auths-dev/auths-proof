@@ -576,7 +576,7 @@ async fn exercise_recovery_journal(
     let mut retained_bytes = 0;
     for approved in &reads {
         let snapshot = reopened
-            .read_recovery(approved)
+            .read_acquisition(approved)
             .await
             .expect("read history")
             .expect("record");
@@ -660,7 +660,7 @@ async fn exercise_recovery_refinement(
     let mut available = Vec::new();
     for read in reads {
         if attempts
-            .read_recovery(read)
+            .read_acquisition(read)
             .await
             .expect("read")
             .expect("record")

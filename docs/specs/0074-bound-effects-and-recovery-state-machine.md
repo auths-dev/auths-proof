@@ -263,7 +263,18 @@ cannot establish predecessor freshness, enter transport or publish a credential;
 the runtime must fence predecessor/absence and retain the checks through safe
 publication in the same authoritative journal contract.
 
-The concrete journal encoding is `auths.gateway-attempt/11`. Each prerequisite
+Candidate journal admission uses the expected connection row as a source
+rather than an invented source mutation. Both admission and every child/primary
+entry must recheck predecessor/absence, exact native authority, configuration,
+approval and qualification under the same fence. Root source and native checks
+share one snapshot when they address the same row. Entry audit
+`auths.effect-entry/3` records checked absence explicitly, separately from a
+present record's digest. A candidate's source-lifetime byte ceiling cannot
+change once its credential identity has an allocation. Candidate acquisition
+returns retained response/unknown facts; publication remains a separate operator
+action requiring the final purpose and complete fresh retained evidence.
+
+The concrete journal encoding is `auths.gateway-attempt/12`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded

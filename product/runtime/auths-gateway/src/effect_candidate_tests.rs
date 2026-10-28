@@ -21,6 +21,19 @@ async fn native_candidate_compilation_fixture_is_current() {
     let public = key.verifying_key().to_bytes();
     let policy = EffectPolicy::new("synthetic-candidate".to_owned(), 1, public).expect("policy");
     let mut cases = Vec::new();
+    let mut journal_cases = Vec::new();
+    let mut capacity_cases = Vec::new();
+    let capacity_directory = tempfile::tempdir().expect("capacity directory");
+    let capacity_store = std::sync::Arc::new(
+        crate::FileGatewayAttemptStore::open(
+            &std::fs::canonicalize(capacity_directory.path())
+                .expect("path")
+                .join("journal"),
+        )
+        .expect("store"),
+    );
+    let capacity_attempts =
+        crate::GatewayAttempts::new(capacity_store, policy.clone()).expect("capacity attempts");
     for case in [
         "first-install",
         "rotation",
@@ -34,6 +47,7 @@ async fn native_candidate_compilation_fixture_is_current() {
             source["credential"]["guard"]["denied_reads"][1]["method"] = json!("HEAD");
         }
         if case == "probe-only" {
+            source["credential"]["guard"]["probe"]["maximum_response_bytes"] = json!(8192);
             source["credential"]["guard"]
                 .as_object_mut()
                 .expect("guard")
@@ -185,7 +199,7 @@ async fn native_candidate_compilation_fixture_is_current() {
             if case == "head-final" { "HEAD" } else { "GET" }
         );
         let signing = effect
-            .approval_request(NOW, NOW + 30)
+            .approval_request(NOW, NOW + 60)
             .expect("signing request");
         let signature = key
             .sign(&signing.signing_message().expect("message"))
@@ -204,7 +218,7 @@ async fn native_candidate_compilation_fixture_is_current() {
         approved
             .validate_for_entry(&installed, NOW + 1)
             .expect("same native recompile");
-        assert!(approved.validate_for_entry(&installed, NOW + 31).is_err());
+        assert!(approved.validate_for_entry(&installed, NOW + 61).is_err());
         assert!(approved.command().is_none());
         assert!(approved.recovery_target().is_none());
         assert!(approved.recovery_plan().is_err());
@@ -258,6 +272,66 @@ async fn native_candidate_compilation_fixture_is_current() {
                     .await
                     .is_err()
             );
+        }
+        journal_cases.push(
+            candidate_journal(
+                case,
+                &approved,
+                &installed,
+                &policy,
+                &target,
+                previous.as_ref(),
+            )
+            .await,
+        );
+        if previous.is_none() {
+            let call = target
+                .authorization_call(
+                    &recipe,
+                    &LogicalOperationId::parse(&format!("capacity-{case}")).expect("operation"),
+                )
+                .expect("call");
+            let signed = submission_for_call(&root, &reader, &grant, &call, &[]);
+            let effect = compile_candidate_credential(
+                &installed,
+                &target,
+                NOW,
+                &signed.proof,
+                &signed.action,
+            )
+            .expect("capacity effect");
+            let request = effect.approval_request(NOW, NOW + 60).expect("request");
+            let signature = key
+                .sign(&request.signing_message().expect("message"))
+                .to_bytes();
+            let approved = std::sync::Arc::new(
+                effect
+                    .approve(request.with_signature(signature), &public, NOW)
+                    .expect("capacity approval"),
+            );
+            let result = capacity_attempts
+                .claim_candidate(
+                    &approved,
+                    NOW,
+                    crate::entry::EntryValidation::Oracle { now: NOW },
+                )
+                .await;
+            if case == "probe-only" {
+                assert!(
+                    matches!(result, Err(crate::GatewayAttemptError::BindingConflict)),
+                    "same credential cannot change its previously allocated byte ceiling"
+                );
+                assert!(
+                    capacity_attempts
+                        .read_acquisition(&approved)
+                        .await
+                        .expect("read")
+                        .is_none()
+                );
+            } else {
+                assert!(matches!(result, Ok(crate::AcquisitionClaim::Reserved(_))));
+            }
+            capacity_cases.push(json!({"case": case, "shared_credential_capacity": if case == "probe-only" { "changed ceiling refused without record" } else { "one retained allocation" }}));
         }
         let mut refused = Vec::new();
         for field in [
@@ -414,7 +488,7 @@ async fn native_candidate_compilation_fixture_is_current() {
         );
         cases.push(json!({"case": case, "review": review, "binding_canonical": std::str::from_utf8(&binding).expect("UTF-8"),
             "substitutions_refused": refused, "native_reverification": "same effect; altered connection and expired approval refused",
-            "admission": "mutation, recovery and orphan child refused; candidate runtime not implemented",
+            "admission": "mutation, recovery and orphan child refused; candidate runtime admission tested separately",
             "same_credential_new_operation_retains_lifetime_reservations": true,
             "probe_predicate": "exact value accepted; wrong value and duplicate member refused" }));
     }
@@ -431,4 +505,281 @@ async fn native_candidate_compilation_fixture_is_current() {
         std::fs::write(&path, &fixture).expect("write fixture");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+    let fixture = serde_json::to_vec_pretty(&json!({"schema": "auths.candidate-journal-fixture/1", "scope": "native signed authority and actual fenced entry predicates with real file journal; synthetic configuration, clock and provider bodies; no installed provider, publication or PostgreSQL claim", "cases": journal_cases, "cross_proposal_capacity": capacity_cases})).expect("fixture");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/candidate-journal.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &fixture).expect("write fixture");
+    }
+    assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "ordered native fence histories keep state and evidence together"
+)]
+async fn candidate_journal(
+    name: &str,
+    approved: &std::sync::Arc<crate::effect::ApprovedEffect>,
+    installed: &EffectInstallation<'_>,
+    policy: &EffectPolicy,
+    target: &CandidateCredentialTarget,
+    previous: Option<&ConnectionRecord>,
+) -> Value {
+    use crate::effect::PrerequisiteKind;
+    use std::sync::Arc;
+    let mut histories = Vec::new();
+    for case in [
+        "recorded",
+        "lost-main-permit",
+        "missing-child",
+        "bad-probe",
+        "stale-child",
+        "changed-before-admission",
+        "changed-before-child",
+        "changed-before-main",
+    ] {
+        if matches!(
+            case,
+            "missing-child" | "bad-probe" | "stale-child" | "changed-before-child"
+        ) && approved.prerequisite_plans().expect("plans").is_empty()
+        {
+            continue;
+        }
+        let directory = tempfile::tempdir().expect("directory");
+        let path = std::fs::canonicalize(directory.path())
+            .expect("path")
+            .join("journal");
+        let store: Arc<dyn crate::GatewayAttemptStore> =
+            Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("store"));
+        let attempts =
+            crate::GatewayAttempts::new(Arc::clone(&store), policy.clone()).expect("attempts");
+        let connection = crate::SharedConnection::new(
+            Arc::clone(&store),
+            target.record().provider_kind().clone(),
+            target.record().alias().clone(),
+        );
+        if let Some(previous) = previous {
+            connection.insert(previous).await.expect("predecessor");
+        }
+        let clock = Arc::new(crate::FixedClock::at(NOW));
+        let qualification = Arc::new(crate::QualificationGate::new(
+            crate::QualificationPolicy::Optional,
+            None,
+            None,
+            Box::new(Arc::clone(&clock)),
+            auths_recipe_qualification::VerifierState::default(),
+        ));
+        let configuration = crate::configuration::SharedConfiguration::new(
+            Arc::clone(&store),
+            policy
+                .configuration_key(installed.recipe.namespace())
+                .expect("key"),
+            installed.configuration,
+        );
+        configuration
+            .initialize(&qualification)
+            .expect("initialize");
+        let validation = || {
+            crate::entry::EntryValidation::Installed(Box::new(crate::entry::InstalledEntry {
+                recipe: installed.recipe.clone(),
+                trust: installed.context.clone(),
+                observer: None,
+                policy: policy.clone(),
+                configuration: configuration.clone(),
+                connection: crate::entry::EntryConnection::Candidate(Box::new(target.clone())),
+                connection_key: crate::connection_key(
+                    target.record().provider_kind(),
+                    target.record().alias(),
+                ),
+                qualification: Arc::clone(&qualification),
+                workload: "gateway".to_owned(),
+                profile: ConnectionProfile::new(
+                    SemanticId::parse("auths.mcp").expect("profile"),
+                    2,
+                )
+                .expect("profile"),
+                started: std::time::Instant::now(),
+                #[cfg(unix)]
+                commissioning: None,
+            }))
+        };
+        if case == "changed-before-admission" {
+            change_predecessor(&connection, target, previous).await;
+            assert!(
+                attempts
+                    .claim_candidate(approved, NOW, validation())
+                    .await
+                    .is_err()
+            );
+            assert!(
+                attempts
+                    .read_acquisition(approved)
+                    .await
+                    .expect("read")
+                    .is_none()
+            );
+            histories.push(json!({"case": case, "claim": "refused", "no_record": true}));
+            continue;
+        }
+        let crate::AcquisitionClaim::Reserved(reserved) = attempts
+            .claim_candidate(approved, NOW, validation())
+            .await
+            .expect("native admission")
+        else {
+            panic!("reservation");
+        };
+        let before = reserved.snapshot().expect("snapshot");
+        assert_eq!(before.reserved_calls, 1);
+        assert!(matches!(
+            attempts
+                .claim_candidate(approved, NOW, validation())
+                .await
+                .expect("replay"),
+            crate::AcquisitionClaim::Reserved(_)
+        ));
+        assert_eq!(
+            attempts
+                .read_acquisition(approved)
+                .await
+                .expect("read")
+                .expect("snapshot"),
+            before
+        );
+        if case == "changed-before-child" {
+            change_predecessor(&connection, target, previous).await;
+        }
+        let mut children = Vec::new();
+        for plan in approved.prerequisite_plans().expect("plans") {
+            let kind = plan.kind().expect("purpose");
+            if case == "missing-child" {
+                break;
+            }
+            let admission = attempts
+                .claim_prerequisite(approved, kind, NOW, validation())
+                .await;
+            if case == "changed-before-child" {
+                assert!(admission.is_err());
+                break;
+            }
+            let crate::AcquisitionClaim::Reserved(child) = admission.expect("child admission")
+            else {
+                panic!("child reservation");
+            };
+            let (granted, permit) = child
+                .grant_entry(Arc::clone(approved), validation(), NOW)
+                .await
+                .expect("native child entry");
+            drop(permit);
+            let (status, body) = match kind {
+                PrerequisiteKind::Probe if case == "bad-probe" => {
+                    (200, br#"{"livemode":true}"#.as_slice())
+                }
+                PrerequisiteKind::Probe => (200, br#"{"livemode":false}"#.as_slice()),
+                PrerequisiteKind::Account => (200, br#"{"id":"acct_TESTACCOUNT01"}"#.as_slice()),
+                PrerequisiteKind::DeniedCapability(_) => (403, b"".as_slice()),
+                _ => panic!("credential-only checks"),
+            };
+            children.push(
+                granted
+                    .record_response(status, true, body, NOW)
+                    .await
+                    .expect("record child"),
+            );
+        }
+        if case == "changed-before-main" {
+            change_predecessor(&connection, target, previous).await;
+        }
+        if case == "stale-child" {
+            clock.set(NOW + 31);
+        }
+        let granted = reserved
+            .grant_entry(
+                Arc::clone(approved),
+                validation(),
+                if case == "stale-child" { NOW + 31 } else { NOW },
+            )
+            .await;
+        if matches!(
+            case,
+            "missing-child"
+                | "bad-probe"
+                | "stale-child"
+                | "changed-before-child"
+                | "changed-before-main"
+        ) {
+            assert!(granted.is_err(), "{case}");
+        } else {
+            let (granted, permit) = granted.expect("native main entry");
+            let crate::store::AcquisitionRequest::Prerequisite(request) = permit.request() else {
+                panic!("candidate request");
+            };
+            assert_eq!(
+                serde_json::to_value(request).expect("request"),
+                serde_json::to_value(target.final_request()).expect("compiled request")
+            );
+            drop(permit);
+            if case == "recorded" {
+                granted
+                    .record_response(403, true, b"", NOW)
+                    .await
+                    .expect("record primary");
+            } else {
+                drop(granted);
+            }
+        }
+        let snapshot = attempts
+            .read_acquisition(approved)
+            .await
+            .expect("read")
+            .expect("snapshot");
+        let reopened = crate::GatewayAttempts::new(
+            Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("reopen")),
+            policy.clone(),
+        )
+        .expect("attempts");
+        assert_eq!(
+            reopened
+                .read_acquisition(approved)
+                .await
+                .expect("read reopened")
+                .expect("snapshot"),
+            snapshot
+        );
+        if matches!(case, "recorded" | "lost-main-permit") {
+            assert!(matches!(
+                reopened
+                    .claim_candidate(approved, NOW, validation())
+                    .await
+                    .expect("terminal replay"),
+                crate::AcquisitionClaim::Existing(_)
+            ));
+        }
+        assert_eq!(snapshot.reserved_calls, 1);
+        assert_eq!(snapshot.reserved_bytes, before.reserved_bytes);
+        histories.push(json!({"case": case, "snapshot": snapshot, "children": children, "restart_preserves_facts_and_charges": true}));
+    }
+    json!({"target": name, "histories": histories})
+}
+
+async fn change_predecessor(
+    connection: &crate::SharedConnection,
+    target: &CandidateCredentialTarget,
+    previous: Option<&ConnectionRecord>,
+) {
+    if let Some(previous) = previous {
+        let current = connection.load().await.expect("load").expect("previous");
+        let revoked = previous
+            .transition_state(ConnectionState::Revoked, NOW)
+            .expect("revoke");
+        connection
+            .replace(&current, &revoked)
+            .await
+            .expect("replace");
+    } else {
+        connection
+            .insert(target.record())
+            .await
+            .expect("race first publication");
+    }
 }

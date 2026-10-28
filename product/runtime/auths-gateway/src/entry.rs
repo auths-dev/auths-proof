@@ -12,13 +12,58 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Exact published connection or unpublished credential candidate. Both are
+/// checked against the one current connection row under the writer fence.
+pub(crate) enum EntryConnection {
+    Installed(Box<LoadedConnection>),
+    Candidate(Box<crate::effect::CandidateCredentialTarget>),
+}
+
+impl EntryConnection {
+    fn record(&self) -> &auths_connections::ConnectionRecord {
+        match self {
+            Self::Installed(loaded) => loaded.record(),
+            Self::Candidate(target) => target.record(),
+        }
+    }
+
+    fn validate(
+        &self,
+        approved: &ApprovedEffect,
+        bytes: Option<&[u8]>,
+        workload: &str,
+        profile: &ConnectionProfile,
+    ) -> bool {
+        match self {
+            Self::Installed(loaded) => {
+                approved.candidate_target().is_none()
+                    && bytes == Some(loaded.private_bytes())
+                    && crate::connection::authorizes_entry(loaded.record(), workload, profile)
+            }
+            Self::Candidate(target) => {
+                target.predecessor_matches(bytes)
+                    && target.journal_plan().is_ok_and(|plan| {
+                        approved.candidate_plan().is_ok_and(|bound| bound == plan)
+                    })
+                    && target.record().state() != auths_connections::ConnectionState::Revoked
+                    && target
+                        .record()
+                        .allowed_workloads()
+                        .iter()
+                        .any(|allowed| allowed == workload)
+                    && target.record().allowed_profiles().contains(profile)
+            }
+        }
+    }
+}
+
 pub(crate) struct InstalledEntry {
     pub(crate) recipe: CompiledRecipe,
     pub(crate) trust: TrustedContext,
     pub(crate) observer: Option<PrincipalId>,
     pub(crate) policy: EffectPolicy,
     pub(crate) configuration: SharedConfiguration,
-    pub(crate) connection: LoadedConnection,
+    pub(crate) connection: EntryConnection,
     pub(crate) connection_key: GatewayAttemptKey,
     pub(crate) qualification: Arc<crate::QualificationGate>,
     pub(crate) workload: String,
@@ -101,10 +146,12 @@ impl EntryValidation {
                 if snapshots.len() != self.dependencies().len() {
                     return Err("gateway.entry.dependencies-unavailable");
                 }
-                let connection = snapshots[0]
-                    .as_deref()
-                    .ok_or("gateway.connection.unavailable")?;
-                if connection != entry.connection.private_bytes() {
+                if !entry.connection.validate(
+                    approved,
+                    snapshots[0].as_deref(),
+                    &entry.workload,
+                    &entry.profile,
+                ) {
                     return Err("gateway.connection.changed");
                 }
                 let configuration = snapshots[1]
@@ -120,13 +167,6 @@ impl EntryValidation {
                         > Duration::from_secs(crate::recipe::ENTRY_DEADLINE_SECONDS)
                 {
                     return Err("gateway.entry.deadline");
-                }
-                if !crate::connection::authorizes_entry(
-                    entry.connection.record(),
-                    &entry.workload,
-                    &entry.profile,
-                ) {
-                    return Err("gateway.connection.unavailable");
                 }
                 #[cfg(unix)]
                 match &entry.commissioning {

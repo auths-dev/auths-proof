@@ -263,19 +263,29 @@ pub(crate) struct RecoveryPlan {
 )]
 pub(crate) enum AcquisitionPlan {
     Recovery(RecoveryPlan),
+    Candidate(super::candidate::CandidatePlan),
     Prerequisite(PrerequisitePlan),
 }
 
 impl AcquisitionPlan {
+    pub(crate) fn source_id(&self) -> Result<[u8; 32], EffectBindingError> {
+        match self {
+            Self::Candidate(plan) => plan.source_id(),
+            _ => Ok(*self.source()?.id().as_bytes()),
+        }
+    }
+
     pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
         match self {
             Self::Recovery(plan) => plan.source(),
+            Self::Candidate(_) => Err(EffectBindingError::Invalid),
             Self::Prerequisite(plan) => plan.source(),
         }
     }
     pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
         match self {
             Self::Recovery(plan) => plan.capacity(),
+            Self::Candidate(plan) => plan.capacity(),
             Self::Prerequisite(plan) => plan.capacity(),
         }
     }
@@ -285,6 +295,7 @@ impl AcquisitionPlan {
     ) -> Result<AcquisitionCapacity, EffectBindingError> {
         match self {
             Self::Recovery(plan) => plan.validate(binding),
+            Self::Candidate(plan) => plan.validate(binding),
             Self::Prerequisite(plan) => plan.validate(binding),
         }
     }
@@ -495,6 +506,10 @@ pub fn compile_recovery_acquisition(
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native verification path retains the two closed acquisition target contracts"
+)]
 pub(super) fn compile_acquisition(
     installed: &EffectInstallation<'_>,
     target: AcquisitionTarget,
