@@ -1040,3 +1040,35 @@ OpenAPI Rustdoc lint prevented downstream qualification. The next full run will
 cover the writer cutover plus this installed child scenario. Semantic inventory
 411 advances identity 153/public SDK 150 for the gateway source closure; these
 are source-identity updates, not core wire or new proof-qualification claims.
+
+## 30. Native enrolled-writer signing fixture
+
+CI [40608400324](https://github.com/auths-dev/auths-proof/actions/runs/40608400324)
+is running against `92ae3ce2410a1257effa05d39efcc1ed7dd7da0e`. Initial plan and
+generated-artifact checks passed; repository preflight and fast Lean feedback
+were still running at this checkpoint. This run includes the installed child
+provider scenario, but not the following fixture change.
+
+The task review formatter is now a single pure formatter shared by the native
+session and a deterministic fixture producer. The producer bootstraps and enrolls
+B through native methods, verifies independent human approval, and emits the
+canonical review and signing arguments. The Python presenter test consumes those
+bytes and compares the resulting arguments using the native canonicalizer.
+Compliance inventories register both producer and consumer.
+
+Artifact construction passed (one producer test, 399 other tests filtered out).
+Python execution is pending hosted CI; this is no claim of browser signing,
+provider execution, isolation, or F01–F16 acceptance. The next enforcement change
+must replace the racy participant-active check with a durable provider-entry
+transition ordered against revocation, while preserving unknown outcomes across
+the separate attempt and task journals.
+
+The `92ae3ce2` run subsequently failed repository preflight on three test-code
+Clippy diagnostics: `grant_path` unnecessarily owned its audience, and the
+populate intent/preflight tests exceeded the line limit after writer metadata
+was added. Borrowing the audience and extracting test setup/projection helpers
+preserve all assertions. The targeted gateway library/test Clippy command
+passed after those repairs. Downstream behavior is still unverified. Source
+closure construction passed with 399 other tests filtered out; semantic inventory
+412 advances identity 154 and public SDK 151. These are source inventory updates,
+not additional qualified protocol claims.

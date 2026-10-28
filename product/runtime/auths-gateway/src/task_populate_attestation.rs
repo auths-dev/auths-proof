@@ -217,10 +217,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn pinned_preflight_signature_and_task_scope_are_required() {
-        let key = SigningKey::from_bytes(&[7; 32]);
-        let create = ExactWriteIntent {
+    fn create_intent() -> ExactWriteIntent {
+        ExactWriteIntent {
             writer: crate::participant_enrollment::EnrolledParticipant::for_test(
                 "test-agent",
                 &[0xaa; 32],
@@ -238,7 +236,13 @@ mod tests {
             connection_id: "connection-1".into(),
             connection_generation: 3,
             connection_subject: "jules".into(),
-        };
+        }
+    }
+
+    #[test]
+    fn pinned_preflight_signature_and_task_scope_are_required() {
+        let key = SigningKey::from_bytes(&[7; 32]);
+        let create = create_intent();
         let plan = VerifiedEffectPlan {
             plan_commitment: "e".repeat(64),
             create,

@@ -756,18 +756,18 @@ mod tests {
             connection_generation: 3,
             connection_subject: "jules-subject".to_owned(),
         };
-        assert!(
+        let derive = |scope: Option<&TaskWriteScope>| {
             derive_exact_write_intent(
                 &task,
                 &verified,
                 &recipe,
                 &binding,
-                None,
+                scope,
                 &test_writer(&task),
-                NOW
+                NOW,
             )
-            .is_err()
-        );
+        };
+        assert!(derive(None).is_err());
         let child_scope = TaskWriteScope {
             handle: "child_ABC-123".to_owned(),
             recipe_digest: recipe.digest_hex(),
@@ -776,45 +776,14 @@ mod tests {
             connection_generation: binding.connection_generation,
             connection_subject: binding.connection_subject.clone(),
         };
-        let intent = derive_exact_write_intent(
-            &task,
-            &verified,
-            &recipe,
-            &binding,
-            Some(&child_scope),
-            &test_writer(&task),
-            NOW,
-        )
-        .expect("bound child intent");
+        let intent = derive(Some(&child_scope)).expect("bound child intent");
         assert_eq!(intent.resource_handle, "child_ABC-123");
         let mut wrong = child_scope.clone();
         wrong.handle = "other-child".to_owned();
-        assert!(
-            derive_exact_write_intent(
-                &task,
-                &verified,
-                &recipe,
-                &binding,
-                Some(&wrong),
-                &test_writer(&task),
-                NOW
-            )
-            .is_err()
-        );
+        assert!(derive(Some(&wrong)).is_err());
         wrong = child_scope;
         wrong.recipe_digest = "0".repeat(64);
-        assert!(
-            derive_exact_write_intent(
-                &task,
-                &verified,
-                &recipe,
-                &binding,
-                Some(&wrong),
-                &test_writer(&task),
-                NOW
-            )
-            .is_err()
-        );
+        assert!(derive(Some(&wrong)).is_err());
     }
 
     fn confirmation(

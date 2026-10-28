@@ -100,7 +100,7 @@ fn chain_grants_for_audience(
     vec![first, second, third]
 }
 
-fn write_recipe() -> CompiledRecipe {
+fn write_recipe_sources() -> (serde_json::Value, Vec<u8>) {
     let (source, lock) = harness::recipe_sources(
         &json!({
             "task_id": {"kind": "string", "minimum": 1, "maximum": 128},
@@ -112,6 +112,11 @@ fn write_recipe() -> CompiledRecipe {
     let mut source: serde_json::Value = serde_json::from_slice(&source).unwrap();
     source.as_object_mut().unwrap().remove("preconditions");
     source["task_binding"] = json!({"resource_field": "record_id", "verb": "edit"});
+    (source, lock)
+}
+
+fn write_recipe() -> CompiledRecipe {
+    let (source, lock) = write_recipe_sources();
     CompiledRecipe::compile(&serde_json::to_vec(&source).unwrap(), &lock).unwrap()
 }
 
@@ -1839,4 +1844,35 @@ fn root_and_child_contend_for_one_write_and_revocation_stops_unreserved_child() 
         Some(ReleaseStateError::Inactive)
     );
     assert_eq!(fixture.digest(), before);
+}
+
+#[test]
+fn enrolled_writer_review_fixture_matches_native_approval_payload() {
+    let fixture = Fixture::with_writes(true);
+    fixture.bootstrap().unwrap();
+    fixture.enroll(&fixture.enrollment()).unwrap();
+    let (approved, command) = fixture.write_as(true, "fixture-write");
+    fixture
+        .ledger()
+        .load(TASK)
+        .unwrap()
+        .unwrap()
+        .admit_write_participant(&command, approved.intent(), NOW)
+        .unwrap();
+    let review = crate::engine::task_submission_review(command, approved.intent().clone()).unwrap();
+    let value = json!({
+        "schema": "auths.gateway-enrolled-write-review-fixture/1",
+        "card": fixture.task.descriptor(),
+        "recipe": write_recipe_sources().0,
+        "recipe_digest": fixture.writes[0].digest_hex(),
+        "review": review,
+    });
+    let bytes = serde_json_canonicalizer::to_vec(&value).unwrap();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("fixtures/enrolled-write-review-v1.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+    }
+    assert_eq!(std::fs::read(path).unwrap(), bytes);
 }

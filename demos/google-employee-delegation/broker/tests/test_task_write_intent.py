@@ -16,6 +16,23 @@ REFERENCE = Path(__file__).resolve().parents[2] / "write_reference"
 
 
 class TaskWriteIntentTests(unittest.TestCase):
+    def test_native_enrolled_writer_fixture_has_identical_signing_arguments(self) -> None:
+        from auths import _native
+
+        repository = Path(__file__).resolve().parents[4]
+        fixture = json.loads((repository / "product/runtime/auths-gateway/fixtures/enrolled-write-review-v1.json").read_bytes())
+        self.assertEqual(fixture["schema"], "auths.gateway-enrolled-write-review-fixture/1")
+        review = fixture["review"]
+        projected = project_exact_write(fixture["card"], review,
+                                        fixture["recipe"], fixture["recipe_digest"])
+        expected = review["confirmation_arguments"].encode()
+        actual = bytes(_native.canonicalize_mcp_arguments_json(
+            canonical_json({"write": projected.intent})))
+        self.assertEqual(actual, expected)
+        self.assertNotEqual(projected.intent["writer"]["principal"],
+                            fixture["card"]["agent_principal"])
+        self.assertEqual(projected.intent["writer"]["instance_generation"], 5)
+
     def test_closed_google_request_becomes_exact_human_intent(self) -> None:
         recipe = json.loads((REFERENCE / "recipe.json").read_text())
         digest = "a" * 64

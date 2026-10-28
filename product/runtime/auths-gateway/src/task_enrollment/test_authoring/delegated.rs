@@ -25,7 +25,7 @@ fn grant_path(
     input: &DelegatedEnrollment<'_>,
     service: &str,
     tools: &[&str],
-    audience: Audience,
+    audience: &Audience,
 ) -> Vec<SignedGrant> {
     let mut grants = Vec::new();
     let mut parent = None;
@@ -84,7 +84,7 @@ pub(crate) fn bootstrap_delegated(
             ENROLL_PARTICIPANT_TOOL,
             ACCEPT_PARTICIPANT_TOOL,
         ],
-        Audience::parse(&format!("mcp://{PARTICIPANT_SERVICE}")).unwrap(),
+        &Audience::parse(&format!("mcp://{PARTICIPANT_SERVICE}")).unwrap(),
     );
     let resources: BTreeMap<_, _> = projections
         .iter()
@@ -95,7 +95,7 @@ pub(crate) fn bootstrap_delegated(
                     input,
                     &scope.service,
                     &[&scope.tool],
-                    resource_audience(
+                    &resource_audience(
                         task.commitment(),
                         card.delegation.partition_generation,
                         &scope.recipe_digest,

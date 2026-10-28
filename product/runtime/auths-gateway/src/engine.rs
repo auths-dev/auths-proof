@@ -207,6 +207,24 @@ pub struct TaskWriteReview {
     pub confirmation_arguments: String,
 }
 
+/// Pure serialization of a task review after its caller establishes native
+/// scope/enrollment eligibility. The result is a preview, never a permit.
+#[cfg(unix)]
+pub(crate) fn task_submission_review(
+    command: VerifiedCommand,
+    intent: crate::task_write::ExactWriteIntent,
+) -> Result<TaskWriteReview, GatewaySubmitResult> {
+    let confirmation_arguments =
+        serde_json_canonicalizer::to_string(&serde_json::json!({"write": intent}))
+            .map_err(|_| not_entered("gateway.task.write-request"))?;
+    Ok(TaskWriteReview {
+        schema: "auths.gateway-task-write-review/1",
+        submission: review_verified_command(command)?,
+        intent,
+        confirmation_arguments,
+    })
+}
+
 /// Reviews proof and action through the same native verification and closed
 /// request construction as submission, without opening custody or a store.
 /// `now` is an offline evaluation input; this function grants no lease and
@@ -2326,15 +2344,7 @@ impl TaskWriteSession<'_> {
         state
             .admit_write_participant(&command, &intent, now)
             .map_err(|error| not_entered(error.write_code()))?;
-        let confirmation_arguments =
-            serde_json_canonicalizer::to_string(&serde_json::json!({"write": intent}))
-                .map_err(|_| not_entered("gateway.task.write-request"))?;
-        Ok(TaskWriteReview {
-            schema: "auths.gateway-task-write-review/1",
-            submission: review_verified_command(command)?,
-            intent,
-            confirmation_arguments,
-        })
+        task_submission_review(command, intent)
     }
 
     /// Verifies a previously activated task and one agent write, then runs
