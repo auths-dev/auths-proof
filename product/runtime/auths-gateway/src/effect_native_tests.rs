@@ -138,6 +138,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         "schema": "auths.effect-fixture/1",
         "scope": "native compilation and exact approval; no entry or durability claim",
         "effect_id_hex": hex::encode(effect.binding().id().as_bytes()),
+        "operation_key_hex": hex::encode(crate::GatewayAttemptKey::for_operation(&policy, expected.namespace(), expected.operation_id()).expect("native replay key").as_bytes()),
         "binding_canonical": std::str::from_utf8(&bytes).expect("binding UTF-8"),
         "approval_canonical": std::str::from_utf8(&approval.to_private_bytes().expect("approval bytes")).expect("approval UTF-8"),
         "approver_public_key_hex": hex::encode(public),

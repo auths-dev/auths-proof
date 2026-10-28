@@ -271,7 +271,11 @@ async fn lifecycle<P: SimulationProvider>(
     let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
     let args = family.arguments("qualification-1");
     let command = family.command(&recipe, &args, ORIGINAL);
-    let attempts = GatewayAttempts::new(recording.clone());
+    let attempts = GatewayAttempts::new(
+        recording.clone(),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let mut first = TestIo::new(provider, command.clone());
     first.recipe = Some(&recipe);
     let result = run(&attempts, &recipe, &observer, &first).await;

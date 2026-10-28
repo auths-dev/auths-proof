@@ -25,7 +25,7 @@ pub const QUALIFICATION_POLICY_REFUSED: &str = "gateway.install.qualification-po
 /// The schema identifier of the production lifecycle store.
 pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/6";
 /// The schema identifier of the development file store.
-pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/3";
+pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/4";
 
 /// The public qualification root this gateway build pins. A reviewed release
 /// supplies only the offline ceremony's public artifact here. A root alone

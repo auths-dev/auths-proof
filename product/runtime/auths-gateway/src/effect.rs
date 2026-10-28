@@ -55,6 +55,26 @@ impl fmt::Debug for EffectPolicy {
 }
 
 impl EffectPolicy {
+    pub(crate) fn operation_key(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+    ) -> Result<[u8; 32], EffectBindingError> {
+        self.validate()?;
+        commitment(
+            "auths.effect-replay-key/1",
+            &canonical(&(
+                namespace.as_str(),
+                &self.partition,
+                self.epoch,
+                operation.as_str(),
+            ))?,
+        )
+    }
+
+    pub(crate) fn contains(&self, binding: &EffectBinding) -> bool {
+        self.partition == binding.wire.partition && self.epoch == binding.wire.epoch
+    }
     pub(crate) const fn approver(&self) -> &[u8; 32] {
         &self.approver
     }
@@ -142,6 +162,7 @@ impl EffectPolicy {
 #[cfg(any(test, feature = "testkit-harness"))]
 pub(crate) fn approve_driver_fixture(
     command: VerifiedCommand,
+    recipe_digest: [u8; 32],
     now: u64,
     approval: Option<ExactEffectApproval>,
 ) -> Result<ApprovedEffect, GatewaySubmitResult> {
@@ -173,26 +194,12 @@ pub(crate) fn approve_driver_fixture(
         None,
     )
     .map_err(|_| invalid())?;
-    let binding = EffectBinding::new(BindingWire {
-        schema: EFFECT_BINDING_SCHEMA.to_owned(),
-        namespace: command.request.namespace().as_str().to_owned(),
-        partition: "driver-fixture".to_owned(),
-        epoch: 1,
-        operation: command.request.operation_id().as_str().to_owned(),
-        action: *command.request.action_commitment(),
-        native_authority: command.native_authority,
-        scope: Scope::Unscoped,
-        recipe: [0; 32],
-        compiler: COMPILER.to_owned(),
-        connection: [0; 32],
-        credential_generation: 1,
-        qualification_policy: "optional".to_owned(),
-        approval_policy: ApprovalPolicy::Exact { approver: public },
-        reservations: Vec::new(),
-        protocol: Protocol::Mutation {
-            request: request_commitment(&command.request).map_err(|_| invalid())?,
-        },
-    })
+    let binding = store_binding_fixture(
+        &command.request,
+        recipe_digest,
+        command.native_authority,
+        &fixture_policy().map_err(|_| invalid())?,
+    )
     .map_err(|_| invalid())?;
     let effect = BoundEffect {
         binding,
@@ -215,6 +222,70 @@ pub(crate) fn approve_driver_fixture(
     effect
         .approve(request.with_signature(signature), &public, now)
         .map_err(|_| invalid())
+}
+
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) fn fixture_policy() -> Result<EffectPolicy, EffectBindingError> {
+    EffectPolicy::new(
+        "test-partition".to_owned(),
+        1,
+        ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+            .verifying_key()
+            .to_bytes(),
+    )
+}
+
+/// Store/driver reference data only; never an installed authorization path.
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) fn store_binding_fixture(
+    request: &ClosedProviderRequest,
+    recipe_digest: [u8; 32],
+    native_authority: [u8; 32],
+    policy: &EffectPolicy,
+) -> Result<EffectBinding, EffectBindingError> {
+    EffectBinding::new(BindingWire {
+        schema: EFFECT_BINDING_SCHEMA.to_owned(),
+        namespace: request.namespace().as_str().to_owned(),
+        partition: policy.partition.clone(),
+        epoch: policy.epoch,
+        operation: request.operation_id().as_str().to_owned(),
+        action: *request.action_commitment(),
+        native_authority,
+        scope: Scope::Unscoped,
+        recipe: recipe_digest,
+        compiler: COMPILER.to_owned(),
+        connection: [0; 32],
+        credential_generation: 1,
+        qualification_policy: "optional".to_owned(),
+        approval_policy: ApprovalPolicy::Exact {
+            approver: policy.approver,
+        },
+        reservations: Vec::new(),
+        protocol: Protocol::Mutation {
+            request: request_commitment(request)?,
+        },
+    })
+}
+
+/// Signs synthetic store oracle data with the fixed test-only approver.
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) fn approval_fixture(
+    binding: &EffectBinding,
+    now: u64,
+) -> Result<ExactEffectApproval, EffectBindingError> {
+    use ed25519_dalek::Signer as _;
+    let key = ed25519_dalek::SigningKey::from_bytes(&[29; 32]);
+    let request = EffectApprovalRequest {
+        schema: APPROVAL_SCHEMA.to_owned(),
+        effect: *binding.id().as_bytes(),
+        approver: key.verifying_key().to_bytes(),
+        not_before: now,
+        expires_at: now
+            .checked_add(MAX_EFFECT_APPROVAL_SECONDS)
+            .ok_or(EffectBindingError::Invalid)?,
+    };
+    let signature = key.sign(&request.signing_message()?).to_bytes();
+    Ok(request.with_signature(signature))
 }
 
 /// Private audit identity. Do not publish it as a hiding content commitment.
@@ -355,6 +426,23 @@ fn canonical<T: Serialize>(value: &T) -> Result<Zeroizing<Vec<u8>>, EffectBindin
 }
 
 impl EffectBinding {
+    pub(crate) fn journal_identity(&self) -> (&str, &str, &[u8; 32], &[u8; 32]) {
+        (
+            &self.wire.namespace,
+            &self.wire.operation,
+            &self.wire.action,
+            &self.wire.recipe,
+        )
+    }
+
+    pub(crate) fn validate_recorded_approval(
+        &self,
+        approval: &ExactEffectApproval,
+        at: u64,
+    ) -> Result<(), EffectBindingError> {
+        let ApprovalPolicy::Exact { approver } = self.wire.approval_policy;
+        approval.verify(self.id(), &approver, at)
+    }
     fn new(wire: BindingWire) -> Result<Self, EffectBindingError> {
         validate(&wire)?;
         let bytes = canonical(&wire)?;
@@ -792,6 +880,9 @@ pub struct ApprovedEffect {
 }
 
 impl ApprovedEffect {
+    pub(crate) fn approval(&self) -> &ExactEffectApproval {
+        &self.approval
+    }
     pub(crate) fn command(&self) -> &VerifiedCommand {
         &self.effect.command
     }

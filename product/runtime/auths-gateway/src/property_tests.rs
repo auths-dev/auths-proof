@@ -294,7 +294,7 @@ proptest! {
         let recipe = airtable();
         let digest = <[u8; 32]>::try_from(hex::decode(recipe.digest_hex()).expect("hex")).expect("digest");
         let root = std::fs::canonicalize(directory.path()).expect("canonical").join("attempts");
-        let open = || GatewayAttempts::new(Arc::new(FileGatewayAttemptStore::open(root.clone()).expect("store")));
+        let open = || GatewayAttempts::new(Arc::new(FileGatewayAttemptStore::open(root.clone()).expect("store")), crate::effect::fixture_policy().expect("policy")).expect("attempts");
         let mut attempts = open();
         let mut held: BTreeMap<u8, crate::ClaimedGatewayAttempt> = BTreeMap::new();
         let mut writes: BTreeMap<u8, usize> = BTreeMap::new();

@@ -150,6 +150,38 @@ not installed transport or transactional admission. Subsequent refusal tests
 and input-zeroization edits are source-authored only. All unfulfilled AP074 gates
 remain open, and the goal remains active.
 
+## Full-binding journal cutover (in progress)
+
+- Mutation admission now receives the sealed `ApprovedEffect`; the unchecked
+  request-only claim helper exists only under test/testkit compilation.
+- Attempt schema `/4` persists canonical full binding and original exact signed
+  approval in the immutable fixed fields. Historical signature validation and
+  redundant namespace/operation/action/recipe checks reject corrupt state.
+- The sole replay key includes installed namespace, partition and epoch plus
+  operation ID, and deliberately excludes the effect digest. Full binding
+  collisions produce `gateway.effect.operation-conflict`; equal bindings remain
+  replay even when approval is renewed. Neither replaces the initial bytes.
+- Every installed CLI store open receives operator policy; the engine rejects
+  a different store policy. Existing native budget counter identities remain
+  unchanged so new operation epochs do not reset grant capacity.
+- File reads now limit bytes before allocating/decoding records and rollback
+  files. This is a read bound, not yet the required bounded lock/transaction.
+- Shared file/PostgreSQL conformance source adds restart, changed selected
+  authority/recipe/action, renewed approval, partition/epoch isolation and
+  original-byte preservation checks. These new behavioral cases are authored,
+  not executed. Existing reference expectations distinguish conflict from replay.
+- Required local artifact generation passed for `cd3a3448` plus this journal
+  source: `pending_vectors::attempts::attempt_scenarios_v3_are_current` (one
+  test) and `observed_tests::effect_native_tests::native_compilation_approval_and_reverification_keep_exact_request`
+  (one test), each via `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact ...`.
+  The native corpus now includes the canonical scoped operation key. Native CLI
+  envelope generation also passed after correcting its policy type import;
+  output remains byte-identical to the native approval corpus. No hosted CI, broad local suite, formal gate or actual adapter conformance run is claimed.
+- P1 still needs semantic review completeness and integration evidence. P2
+  still needs atomic fencing and a consumed permit. Identical replay's existing
+  observation path must be replaced by independently authorized bounded recovery;
+  the updated reference cases do not establish that future contract.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -170,7 +202,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | --- | --- | --- | --- |
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / compilation-only | Execution cutover pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
-| A03 | Concurrent/restart replay, conflict, approval reuse | Pending / no / no | Full binding comparison |
+| A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter cases / no | Execute concurrent binding conflicts and recovery cutover |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Pending / no / no | Atomic journal admission |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
@@ -183,7 +215,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A13 | Lock wait and independent evidence expiries | Pending / no / no | Clock/full verifier inside boundary |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
 | A15 | Recovery actor differs; original authority revoked | Pending / no / no | Separate recovery authority |
-| A16 | Cross-task/recipe/partition substitution | Pending / no / no | Scope and epoch binding |
+| A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Pending / no / no | Private audit/public separation |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |

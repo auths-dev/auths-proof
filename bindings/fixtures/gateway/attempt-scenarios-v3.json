@@ -1,6 +1,6 @@
 {
   "schema": "auths.gateway-attempt-scenarios/3",
-  "attempt_schema": "auths.gateway-attempt/3",
+  "attempt_schema": "auths.gateway-attempt/4",
   "recipes": "hostile-recipes-v2.json",
   "evaluated_at": 1790000000,
   "defaults": {
@@ -776,7 +776,7 @@
       "recipe": "airtable",
       "setup": {
         "crash": "after-write-before-response",
-        "replay": "fresh-proof"
+        "replay": "same-binding"
       },
       "stages": [
         "attempting",
@@ -797,12 +797,12 @@
     },
     {
       "id": "same-id-fresh-challenge",
-      "transition": "attempting->replay-refused",
+      "transition": "attempting->binding-conflict",
       "provider_entries": 0
     },
     {
       "id": "changed-action-same-id",
-      "transition": "attempting->replay-refused",
+      "transition": "attempting->binding-conflict",
       "provider_entries": 0
     },
     {

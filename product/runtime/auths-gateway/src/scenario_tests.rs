@@ -207,8 +207,12 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         Some(self.clock.load(Ordering::SeqCst))
     }
 
-    fn verify(&self, now: u64) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
-        crate::effect::approve_driver_fixture(self.verified.clone()?, now, None)
+    fn verify(
+        &self,
+        now: u64,
+        recipe: &CompiledRecipe,
+    ) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
+        crate::effect::approve_driver_fixture(self.verified.clone()?, *recipe.digest(), now, None)
     }
 
     fn revalidate(
@@ -663,8 +667,11 @@ async fn run_claim_case(id: &str, backend: Backend) -> (String, usize) {
                 "Pending"
             };
             let second = record.airtable(FRESH, replacement);
-            assert_eq!(record.submit(&second, &provider).await, replay_refused());
-            "attempting->replay-refused".to_owned()
+            assert_eq!(
+                record.submit(&second, &provider).await,
+                crate::engine::not_entered("gateway.effect.operation-conflict")
+            );
+            "attempting->binding-conflict".to_owned()
         }
         "crash-after-claim" => {
             record.store.restart();
@@ -737,8 +744,15 @@ async fn run_resolution_case(id: &str, backend: Backend) -> (String, usize) {
     } else {
         "Approved"
     };
+    let changed = matches!(
+        id,
+        "changed-action-during-unknown" | "fresh-challenge-after-observed-by-provider"
+    );
     let replay = record
-        .submit(&record.airtable(FRESH, replacement), &provider)
+        .submit(
+            &record.airtable(if changed { FRESH } else { ORIGINAL }, replacement),
+            &provider,
+        )
         .await;
     if matches!(
         record.snapshot(&original).await.stage(),
@@ -750,7 +764,12 @@ async fn run_resolution_case(id: &str, backend: Backend) -> (String, usize) {
             GatewaySubmitResult::ObservedByProvider { status: None, .. }
         ));
     } else {
-        assert_eq!(replay, replay_refused(), "{id}: first {first:?}");
+        let expected = if changed {
+            crate::engine::not_entered("gateway.effect.operation-conflict")
+        } else {
+            replay_refused()
+        };
+        assert_eq!(replay, expected, "{id}: first {first:?}");
     }
     (
         format!("{before}->{}", record.describe(&original).await),
@@ -869,7 +888,10 @@ async fn a_lost_claim_resends_the_same_idempotency_key() {
         GatewaySubmitResult::ObservedByProvider { .. }
     ));
     let fresh = intact.airtable(FRESH, "Approved");
-    assert_eq!(intact.submit(&fresh, &provider).await, replay_refused());
+    assert_eq!(
+        intact.submit(&fresh, &provider).await,
+        crate::engine::not_entered("gateway.effect.operation-conflict")
+    );
     assert_eq!(provider.writes(), 1, "the intact claim stops the repeat");
     let lost = Record {
         recipe,
@@ -1167,7 +1189,11 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
     if setup["crash"] == "after-write-before-response" {
         recording.lose_response_record.store(true, Ordering::SeqCst);
     }
-    let attempts = GatewayAttempts::new(recording.clone());
+    let attempts = GatewayAttempts::new(
+        recording.clone(),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let arguments = setup["arguments"].as_object().expect("arguments").clone();
     let command = admitted(
         &recipe,
@@ -1204,11 +1230,15 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
     };
     let first = submit::run(&cx, &io).await;
     let mut leases = io.leases();
-    if setup["replay"] == "fresh-proof" {
+    if setup["replay"] == "fresh-proof" || setup["replay"] == "same-binding" {
         let replay_command = admitted(
             &recipe,
             &arguments,
-            FRESH,
+            if setup["replay"] == "same-binding" {
+                ORIGINAL
+            } else {
+                FRESH
+            },
             grant_requirement(&setup),
             setup["validity_seconds"].as_u64().expect("validity"),
             scenario_links(&setup),
@@ -1305,7 +1335,7 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
 async fn attempt_scenarios(backend: Backend) {
     let corpus = corpus(SCENARIOS);
     assert_eq!(corpus["schema"], "auths.gateway-attempt-scenarios/3");
-    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/3");
+    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/4");
     let recipes = self::corpus(corpus["recipes"].as_str().expect("recipes"));
     let mut ran = 0;
     for case in corpus["cases"].as_array().expect("cases") {
@@ -1434,7 +1464,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             "gateway_semantic_closure_sha256": crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
             "target": {"os": "linux", "arch": "x86_64", "gateway_package": "auths-gateway",
                 "gateway_version": "1.0.0-rc.1", "gateway_build_sha256": "55".repeat(32),
-                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/3",
+                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/4",
                 "credential_store_kind": "local-file-v1"}
         }))
         .expect("tuple");
@@ -1476,7 +1506,17 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
                 RunStep {
                     operation: Operation::Replay,
                     evidence_comparison: EvidenceComparison::Static {},
-                    expected: expected(RunOutcome::Refused, "gateway.attempt.replay", 0, 0, 0),
+                    expected: expected(
+                        RunOutcome::Refused,
+                        if scenario == Scenario::FreshChallengeReplay {
+                            "gateway.effect.operation-conflict"
+                        } else {
+                            "gateway.attempt.replay"
+                        },
+                        0,
+                        0,
+                        0,
+                    ),
                 },
             ]
         };
@@ -1485,7 +1525,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             if recovering && index == 1 {
                 record.store.restart();
             }
-            let command = if index == 0 || scenario == Scenario::ProofReplay {
+            let command = if index == 0 || scenario != Scenario::FreshChallengeReplay {
                 original.clone()
             } else {
                 record.airtable(FRESH, "Approved")
@@ -1610,6 +1650,112 @@ async fn conformance_claim_exactly_once_and_replay(backend: Backend) {
     assert_eq!((provider.writes(), provider.reads()), (1, 1));
 }
 
+/// Full binding comparison survives restart. Namespace/partition/epoch scope
+/// the operation key, while selected authority and recipe change the binding.
+async fn conformance_complete_binding_and_scope(backend: Backend) {
+    use crate::effect::{EffectPolicy, approve_driver_fixture};
+    let mut record = Record::open("airtable", backend);
+    let command = record.airtable(ORIGINAL, "Approved");
+    let approve = |command, digest, at| {
+        approve_driver_fixture(command, digest, at, None).expect("oracle approval")
+    };
+    let first = approve(command.clone(), *record.recipe.digest(), NOW);
+    let attempts = record.store.attempts();
+    assert!(attempts.claim_bounded(&first, NOW).await.is_ok());
+    let key = GatewayAttemptKey::for_operation(
+        &crate::effect::fixture_policy().expect("policy"),
+        command.request.namespace(),
+        command.request.operation_id(),
+    )
+    .expect("key");
+    let raw = record.store.raw();
+    let before = tokio::task::spawn_blocking(move || raw.load(GatewayRecordKind::Attempt, &key))
+        .await
+        .expect("read task")
+        .expect("read")
+        .expect("claim");
+    record.store.restart();
+    let attempts = record.store.attempts();
+    let renewed = approve(command.clone(), *record.recipe.digest(), NOW + 1);
+    assert!(
+        matches!(
+            attempts.claim_bounded(&renewed, NOW + 1).await,
+            Err(GatewayAttemptError::Replay)
+        ),
+        "renewing approval cannot mint another claim"
+    );
+    let mut changed_authority = command.clone();
+    changed_authority.native_authority = [42; 32];
+    for changed in [
+        approve(changed_authority, *record.recipe.digest(), NOW),
+        approve(command.clone(), [42; 32], NOW),
+        approve(
+            record.airtable(FRESH, "Pending"),
+            *record.recipe.digest(),
+            NOW,
+        ),
+    ] {
+        assert!(matches!(
+            attempts.claim_bounded(&changed, NOW).await,
+            Err(GatewayAttemptError::BindingConflict)
+        ));
+    }
+    let raw = record.store.raw();
+    let after = tokio::task::spawn_blocking(move || raw.load(GatewayRecordKind::Attempt, &key))
+        .await
+        .expect("read task")
+        .expect("read")
+        .expect("claim");
+    assert_eq!(
+        before, after,
+        "conflict and renewed approval preserve every original byte"
+    );
+    let public = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+        .verifying_key()
+        .to_bytes();
+    for policy in [
+        EffectPolicy::new("other-partition".to_owned(), 1, public).expect("partition"),
+        EffectPolicy::new("test-partition".to_owned(), 2, public).expect("epoch"),
+    ] {
+        let scoped =
+            GatewayAttempts::new(record.store.raw(), policy.clone()).expect("scoped attempts");
+        assert_eq!(
+            scoped
+                .read(command.request.namespace(), command.request.operation_id())
+                .await
+                .expect("scoped read"),
+            None
+        );
+        assert!(
+            matches!(
+                scoped.claim_bounded(&first, NOW).await,
+                Err(GatewayAttemptError::BindingConflict)
+            ),
+            "foreign binding cannot enter the new scope"
+        );
+        scoped
+            .claim(&command.request, *record.recipe.digest(), NOW)
+            .await
+            .expect("independent scoped reference claim");
+        assert_ne!(
+            key,
+            GatewayAttemptKey::for_operation(
+                &policy,
+                command.request.namespace(),
+                command.request.operation_id()
+            )
+            .expect("scoped key")
+        );
+    }
+    let raw = record.store.raw();
+    let unchanged = tokio::task::spawn_blocking(move || raw.load(GatewayRecordKind::Attempt, &key))
+        .await
+        .expect("read task")
+        .expect("read")
+        .expect("original claim");
+    assert_eq!(before, unchanged, "new epochs retain old tombstones");
+}
+
 /// A fresh challenge, or a changed action, under the same logical ID is
 /// the same operation and never a second entry.
 async fn conformance_fresh_challenge(backend: Backend) {
@@ -1622,12 +1768,20 @@ async fn conformance_fresh_challenge(backend: Backend) {
         first,
         GatewaySubmitResult::ObservedByProvider { .. }
     ));
+    assert_eq!(
+        record
+            .submit(&record.airtable(ORIGINAL, "Approved"), &provider)
+            .await,
+        replay_refused()
+    );
     for command in [
-        record.airtable(ORIGINAL, "Approved"),
         record.airtable(FRESH, "Approved"),
         record.airtable(FRESH, "Pending"),
     ] {
-        assert_eq!(record.submit(&command, &provider).await, replay_refused());
+        assert_eq!(
+            record.submit(&command, &provider).await,
+            crate::engine::not_entered("gateway.effect.operation-conflict")
+        );
     }
     assert_eq!((provider.writes(), provider.reads()), (1, 1));
 }
@@ -1648,7 +1802,7 @@ async fn conformance_unknown_and_reobserve(backend: Backend) {
         "an unknown write is not read back in-line"
     );
     record.store.restart();
-    let fresh = record.airtable(FRESH, "Approved");
+    let fresh = record.airtable(ORIGINAL, "Approved");
     let GatewaySubmitResult::ObservedByProvider { status, evidence } =
         record.submit(&fresh, &provider).await
     else {
@@ -1656,7 +1810,7 @@ async fn conformance_unknown_and_reobserve(backend: Backend) {
     };
     assert_eq!(status, None);
     assert_eq!(evidence.echo, original_token());
-    assert_ne!(Some(evidence.echo.as_str()), fresh.request.echo_token());
+    assert_eq!(Some(evidence.echo.as_str()), fresh.request.echo_token());
     assert_eq!(
         record.submit(&fresh, &provider).await,
         replay_refused(),
@@ -1734,9 +1888,11 @@ async fn conformance_mechanism_fails_closed(backend: Backend) {
     let record = Record::open("airtable", backend);
     let raw = record.store.raw();
     let key = GatewayAttemptKey::for_operation(
+        &crate::effect::fixture_policy().expect("policy"),
         record.recipe.namespace(),
         &LogicalOperationId::parse("run-1").expect("operation"),
-    );
+    )
+    .expect("key");
     let obsolete = serde_json::to_vec(&json!({
         "schema": "auths.gateway-attempt/2", "namespace": "airtable-demo",
         "operation_id": "run-1", "action_commitment": "11".repeat(32),
@@ -1778,7 +1934,10 @@ async fn conformance_mechanism_fails_closed(backend: Backend) {
         "a record /2 is corrupt, not read"
     );
     let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
-    assert_eq!(record.submit(&command, &provider).await, replay_refused());
+    assert_eq!(
+        record.submit(&command, &provider).await,
+        crate::engine::not_entered("gateway.attempt.unavailable")
+    );
     assert_eq!((provider.writes(), provider.reads()), (0, 0));
 }
 
@@ -2158,6 +2317,7 @@ async fn conformance_shared_connection_record(backend: Backend) {
 
 async fn store_conformance(backend: Backend) {
     conformance_claim_exactly_once_and_replay(backend).await;
+    conformance_complete_binding_and_scope(backend).await;
     conformance_fresh_challenge(backend).await;
     conformance_unknown_and_reobserve(backend).await;
     conformance_echo_mismatch(backend).await;

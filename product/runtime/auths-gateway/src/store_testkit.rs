@@ -154,7 +154,11 @@ impl Drop for TestAttempts {
 }
 
 fn attempts_at(location: &Location) -> GatewayAttempts {
-    GatewayAttempts::new(raw_at(location))
+    GatewayAttempts::new(
+        raw_at(location),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts")
 }
 
 fn raw_at(location: &Location) -> Arc<dyn GatewayAttemptStore> {

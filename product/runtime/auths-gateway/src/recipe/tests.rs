@@ -386,9 +386,11 @@ fn idempotency_key_is_domain_separated_and_bound_to_namespace_and_operation() {
         "the separator keeps the two fields apart"
     );
     let replay = crate::GatewayAttemptKey::for_operation(
+        &crate::effect::fixture_policy().expect("policy"),
         &namespace("stripe-refunds"),
         &operation("refund-1"),
-    );
+    )
+    .expect("key");
     assert_ne!(key[9..], hex::encode(replay.as_bytes()), "own hash domain");
 }
 
@@ -695,9 +697,11 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
     let root = std::fs::canonicalize(temp.path())
         .expect("canonical temp")
         .join("attempts");
-    let store = crate::GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("private store"),
-    ));
+    let store = crate::GatewayAttempts::new(
+        Arc::new(FileGatewayAttemptStore::open(&root).expect("private store")),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let tasks: Vec<_> = (0..16)
         .map(|_| {
             let store = store.clone();
@@ -721,9 +725,11 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
         15
     );
     drop(store);
-    let restarted = crate::GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("restart"),
-    ));
+    let restarted = crate::GatewayAttempts::new(
+        Arc::new(FileGatewayAttemptStore::open(&root).expect("restart")),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let snapshot = restarted
         .read(request.namespace(), request.operation_id())
         .await
@@ -752,9 +758,11 @@ async fn response_and_observation_are_distinct_durable_stages() {
     let root = std::fs::canonicalize(temp.path())
         .expect("canonical temp")
         .join("attempts");
-    let store = crate::GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("store"),
-    ));
+    let store = crate::GatewayAttempts::new(
+        Arc::new(FileGatewayAttemptStore::open(&root).expect("store")),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let claim = store
         .claim(&request, *recipe.digest(), 1_790_000_000)
         .await

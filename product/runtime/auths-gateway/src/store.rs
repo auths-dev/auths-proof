@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/3`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/4`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -11,6 +11,7 @@
 //! the multi-host `PostgresLifecycleStore`, whose production qualification is
 //! still open.
 
+use crate::effect::{ApprovedEffect, EffectBinding, EffectPolicy, ExactEffectApproval};
 use crate::recipe::ObservationTemplate;
 use crate::{
     ClosedObservationRequest, ClosedProviderRequest, LogicalOperationId, OperatorNamespace,
@@ -25,7 +26,7 @@ use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
-    io::Write as _,
+    io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
@@ -34,7 +35,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/3";
+const SCHEMA: &str = "auths.gateway-attempt/4";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -474,6 +475,8 @@ impl PreEntryWire {
 #[serde(deny_unknown_fields)]
 struct Record {
     schema: String,
+    binding_canonical: String,
+    approval_canonical: String,
     namespace: String,
     operation_id: String,
     action_commitment: String,
@@ -507,6 +510,8 @@ struct Record {
 #[derive(Serialize)]
 struct FixedFields<'a> {
     schema: &'a str,
+    binding_canonical: &'a str,
+    approval_canonical: &'a str,
     namespace: &'a str,
     operation_id: &'a str,
     action_commitment: &'a str,
@@ -557,6 +562,8 @@ impl Record {
         Ok(AttemptView {
             fixed: canonical(&FixedFields {
                 schema: &self.schema,
+                binding_canonical: &self.binding_canonical,
+                approval_canonical: &self.approval_canonical,
                 namespace: &self.namespace,
                 operation_id: &self.operation_id,
                 action_commitment: &self.action_commitment,
@@ -633,6 +640,21 @@ impl Record {
     }
 
     fn snapshot(&self, recovered: bool) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+        let binding = EffectBinding::from_private_bytes(self.binding_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let approval = ExactEffectApproval::from_private_bytes(self.approval_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        binding
+            .validate_recorded_approval(&approval, self.evaluated_at)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let (namespace, operation, action, recipe) = binding.journal_identity();
+        if namespace != self.namespace
+            || operation != self.operation_id
+            || hex::encode(action) != self.action_commitment
+            || hex::encode(recipe) != self.recipe_digest
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
         if self.schema != SCHEMA
             || self.nonce.len() != 32
             || !self
@@ -732,6 +754,9 @@ pub enum GatewayAttemptError {
     /// A logical ID was already claimed, regardless of proof challenge or body.
     #[error("logical operation already claimed")]
     Replay,
+    /// The logical operation exists with a different complete effect binding.
+    #[error("logical operation binding conflict")]
+    BindingConflict,
     /// The state directory is not a private, normalized local directory.
     #[error("unsafe attempt directory")]
     UnsafeDirectory,
@@ -856,15 +881,20 @@ pub fn check_private_directory_owned_by(
 pub struct GatewayAttemptKey([u8; 32]);
 
 impl GatewayAttemptKey {
-    /// Derives the key of `operation_id` in `namespace`.
-    #[must_use]
-    pub fn for_operation(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> Self {
-        let mut hash = Sha256::new();
-        hash.update(b"auths.gateway-logical-operation/1\0");
-        hash.update(namespace.as_str().as_bytes());
-        hash.update([0]);
-        hash.update(operation_id.as_str().as_bytes());
-        Self(hash.finalize().into())
+    /// Derives a replay key from installed partition/epoch, namespace and
+    /// operation. The effect digest is deliberately excluded.
+    ///
+    /// # Errors
+    /// Refuses invalid installed policy or an encoding failure.
+    pub fn for_operation(
+        policy: &EffectPolicy,
+        namespace: &OperatorNamespace,
+        operation_id: &LogicalOperationId,
+    ) -> Result<Self, GatewayAttemptError> {
+        policy
+            .operation_key(namespace, operation_id)
+            .map(Self)
+            .map_err(|_| GatewayAttemptError::Corrupt)
     }
 
     /// Uses `bytes`, a key derived under another record kind's hash domain.
@@ -1089,11 +1119,21 @@ impl FileGatewayAttemptStore {
     }
 
     fn read_file(path: &Path, maximum: usize) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
+        let file = match File::open(path) {
+            Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(GatewayAttemptError::Unavailable),
         };
+        // Bound allocation before decoding, even if a record or rollback file
+        // has been replaced by an oversized file on disk.
+        let limit = u64::try_from(maximum)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let mut bytes = Vec::new();
+        file.take(limit)
+            .read_to_end(&mut bytes)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
         if bytes.is_empty() || bytes.len() > maximum {
             return Err(GatewayAttemptError::Corrupt);
         }
@@ -1543,17 +1583,32 @@ enum ExpectedPlan<'a> {
 /// no counters.
 fn claim_record(
     request: &ClosedProviderRequest,
-    recipe_digest: [u8; 32],
+    binding: &EffectBinding,
+    approval: &ExactEffectApproval,
     evaluated_at: u64,
 ) -> Result<Record, GatewayAttemptError> {
     let mut nonce = [0_u8; 16];
     getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
     let record = Record {
         schema: SCHEMA.to_owned(),
+        binding_canonical: String::from_utf8(
+            binding
+                .to_private_bytes()
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_vec(),
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?,
+        approval_canonical: String::from_utf8(
+            approval
+                .to_private_bytes()
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_vec(),
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?,
         namespace: request.namespace().as_str().to_owned(),
         operation_id: request.operation_id().as_str().to_owned(),
         action_commitment: hex::encode(request.action_commitment()),
-        recipe_digest: hex::encode(recipe_digest),
+        recipe_digest: hex::encode(binding.journal_identity().3),
         nonce: hex::encode(nonce),
         evaluated_at,
         stage: GatewayAttemptStage::Attempting,
@@ -1576,13 +1631,34 @@ fn claim_record(
 #[derive(Clone)]
 pub struct GatewayAttempts {
     store: Arc<dyn GatewayAttemptStore>,
+    policy: EffectPolicy,
 }
 
 impl GatewayAttempts {
-    /// Uses `store` for every claim and stage change.
-    #[must_use]
-    pub fn new(store: Arc<dyn GatewayAttemptStore>) -> Self {
-        Self { store }
+    /// Uses one installed partition and epoch for every claim and lookup.
+    ///
+    /// # Errors
+    /// Refuses invalid installed policy. There is no implicit replay namespace.
+    pub fn new(
+        store: Arc<dyn GatewayAttemptStore>,
+        policy: EffectPolicy,
+    ) -> Result<Self, GatewayAttemptError> {
+        policy
+            .validate()
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        Ok(Self { store, policy })
+    }
+
+    pub(crate) fn policy(&self) -> &EffectPolicy {
+        &self.policy
+    }
+
+    fn key(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+    ) -> Result<GatewayAttemptKey, GatewayAttemptError> {
+        GatewayAttemptKey::for_operation(&self.policy, namespace, operation)
     }
 
     /// Returns the underlying mechanism.
@@ -1591,21 +1667,35 @@ impl GatewayAttempts {
         Arc::clone(&self.store)
     }
 
-    /// Claims one logical ID before credential access or transport entry. The
-    /// record keeps the request's verified action commitment, the gateway
-    /// evaluation time, and the observation plan; a later echo token is
-    /// always derived from this record.
-    ///
-    /// # Errors
-    /// An existing record, including a crashed claim, is `Replay`.
-    pub async fn claim(
+    /// Reference-store oracle only; production admission requires ApprovedEffect.
+    #[cfg(any(test, feature = "testkit-harness"))]
+    pub(crate) async fn claim(
         &self,
         request: &ClosedProviderRequest,
         recipe_digest: [u8; 32],
         evaluated_at: u64,
     ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
-        let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
-        let record = claim_record(request, recipe_digest, evaluated_at)?;
+        let binding =
+            crate::effect::store_binding_fixture(request, recipe_digest, [0; 32], &self.policy)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let approval = crate::effect::approval_fixture(&binding, evaluated_at)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        self.claim_binding(request, &binding, &approval, evaluated_at)
+            .await
+    }
+
+    async fn claim_binding(
+        &self,
+        request: &ClosedProviderRequest,
+        binding: &EffectBinding,
+        approval: &ExactEffectApproval,
+        evaluated_at: u64,
+    ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let key = self.key(request.namespace(), request.operation_id())?;
+        let record = claim_record(request, binding, approval, evaluated_at)?;
         let stored = encode(&record)?;
         let store = Arc::clone(&self.store);
         let entry = GatewayRecordEntry {
@@ -1614,7 +1704,12 @@ impl GatewayAttempts {
             record: stored.clone(),
             expires_at: None,
         };
-        blocking(move || store.insert(&entry)).await?;
+        let expected = record.binding_canonical.clone();
+        blocking(move || match store.insert(&entry) {
+            Err(GatewayAttemptError::Replay) => Err(existing_binding(&*store, key, &expected)),
+            result => result,
+        })
+        .await?;
         Ok(ClaimedGatewayAttempt {
             attempt: Attempt {
                 store: Arc::clone(&self.store),
@@ -1626,7 +1721,9 @@ impl GatewayAttempts {
     }
 
     /// Lists at most `limit` stored attempts as the hexadecimal digest that
-    /// keys each one and its conservative stage. Nothing else of an attempt
+    /// keys each one and its conservative stage, restricted to this installed
+    /// partition and epoch. At most `limit` raw entries are inspected; entries
+    /// in another scope can make the result shorter. Nothing else of an attempt
     /// is returned: no operation identifier, argument, or provider value.
     ///
     /// # Errors
@@ -1636,6 +1733,7 @@ impl GatewayAttempts {
         limit: usize,
     ) -> Result<Vec<(String, GatewayAttemptStage)>, GatewayAttemptError> {
         let store = Arc::clone(&self.store);
+        let policy = self.policy.clone();
         blocking(move || {
             store
                 .attempt_keys(limit)?
@@ -1644,7 +1742,19 @@ impl GatewayAttempts {
                     let stage = store
                         .load(GatewayRecordKind::Attempt, &key)
                         .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose())
-                        .and_then(|record| record.map(|record| record.snapshot(true)).transpose());
+                        .and_then(|record| {
+                            let Some(record) = record else {
+                                return Ok(None);
+                            };
+                            let binding = EffectBinding::from_private_bytes(
+                                record.binding_canonical.as_bytes(),
+                            )
+                            .map_err(|_| GatewayAttemptError::Corrupt)?;
+                            if !policy.contains(&binding) {
+                                return Ok(None);
+                            }
+                            record.snapshot(true).map(Some)
+                        });
                     match stage {
                         Ok(Some(snapshot)) => {
                             Some(Ok((hex::encode(key.as_bytes()), snapshot.stage())))
@@ -1747,10 +1857,11 @@ impl GatewayAttempts {
                 ExpectedPlan::Stored => true,
             }
             && record.observation_request().is_some();
+        let key = self.key(namespace, operation_id)?;
         Ok(resumable.then(|| ObservableGatewayAttempt {
             attempt: Attempt {
                 store: Arc::clone(&self.store),
-                key: GatewayAttemptKey::for_operation(namespace, operation_id),
+                key,
                 stored,
                 record,
             },
@@ -1762,14 +1873,19 @@ impl GatewayAttempts {
         namespace: &OperatorNamespace,
         operation_id: &LogicalOperationId,
     ) -> Result<Option<(Vec<u8>, Record)>, GatewayAttemptError> {
-        let key = GatewayAttemptKey::for_operation(namespace, operation_id);
+        let key = self.key(namespace, operation_id)?;
         let store = Arc::clone(&self.store);
         let Some(bytes) = blocking(move || store.load(GatewayRecordKind::Attempt, &key)).await?
         else {
             return Ok(None);
         };
         let record = decode(&bytes)?;
-        if record.namespace != namespace.as_str() || record.operation_id != operation_id.as_str() {
+        let binding = EffectBinding::from_private_bytes(record.binding_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        if !self.policy.contains(&binding)
+            || record.namespace != namespace.as_str()
+            || record.operation_id != operation_id.as_str()
+        {
             return Err(GatewayAttemptError::Corrupt);
         }
         Ok(Some((bytes, record)))
@@ -2003,6 +2119,29 @@ fn encode(record: &Record) -> Result<Vec<u8>, GatewayAttemptError> {
         return Err(GatewayAttemptError::Corrupt);
     }
     Ok(bytes)
+}
+
+/// Existing claims never disappear. A loser compares the immutable complete
+/// binding after the insert transaction reports a collision, without minting
+/// any capability or consuming another reservation.
+fn existing_binding(
+    store: &dyn GatewayAttemptStore,
+    key: GatewayAttemptKey,
+    expected: &str,
+) -> GatewayAttemptError {
+    let checked = (|| {
+        let bytes = store
+            .load(GatewayRecordKind::Attempt, &key)?
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let record = decode(&bytes)?;
+        record.snapshot(false)?;
+        Ok::<_, GatewayAttemptError>(record.binding_canonical == expected)
+    })();
+    match checked {
+        Ok(true) => GatewayAttemptError::Replay,
+        Ok(false) => GatewayAttemptError::BindingConflict,
+        Err(error) => error,
+    }
 }
 
 fn decode(bytes: &[u8]) -> Result<Record, GatewayAttemptError> {
@@ -2361,29 +2500,42 @@ fn reserve_with_claim(
 impl GatewayAttempts {
     /// Claims one logical ID together with one slot of every count and sum
     /// counter `bound` names, in one all-or-none batch, before credential
-    /// access or transport entry. Without a bound it is [`Self::claim`].
+    /// access or transport entry. Unbounded effects insert only the claim.
     /// Slots are never released, and a replay consumes none.
     ///
     /// # Errors
-    /// An existing claim is `Replay`; a store failure stores nothing.
+    /// An identical binding is `Replay`; a different binding for the same
+    /// operation is `BindingConflict`. Store errors never authorize entry.
     pub(crate) async fn claim_bounded(
         &self,
-        request: &ClosedProviderRequest,
-        recipe_digest: [u8; 32],
+        approved: &ApprovedEffect,
         evaluated_at: u64,
-        bound: Option<&crate::bounds::BoundAdmission>,
     ) -> Result<BoundedClaim, GatewayAttemptError> {
-        let Some(bound) = bound else {
+        let command = approved.command();
+        let request = &command.request;
+        let binding = approved.effect().binding();
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let Some(bound) = command.bound.as_ref() else {
             return self
-                .claim(request, recipe_digest, evaluated_at)
+                .claim_binding(request, binding, approved.approval(), evaluated_at)
                 .await
                 .map(|claim| BoundedClaim::Claimed(Box::new(claim)));
         };
-        let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
-        let base = claim_record(request, recipe_digest, evaluated_at)?;
+        let key = self.key(request.namespace(), request.operation_id())?;
+        let base = claim_record(request, binding, approved.approval(), evaluated_at)?;
         let store = Arc::clone(&self.store);
         let bound = bound.clone();
-        let reserved = blocking(move || reserve_with_claim(&*store, key, &base, &bound)).await?;
+        let reserved = blocking(
+            move || match reserve_with_claim(&*store, key, &base, &bound) {
+                Err(GatewayAttemptError::Replay) => {
+                    Err(existing_binding(&*store, key, &base.binding_canonical))
+                }
+                result => result,
+            },
+        )
+        .await?;
         Ok(match reserved {
             Reserved::Claimed { stored, record } => {
                 BoundedClaim::Claimed(Box::new(ClaimedGatewayAttempt {

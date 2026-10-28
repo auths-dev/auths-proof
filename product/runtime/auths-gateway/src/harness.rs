@@ -727,7 +727,11 @@ impl SubmitIo for HarnessIo<'_> {
         Some(self.now)
     }
 
-    fn verify(&self, now: u64) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
+    fn verify(
+        &self,
+        now: u64,
+        recipe: &CompiledRecipe,
+    ) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
         let command = verify_detailed(
             &self.harness.recipe,
             &self.harness.context,
@@ -735,7 +739,7 @@ impl SubmitIo for HarnessIo<'_> {
             self.proof,
             self.action,
         )?;
-        crate::effect::approve_driver_fixture(command, now, self.approval.clone())
+        crate::effect::approve_driver_fixture(command, *recipe.digest(), now, self.approval.clone())
     }
 
     fn revalidate(
@@ -845,7 +849,11 @@ impl Harness {
             recipe,
             context,
             observer,
-            GatewayAttempts::new(std::sync::Arc::new(store)),
+            GatewayAttempts::new(
+                std::sync::Arc::new(store),
+                crate::effect::fixture_policy().map_err(|_| HarnessError::Store)?,
+            )
+            .map_err(|_| HarnessError::Store)?,
         ))
     }
 

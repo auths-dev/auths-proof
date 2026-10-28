@@ -400,6 +400,9 @@ impl GatewayEngine {
         effect_policy
             .validate()
             .map_err(|_| GatewayEngineConfigurationError::InvalidEffectPolicy)?;
+        if attempts.policy() != &effect_policy {
+            return Err(GatewayEngineConfigurationError::InvalidEffectPolicy);
+        }
         if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
@@ -1446,7 +1449,11 @@ impl SubmitIo for EngineIo<'_> {
         self.engine.qualification.effect_time()
     }
 
-    fn verify(&self, now: u64) -> Result<ApprovedEffect, GatewaySubmitResult> {
+    fn verify(
+        &self,
+        now: u64,
+        _recipe: &CompiledRecipe,
+    ) -> Result<ApprovedEffect, GatewaySubmitResult> {
         let approved = self
             .pending
             .lock()

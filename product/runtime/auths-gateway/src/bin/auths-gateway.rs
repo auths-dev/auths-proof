@@ -1361,7 +1361,8 @@ mod unix {
         }
         let attempts = {
             let store_path = store_path.clone();
-            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path))
+            let policy = manifest.effect_policy.clone();
+            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path, policy))
                 .await
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
@@ -1923,22 +1924,27 @@ mod unix {
     fn open_attempts(
         deployment: Deployment,
         store_path: Option<PathBuf>,
+        policy: auths_gateway::effect::EffectPolicy,
     ) -> Result<GatewayAttempts, &'static str> {
-        Ok(GatewayAttempts::new(match (deployment, store_path) {
-            (Deployment::Development, Some(path)) => Arc::new(
-                FileGatewayAttemptStore::open(path)
-                    .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
-            ),
-            (Deployment::Production, None) => {
-                let configuration = PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
-                    .map_err(|_| "gateway.serve.postgres-configuration")?;
-                Arc::new(PostgresGatewayAttemptStore::new(Arc::new(
-                    PostgresLifecycleStore::connect(configuration)
+        GatewayAttempts::new(
+            match (deployment, store_path) {
+                (Deployment::Development, Some(path)) => Arc::new(
+                    FileGatewayAttemptStore::open(path)
                         .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
-                )))
-            }
-            _ => return Err("gateway.serve.invalid-installation"),
-        }))
+                ),
+                (Deployment::Production, None) => {
+                    let configuration = PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
+                        .map_err(|_| "gateway.serve.postgres-configuration")?;
+                    Arc::new(PostgresGatewayAttemptStore::new(Arc::new(
+                        PostgresLifecycleStore::connect(configuration)
+                            .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
+                    )))
+                }
+                _ => return Err("gateway.serve.invalid-installation"),
+            },
+            policy,
+        )
+        .map_err(|_| "gateway.serve.invalid-effect-policy")
     }
 
     /// The store connections `serve` may hold: the `PostgreSQL` pool's
@@ -2045,6 +2051,7 @@ mod unix {
             open_attempts(
                 manifest.deployment,
                 manifest.attempt_store.as_ref().map(PathBuf::from),
+                manifest.effect_policy.clone(),
             )?,
         )
         .map_err(|_| "gateway.serve.invalid-installation")?;
@@ -3202,6 +3209,7 @@ mod unix {
         let listed = open_attempts(
             manifest.deployment,
             manifest.attempt_store.as_ref().map(PathBuf::from),
+            manifest.effect_policy.clone(),
         )
         .ok()
         .and_then(|attempts| {
@@ -3245,9 +3253,11 @@ mod unix {
         let manifest = installation(state_dir)?;
         let deployment = manifest.deployment;
         let store_path = manifest.attempt_store.as_ref().map(PathBuf::from);
-        let attempts = tokio::task::spawn_blocking(move || open_attempts(deployment, store_path))
-            .await
-            .map_err(|_| "gateway.admin.connection-unavailable")??;
+        let policy = manifest.effect_policy.clone();
+        let attempts =
+            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path, policy))
+                .await
+                .map_err(|_| "gateway.admin.connection-unavailable")??;
         let shared = SharedConnection::new(
             attempts.store(),
             ProviderKind::parse(manifest.provider).map_err(|_| "gateway.serve.invalid-provider")?,

@@ -1,4 +1,4 @@
-//! Attempt scenarios for attempt record `/3`: the pre-entry re-read, the
+//! Attempt scenarios for attempt record `/4`: the pre-entry re-read, the
 //! relative ceiling, the lease-time account and denied reads, account-scope
 //! headers, the retention rule, the entry deadline, and response-locator
 //! recovery.
@@ -20,7 +20,7 @@ use serde_json::{Map, Value, json};
 
 pub(crate) const FILE: &str = "attempt-scenarios-v3.json";
 const SCHEMA: &str = "auths.gateway-attempt-scenarios/3";
-const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/3";
+const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/4";
 const STRIPE_VERSION: &str = "2025-03-31.basil";
 const ACCOUNT: &str = "acct_TESTACCOUNT01";
 const PLATFORM: &str = "acct_TESTPLATFORM1";
@@ -480,7 +480,7 @@ fn entry_and_recovery_cases() -> Vec<Value> {
         scenario(
             "linked-attempting-reobserved",
             "airtable",
-            json!({"crash": "after-write-before-response", "replay": "fresh-proof"}),
+            json!({"crash": "after-write-before-response", "replay": "same-binding"}),
             &["attempting", "observed-by-provider"],
             None,
             &counts(2, 0, 1, 1),
@@ -491,8 +491,8 @@ fn entry_and_recovery_cases() -> Vec<Value> {
 /// The `/2` record scenarios: id, transition, and provider entries.
 const RECORD_CASES: &[(&str, &str, u64)] = &[
     ("first-claim", "unclaimed->attempting", 0),
-    ("same-id-fresh-challenge", "attempting->replay-refused", 0),
-    ("changed-action-same-id", "attempting->replay-refused", 0),
+    ("same-id-fresh-challenge", "attempting->binding-conflict", 0),
+    ("changed-action-same-id", "attempting->binding-conflict", 0),
     ("crash-after-claim", "attempting->unknown-on-restart", 0),
     ("complete-http-response", "attempting->response-recorded", 1),
     ("ambiguous-transport", "attempting->unknown", 1),

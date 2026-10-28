@@ -89,3 +89,33 @@ floors and PostgreSQL transaction rollback; these are current safety semantics.
 Retain reference implementations and original formal evidence only with accurate
 scope. Acceptance requires A01–A22, updated source-linked proofs and hosted CI;
 this ADR itself is not evidence that those gates passed.
+
+## Installed mutation journal identity cutover
+
+Attempt record `auths.gateway-attempt/4` retains the complete native canonical
+binding and original canonical exact approval as immutable fixed fields. The
+existing transition predicate compares those fixed bytes; a later observation
+or outcome cannot substitute them. Historical approval validation uses the
+recorded evaluation time and the approver pinned in that binding, not a new
+approval supplied by a replay. This preserves evidence; it does not grant entry.
+
+The only operation lookup key is the repository domain commitment
+`auths.effect-replay-key/1` over canonical `(namespace, partition, epoch,
+operation)`. It excludes the effect digest. An insertion collision loads and
+validates the retained record and compares the complete binding: equality is
+replay, inequality is `gateway.effect.operation-conflict`. Neither changes the
+record or allocates another slot. Malformed state is unavailable, never replay
+success or a free operation. There is no legacy lookup or decoder.
+
+The runtime constructs the attempt owner from the same installed effect policy
+as the engine and refuses a mismatch. Support listings filter the installed
+partition/epoch within their bounded scan. Native count/sum counter keys remain
+unchanged: changing an operation epoch must not reset a shared grant's capacity.
+Old attempt tombstones remain durable. A higher epoch is an independently
+installed namespace, not evidence of rollback protection or permission to retry
+an old unknown operation. Store conformance source covers both adapters, but
+its new binding/scope cases have not yet been executed on hosted CI.
+
+This cutover does not replace `Attempting` with a durable entry grant, provide a
+configuration fence, or finish independent recovery authority. Those remain the
+explicit P2 requirements above.

@@ -47,7 +47,11 @@ pub(crate) trait SubmitIo {
     fn clock(&self) -> Option<u64>;
 
     /// Verifies natively at `now` and projects the verified command.
-    fn verify(&self, now: u64) -> Result<ApprovedEffect, GatewaySubmitResult>;
+    fn verify(
+        &self,
+        now: u64,
+        recipe: &CompiledRecipe,
+    ) -> Result<ApprovedEffect, GatewaySubmitResult>;
 
     /// Revalidates the retained original authority and approval against the
     /// prepared installation. This is still separate from the durable fence.
@@ -454,7 +458,7 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     fn verify(&mut self) -> Verification {
-        let approved = match self.io.verify(self.evaluated_at) {
+        let approved = match self.io.verify(self.evaluated_at, self.cx.recipe) {
             Ok(verified) => verified,
             Err(result) => {
                 self.refuse_before_claim(result);
@@ -534,18 +538,13 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn claim(&mut self) -> ClaimResult {
-        let Some(verified) = self.verified.as_ref().map(ApprovedEffect::command) else {
+        let Some(approved) = self.verified.as_ref() else {
             return ClaimResult::Unavailable;
         };
         match self
             .cx
             .attempts
-            .claim_bounded(
-                &verified.request,
-                *self.cx.recipe.digest(),
-                self.evaluated_at,
-                verified.bound.as_ref(),
-            )
+            .claim_bounded(approved, self.evaluated_at)
             .await
         {
             Ok(BoundedClaim::Claimed(claim)) => {
@@ -561,6 +560,10 @@ impl<I: SubmitIo> Run<'_, I> {
                 ClaimResult::Unavailable
             }
             Err(GatewayAttemptError::Replay) => ClaimResult::Replay,
+            Err(GatewayAttemptError::BindingConflict) => {
+                self.refuse_before_claim(not_entered("gateway.effect.operation-conflict"));
+                ClaimResult::Refused
+            }
             Err(_) => {
                 self.refuse_before_claim(not_entered("gateway.attempt.unavailable"));
                 ClaimResult::Unavailable

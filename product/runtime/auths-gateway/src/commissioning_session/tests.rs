@@ -268,7 +268,9 @@ async fn ordinary_submission_cannot_select_commissioning_authority() {
         .expect("operator");
     session.initialize_budget().await.expect("registered");
     let ordinary = io(&setup, None).await;
-    ordinary.verify(NOW).expect("native proof");
+    ordinary
+        .verify(NOW, &setup.engine().recipe)
+        .expect("native proof");
     assert_eq!(
         ordinary.prepare().await,
         Err("gateway.qualification.unavailable")
@@ -336,7 +338,9 @@ async fn exact_native_actor_and_action_require_a_durable_unit_before_custody() {
         .expect("operator");
     session.initialize_budget().await.expect("registered");
     let commissioned = io(&setup, Some(&session)).await;
-    commissioned.verify(NOW).expect("exact native actor/action");
+    commissioned
+        .verify(NOW, &setup.engine().recipe)
+        .expect("exact native actor/action");
     commissioned
         .prepare()
         .await
@@ -375,7 +379,9 @@ async fn absent_registration_and_expiry_after_preparation_never_lease() {
             session.initialize_budget().await.expect("registered");
         }
         let commissioned = io(&setup, Some(&session)).await;
-        commissioned.verify(NOW).expect("native proof");
+        commissioned
+            .verify(NOW, &setup.engine().recipe)
+            .expect("native proof");
         commissioned.prepare().await.expect("prepared");
         if initialized {
             setup.clock.set(setup.permit.body().statement.not_after);
@@ -404,7 +410,7 @@ async fn another_signed_actor_or_action_is_refused_before_custody() {
         session.initialize_budget().await.expect("registered");
         let commissioned = io(&setup, Some(&session)).await;
         assert_eq!(
-            commissioned.verify(NOW).map(|_| ()),
+            commissioned.verify(NOW, &setup.engine().recipe).map(|_| ()),
             Err(super::super::not_entered(
                 "gateway.commissioning.binding-mismatch"
             ))
@@ -457,7 +463,9 @@ async fn execution_witness_measures_custody_calls_even_when_a_charged_call_fails
         .expect("operator");
     session.initialize_budget().await.expect("registered");
     let commissioned = io(&setup, Some(&session)).await;
-    commissioned.verify(NOW).expect("native exact actor");
+    commissioned
+        .verify(NOW, &setup.engine().recipe)
+        .expect("native exact actor");
     commissioned
         .prepare()
         .await
