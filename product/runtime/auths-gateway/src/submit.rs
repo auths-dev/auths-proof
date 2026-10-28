@@ -107,6 +107,15 @@ pub(crate) trait SubmitIo {
         permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
+    /// Content uses a distinct metadata-preserving response path.
+    async fn acquire_content(
+        &self,
+        _lease: &Self::Lease,
+        _permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        None
+    }
+
     /// Consumes one durably acknowledged permit for an exact compiled read.
     async fn acquire(
         &self,
@@ -123,6 +132,13 @@ pub(crate) trait AcquisitionIo {
     fn acquisition_leave(&self);
     fn acquisition_clock(&self) -> Option<u64>;
     fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str>;
+    async fn acquisition_content_send(
+        &self,
+        _lease: &Self::Lease,
+        _permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        None
+    }
     async fn acquisition_send(
         &self,
         lease: &Self::Lease,
@@ -143,6 +159,13 @@ impl<T: SubmitIo> AcquisitionIo for T {
     }
     fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
         self.entry_validation()
+    }
+    async fn acquisition_content_send(
+        &self,
+        lease: &Self::Lease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        self.acquire_content(lease, permit).await
     }
     async fn acquisition_send(
         &self,
@@ -232,10 +255,21 @@ pub(crate) async fn complete_acquisition<I: AcquisitionIo>(
     let now = io
         .acquisition_clock()
         .ok_or("gateway.verify.clock-unavailable")?;
+    let content = approved.content_target().is_some();
     let (granted, permit) = reserved
         .grant_entry(approved, validation, now)
         .await
         .map_err(|_| "gateway.entry.unavailable")?;
+    if content {
+        return match io.acquisition_content_send(lease, permit).await {
+            Some(response) => match io.acquisition_clock() {
+                Some(received_at) => granted.record_content_response(response, received_at).await,
+                None => granted.record_unknown().await,
+            },
+            None => granted.record_unknown().await,
+        }
+        .map_err(|_| "gateway.attempt.state-unavailable");
+    }
     match io.acquisition_send(lease, permit).await {
         Some(response) => match io.acquisition_clock() {
             Some(received_at) => {

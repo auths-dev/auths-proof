@@ -138,6 +138,29 @@ impl ContentReadTarget {
             .map_err(|_| EffectBindingError::Invalid)
     }
 
+    pub(crate) fn closed_read(&self) -> &ClosedContentRead {
+        &self.read
+    }
+
+    pub(super) fn journal_plan(
+        &self,
+        prerequisites: &Prerequisites,
+    ) -> Result<ContentPlan, EffectBindingError> {
+        let encode = |bytes: Zeroizing<Vec<u8>>| {
+            String::from_utf8(bytes.to_vec()).map_err(|_| EffectBindingError::Invalid)
+        };
+        Ok(ContentPlan {
+            recipe: self.recipe,
+            connection: hex::encode(
+                self.connection
+                    .to_canonical_cbor()
+                    .map_err(|_| EffectBindingError::Invalid)?,
+            ),
+            transport: encode(self.request_bytes(prerequisites)?)?,
+            contract: encode(canonical(&self.contract()?)?)?,
+        })
+    }
+
     pub(super) fn binding(
         &self,
         installed: &EffectInstallation<'_>,
@@ -155,28 +178,11 @@ impl ContentReadTarget {
             &canonical(&self.contract().map_err(|_| invalid())?).map_err(|_| invalid())?,
         )
         .map_err(|_| invalid())?;
-        let maximum_bytes = self.read.transport().maximum_response_bytes() as u64;
-        // Administrative timestamps/state and logical operation IDs cannot
-        // reset this resource allowance. Native policy windows also apply.
-        let capacity_key = |unit| {
-            commitment(
-                "auths.content-acquisition-capacity/1",
-                &canonical(&(
-                    self.recipe,
-                    self.connection.connection_id().as_str(),
-                    self.connection.credential_generation().get(),
-                    self.connection.credential_reference_commitment(),
-                    &self.arguments,
-                    unit,
-                ))?,
-            )
-        };
-        let capacity = AcquisitionCapacity {
-            count_key: capacity_key(Unit::AcquisitionCount).map_err(|_| invalid())?,
-            bytes_key: capacity_key(Unit::ResponseBytes).map_err(|_| invalid())?,
-            maximum_bytes,
-            attempts: MAX_CONTENT_ATTEMPTS,
-        };
+        let capacity = self
+            .journal_plan(prerequisites)
+            .and_then(|plan| plan.capacity())
+            .map_err(|_| invalid())?;
+        let maximum_bytes = capacity.maximum_bytes;
         let mut reservations = capacity.reservations();
         reservations.extend(managed_reservations(
             bound,
@@ -225,4 +231,164 @@ pub fn compile_content_acquisition(
         proof,
         action,
     )
+}
+
+/// Immutable reconstruction data, never a transport capability. The signed
+/// binding pins the complete contract and request; current connection bytes
+/// must also match under the common admission and entry fence.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ContentPlan {
+    recipe: [u8; 32],
+    connection: String,
+    transport: String,
+    contract: String,
+}
+
+impl ContentPlan {
+    fn connection(&self) -> Result<ConnectionRecord, EffectBindingError> {
+        if self.connection.len() > MAX_EFFECT_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        let bytes =
+            Zeroizing::new(hex::decode(&self.connection).map_err(|_| EffectBindingError::Invalid)?);
+        if hex::encode(bytes.as_slice()) != self.connection {
+            return Err(EffectBindingError::Invalid);
+        }
+        ConnectionRecord::from_canonical_cbor(&bytes).map_err(|_| EffectBindingError::Invalid)
+    }
+
+    pub(crate) fn source_key(&self) -> Result<crate::GatewayAttemptKey, EffectBindingError> {
+        let connection = self.connection()?;
+        Ok(crate::connection_key(
+            connection.provider_kind(),
+            connection.alias(),
+        ))
+    }
+
+    pub(crate) fn source_id(&self) -> Result<[u8; 32], EffectBindingError> {
+        commitment("auths.content-source/1", &self.capacity()?.count_key)
+    }
+
+    pub(crate) fn source_matches(
+        &self,
+        bytes: Option<&[u8]>,
+    ) -> Result<(bool, u64), EffectBindingError> {
+        let connection = self.connection()?;
+        let expected = Zeroizing::new(
+            connection
+                .to_canonical_cbor()
+                .map_err(|_| EffectBindingError::Invalid)?,
+        );
+        Ok((
+            bytes == Some(expected.as_slice()),
+            connection.updated_at_unix_seconds(),
+        ))
+    }
+
+    fn witness(&self) -> Result<Value, EffectBindingError> {
+        if self.contract.len() > MAX_EFFECT_BYTES || self.transport.len() > MAX_EFFECT_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        let contract: Value =
+            serde_json::from_str(&self.contract).map_err(|_| EffectBindingError::Invalid)?;
+        let transport: Value =
+            serde_json::from_str(&self.transport).map_err(|_| EffectBindingError::Invalid)?;
+        let connection = self.connection()?;
+        let bytes = Zeroizing::new(
+            connection
+                .to_canonical_cbor()
+                .map_err(|_| EffectBindingError::Invalid)?,
+        );
+        if canonical(&contract)?.as_slice() != self.contract.as_bytes()
+            || canonical(&transport)?.as_slice() != self.transport.as_bytes()
+            || contract["schema"] != CONTRACT
+            || contract["recipe"] != hex::encode(self.recipe)
+            || contract["connection"]
+                != hex::encode(commitment("auths.effect-installation/1", &bytes)?)
+            || contract["maximum_attempts"] != MAX_CONTENT_ATTEMPTS
+            || contract["disclosure"] != "separate-authorization-required"
+            || contract["content"]["schema"] != crate::recipe::CONTENT_READ_SCHEMA
+            || transport["request"] != contract["content"]["request"]
+            || !contract["content"]["resource_arguments"].is_object()
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(contract)
+    }
+
+    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
+        let contract = self.witness()?;
+        let maximum_bytes = contract["content"]["request"]["maximum_response_bytes"]
+            .as_u64()
+            .filter(|value| (1..=65_536).contains(value))
+            .ok_or(EffectBindingError::Invalid)?;
+        let connection = self.connection()?;
+        // Administrative state/timestamps and logical operations never reset
+        // the lifetime allowance for this credential and exact resource.
+        let key = |unit| {
+            commitment(
+                "auths.content-acquisition-capacity/1",
+                &canonical(&(
+                    self.recipe,
+                    connection.connection_id().as_str(),
+                    connection.credential_generation().get(),
+                    connection.credential_reference_commitment(),
+                    &contract["content"]["resource_arguments"],
+                    unit,
+                ))?,
+            )
+        };
+        Ok(AcquisitionCapacity {
+            count_key: key(Unit::AcquisitionCount)?,
+            bytes_key: key(Unit::ResponseBytes)?,
+            maximum_bytes,
+            attempts: MAX_CONTENT_ATTEMPTS,
+        })
+    }
+
+    pub(crate) fn validate(
+        &self,
+        binding: &EffectBinding,
+    ) -> Result<AcquisitionCapacity, EffectBindingError> {
+        let capacity = self.capacity()?;
+        let connection = self.connection()?;
+        let bytes = Zeroizing::new(
+            connection
+                .to_canonical_cbor()
+                .map_err(|_| EffectBindingError::Invalid)?,
+        );
+        if binding.wire.recipe != self.recipe
+            || binding.wire.connection != commitment("auths.effect-installation/1", &bytes)?
+            || binding.wire.credential_generation != connection.credential_generation().get()
+            || binding.wire.protocol
+                != (Protocol::Acquisition {
+                    request: commitment(
+                        "auths.effect-acquisition-request/2",
+                        self.transport.as_bytes(),
+                    )?,
+                    projection: commitment(CONTRACT, self.contract.as_bytes())?,
+                    maximum_response_bytes: capacity.maximum_bytes,
+                })
+            || binding
+                .wire
+                .reservations
+                .iter()
+                .filter(|r| r.window == ReservationWindow::SourceLifetime)
+                .cloned()
+                .collect::<Vec<_>>()
+                != capacity.reservations()
+            || binding.wire.reservations.iter().any(|r| {
+                matches!(r.window, ReservationWindow::Fixed { .. })
+                    && match r.unit {
+                        Unit::AcquisitionCount => r.amount != 1,
+                        Unit::ResponseBytes => r.amount != capacity.maximum_bytes,
+                        _ => true,
+                    }
+            })
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(capacity)
+    }
 }

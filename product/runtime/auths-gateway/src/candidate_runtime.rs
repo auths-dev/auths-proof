@@ -426,7 +426,7 @@ impl GatewayEngine {
             Err(crate::GatewayAttemptError::BindingConflict) => {
                 return Err(not_entered("gateway.effect.operation-conflict"));
             }
-            Err(_) => return self.recovery_projection(&approved).await,
+            Err(_) => return self.acquisition_projection(&approved).await,
         };
         let result = async {
             let _flight = submit::InFlight::enter(&io);
@@ -461,7 +461,7 @@ impl GatewayEngine {
         .await;
         match result {
             Ok(snapshot) => Ok(snapshot),
-            Err(_) => self.recovery_projection(&approved).await,
+            Err(_) => self.acquisition_projection(&approved).await,
         }
     }
 }

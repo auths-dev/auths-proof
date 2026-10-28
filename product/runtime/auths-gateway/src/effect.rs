@@ -1100,6 +1100,22 @@ impl ApprovedEffect {
         }
     }
 
+    pub(crate) fn content_target(&self) -> Option<&ContentReadTarget> {
+        match &self.effect.command {
+            CompiledEffect::Acquisition(command) => match &command.target {
+                acquisition::AcquisitionTarget::Content(target) => Some(target),
+                _ => None,
+            },
+            CompiledEffect::Mutation(_) => None,
+        }
+    }
+
+    pub(crate) fn content_plan(&self) -> Result<content::ContentPlan, EffectBindingError> {
+        self.content_target()
+            .ok_or(EffectBindingError::Invalid)?
+            .journal_plan(self.prerequisites())
+    }
+
     pub(crate) fn candidate_target(&self) -> Option<&CandidateCredentialTarget> {
         match &self.effect.command {
             CompiledEffect::Acquisition(command) => match &command.target {

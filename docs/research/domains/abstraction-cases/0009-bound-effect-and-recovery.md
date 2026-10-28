@@ -558,3 +558,26 @@ bytes without truncation into a zeroizing buffer and gives no disclosure permit.
 This evidence does not establish durable source allocations, actual provider
 transport, content custody, standalone read-only deployment, AP070 differential
 parity or a recipient release. Those remain part of P3/P4.
+
+
+## Content acquisition durable comparison
+
+The shared mechanism is the existing acquisition admission/entry/replay order,
+with the connection row as source and the compiler's resource capacity keys.
+Content keeps a distinct response carrier: status, version agreement, raw bytes,
+receipt time and bounded media/encoding facts. Credential-purpose evaluation and
+mutation observation cannot consume this carrier. It establishes neither an
+AP070 metadata predicate nor recipient delivery. Fixed reviewed query parameters
+are sent only through a sealed content permit, using the same pinned-origin,
+no-proxy/no-redirect transport policy and explicit identity encoding.
+
+`content-journal.json` is constructed by native signed authority/approval,
+installed entry validation and the file adapter, with eight real local HTTP
+requests. It checks exact query/Accept/encoding headers, raw-body bounds,
+duplicate/missing/encoded/wrong-media response metadata, retained HTTP denial,
+one-use grants, reopen replay without record changes, permanent charges after
+lost permits and refusal of attempt seventeen. A typed-record downgrade is
+rejected. Synthetic credential/provider data stays private; the artifact contains
+only public snapshots and synthetic response header facts. This is not an
+independent-process, PostgreSQL, full engine, protected-content/disclosure,
+AP070 equivalence or isolation claim. These evidence gates remain open.

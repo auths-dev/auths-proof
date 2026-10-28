@@ -183,7 +183,8 @@ impl ClosedContentRead {
     }
 
     /// The exact expected response media type. Only an optional UTF-8 charset
-    /// is accepted by projection; compressed bodies are a transport refusal.
+    /// is accepted by projection. The caller must establish identity encoding
+    /// from retained transport metadata before projecting response bytes.
     #[must_use]
     pub const fn media_type(&self) -> &'static str {
         match self.projection {

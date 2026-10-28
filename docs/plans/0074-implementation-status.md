@@ -1122,6 +1122,48 @@ closure regeneration passed after that correction (one artifact-generation test)
   this opt-in content capability is not a claim that standalone read-only
   installation or the Google domain cutover is complete. A01–A22 remain open.
 
+## Content acquisition journal and transport checkpoint
+
+- Content now has a typed plan in the existing acquisition owner. It binds the
+  exact current connection, resource capacity, request/projection and credential
+  prerequisites. Admission and final grant share the existing native fence and
+  permanent count/byte allocations. Content cannot borrow candidate/recovery
+  admission or ordinary response evidence. Current connection changes refuse.
+- Added engine compilation/acquisition APIs using the existing preparation,
+  custody and acquisition sequence. Terminal replay precedes transport/custody
+  preparation. Public results remain acquisition facts without raw bytes,
+  content commitments or a disclosure permit.
+- The sealed content permit sends the compiler-owned GET and fixed query over
+  the pinned transport. It requests identity encoding and disables automatic
+  decompression; other request paths retain their query prohibition. A distinct
+  response phase privately retains bounded raw bytes, status, version agreement,
+  receipt time and missing/single/invalid media/encoding facts (128 bytes each).
+  It maps to the existing kernel response stage, not a new reducer. Oversized
+  responses and lost permits retain unknown and full charges. Partial read
+  accumulation is zeroized on error.
+- Exact artifact construction passed on `eafd6a2b` plus this source:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact observed_tests::effect_native_tests::content_tests::native_content_journal_fixture_is_current observed_tests::effect_native_tests::content_tests::native_content_compilation_fixture_is_current`.
+  The final two-test run passed in 2.04 seconds. The new fixture uses installed
+  native entry validation, the file adapter and eight real loopback HTTP calls,
+  checks 16 permanent allocations and seventeenth refusal, one-use grants,
+  reopened replay/unchanged bytes, exact queries and request headers, retained
+  response metadata, record downgrade rejection and public sentinel privacy.
+  Source/connection equality is checked separately. An initial compile failure
+  used a nonexistent policy key method; the test now uses the existing native
+  `GatewayAttemptKey::for_operation`. No production check was weakened.
+- This is not a full engine/CLI process journey, PostgreSQL/fault evidence,
+  content projection provenance, protected content commitment or disclosure.
+  Protected projected-content construction must consume the recorded metadata
+  and reject bad encoding/media/version/projection without refetch. Read-only
+  installation, AP070 metadata and Python-owner removal, maintained consumers,
+  authenticated UI/bindings and P4 evidence remain. No A01–A22 case closes.
+- After the bounded-buffer zeroization change, final generation of
+  `native_content_journal_fixture_is_current` and
+  `semantic_closure::tests::semantic_closure_is_current` passed together (two
+  exact tests, 2.15 seconds). No broad local gate or hosted CI has been run or
+  observed. Bounded decoded response buffers and partial transport accumulation
+  are zeroized on drop. Fetch found no new upstream commits.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1129,7 +1171,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery/prerequisite runtime and content/ACK compilation wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery/prerequisite/content acquisition runtime and ACK compilation wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

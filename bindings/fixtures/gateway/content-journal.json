@@ -1,0 +1,308 @@
+{
+  "schema": "auths.gateway-content-journal-fixture/1",
+  "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
+  "permanent_source_attempts": 16,
+  "history": [
+    {
+      "case": 0,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 1,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "single",
+          "value": "gzip"
+        }
+      }
+    },
+    {
+      "case": 2,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "invalid"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 3,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "missing"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 4,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "invalid"
+        }
+      }
+    },
+    {
+      "case": 5,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "application/json"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 6,
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "private_response_metadata": null
+    },
+    {
+      "case": 7,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 25,
+        "response_version_ok": true
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "source-exhausted",
+      "snapshot": {
+        "revision": 1,
+        "stage": "not-entered",
+        "reserved_calls": 0,
+        "reserved_bytes": 0,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    }
+  ]
+}

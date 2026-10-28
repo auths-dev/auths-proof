@@ -1279,6 +1279,68 @@ impl GatewayEngine {
             .map_err(|_| not_entered("gateway.acquisition.binding"))
     }
 
+    /// Compiles a declared content GET from exact resource arguments using
+    /// fresh independent native read authority. Performs no custody or provider
+    /// I/O and returns private review/approval data only.
+    ///
+    /// # Errors
+    /// Refuses invalid resource arguments, missing content declaration, changed
+    /// installation/configuration or invalid native read authority.
+    pub async fn compile_content_effect(
+        &self,
+        arguments: serde_json::Map<String, serde_json::Value>,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let target =
+            crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
+                .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        crate::effect::compile_content_acquisition(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            &target,
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Acquires and privately retains one exactly approved content response.
+    /// Returns redacted journal facts only; a provider response grants no
+    /// permission to disclose bytes. Replay cannot lease or fetch again.
+    ///
+    /// # Errors
+    /// Refuses invalid native authority/approval/configuration or unavailable
+    /// custody/state. Uncertain entry retains its permanent count/byte charges.
+    pub async fn acquire_content(
+        &self,
+        arguments: serde_json::Map<String, serde_json::Value>,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let effect = self
+            .compile_content_effect(arguments, proof, action)
+            .await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        self.acquire_read_approved(approved, now, started).await
+    }
+
     /// Compiles independently authorized recovery through the same installed
     /// binding and exact approval machinery as a mutation. The source writer's
     /// authority is provenance, not current read permission. No provider I/O,
@@ -1339,10 +1401,10 @@ impl GatewayEngine {
                 .approve(approval, self.effect_policy.approver(), now)
                 .map_err(|_| not_entered("gateway.effect.approval"))?,
         );
-        self.acquire_recovery_approved(approved, now, started).await
+        self.acquire_read_approved(approved, now, started).await
     }
 
-    async fn acquire_recovery_approved(
+    async fn acquire_read_approved(
         &self,
         approved: Arc<ApprovedEffect>,
         now: u64,
@@ -1384,24 +1446,29 @@ impl GatewayEngine {
         io.revalidate(&approved, fresh)
             .map_err(|_| not_entered("gateway.effect.authority-unavailable"))?;
         let validation = io.entry_validation().map_err(not_entered)?;
-        let reserved = match self
-            .attempts
-            .claim_recovery(&approved, now, validation)
-            .await
-        {
+        let claim = if approved.content_target().is_some() {
+            self.attempts
+                .claim_content(&approved, now, validation)
+                .await
+        } else {
+            self.attempts
+                .claim_recovery(&approved, now, validation)
+                .await
+        };
+        let reserved = match claim {
             Ok(crate::AcquisitionClaim::Existing(snapshot)) => return Ok(snapshot),
             Ok(crate::AcquisitionClaim::Reserved(reserved)) => reserved,
             Err(crate::GatewayAttemptError::BindingConflict) => {
                 return Err(not_entered("gateway.effect.operation-conflict"));
             }
-            Err(_) => return self.recovery_projection(&approved).await,
+            Err(_) => return self.acquisition_projection(&approved).await,
         };
         match self
-            .run_recovery_reservation(*reserved, Arc::clone(&approved), &io)
+            .run_read_reservation(*reserved, Arc::clone(&approved), &io)
             .await
         {
             Ok(snapshot) => Ok(snapshot),
-            Err(_) => self.recovery_projection(&approved).await,
+            Err(_) => self.acquisition_projection(&approved).await,
         }
     }
 
@@ -1433,8 +1500,7 @@ impl GatewayEngine {
                 .map_err(|_| not_entered("gateway.effect.approval"))?,
         );
         let operation = approved.effect().binding().journal_identity().1.to_owned();
-        self.acquire_recovery_approved(approved, now, started)
-            .await?;
+        self.acquire_read_approved(approved, now, started).await?;
         self.refine_recovery(source_operation, &operation)
             .await
             .map_err(|code| GatewaySubmitResult::Indeterminate {
@@ -1477,7 +1543,7 @@ impl GatewayEngine {
         Ok(snapshot)
     }
 
-    async fn recovery_projection(
+    async fn acquisition_projection(
         &self,
         approved: &ApprovedEffect,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
@@ -1491,7 +1557,7 @@ impl GatewayEngine {
             })
     }
 
-    async fn run_recovery_reservation(
+    async fn run_read_reservation(
         &self,
         reserved: crate::ReservedAcquisition,
         approved: Arc<ApprovedEffect>,
@@ -1998,6 +2064,18 @@ impl SubmitIo for EngineIo<'_> {
             }
             None => Err(GatewayTransportError::NotEntered),
         }
+    }
+
+    async fn acquire_content(
+        &self,
+        lease: &StoredSecretLease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        self.prepared
+            .get()?
+            .transport
+            .acquire_content(permit, lease)
+            .await
     }
 
     async fn acquire(

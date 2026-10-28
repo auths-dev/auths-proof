@@ -826,6 +826,33 @@ allowance. Fixed-window native managed bounds are additionally retained.
 Content projection returns private bytes and typed response errors, not a
 receipt or release grant. Runtime must authenticate/retain HTTP metadata and
 content under the journal contract and issue a distinct disclosure capability.
-The current compiler slice does not add content admission/entry, read-only
-installation, AP070 metadata predicates, recipient transport or content custody.
-These remain required before migrating the maintained demo.
+The initial compiler slice supplied no admission/entry; the following section
+records that integration. Read-only installation, AP070 metadata predicates,
+recipient transport and protected projected-content custody remain required
+before migrating the maintained demo.
+
+
+## Content acquisition journal and transport
+
+The content plan is a concrete variant of the existing acquisition journal.
+Its current source is the exact connection row, checked under the same fence as
+native authority, configuration, qualification, all source/policy allocations
+and credential prerequisites. The plan validates its reconstruction data against
+the full signed request/projection commitments; decoding it grants no authority.
+The engine uses the common acquisition driver. A content permit can enter only
+the metadata-preserving content GET path and is consumed once.
+
+Content responses have a distinct private journal variant mapped to the existing
+kernel acquisition response stage. They retain bounded raw bytes and typed
+media/encoding facts, without upgrading them to usable content or a disclosure.
+Missing, duplicate, oversized and non-text header values cannot become a valid
+single header. Transport requests identity encoding and explicitly disables
+automatic decompression. Query support is confined to the compiler-owned content
+request; other transports retain their previous URL restriction. No new retry,
+transition owner, decoder compatibility path or generic request callback is added.
+
+The `content-journal.json` corpus exercises installed native entry against the
+file adapter, actual loopback HTTP, durable source exhaustion and reopened
+journal replay. Protected projected-content construction, separate disclosure,
+full engine/CLI process journeys, PostgreSQL faults and AP070 differential
+cutover remain required; this evidence grants no provider qualification.

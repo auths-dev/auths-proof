@@ -71,9 +71,17 @@ pub(super) struct AcquisitionState {
 enum AcquisitionPhase {
     Reserved,
     EntryGranted,
-    NotEntered { code: String },
+    NotEntered {
+        code: String,
+    },
     Unknown,
-    ResponseRecorded { response: AcquisitionResponse },
+    ResponseRecorded {
+        response: AcquisitionResponse,
+    },
+    ContentResponseRecorded {
+        response: AcquisitionResponse,
+        metadata: crate::transport::ContentResponseMetadata,
+    },
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -92,7 +100,9 @@ impl AcquisitionPhase {
             Self::EntryGranted => transition::Stage::EntryGranted,
             Self::NotEntered { .. } => transition::Stage::NotEntered,
             Self::Unknown => transition::Stage::Unknown,
-            Self::ResponseRecorded { .. } => transition::Stage::ResponseRecorded,
+            Self::ResponseRecorded { .. } | Self::ContentResponseRecorded { .. } => {
+                transition::Stage::ResponseRecorded
+            }
         }
     }
 }
@@ -137,6 +147,9 @@ impl JournalProtocol for AcquisitionState {
             refusal: matches!(record.state.phase, AcquisitionPhase::NotEntered { .. }),
             response: match &record.state.phase {
                 AcquisitionPhase::ResponseRecorded { response } => canonical(response)?,
+                AcquisitionPhase::ContentResponseRecorded { response, metadata } => {
+                    canonical(&(response, metadata))?
+                }
                 _ => Vec::new(),
             },
             pre_entry: Vec::new(),
@@ -160,7 +173,9 @@ impl JournalProtocol for AcquisitionState {
         if record.state.allocation.is_some()
             && matches!(
                 record.state.plan,
-                AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_)
+                AcquisitionPlan::Recovery(_)
+                    | AcquisitionPlan::Candidate(_)
+                    | AcquisitionPlan::Content(_)
             )
         {
             let counts: Vec<_> = counters
@@ -195,11 +210,28 @@ impl JournalProtocol for AcquisitionState {
         {
             return Err(GatewayAttemptError::Corrupt);
         }
+        if matches!(
+            record.state.phase,
+            AcquisitionPhase::ContentResponseRecorded { .. }
+        ) && !matches!(record.state.plan, AcquisitionPlan::Content(_))
+            || matches!(
+                record.state.phase,
+                AcquisitionPhase::ResponseRecorded { .. }
+            ) && matches!(record.state.plan, AcquisitionPlan::Content(_))
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if let AcquisitionPhase::ContentResponseRecorded { metadata, .. } = &record.state.phase
+            && !metadata.valid()
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
         match &record.state.phase {
             AcquisitionPhase::NotEntered { code } if !valid_code(code) => {
                 return Err(GatewayAttemptError::Corrupt);
             }
-            AcquisitionPhase::ResponseRecorded { response } => {
+            AcquisitionPhase::ResponseRecorded { response }
+            | AcquisitionPhase::ContentResponseRecorded { response, .. } => {
                 let body = response.body(&capacity)?;
                 let entry = record.entry.as_ref().ok_or(GatewayAttemptError::Corrupt)?;
                 if response.received_at < entry.granted_at
@@ -217,11 +249,16 @@ impl JournalProtocol for AcquisitionState {
 }
 
 impl AcquisitionResponse {
-    fn body(&self, capacity: &AcquisitionCapacity) -> Result<Vec<u8>, GatewayAttemptError> {
+    fn body(
+        &self,
+        capacity: &AcquisitionCapacity,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, GatewayAttemptError> {
         if self.body_b64.len() > MAX_EVIDENCE_BYTES.div_ceil(3) * 4 {
             return Err(GatewayAttemptError::Corrupt);
         }
-        let body = Base64::decode_vec(&self.body_b64).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let body = zeroize::Zeroizing::new(
+            Base64::decode_vec(&self.body_b64).map_err(|_| GatewayAttemptError::Corrupt)?,
+        );
         if body.len() as u64 > capacity.maximum_bytes
             || Base64::encode_string(&body) != self.body_b64
         {
@@ -245,7 +282,8 @@ impl Record<AcquisitionState> {
                 (AcquisitionStage::Unknown, None, None)
             }
             AcquisitionPhase::NotEntered { .. } => (AcquisitionStage::NotEntered, None, None),
-            AcquisitionPhase::ResponseRecorded { response } => (
+            AcquisitionPhase::ResponseRecorded { response }
+            | AcquisitionPhase::ContentResponseRecorded { response, .. } => (
                 AcquisitionStage::ResponseRecorded,
                 Some(response.status),
                 Some(response.body(&capacity)?.len() as u64),
@@ -275,7 +313,10 @@ impl Record<AcquisitionState> {
             response_status,
             response_bytes,
             response_version_ok: match &self.state.phase {
-                AcquisitionPhase::ResponseRecorded { response } => Some(response.version_ok),
+                AcquisitionPhase::ResponseRecorded { response }
+                | AcquisitionPhase::ContentResponseRecorded { response, .. } => {
+                    Some(response.version_ok)
+                }
                 _ => None,
             },
         })
@@ -388,7 +429,7 @@ impl Record<AcquisitionState> {
             response: crate::transport::ProviderResponse {
                 status: response.status,
                 version_ok: response.version_ok,
-                body: response.body(&capacity)?,
+                body: response.body(&capacity)?.to_vec(),
             },
             received_at: response.received_at,
             observed_at,
@@ -439,7 +480,9 @@ impl GatewayAttempts {
         &self,
         approved: &ApprovedEffect,
     ) -> Result<Option<AcquisitionSnapshot>, GatewayAttemptError> {
-        if (approved.recovery_target().is_none() && approved.candidate_target().is_none())
+        if (approved.recovery_target().is_none()
+            && approved.candidate_target().is_none()
+            && approved.content_target().is_none())
             || !self.policy.contains(approved.effect().binding())
         {
             return Err(GatewayAttemptError::BindingConflict);
@@ -504,6 +547,21 @@ impl GatewayAttempts {
             .await
     }
 
+    pub(crate) async fn claim_content(
+        &self,
+        approved: &Arc<ApprovedEffect>,
+        evaluated_at: u64,
+        validation: crate::entry::EntryValidation,
+    ) -> Result<AcquisitionClaim, GatewayAttemptError> {
+        let plan = AcquisitionPlan::Content(
+            approved
+                .content_plan()
+                .map_err(|_| GatewayAttemptError::InvalidTransition)?,
+        );
+        self.claim_acquisition(approved, plan, evaluated_at, validation)
+            .await
+    }
+
     pub(crate) async fn claim_prerequisite(
         &self,
         approved: &Arc<ApprovedEffect>,
@@ -544,6 +602,11 @@ impl GatewayAttempts {
             LogicalOperationId::parse(operation).map_err(|_| GatewayAttemptError::Corrupt)?;
         let key = self.key(&namespace, &operation)?;
         let (source_kind, source_key) = match &plan {
+            AcquisitionPlan::Content(plan) => (
+                GatewayRecordKind::Connection,
+                plan.source_key()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?,
+            ),
             AcquisitionPlan::Candidate(plan) => (
                 GatewayRecordKind::Connection,
                 plan.source_key()
@@ -560,13 +623,15 @@ impl GatewayAttempts {
             }
         };
         let key = match &plan {
-            AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_) => key,
+            AcquisitionPlan::Recovery(_)
+            | AcquisitionPlan::Candidate(_)
+            | AcquisitionPlan::Content(_) => key,
             AcquisitionPlan::Prerequisite(plan) => prerequisite_key(source_key, plan.index()),
         };
         let bound = match &plan {
-            AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_) => {
-                approved.acquisition_bound().cloned()
-            }
+            AcquisitionPlan::Recovery(_)
+            | AcquisitionPlan::Candidate(_)
+            | AcquisitionPlan::Content(_) => approved.acquisition_bound().cloned(),
             AcquisitionPlan::Prerequisite(_) => None,
         };
         let expected_plan = plan.clone();
@@ -755,6 +820,20 @@ impl ReservedAcquisition {
         authorization_started_at: u64,
     ) -> Result<(GrantedAcquisition, AcquisitionEntryPermit), GatewayAttemptError> {
         let (plan, request) = match &self.attempt.record.state.plan {
+            AcquisitionPlan::Content(_) => (
+                AcquisitionPlan::Content(
+                    approved
+                        .content_plan()
+                        .map_err(|_| GatewayAttemptError::Corrupt)?,
+                ),
+                AcquisitionRequest::Content(
+                    approved
+                        .content_target()
+                        .ok_or(GatewayAttemptError::InvalidTransition)?
+                        .closed_read()
+                        .clone(),
+                ),
+            ),
             AcquisitionPlan::Recovery(_) => {
                 let target = approved
                     .recovery_target()
@@ -805,7 +884,10 @@ impl ReservedAcquisition {
             let mut keys = vec![
                 (GatewayRecordKind::Attempt, attempt.key),
                 (
-                    if matches!(plan, AcquisitionPlan::Candidate(_)) {
+                    if matches!(
+                        plan,
+                        AcquisitionPlan::Candidate(_) | AcquisitionPlan::Content(_)
+                    ) {
                         GatewayRecordKind::Connection
                     } else {
                         GatewayRecordKind::Attempt
@@ -822,7 +904,9 @@ impl ReservedAcquisition {
             keys.extend(capacity::dependencies(&attempt.record.state.counters)?);
             let counter_end = keys.len();
             let prerequisites = match &plan {
-                AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_) => approved
+                AcquisitionPlan::Recovery(_)
+                | AcquisitionPlan::Candidate(_)
+                | AcquisitionPlan::Content(_) => approved
                     .prerequisite_plans()
                     .map_err(|_| GatewayAttemptError::Corrupt)?,
                 AcquisitionPlan::Prerequisite(_) => Vec::new(),
@@ -868,9 +952,9 @@ impl ReservedAcquisition {
                     )
                     .map_err(|_| GatewayAttemptError::InvalidTransition)?;
                 let bound = match &plan {
-                    AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_) => {
-                        approved.acquisition_bound()
-                    }
+                    AcquisitionPlan::Recovery(_)
+                    | AcquisitionPlan::Candidate(_)
+                    | AcquisitionPlan::Content(_) => approved.acquisition_bound(),
                     AcquisitionPlan::Prerequisite(_) => None,
                 };
                 capacity::validate_reservations(
@@ -891,7 +975,9 @@ impl ReservedAcquisition {
                 )?;
                 if matches!(
                     plan,
-                    AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_)
+                    AcquisitionPlan::Recovery(_)
+                        | AcquisitionPlan::Candidate(_)
+                        | AcquisitionPlan::Content(_)
                 ) {
                     validation
                         .validate_prerequisite_evidence(
@@ -934,6 +1020,7 @@ impl ReservedAcquisition {
 }
 
 pub(crate) enum AcquisitionRequest {
+    Content(crate::recipe::ClosedContentRead),
     Recovery(ClosedObservationRequest),
     Prerequisite(ClosedPrerequisiteRead),
 }
@@ -957,6 +1044,27 @@ impl GrantedAcquisition {
     pub(crate) async fn record_unknown(self) -> Result<AcquisitionSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
         next.state.phase = AcquisitionPhase::Unknown;
+        self.attempt.advance(next).await?.record.snapshot()
+    }
+
+    pub(crate) async fn record_content_response(
+        self,
+        response: crate::transport::ContentProviderResponse,
+        received_at: u64,
+    ) -> Result<AcquisitionSnapshot, GatewayAttemptError> {
+        if !matches!(self.attempt.record.state.plan, AcquisitionPlan::Content(_)) {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let mut next = self.attempt.record.clone();
+        next.state.phase = AcquisitionPhase::ContentResponseRecorded {
+            response: AcquisitionResponse {
+                status: response.status,
+                version_ok: response.version_ok,
+                body_b64: Base64::encode_string(&response.body),
+                received_at,
+            },
+            metadata: response.metadata,
+        };
         self.attempt.advance(next).await?.record.snapshot()
     }
 
@@ -1057,6 +1165,9 @@ fn eligible_source(
     key: GatewayAttemptKey,
 ) -> Result<(bool, u64), GatewayAttemptError> {
     match plan {
+        AcquisitionPlan::Content(plan) => plan
+            .source_matches(source_bytes)
+            .map_err(|_| GatewayAttemptError::Corrupt),
         AcquisitionPlan::Candidate(plan) => plan
             .source_matches(source_bytes)
             .map_err(|_| GatewayAttemptError::Corrupt),
@@ -1085,7 +1196,9 @@ fn eligible_source(
                     source.validate_header()?,
                     matches!(
                         source.state.plan,
-                        AcquisitionPlan::Recovery(_) | AcquisitionPlan::Candidate(_)
+                        AcquisitionPlan::Recovery(_)
+                            | AcquisitionPlan::Candidate(_)
+                            | AcquisitionPlan::Content(_)
                     ) && matches!(source.state.phase, AcquisitionPhase::Reserved),
                     source.entry.is_some(),
                     source.evaluated_at,

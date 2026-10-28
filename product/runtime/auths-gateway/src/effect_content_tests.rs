@@ -1,5 +1,5 @@
-//! Native recipe/content compilation corpus. No runtime acquisition, content
-//! custody, release or provider transport is asserted by these fixtures.
+//! Native content compilation and durable acquisition corpora. Transport
+//! evidence is scoped to the journal fixture; neither corpus claims disclosure.
 use super::*;
 use crate::effect::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
 
@@ -437,6 +437,388 @@ fn native_content_compilation_fixture_is_current() {
         "undeclared_content_read_refused": true});
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/content-compilation.json");
+    let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &bytes).expect("fixture");
+    }
+    assert_eq!(std::fs::read(&path).expect("fixture"), bytes);
+}
+
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one installed native admission/entry and bounded HTTP evidence corpus"
+)]
+async fn native_content_journal_fixture_is_current() {
+    use auths_connections::{ConnectionCredentialStore as _, SecretBytes};
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    use tokio::net::TcpListener;
+    let root = signer(h::ROOT_SEED);
+    let reader = signer(0x33);
+    let observer = signer(h::OBSERVER_SEED);
+    let key = SigningKey::from_bytes(&[29; 32]);
+    let public = key.verifying_key().to_bytes();
+    let policy =
+        EffectPolicy::new("synthetic-content-journal".to_owned(), 1, public).expect("policy");
+    let recipe = content_recipe(declaration(json!({"kind": "utf8"}))).expect("recipe");
+    let initial = connection(&recipe);
+    let credentials = auths_connections::InMemoryCredentialStore::new(1, 1024).expect("custody");
+    let reference = credentials
+        .install(
+            initial.connection_id(),
+            initial.credential_generation(),
+            SecretBytes::new(b"SYNTHETIC-CONTENT-TEST-CREDENTIAL".to_vec()).expect("secret"),
+        )
+        .await
+        .expect("install");
+    let record = ConnectionRecord::new(
+        initial.provider_kind().clone(),
+        initial.alias().clone(),
+        initial.connection_id().clone(),
+        initial.contract().clone(),
+        initial.descriptor_schema().clone(),
+        initial.descriptor().to_vec(),
+        *initial.account_commitment(),
+        *reference.as_bytes(),
+        initial.generation(),
+        initial.state(),
+        initial.allowed_workloads().to_vec(),
+        initial.allowed_profiles().to_vec(),
+        initial.created_at_unix_seconds(),
+        initial.updated_at_unix_seconds(),
+        None,
+    )
+    .expect("record");
+    let args = json!({"record_id": RECORD})
+        .as_object()
+        .expect("args")
+        .clone();
+    let target = ContentReadTarget::new(&recipe, &record, args).expect("target");
+    let call = target
+        .authorization_call(
+            &recipe,
+            &LogicalOperationId::parse("content-journal-0").expect("op"),
+        )
+        .expect("call");
+    let trust = h::context_for_tool(&root, &observer.principal, NOW, &call).expect("trust");
+    let grant = h::grant_for_tool(
+        &root,
+        &reader.principal,
+        None,
+        window(NOW - 3600, NOW + 3600),
+        &call,
+    )
+    .expect("grant");
+    let installed = policy.installation(
+        &recipe,
+        &trust,
+        &record,
+        crate::QualificationPolicy::Optional,
+        [12; 32],
+    );
+    let approve = |operation: &str| {
+        let call = target
+            .authorization_call(&recipe, &LogicalOperationId::parse(operation).expect("op"))
+            .expect("call");
+        let signed = submission_for_call(&root, &reader, &grant, &call, &[]);
+        let effect =
+            compile_content_acquisition(&installed, &target, NOW, &signed.proof, &signed.action)
+                .expect("effect");
+        let request = effect.approval_request(NOW, NOW + 60).expect("request");
+        let signature = key
+            .sign(&request.signing_message().expect("message"))
+            .to_bytes();
+        Arc::new(
+            effect
+                .approve(request.with_signature(signature), &public, NOW)
+                .expect("approval"),
+        )
+    };
+    let directory = tempfile::tempdir().expect("directory");
+    let path = std::fs::canonicalize(directory.path())
+        .expect("path")
+        .join("journal");
+    let store: Arc<dyn crate::GatewayAttemptStore> =
+        Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("store"));
+    let attempts =
+        crate::GatewayAttempts::new(Arc::clone(&store), policy.clone()).expect("attempts");
+    let shared = crate::SharedConnection::new(
+        Arc::clone(&store),
+        record.provider_kind().clone(),
+        record.alias().clone(),
+    );
+    let clock = Arc::new(crate::FixedClock::at(NOW));
+    let qualification = Arc::new(crate::QualificationGate::new(
+        crate::QualificationPolicy::Optional,
+        None,
+        None,
+        Box::new(Arc::clone(&clock)),
+        auths_recipe_qualification::VerifierState::default(),
+    ));
+    let configuration = crate::configuration::SharedConfiguration::new(
+        Arc::clone(&store),
+        policy.configuration_key(recipe.namespace()).expect("key"),
+        installed.configuration,
+    );
+    configuration
+        .initialize(&qualification)
+        .expect("configuration");
+    let approved = approve("content-journal-0");
+    assert!(
+        attempts
+            .claim_content(
+                &approved,
+                NOW,
+                crate::entry::EntryValidation::Oracle { now: NOW }
+            )
+            .await
+            .is_err(),
+        "missing connection"
+    );
+    shared.insert(&record).await.expect("connection");
+    let loaded = shared.load().await.expect("load").expect("connection");
+    let validation = || {
+        crate::entry::EntryValidation::Installed(Box::new(crate::entry::InstalledEntry {
+            recipe: recipe.clone(),
+            trust: trust.clone(),
+            observer: None,
+            policy: policy.clone(),
+            configuration: configuration.clone(),
+            connection: crate::entry::EntryConnection::Installed(Box::new(loaded.clone())),
+            connection_key: crate::connection_key(record.provider_kind(), record.alias()),
+            qualification: Arc::clone(&qualification),
+            workload: record.allowed_workloads()[0].clone(),
+            profile: record.allowed_profiles()[0].clone(),
+            started: std::time::Instant::now(),
+            #[cfg(unix)]
+            commissioning: None,
+        }))
+    };
+    assert!(
+        attempts
+            .claim_recovery(&approved, NOW, validation())
+            .await
+            .is_err()
+    );
+    assert!(
+        attempts
+            .claim_candidate(&approved, NOW, validation())
+            .await
+            .is_err()
+    );
+    let lease = credentials
+        .lease_secret(
+            &record.credential_binding(),
+            std::time::Instant::now() + std::time::Duration::from_secs(30),
+        )
+        .await
+        .expect("lease");
+    let mut histories = vec![];
+    for index in 0..17 {
+        let approved = approve(&format!("content-journal-{index}"));
+        let claim = attempts
+            .claim_content(&approved, NOW, validation())
+            .await
+            .expect("claim");
+        if index == 16 {
+            let crate::AcquisitionClaim::Existing(snapshot) = claim else {
+                panic!("source allowance exceeded");
+            };
+            assert_eq!(snapshot.stage, crate::AcquisitionStage::NotEntered);
+            assert_eq!(snapshot.reserved_calls, 0);
+            histories.push(json!({"case": "source-exhausted", "snapshot": snapshot}));
+            continue;
+        }
+        let crate::AcquisitionClaim::Reserved(reserved) = claim else {
+            panic!("reservation");
+        };
+        let crate::AcquisitionClaim::Reserved(stale) = attempts
+            .claim_content(&approved, NOW, validation())
+            .await
+            .expect("resume")
+        else {
+            panic!("resume reservation");
+        };
+        let (granted, permit) = reserved
+            .grant_entry(Arc::clone(&approved), validation(), NOW)
+            .await
+            .expect("native grant");
+        assert!(
+            stale
+                .grant_entry(Arc::clone(&approved), validation(), NOW)
+                .await
+                .is_err(),
+            "one grant only"
+        );
+        if index >= 8 {
+            drop(permit);
+            let snapshot = granted.record_unknown().await.expect("unknown");
+            assert_eq!(snapshot.reserved_calls, 1);
+            assert_eq!(snapshot.reserved_bytes, 1024);
+            histories.push(json!({"case": "lost-permit", "snapshot": snapshot}));
+            continue;
+        }
+        let headers = match index {
+            0 => "Content-Type: text/plain\r\n",
+            1 => "Content-Type: text/plain\r\nContent-Encoding: gzip\r\n",
+            2 => "Content-Type: text/plain\r\nContent-Type: application/json\r\n",
+            3 => "",
+            4 => {
+                "Content-Type: text/plain\r\nContent-Encoding: identity\r\nContent-Encoding: gzip\r\n"
+            }
+            5 => "Content-Type: application/json\r\n",
+            6 | 7 => "Content-Type: text/plain\r\n",
+            _ => unreachable!(),
+        };
+        let body = if index == 6 {
+            vec![b'x'; 1025]
+        } else {
+            b"PRIVATE-SYNTHETIC-CONTENT".to_vec()
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let port = listener.local_addr().expect("port").port();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accept");
+            let mut head = vec![];
+            while !head.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).await.expect("request");
+                head.push(byte[0]);
+                assert!(head.len() < 8192);
+            }
+            let head = String::from_utf8(head).expect("head");
+            assert!(head.starts_with(&format!(
+                "GET /documents/{RECORD}?format=text%2Fplain HTTP/1.1\r\n"
+            )));
+            assert!(head.to_ascii_lowercase().contains("accept: text/plain\r\n"));
+            assert!(
+                head.to_ascii_lowercase()
+                    .contains("accept-encoding: identity\r\n")
+            );
+            assert!(!head.to_ascii_lowercase().contains("idempotency-key"));
+            let status = if index == 7 {
+                "403 Forbidden"
+            } else {
+                "200 OK"
+            };
+            stream.write_all(format!("HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.expect("headers");
+            stream.write_all(&body).await.expect("body");
+        });
+        let transport = crate::transport::GatewayHttpTransport::for_loopback_test(&recipe, port);
+        let response = transport.acquire_content(permit, &lease).await;
+        server.await.expect("server");
+        let snapshot = match response {
+            Some(response) => granted
+                .record_content_response(response, NOW)
+                .await
+                .expect("retained"),
+            None => granted.record_unknown().await.expect("unknown"),
+        };
+        assert_eq!(
+            snapshot.stage,
+            if index == 6 {
+                crate::AcquisitionStage::Unknown
+            } else {
+                crate::AcquisitionStage::ResponseRecorded
+            }
+        );
+        let key = crate::GatewayAttemptKey::for_operation(
+            &policy,
+            recipe.namespace(),
+            &LogicalOperationId::parse(&format!("content-journal-{index}")).expect("op"),
+        )
+        .expect("key");
+        let retained = store
+            .load(crate::GatewayRecordKind::Attempt, &key)
+            .expect("load")
+            .expect("retained");
+        let value: Value = serde_json::from_slice(&retained).expect("record JSON");
+        let phase = &value["state"]["facts"]["phase"];
+        let metadata = &phase["metadata"];
+        if index != 6 {
+            assert_eq!(phase["stage"], "content-response-recorded");
+            let expected_media = match index {
+                2 => json!({"kind": "invalid"}),
+                3 => json!({"kind": "missing"}),
+                5 => json!({"kind": "single", "value": "application/json"}),
+                _ => json!({"kind": "single", "value": "text/plain"}),
+            };
+            let expected_encoding = match index {
+                1 => json!({"kind": "single", "value": "gzip"}),
+                4 => json!({"kind": "invalid"}),
+                _ => json!({"kind": "missing"}),
+            };
+            assert_eq!(metadata["media_type"], expected_media);
+            assert_eq!(metadata["encoding"], expected_encoding);
+            assert_eq!(
+                phase["response"]["body_b64"],
+                base64ct::Base64::encode_string(b"PRIVATE-SYNTHETIC-CONTENT")
+            );
+            // Content cannot be decoded as ordinary credential evidence by
+            // stripping the authenticated transport metadata variant.
+            let mut downgraded = value.clone();
+            let phase = downgraded["state"]["facts"]["phase"]
+                .as_object_mut()
+                .expect("phase");
+            phase.insert("stage".to_owned(), json!("response-recorded"));
+            phase.remove("metadata");
+            let changed = serde_json_canonicalizer::to_vec(&downgraded).expect("corrupt bytes");
+            store
+                .replace(crate::GatewayRecordKind::Attempt, &key, &retained, &changed)
+                .expect("inject corruption");
+            assert!(attempts.read_acquisition(&approved).await.is_err());
+            store
+                .replace(crate::GatewayRecordKind::Attempt, &key, &changed, &retained)
+                .expect("restore fixture");
+        } else {
+            assert_eq!(phase["stage"], "unknown");
+        }
+        let retained_text = String::from_utf8(retained.clone()).expect("JSON");
+        assert!(!retained_text.contains("SYNTHETIC-CONTENT-TEST-CREDENTIAL"));
+        let reopened = crate::GatewayAttempts::new(
+            Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("reopen")),
+            policy.clone(),
+        )
+        .expect("attempts");
+        let crate::AcquisitionClaim::Existing(replay) = reopened
+            .claim_content(&approved, NOW, validation())
+            .await
+            .expect("replay")
+        else {
+            panic!("no fresh permit");
+        };
+        assert_eq!(snapshot, replay);
+        assert_eq!(
+            store
+                .load(crate::GatewayRecordKind::Attempt, &key)
+                .expect("reload")
+                .expect("record"),
+            retained
+        );
+        let public_json = serde_json::to_string(&snapshot).expect("public");
+        assert!(!public_json.contains("PRIVATE-SYNTHETIC-CONTENT"));
+        histories.push(
+            json!({"case": index, "snapshot": snapshot, "private_response_metadata": metadata}),
+        );
+    }
+    // A different current connection cannot satisfy this retained source;
+    // changing administrative metadata leaves capacity keys unchanged.
+    let changed = record
+        .transition_state(ConnectionState::Disabled, NOW - 10)
+        .expect("disable");
+    let plan = approved.content_plan().expect("content plan");
+    assert!(
+        !plan
+            .source_matches(Some(&changed.to_canonical_cbor().expect("bytes")))
+            .expect("source match")
+            .0
+    );
+    let fixture = json!({"schema": "auths.gateway-content-journal-fixture/1",
+        "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
+        "permanent_source_attempts": 16, "history": histories});
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/content-journal.json");
     let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
         std::fs::write(&path, &bytes).expect("fixture");

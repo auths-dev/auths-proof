@@ -399,10 +399,28 @@ responses/content instead of truncating. It returns private zeroizing bytes;
 projection alone establishes no transport provenance, custody or release
 permission. Stable native response errors distinguish status, media type, raw
 response limit, malformed input, missing projection and projected-content limit.
-The runtime must retain authentic response metadata with the acquired bytes
-before using this contract for disclosure. Standalone read-only installation,
-AP070 metadata checks, content journal/transport and protected retention remain
-implementation requirements; this compiler contract alone is not their cutover.
+Content acquisition now uses the shared journal admission, permanent source
+allocations, prerequisite sequence and final native entry fence. The sealed
+content permit selects a separate metadata-preserving HTTPS response path. Only
+that compiler-owned GET may carry the reviewed fixed query; mutation, credential
+and recovery transports continue to reject query overrides. The client requests
+identity encoding, disables automatic decompression and retains bounded raw
+bytes with status, required-version agreement, receipt time and typed media-type/
+encoding facts. Each header is missing, one value of at most 128 bytes, or invalid
+(including duplicate/oversized/non-text values). These facts cannot be stripped
+by decoding a content record as ordinary prerequisite/recovery evidence.
+
+The typed `content-response-recorded` phase projects to the existing acquisition
+response stage under the sole reducer. Neither this stage nor HTTP success proves
+that a body is usable content. Later protected-content construction must reject
+bad encoding/media/version/projection using retained metadata; it cannot refetch.
+Restart and post-grant replay return recorded facts without a credential lease
+or new provider permit. Unknown/oversized responses retain their full charges.
+
+The content engine API returns redacted acquisition facts only. Standalone
+read-only installation, AP070 metadata predicates, protected projected-content
+commitments/retention, disclosure entry/transport and installed CLI/binding
+journeys remain required before the complete consumer cutover.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

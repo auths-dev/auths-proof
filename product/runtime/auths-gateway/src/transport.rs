@@ -65,6 +65,69 @@ pub(crate) struct ProviderResponse {
     pub(crate) body: Vec<u8>,
 }
 
+/// Content responses retain the transport metadata needed for projection.
+/// Ordinary credential/recovery evidence cannot be promoted to content.
+pub(crate) struct ContentProviderResponse {
+    pub(crate) status: u16,
+    pub(crate) version_ok: bool,
+    pub(crate) body: Zeroizing<Vec<u8>>,
+    pub(crate) metadata: ContentResponseMetadata,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ContentResponseMetadata {
+    media_type: ContentResponseHeader,
+    encoding: ContentResponseHeader,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+enum ContentResponseHeader {
+    Missing,
+    Single(String),
+    Invalid,
+}
+
+impl ContentResponseHeader {
+    fn capture(headers: &HeaderMap, name: HeaderName) -> Self {
+        let mut values = headers.get_all(name).iter();
+        let Some(value) = values.next() else {
+            return Self::Missing;
+        };
+        if values.next().is_some() || value.as_bytes().len() > 128 {
+            return Self::Invalid;
+        }
+        match value.to_str() {
+            Ok(value) => Self::Single(value.to_owned()),
+            Err(_) => Self::Invalid,
+        }
+    }
+    fn valid(&self) -> bool {
+        match self {
+            Self::Single(value) => value.len() <= 128 && HeaderValue::from_str(value).is_ok(),
+            Self::Missing | Self::Invalid => true,
+        }
+    }
+}
+
+impl ContentResponseMetadata {
+    fn capture(headers: &HeaderMap) -> Self {
+        Self {
+            media_type: ContentResponseHeader::capture(headers, CONTENT_TYPE),
+            encoding: ContentResponseHeader::capture(headers, reqwest::header::CONTENT_ENCODING),
+        }
+    }
+    pub(crate) fn valid(&self) -> bool {
+        self.media_type.valid() && self.encoding.valid()
+    }
+}
+
 impl ProviderResponse {
     /// Whether the status is 2xx.
     pub(crate) const fn success(&self) -> bool {
@@ -88,6 +151,7 @@ pub(crate) trait ProviderPort {
         permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse> {
         match permit.request() {
+            crate::store::AcquisitionRequest::Content(_) => None,
             crate::store::AcquisitionRequest::Recovery(read) => {
                 self.action_read(read.url(), read.headers(), read.maximum_response_bytes())
                     .await
@@ -268,6 +332,10 @@ impl GatewayHttpTransport {
         }
         let origin = review.origin();
         let client = Client::builder()
+            .no_gzip()
+            .no_brotli()
+            .no_deflate()
+            .no_zstd()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
@@ -374,6 +442,7 @@ impl GatewayHttpTransport {
     ) -> Option<ProviderResponse> {
         let secret = lease.expose(Instant::now()).ok()?;
         match permit.request() {
+            crate::store::AcquisitionRequest::Content(_) => None,
             crate::store::AcquisitionRequest::Recovery(request) => {
                 self.read(
                     reqwest::Method::GET,
@@ -400,6 +469,51 @@ impl GatewayHttpTransport {
                 crate::effect::ClosedPrerequisiteRead::Credential(read),
             ) => self.credential_read(read, secret).await,
         }
+    }
+
+    /// Consumes the content-only permit and sends exactly the compiler-owned
+    /// GET, including reviewed fixed query pairs. No caller URL is accepted.
+    pub(crate) async fn acquire_content(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+        lease: &StoredSecretLease,
+    ) -> Option<ContentProviderResponse> {
+        let crate::store::AcquisitionRequest::Content(content) = permit.request() else {
+            return None;
+        };
+        let read = content.transport();
+        if !self.owns_content_url(read.url()) {
+            return None;
+        }
+        let secret = lease.expose(Instant::now()).ok()?;
+        let credential = credential_headers(&self.requirement, secret).ok()?;
+        let mut outbound = self
+            .client
+            .get(self.target(read.url()))
+            .headers(credential)
+            .header(ACCEPT, content.media_type())
+            .header(reqwest::header::ACCEPT_ENCODING, "identity");
+        for header in read.headers() {
+            outbound = outbound.header(
+                provider_header_name(header).ok()?,
+                provider_header_value(header).ok()?,
+            );
+        }
+        let outbound = outbound.build().ok()?;
+        if let Some(witness) = &self.witness {
+            witness.read();
+        }
+        let mut response = self.client.execute(outbound).await.ok()?;
+        let status = response.status().as_u16();
+        let version_ok = self.versions_echoed(response.headers());
+        let metadata = ContentResponseMetadata::capture(response.headers());
+        let body = read_bounded(&mut response, read.maximum_response_bytes()).await?;
+        Some(ContentProviderResponse {
+            status,
+            version_ok,
+            metadata,
+            body: Zeroizing::new(body),
+        })
     }
 
     /// One bounded read with `secret`: the complete response of any status,
@@ -461,6 +575,10 @@ impl GatewayHttpTransport {
         let review = recipe.review();
         Self {
             client: Client::builder()
+                .no_gzip()
+                .no_brotli()
+                .no_deflate()
+                .no_zstd()
                 .no_proxy()
                 .redirect(reqwest::redirect::Policy::none())
                 .pool_max_idle_per_host(0)
@@ -477,6 +595,18 @@ impl GatewayHttpTransport {
     /// Maps an owned URL onto the transport's target origin.
     fn target(&self, owned: &str) -> String {
         format!("{}{}", self.target_origin, &owned[self.origin.len()..])
+    }
+
+    fn owns_content_url(&self, candidate: &str) -> bool {
+        candidate.len() <= 8192
+            && candidate.starts_with(&self.origin)
+            && candidate.as_bytes().get(self.origin.len()) == Some(&b'/')
+            && Url::parse(candidate).is_ok_and(|url| {
+                url.origin().ascii_serialization() == self.origin
+                    && url.fragment().is_none()
+                    && url.username().is_empty()
+                    && url.password().is_none()
+            })
     }
 
     fn owns_url(&self, candidate: &str) -> bool {
@@ -504,6 +634,10 @@ fn provider_header_value(header: &RequestHeader) -> Result<HeaderValue, GatewayT
 
 fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTransportError> {
     Client::builder()
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
         .https_only(true)
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -548,14 +682,14 @@ fn credential_headers(
 }
 
 async fn read_bounded(response: &mut reqwest::Response, maximum: usize) -> Option<Vec<u8>> {
-    let mut bytes = Vec::new();
+    let mut bytes = Zeroizing::new(Vec::new());
     while let Some(chunk) = response.chunk().await.ok()? {
         if bytes.len().checked_add(chunk.len())? > maximum {
             return None;
         }
         bytes.extend_from_slice(&chunk);
     }
-    Some(bytes)
+    Some(std::mem::take(&mut *bytes))
 }
 
 fn public_ipv4(ip: Ipv4Addr) -> bool {
@@ -736,6 +870,10 @@ mod tests {
             let provider = tokio::spawn(async move { capture_heads(&listener, 2).await });
             let transport = GatewayHttpTransport {
                 client: Client::builder()
+                    .no_gzip()
+                    .no_brotli()
+                    .no_deflate()
+                    .no_zstd()
                     .no_proxy()
                     .redirect(reqwest::redirect::Policy::none())
                     .pool_max_idle_per_host(0)

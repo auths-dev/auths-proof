@@ -264,6 +264,7 @@ pub(crate) struct RecoveryPlan {
 pub(crate) enum AcquisitionPlan {
     Recovery(RecoveryPlan),
     Candidate(super::candidate::CandidatePlan),
+    Content(super::content::ContentPlan),
     Prerequisite(PrerequisitePlan),
 }
 
@@ -271,6 +272,7 @@ impl AcquisitionPlan {
     pub(crate) fn source_id(&self) -> Result<[u8; 32], EffectBindingError> {
         match self {
             Self::Candidate(plan) => plan.source_id(),
+            Self::Content(plan) => plan.source_id(),
             _ => Ok(*self.source()?.id().as_bytes()),
         }
     }
@@ -278,7 +280,7 @@ impl AcquisitionPlan {
     pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
         match self {
             Self::Recovery(plan) => plan.source(),
-            Self::Candidate(_) => Err(EffectBindingError::Invalid),
+            Self::Candidate(_) | Self::Content(_) => Err(EffectBindingError::Invalid),
             Self::Prerequisite(plan) => plan.source(),
         }
     }
@@ -286,6 +288,7 @@ impl AcquisitionPlan {
         match self {
             Self::Recovery(plan) => plan.capacity(),
             Self::Candidate(plan) => plan.capacity(),
+            Self::Content(plan) => plan.capacity(),
             Self::Prerequisite(plan) => plan.capacity(),
         }
     }
@@ -296,6 +299,7 @@ impl AcquisitionPlan {
         match self {
             Self::Recovery(plan) => plan.validate(binding),
             Self::Candidate(plan) => plan.validate(binding),
+            Self::Content(plan) => plan.validate(binding),
             Self::Prerequisite(plan) => plan.validate(binding),
         }
     }
