@@ -152,7 +152,7 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
 The concrete native encoding is `auths.bound-effect/3`, with effect compiler
-`auths.gateway-effect-compiler/5`. Reservations use a closed window alternative:
+`auths.gateway-effect-compiler/6`. Reservations use a closed window alternative:
 fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
@@ -161,6 +161,16 @@ An encoded bound declares an obligation; only the journal's atomic admission
 and entry transitions can discharge it. Decoding never grants authority.
 
 The replay key MUST NOT include the action/effect digest as its only differentiator: the same logical operation ID with changed binding is a conflict, not a fresh operation. Exact replays return existing state; they never mint another capability. A newly chosen operation ID cannot evade a signed approval's binding or the shared budget.
+
+Managed recovery policies use the same selected-branch tightening and fixed-window
+count/sum arithmetic as mutation. Their argument is `maximum_response_bytes`;
+read calls and full response ceilings have separate counter identities from
+mutation counts and amounts. The mutation recipe's spend-sum requirement does
+not apply to independently authorized read actions. Admission reserves these
+slots atomically with the permanent source allowance, and final entry checks
+all membership and window facts under the writer fence. Unknown outcomes retain
+both charges. Prerequisites do not charge the parent policy a second time.
+The existing sixteen-link and 34-reservation limits remain unchanged.
 
 ### 4.2 Compilation and approval without circular commitments
 
@@ -235,7 +245,7 @@ these declarations. The declaration alone is neither a capacity reservation nor
 an entry permit; runtime must durably account and grant every constituent read
 through the shared journal before contacting the provider.
 
-The concrete journal encoding is `auths.gateway-attempt/9`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/10`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded

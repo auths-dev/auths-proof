@@ -12,6 +12,9 @@ use ed25519_dalek::{Signer as _, SigningKey};
 #[path = "effect_prerequisite_tests.rs"]
 mod prerequisite_tests;
 
+#[path = "effect_read_budget_tests.rs"]
+mod read_budget_tests;
+
 /// Native read authority is independent of an expired source writer. File
 /// provenance is real; the source entry is a test grant with no provider send.
 #[tokio::test]
@@ -337,6 +340,18 @@ async fn native_recovery_acquisition_fixture_is_current() {
         std::fs::write(&path, &bytes).expect("write recovery entry corpus");
     }
     assert_eq!(std::fs::read(path).expect("recovery entry corpus"), bytes);
+    let budget_corpus =
+        read_budget_tests::corpus(&source, &target, &read_installation, &policy, &root).await;
+    let budget_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/recovery-policy-budgets.json");
+    let budget_bytes = serde_json::to_vec_pretty(&budget_corpus).expect("budget corpus");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&budget_path, &budget_bytes).expect("write budget corpus");
+    }
+    assert_eq!(
+        std::fs::read(&budget_path).expect("budget corpus"),
+        budget_bytes
+    );
     let mut corpus = exercise_recovery_refinement(&attempts, &recipe, &source, &reads).await;
     let mut frame_cases = Vec::new();
     for (command, accepted) in [
@@ -1051,11 +1066,18 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         .join("../../../bindings/fixtures/gateway/effect-binding.json");
     let policy_path = fixture_path.with_file_name("effect-policy.json");
     let request_path = fixture_path.with_file_name("effect-approval-request.json");
+    let approval_path = fixture_path.with_file_name("effect-approval.json");
+    let approval_bytes = approval.to_private_bytes().expect("approval bytes");
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").as_deref() == Some(std::ffi::OsStr::new("1")) {
         std::fs::write(&fixture_path, &fixture).expect("write native fixture");
         std::fs::write(&policy_path, &policy_bytes).expect("write native policy fixture");
         std::fs::write(&request_path, &signing_request).expect("write native signing fixture");
+        std::fs::write(&approval_path, &approval_bytes).expect("write native approval fixture");
     }
+    assert_eq!(
+        std::fs::read(&approval_path).expect("approval fixture"),
+        *approval_bytes
+    );
     assert_eq!(
         std::fs::read(&policy_path).expect("policy fixture"),
         *policy_bytes

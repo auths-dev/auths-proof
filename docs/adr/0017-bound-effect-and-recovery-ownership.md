@@ -576,3 +576,30 @@ removed from the shared application protocol even in harness builds. General
 acquisition/disclosure and the installed approval journey remain separate
 unfinished requirements; this cutover must not present a report as disclosure
 or a provider response as a successful mutation.
+
+## Managed recovery read budgets
+
+Recovery compilation consumes the same selected native bounded branch and the
+same tightening, count and sum arithmetic as mutation compilation. Its numeric
+policy argument is exactly `maximum_response_bytes`; a sum reserves that full
+response ceiling, including lost responses. The mutation recipe's spend-sum
+requirement does not apply to the separate recovery action. Read-policy count
+and byte counters use distinct domain-separated identities from mutation
+count/amount counters, retaining namespace, subject, evaluator, partition and
+fixed-window components. Epochs and operation IDs do not reset these budgets.
+
+The existing slot candidate, slot encoding, sum-predecessor check and reservation
+membership logic is shared inside the gateway store. Admission inserts one
+acquisition journal record, its permanent source allocation and every managed
+slot atomically. A collision advances only its candidate; no partial insert or
+refund is possible. Final entry validates every slot with fresh native authority
+inside the same fence. Prerequisite reads retain their parent's declared
+allowance and do not charge the parent's managed policy again.
+
+At most sixteen bounded links produce 32 managed reservations plus two source
+reservations, preserving the 34-reservation limit. Admission requires at most
+34 inserted records, 16 predecessors, one source and three native dependencies
+(54 total); entry requires at most 38 records. Both fit the existing 64-record
+fence. Journal `/10` rejects the superseded acquisition layout. Compiler `/6`
+binds the read's managed reservation set. Independent acquisition/disclosure,
+credential replacement and installed race/fault evidence remain separate work.

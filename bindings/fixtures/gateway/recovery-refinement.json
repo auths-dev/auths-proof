@@ -20,6 +20,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 503,
           "response_bytes": 176,
           "response_version_ok": true
@@ -45,6 +47,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 176,
           "response_version_ok": false
@@ -70,6 +74,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 2,
           "response_version_ok": true
@@ -95,6 +101,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 1,
           "response_version_ok": true
@@ -120,6 +128,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 75,
           "response_version_ok": true
@@ -145,6 +155,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 148,
           "response_version_ok": true
@@ -170,6 +182,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 36,
           "response_version_ok": true
@@ -195,6 +209,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 61,
           "response_version_ok": true
@@ -220,6 +236,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 124,
           "response_version_ok": true
@@ -245,6 +263,8 @@
           "stage": "response-recorded",
           "reserved_calls": 1,
           "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
           "response_status": 200,
           "response_bytes": 176,
           "response_version_ok": true

@@ -110,6 +110,7 @@ impl RecoveryReadTarget {
         operation: &LogicalOperationId,
         action_commitment: [u8; 32],
         native_authority: [u8; 32],
+        bound: Option<&crate::bounds::BoundAdmission>,
     ) -> Result<EffectBinding, GatewaySubmitResult> {
         let invalid = || not_entered("gateway.acquisition.binding");
         let connection = Zeroizing::new(
@@ -128,6 +129,13 @@ impl RecoveryReadTarget {
         }
         let plan = self.journal_plan().map_err(|_| invalid())?;
         let capacity = plan.capacity().map_err(|_| invalid())?;
+        let mut reservations = capacity.reservations();
+        reservations.extend(managed_reservations(
+            bound,
+            Unit::AcquisitionCount,
+            Unit::ResponseBytes,
+        ));
+        reservations.sort_by_key(|entry| (entry.key, entry.unit));
         EffectBinding::new(BindingWire {
             schema: EFFECT_BINDING_SCHEMA.to_owned(),
             namespace: installed.recipe.namespace().as_str().to_owned(),
@@ -146,7 +154,7 @@ impl RecoveryReadTarget {
             approval_policy: ApprovalPolicy::Exact {
                 approver: installed.approver,
             },
-            reservations: capacity.reservations(),
+            reservations,
             protocol: Protocol::Acquisition {
                 request: plan.request,
                 projection: plan.contract,
@@ -297,7 +305,22 @@ impl RecoveryPlan {
                     projection: self.contract,
                     maximum_response_bytes: self.maximum_response_bytes,
                 })
-            || effect.wire.reservations != capacity.reservations()
+            || effect
+                .wire
+                .reservations
+                .iter()
+                .filter(|entry| entry.window == ReservationWindow::SourceLifetime)
+                .cloned()
+                .collect::<Vec<_>>()
+                != capacity.reservations()
+            || effect.wire.reservations.iter().any(|entry| {
+                matches!(entry.window, ReservationWindow::Fixed { .. })
+                    && match entry.unit {
+                        Unit::AcquisitionCount => entry.amount != 1,
+                        Unit::ResponseBytes => entry.amount != capacity.maximum_bytes,
+                        _ => true,
+                    }
+            })
         {
             return Err(EffectBindingError::Invalid);
         }
@@ -330,6 +353,7 @@ impl AcquisitionCapacity {
 
 pub(super) struct VerifiedAcquisition {
     pub(super) target: RecoveryReadTarget,
+    pub(super) bound: Option<crate::bounds::BoundAdmission>,
     #[cfg(unix)]
     actors: Vec<auths_model::PrincipalId>,
     #[cfg(unix)]
@@ -358,8 +382,9 @@ impl VerifiedAcquisition {
 /// separate; a mutation claim explicitly refuses this protocol.
 ///
 /// # Errors
-/// Refuses invalid native proof, another tool/source/limit, unaccounted managed
-/// bounds, observer overlap, unsupported scope, or changed installation.
+/// Refuses invalid native proof, another tool/source/limit, managed bounds on
+/// arguments other than the response ceiling, observer overlap, unsupported
+/// scope, or changed installation.
 pub fn compile_recovery_acquisition(
     installed: &EffectInstallation<'_>,
     target: &RecoveryReadTarget,
@@ -394,7 +419,12 @@ pub fn compile_recovery_acquisition(
     if command.call() != &expected {
         return Err(invalid());
     }
-    crate::bounds::refuse_unaccounted_acquisition_bounds(proof, verified).map_err(not_entered)?;
+    let bound = crate::bounds::admit_acquisition_bounds(
+        proof,
+        verified,
+        installed.recipe.namespace(),
+        now,
+    )?;
     crate::separation::check_proof_observers(proof, verified).map_err(not_entered)?;
     #[cfg(unix)]
     let branches = crate::bounds::authorized_branches(proof, verified).map_err(not_entered)?;
@@ -407,6 +437,7 @@ pub fn compile_recovery_acquisition(
         &operation,
         action_commitment,
         native_authority_commitment(sealed.portable(), installed.context).map_err(|_| invalid())?,
+        bound.as_ref(),
     )?;
     let contract = target.contract();
     let effect = BoundEffect {
@@ -415,6 +446,7 @@ pub fn compile_recovery_acquisition(
         binding,
         command: CompiledEffect::Acquisition(Box::new(VerifiedAcquisition {
             target: target.clone(),
+            bound,
             #[cfg(unix)]
             actors: branches.actors,
             #[cfg(unix)]

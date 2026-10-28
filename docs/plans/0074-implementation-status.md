@@ -705,6 +705,44 @@ closure regeneration passed after that correction (one artifact-generation test)
   controlled disclosure/ACK, Python-owner removal, authenticated UI/bindings,
   and complete installed/process/PostgreSQL/fault/formal/performance/CI evidence.
 
+## Managed recovery read budget checkpoint
+
+- Independent recovery compilation now consumes selected native count/sum
+  policies instead of refusing all managed bounds. The bounded argument is
+  exactly `maximum_response_bytes`; every sum reserves the full approved
+  response ceiling. Mutation recipe spend requirements remain mutation-owned.
+  Read count/byte identities are separate from mutation count/amount identities.
+- Mutation and recovery use the same fixed-window candidate arithmetic, slot
+  encoding, sum-predecessor checks and final membership validation. Recovery
+  admission inserts managed slots and the permanent source allocation in one
+  fenced batch. Replays add no charge; failed contention inserts nothing.
+  Prerequisites do not reserve the parent policy again.
+- Compiler `/6` binds the managed reservations. Journal `/10` retains immutable
+  acquisition counter membership and rejects the old layout. Decode checks
+  exact counter keys against the signed binding; final entry checks actual
+  slot identity, ownership, cumulative amount and window with current native
+  authorization under the fence. Public snapshots report policy counter counts
+  alongside the source allocation without exposing private keys or content.
+- `recovery-policy-budgets.json` contains three real file histories: final count,
+  final byte sum and sum admission after an already charged unknown read. Each
+  races two independently approved operations for the last capacity, retains
+  exactly one winner, refuses substituted membership and old-window entry,
+  preserves lost-permit charges through reopening, and requires a newly
+  approved binding for a fresh window. Wrong argument, too-small ceiling and
+  too-small sum policies are refused. Entry uses an explicit-time oracle, not
+  an installed provider or PostgreSQL deployment.
+- Required recovery, mutation binding/approval, prerequisite compilation/entry
+  and predicates, admission, mutation entry/fuzz, attempt scenario and replay
+  artifact generators passed. Application frame/CLI and final semantic closure
+  regeneration also passed. The native binding generator now writes and checks
+  the exact approval envelope alongside its signing request. No broad local
+  gate or hosted CI has been run. No A01–A22 acceptance criterion closes at this checkpoint.
+- Remaining read implementation: onboarding/rotation and recovery ancillary
+  reads, plus safe replacement credentials. General acquisition, controlled
+  disclosure/authenticated ACK, Python-owner removal, authenticated UI/bindings,
+  full installed/process/PostgreSQL/fault/formal/performance and hosted evidence
+  remain required.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -712,7 +750,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes wired | Onboarding/rotation and ancillary reads, general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation and ancillary reads, general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -726,7 +764,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter cases / no | Execute concurrent binding conflicts and recovery cutover |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission and prerequisite charge fixtures | Full adapter concurrency and all units pending |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission, prerequisite and managed read charge fixtures | Full adapter concurrency and all units pending |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |

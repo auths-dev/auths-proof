@@ -26,6 +26,11 @@ pub struct AcquisitionSnapshot {
     pub reserved_calls: u64,
     /// Permanently allocated response-byte ceiling.
     pub reserved_bytes: u64,
+    /// Distinct fixed-window policy counters holding one invocation each.
+    /// These constrain the same read as the source-lifetime allocation.
+    pub policy_count_counters: u64,
+    /// Distinct fixed-window policy counters holding the full response ceiling.
+    pub policy_byte_counters: u64,
     /// Recorded HTTP status; it is not a mutation outcome or disclosure ACK.
     pub response_status: Option<u16>,
     /// Bounded received byte count, without the content or its commitment.
@@ -55,6 +60,7 @@ pub enum AcquisitionStage {
 pub(super) struct AcquisitionState {
     plan: AcquisitionPlan,
     allocation: Option<u64>,
+    counters: Vec<CounterWire>,
     phase: AcquisitionPhase,
 }
 
@@ -117,6 +123,7 @@ impl JournalProtocol for AcquisitionState {
                 record.evaluated_at,
                 &record.state.plan,
                 record.state.allocation,
+                &record.state.counters,
             ))?,
             entry: record
                 .entry
@@ -146,6 +153,30 @@ impl JournalProtocol for AcquisitionState {
             .plan
             .validate(&binding)
             .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let counters = capacity::decode_counters(&record.state.counters)?;
+        if record.state.allocation.is_some()
+            && matches!(record.state.plan, AcquisitionPlan::Recovery(_))
+        {
+            let counts: Vec<_> = counters
+                .iter()
+                .filter(|entry| entry.kind == GatewayCounterKind::Count)
+                .map(|entry| entry.counter)
+                .collect();
+            let sums: Vec<_> = counters
+                .iter()
+                .filter(|entry| entry.kind == GatewayCounterKind::Sum)
+                .map(|entry| entry.counter)
+                .collect();
+            if !binding.matches_acquisition_counters(&counts, &sums) {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+        }
+        if (record.state.allocation.is_none()
+            || matches!(record.state.plan, AcquisitionPlan::Prerequisite(_)))
+            && !record.state.counters.is_empty()
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
         if !transition::consistent(&Self::view(record)?)
             || record
                 .entry
@@ -223,6 +254,18 @@ impl Record<AcquisitionState> {
             } else {
                 0
             },
+            policy_count_counters: self
+                .state
+                .counters
+                .iter()
+                .filter(|entry| entry.kind == GatewayCounterKind::Count)
+                .count() as u64,
+            policy_byte_counters: self
+                .state
+                .counters
+                .iter()
+                .filter(|entry| entry.kind == GatewayCounterKind::Sum)
+                .count() as u64,
             response_status,
             response_bytes,
             response_version_ok: match &self.state.phase {
@@ -482,6 +525,10 @@ impl GatewayAttempts {
             AcquisitionPlan::Recovery(_) => key,
             AcquisitionPlan::Prerequisite(plan) => prerequisite_key(source_key, plan.index()),
         };
+        let bound = match &plan {
+            AcquisitionPlan::Recovery(_) => approved.recovery_bound().cloned(),
+            AcquisitionPlan::Prerequisite(_) => None,
+        };
         let expected_plan = plan.clone();
         let expected = String::from_utf8(
             binding
@@ -509,30 +556,53 @@ impl GatewayAttempts {
                 AcquisitionState {
                     plan,
                     allocation: None,
+                    counters: Vec::new(),
                     phase: AcquisitionPhase::Reserved,
                 },
             )?;
             base.validate_header()?;
-            for slot in 0..capacity.attempts {
+            let mut candidate = bound
+                .as_ref()
+                .map(|bound| capacity::CapacityCandidate::new(&*store, bound))
+                .transpose()?;
+            let mut slot = 0;
+            for _ in 0..MAX_CLAIM_ROUNDS {
+                let refusal = if slot >= capacity.attempts {
+                    Some("gateway.acquisition.exhausted")
+                } else {
+                    candidate
+                        .as_ref()
+                        .and_then(capacity::CapacityCandidate::refusal)
+                };
                 let mut record = base.clone();
-                record.state.allocation = Some(slot);
+                let mut slots = Vec::new();
+                if let Some(code) = refusal {
+                    record.state.phase = AcquisitionPhase::NotEntered {
+                        code: code.to_owned(),
+                    };
+                } else {
+                    record.state.allocation = Some(slot);
+                    if let Some(candidate) = &candidate {
+                        (record.state.counters, slots) =
+                            candidate.batch(key, &record.namespace, &record.operation_id)?;
+                    }
+                }
                 AcquisitionState::validate(&record)?;
-                let stored = encode(&record)?;
-                let allocation = Allocation::new(&record.state.plan, key, slot)?;
-                let entries = [
-                    GatewayRecordEntry {
-                        kind: GatewayRecordKind::Attempt,
-                        key,
-                        record: stored.clone(),
-                        expires_at: None,
-                    },
-                    GatewayRecordEntry {
+                let mut entries = vec![GatewayRecordEntry {
+                    kind: GatewayRecordKind::Attempt,
+                    key,
+                    record: encode(&record)?,
+                    expires_at: None,
+                }];
+                if refusal.is_none() {
+                    entries.push(GatewayRecordEntry {
                         kind: GatewayRecordKind::EffectAllocation,
                         key: allocation_key(&capacity, slot),
-                        record: canonical(&allocation)?,
+                        record: canonical(&Allocation::new(&record.state.plan, key, slot)?)?,
                         expires_at: None,
-                    },
-                ];
+                    });
+                    entries.extend(slots);
+                }
                 match insert_acquisition(
                     &*store,
                     &mut record,
@@ -540,7 +610,11 @@ impl GatewayAttempts {
                     &dependencies,
                     &admission,
                     source_key,
-                    key,
+                    if refusal.is_none() {
+                        candidate.as_ref()
+                    } else {
+                        None
+                    },
                 )? {
                     GatewayInsert::Inserted => {
                         let stored = encode(&record)?;
@@ -549,39 +623,17 @@ impl GatewayAttempts {
                     GatewayInsert::Exists { index: 0 } => {
                         return Err(existing_binding(&*store, key, &base.binding_canonical));
                     }
-                    GatewayInsert::Exists { index: 1 } => {}
+                    GatewayInsert::Exists { index: 1 } if refusal.is_none() => slot += 1,
+                    GatewayInsert::Exists { index } if refusal.is_none() => {
+                        candidate
+                            .as_mut()
+                            .ok_or(GatewayAttemptError::Corrupt)?
+                            .advance(&*store, index - 2)?;
+                    }
                     GatewayInsert::Exists { .. } => return Err(GatewayAttemptError::Corrupt),
                 }
             }
-            let mut record = base;
-            record.state.phase = AcquisitionPhase::NotEntered {
-                code: "gateway.acquisition.exhausted".to_owned(),
-            };
-            AcquisitionState::validate(&record)?;
-            let stored = encode(&record)?;
-            let entries = [GatewayRecordEntry {
-                kind: GatewayRecordKind::Attempt,
-                key,
-                record: stored,
-                expires_at: None,
-            }];
-            match insert_acquisition(
-                &*store,
-                &mut record,
-                &entries,
-                &dependencies,
-                &admission,
-                source_key,
-                key,
-            )? {
-                GatewayInsert::Inserted => {
-                    let stored = encode(&record)?;
-                    Ok((record, stored))
-                }
-                GatewayInsert::Exists { .. } => {
-                    Err(existing_binding(&*store, key, &record.binding_canonical))
-                }
-            }
+            Err(GatewayAttemptError::Conflict)
         })
         .await;
         let (record, stored) = match reserved {
@@ -679,6 +731,8 @@ impl ReservedAcquisition {
                 ),
             ];
             keys.extend_from_slice(&dependencies);
+            let native_end = keys.len();
+            keys.extend(capacity::dependencies(&attempt.record.state.counters)?);
             let mut committed = None;
             attempt.store.fenced_replace(&keys, &mut |snapshots| {
                 if snapshots.len() != keys.len()
@@ -716,8 +770,25 @@ impl ReservedAcquisition {
                     return Err(GatewayAttemptError::BindingConflict);
                 }
                 let now = validation
-                    .validate(&approved, &snapshots[3..], authorization_started_at)
+                    .validate(
+                        &approved,
+                        &snapshots[3..native_end],
+                        authorization_started_at,
+                    )
                     .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                let bound = match &plan {
+                    AcquisitionPlan::Recovery(_) => approved.recovery_bound(),
+                    AcquisitionPlan::Prerequisite(_) => None,
+                };
+                capacity::validate_reservations(
+                    &current.namespace,
+                    &current.operation_id,
+                    &current.state.counters,
+                    attempt.key,
+                    bound,
+                    &snapshots[native_end..],
+                    now,
+                )?;
                 let mut next = current.clone();
                 next.record_grant(
                     &approved,
@@ -897,9 +968,15 @@ fn insert_acquisition(
     dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
     admission: &Admission,
     source_key: GatewayAttemptKey,
-    key: GatewayAttemptKey,
+    candidate: Option<&capacity::CapacityCandidate<'_>>,
 ) -> Result<GatewayInsert, GatewayAttemptError> {
-    store.fenced_insert_all(entries, dependencies, &mut |snapshots| {
+    let key = entries.first().ok_or(GatewayAttemptError::Corrupt)?.key;
+    let native_end = dependencies.len();
+    let mut dependencies = dependencies.to_vec();
+    if let Some(candidate) = candidate {
+        dependencies.extend(candidate.dependencies());
+    }
+    store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
         if snapshots.len() != dependencies.len() || snapshots.is_empty() {
             return Err(GatewayAttemptError::Corrupt);
         }
@@ -911,7 +988,10 @@ fn insert_acquisition(
         if !eligible_source(&record.state.plan, &source, source_key, key)? {
             return Err(GatewayAttemptError::InvalidTransition);
         }
-        admission.stamp(record, &snapshots[1..])?;
+        admission.stamp(record, &snapshots[1..native_end])?;
+        if let Some(candidate) = candidate {
+            candidate.validate_predecessors(&snapshots[native_end..])?;
+        }
         if record.evaluated_at < source.evaluated_at {
             return Err(GatewayAttemptError::InvalidTransition);
         }

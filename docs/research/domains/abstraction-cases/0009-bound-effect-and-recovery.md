@@ -347,3 +347,21 @@ or malformed approvals, invalid source IDs and transport substitution.
 response over a real socket. These are transport artifacts, not installed proof,
 provider, disclosure or end-to-end acceptance evidence. The independent old
 observation evaluator remains confined to test-only reference/control paths.
+
+### Managed read reservation extension
+
+Mutation count/amount and recovery call/response-byte budgets share checked
+fixed-window arithmetic, ordered slot candidates, immutable cumulative sums,
+atomic insert and final membership validation. They do not share units or counter
+identities. Recovery sums mean the complete approved response ceiling; mutation
+sums keep their recipe-defined argument. Source-lifetime recovery allocation is
+an additional independent limit. Prerequisites charge their declared child
+allowance without repeating the parent's managed spend reservation.
+
+This extension reuses the existing store mechanism rather than adding a budget
+owner. The admission transaction includes every managed slot and the source
+allocation; replay and contention create no partial charge. The native recovery
+corpus must cover count/sum exhaustion, retained unknown charges, window changes,
+source/allocation collisions and missing/substituted membership. Full adapter
+concurrency and performance acceptance remain open until executed evidence is
+recorded in the AP074 ledger.

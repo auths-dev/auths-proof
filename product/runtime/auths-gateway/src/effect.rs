@@ -36,7 +36,7 @@ pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/5";
+const COMPILER: &str = "auths.gateway-effect-compiler/6";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -499,6 +499,33 @@ fn canonical<T: Serialize>(value: &T) -> Result<Zeroizing<Vec<u8>>, EffectBindin
 }
 
 impl EffectBinding {
+    /// Decode-time membership only; fresh window and durable slot checks belong
+    /// to the entry fence. Each native policy counter must appear exactly once.
+    pub(crate) fn matches_acquisition_counters(
+        &self,
+        counts: &[[u8; 32]],
+        sums: &[[u8; 32]],
+    ) -> bool {
+        if !matches!(self.wire.protocol, Protocol::Acquisition { .. }) {
+            return false;
+        }
+        let fixed: Vec<_> = self
+            .wire
+            .reservations
+            .iter()
+            .filter(|entry| matches!(entry.window, ReservationWindow::Fixed { .. }))
+            .collect();
+        fixed.len() == counts.len() + sums.len()
+            && fixed.iter().all(|entry| {
+                let keys = match entry.unit {
+                    Unit::AcquisitionCount => counts,
+                    Unit::ResponseBytes => sums,
+                    _ => return false,
+                };
+                keys.iter().filter(|key| **key == entry.key).count() == 1
+            })
+    }
+
     pub(crate) fn is_mutation(&self) -> bool {
         matches!(self.wire.protocol, Protocol::Mutation { .. })
     }
@@ -1058,6 +1085,13 @@ impl ApprovedEffect {
         }
     }
 
+    pub(crate) fn recovery_bound(&self) -> Option<&crate::bounds::BoundAdmission> {
+        match &self.effect.command {
+            CompiledEffect::Mutation(_) => None,
+            CompiledEffect::Acquisition(command) => command.bound.as_ref(),
+        }
+    }
+
     pub(crate) fn prerequisite_plans(&self) -> Result<Vec<PrerequisitePlan>, EffectBindingError> {
         let CompiledEffect::Mutation(mutation) = &self.effect.command else {
             return Err(EffectBindingError::Invalid);
@@ -1181,6 +1215,42 @@ pub fn compile_mutation_effect(
         .map_err(|_| not_entered("gateway.effect.invalid-binding"))
 }
 
+fn managed_reservations(
+    bound: Option<&crate::bounds::BoundAdmission>,
+    count_unit: Unit,
+    sum_unit: Unit,
+) -> Vec<Reservation> {
+    let mut reservations = Vec::new();
+    if let Some(bound) = bound {
+        for count in &bound.counts {
+            reservations.push(Reservation {
+                key: count.key,
+                unit: count_unit,
+                amount: 1,
+                ceiling: count.capacity,
+                window: ReservationWindow::Fixed {
+                    index: bound.window_index,
+                    seconds: bound.window_seconds,
+                },
+            });
+        }
+        for sum in &bound.sums {
+            reservations.push(Reservation {
+                key: sum.key,
+                unit: sum_unit,
+                amount: bound.argument,
+                ceiling: sum.capacity,
+                window: ReservationWindow::Fixed {
+                    index: bound.window_index,
+                    seconds: bound.window_seconds,
+                },
+            });
+        }
+    }
+    reservations.sort_by_key(|entry| (entry.key, entry.unit));
+    reservations
+}
+
 fn bind_mutation(
     installed: &EffectInstallation<'_>,
     command: VerifiedCommand,
@@ -1193,34 +1263,11 @@ fn bind_mutation(
         &command,
         *installed.connection.account_commitment(),
     )?;
-    let mut reservations = Vec::new();
-    if let Some(bound) = &command.bound {
-        for count in &bound.counts {
-            reservations.push(Reservation {
-                key: count.key,
-                unit: Unit::MutationCount,
-                amount: 1,
-                ceiling: count.capacity,
-                window: ReservationWindow::Fixed {
-                    index: bound.window_index,
-                    seconds: bound.window_seconds,
-                },
-            });
-        }
-        for sum in &bound.sums {
-            reservations.push(Reservation {
-                key: sum.key,
-                unit: Unit::MutationSum,
-                amount: bound.argument,
-                ceiling: sum.capacity,
-                window: ReservationWindow::Fixed {
-                    index: bound.window_index,
-                    seconds: bound.window_seconds,
-                },
-            });
-        }
-    }
-    reservations.sort_by_key(|entry| (entry.key, entry.unit));
+    let reservations = managed_reservations(
+        command.bound.as_ref(),
+        Unit::MutationCount,
+        Unit::MutationSum,
+    );
     let connection = Zeroizing::new(
         installed
             .connection

@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/9`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/10`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/9";
+const SCHEMA: &str = "auths.gateway-attempt/10";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -702,6 +702,7 @@ enum ProtocolState {
 }
 
 mod acquisition;
+mod capacity;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, GatewayRecoveryReport,
     RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
@@ -798,25 +799,7 @@ fn canonical<T: Serialize>(value: &T) -> Result<Vec<u8>, GatewayAttemptError> {
 
 impl Record {
     fn counters(&self) -> Result<Vec<GatewayCounterEntry>, GatewayAttemptError> {
-        if self.state.counters.len() > MAX_COUNTERS {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        let counters = self
-            .state
-            .counters
-            .iter()
-            .map(|entry| {
-                Ok(GatewayCounterEntry {
-                    kind: entry.kind,
-                    counter: digest_bytes(&entry.counter)?,
-                    slot: entry.slot,
-                })
-            })
-            .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
-        if counters.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        Ok(counters)
+        capacity::decode_counters(&self.state.counters)
     }
 
     fn recovery_target(&self) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
@@ -950,93 +933,15 @@ impl Record {
         snapshots: &[Option<Vec<u8>>],
         now: u64,
     ) -> Result<(), GatewayAttemptError> {
-        let counters = self.counters()?;
-        let Some(bound) = bound else {
-            return if counters.is_empty() && snapshots.is_empty() {
-                Ok(())
-            } else {
-                Err(GatewayAttemptError::Corrupt)
-            };
-        };
-        if counters.len() != bound.counts.len() + bound.sums.len()
-            || snapshots.len() != counters.len()
-            || bound.window_seconds == 0
-            || bound.counts.iter().any(|bound| {
-                counters
-                    .iter()
-                    .filter(|counter| {
-                        counter.kind == GatewayCounterKind::Count && counter.counter == bound.key
-                    })
-                    .count()
-                    != 1
-            })
-            || bound.sums.iter().any(|bound| {
-                counters
-                    .iter()
-                    .filter(|counter| {
-                        counter.kind == GatewayCounterKind::Sum && counter.counter == bound.key
-                    })
-                    .count()
-                    != 1
-            })
-            || now >= bound.window_end
-            || now / bound.window_seconds != bound.window_index
-        {
-            return Err(GatewayAttemptError::InvalidTransition);
-        }
-        let claim = hex::encode(key.as_bytes());
-        for (counter, bytes) in counters.iter().zip(snapshots) {
-            let bytes = bytes.as_deref().ok_or(GatewayAttemptError::Corrupt)?;
-            let valid = match counter.kind {
-                GatewayCounterKind::Count => {
-                    let slot: CountSlotRecord =
-                        serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
-                    let limit = bound
-                        .counts
-                        .iter()
-                        .find(|candidate| candidate.key == counter.counter)
-                        .ok_or(GatewayAttemptError::Corrupt)?;
-                    canonical(&slot)? == bytes
-                        && slot.schema == COUNT_SLOT_SCHEMA
-                        && slot.counter == hex::encode(counter.counter)
-                        && slot.slot == counter.slot
-                        && slot.slot < limit.capacity
-                        && slot.namespace == self.namespace
-                        && slot.operation_id == self.operation_id
-                        && slot.claim == claim
-                        && slot.window_seconds == bound.window_seconds
-                        && slot.window_index == bound.window_index
-                        && slot.window_end == bound.window_end
-                }
-                GatewayCounterKind::Sum => {
-                    let slot: SumSlotRecord =
-                        serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
-                    let limit = bound
-                        .sums
-                        .iter()
-                        .find(|candidate| candidate.key == counter.counter)
-                        .ok_or(GatewayAttemptError::Corrupt)?;
-                    canonical(&slot)? == bytes
-                        && slot.schema == SUM_SLOT_SCHEMA
-                        && slot.counter == hex::encode(counter.counter)
-                        && slot.slot == counter.slot
-                        && slot.slot < limit.slots
-                        && slot.namespace == self.namespace
-                        && slot.operation_id == self.operation_id
-                        && slot.claim == claim
-                        && slot.window_seconds == bound.window_seconds
-                        && slot.window_index == bound.window_index
-                        && slot.window_end == bound.window_end
-                        && slot.amount == bound.argument
-                        && slot.amount <= slot.cumulative
-                        && slot.cumulative <= limit.capacity
-                }
-            };
-            if !valid {
-                return Err(GatewayAttemptError::Corrupt);
-            }
-        }
-        Ok(())
+        capacity::validate_reservations(
+            &self.namespace,
+            &self.operation_id,
+            &self.state.counters,
+            key,
+            bound,
+            snapshots,
+            now,
+        )
     }
 
     fn locator_valid(&self) -> bool {
@@ -2583,25 +2488,12 @@ impl ClaimedGatewayAttempt {
         blocking(move || {
             let mut attempt = self.attempt;
             let dependencies = validation.dependencies();
-            let counters = attempt.record.counters()?;
             let prerequisites = approved
                 .prerequisite_plans()
                 .map_err(|_| GatewayAttemptError::InvalidTransition)?;
             let mut keys = vec![(GatewayRecordKind::Attempt, attempt.key)];
             keys.extend_from_slice(&dependencies);
-            keys.extend(counters.iter().map(|counter| match counter.kind {
-                GatewayCounterKind::Count => (
-                    GatewayRecordKind::CountSlot,
-                    GatewayAttemptKey(crate::bounds::count_slot_key(
-                        &counter.counter,
-                        counter.slot,
-                    )),
-                ),
-                GatewayCounterKind::Sum => (
-                    GatewayRecordKind::SumSlot,
-                    GatewayAttemptKey(crate::bounds::sum_slot_key(&counter.counter, counter.slot)),
-                ),
-            }));
+            keys.extend(capacity::dependencies(&attempt.record.state.counters)?);
             let counter_end = keys.len();
             keys.extend(acquisition::prerequisite_dependencies(
                 attempt.key,
@@ -3128,114 +3020,13 @@ fn store_exhausted(
         record: encode(&record)?,
         expires_at: None,
     }];
-    match insert_claim(store, &mut record, &entries, admission, None, &[], &[])? {
+    match insert_claim(store, &mut record, &entries, admission, None)? {
         GatewayInsert::Inserted => Ok(Reserved::Exhausted(code)),
         GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
     }
 }
 
-/// The claim record with the reserved slots, and the batch that inserts it
-/// with one slot record per count and sum counter.
-fn claim_batch(
-    key: GatewayAttemptKey,
-    base: &Record,
-    bound: &crate::bounds::BoundAdmission,
-    counts: &[u64],
-    sums: &[u64],
-    totals: &[u64],
-) -> Result<(Record, Vec<u8>, Vec<GatewayRecordEntry>), GatewayAttemptError> {
-    use crate::bounds::{count_slot_key, sum_slot_key};
-    let mut record = base.clone();
-    let mut counters: Vec<GatewayCounterEntry> = bound
-        .counts
-        .iter()
-        .zip(counts)
-        .map(|(counter, slot)| GatewayCounterEntry {
-            kind: GatewayCounterKind::Count,
-            counter: counter.key,
-            slot: *slot,
-        })
-        .chain(
-            bound
-                .sums
-                .iter()
-                .zip(sums)
-                .map(|(counter, slot)| GatewayCounterEntry {
-                    kind: GatewayCounterKind::Sum,
-                    counter: counter.key,
-                    slot: *slot,
-                }),
-        )
-        .collect();
-    counters.sort_unstable();
-    record.state.counters = counters
-        .iter()
-        .map(|entry| CounterWire {
-            kind: entry.kind,
-            counter: hex::encode(entry.counter),
-            slot: entry.slot,
-        })
-        .collect();
-    record.snapshot(false)?;
-    let stored = encode(&record)?;
-    let claim = hex::encode(key.as_bytes());
-    let mut entries = Vec::with_capacity(1 + counts.len() + sums.len());
-    entries.push(GatewayRecordEntry {
-        kind: GatewayRecordKind::Attempt,
-        key,
-        record: stored.clone(),
-        expires_at: None,
-    });
-    for (counter, slot) in bound.counts.iter().zip(counts) {
-        let slot_record = CountSlotRecord {
-            schema: COUNT_SLOT_SCHEMA.to_owned(),
-            counter: hex::encode(counter.key),
-            slot: *slot,
-            window_seconds: bound.window_seconds,
-            window_index: bound.window_index,
-            window_end: bound.window_end,
-            namespace: base.namespace.clone(),
-            operation_id: base.operation_id.clone(),
-            claim: claim.clone(),
-        };
-        entries.push(GatewayRecordEntry {
-            kind: GatewayRecordKind::CountSlot,
-            key: GatewayAttemptKey(count_slot_key(&counter.key, *slot)),
-            record: canonical(&slot_record)?,
-            expires_at: Some(bound.expires_at()),
-        });
-    }
-    for ((counter, slot), total) in bound.sums.iter().zip(sums).zip(totals) {
-        let slot_record = SumSlotRecord {
-            schema: SUM_SLOT_SCHEMA.to_owned(),
-            counter: hex::encode(counter.key),
-            slot: *slot,
-            amount: bound.argument,
-            cumulative: total
-                .checked_add(bound.argument)
-                .ok_or(GatewayAttemptError::Corrupt)?,
-            window_seconds: bound.window_seconds,
-            window_index: bound.window_index,
-            window_end: bound.window_end,
-            namespace: base.namespace.clone(),
-            operation_id: base.operation_id.clone(),
-            claim: claim.clone(),
-        };
-        entries.push(GatewayRecordEntry {
-            kind: GatewayRecordKind::SumSlot,
-            key: GatewayAttemptKey(sum_slot_key(&counter.key, *slot)),
-            record: canonical(&slot_record)?,
-            expires_at: Some(bound.expires_at()),
-        });
-    }
-    Ok((record, stored, entries))
-}
-
-/// Finds each counter's frontier, then inserts the claim and one slot per
-/// count and sum counter in one all-or-none batch. A full counter stores
-/// the claim alone as `not-entered`; a lost race advances that counter and
-/// retries, at most [`MAX_CLAIM_ROUNDS`] times. The count and sum checks are
-/// the translated leaves `chain_counts_admit` and `chain_sums_admit`.
+/// Reserve immutable count/sum slots using the shared candidate arithmetic.
 fn reserve_with_claim(
     store: &dyn GatewayAttemptStore,
     key: GatewayAttemptKey,
@@ -3243,75 +3034,23 @@ fn reserve_with_claim(
     bound: &crate::bounds::BoundAdmission,
     admission: &Admission,
 ) -> Result<Reserved, GatewayAttemptError> {
-    use crate::bounds::{count_slot_key, sum_slot_key};
-    use auths_bounded_policy::kernel::{chain_counts_admit, chain_sums_admit};
-    let mut counts = bound
-        .counts
-        .iter()
-        .map(|counter| {
-            frontier(
-                store,
-                GatewayRecordKind::CountSlot,
-                &counter.key,
-                counter.capacity,
-                count_slot_key,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut sums = bound
-        .sums
-        .iter()
-        .map(|counter| {
-            frontier(
-                store,
-                GatewayRecordKind::SumSlot,
-                &counter.key,
-                counter.slots,
-                sum_slot_key,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut totals = sums
-        .iter()
-        .zip(&bound.sums)
-        .map(|(slot, counter)| match slot.checked_sub(1) {
-            None => Ok(0),
-            Some(previous) => cumulative(store, &counter.key, previous),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let count_capacities: Vec<u64> = bound
-        .counts
-        .iter()
-        .map(|counter| counter.capacity)
-        .collect();
-    let sum_capacities: Vec<u64> = bound.sums.iter().map(|counter| counter.capacity).collect();
+    let mut candidate = capacity::CapacityCandidate::new(store, bound)?;
     for _ in 0..MAX_CLAIM_ROUNDS {
-        let sum_slots_left = sums
-            .iter()
-            .zip(&bound.sums)
-            .all(|(slot, counter)| *slot < counter.slots);
-        if !chain_counts_admit(&counts, &count_capacities) || !sum_slots_left {
-            return store_exhausted(
-                store,
-                key,
-                base,
-                "gateway.policy.window-exhausted",
-                admission,
-            );
+        if let Some(code) = candidate.refusal() {
+            return store_exhausted(store, key, base, code, admission);
         }
-        if !chain_sums_admit(&totals, bound.argument, &sum_capacities) {
-            return store_exhausted(store, key, base, "gateway.policy.sum-exhausted", admission);
-        }
-        let (mut record, _, entries) = claim_batch(key, base, bound, &counts, &sums, &totals)?;
-        match insert_claim(
-            store,
-            &mut record,
-            &entries,
-            admission,
-            Some(bound),
-            &sums,
-            &totals,
-        )? {
+        let (counters, slots) = candidate.batch(key, &base.namespace, &base.operation_id)?;
+        let mut record = base.clone();
+        record.state.counters = counters;
+        record.snapshot(false)?;
+        let mut entries = vec![GatewayRecordEntry {
+            kind: GatewayRecordKind::Attempt,
+            key,
+            record: encode(&record)?,
+            expires_at: None,
+        }];
+        entries.extend(slots);
+        match insert_claim(store, &mut record, &entries, admission, Some(&candidate))? {
             GatewayInsert::Inserted => {
                 return Ok(Reserved::Claimed {
                     stored: encode(&record)?,
@@ -3319,23 +3058,7 @@ fn reserve_with_claim(
                 });
             }
             GatewayInsert::Exists { index: 0 } => return Err(GatewayAttemptError::Replay),
-            GatewayInsert::Exists { index } => {
-                let position = index - 1;
-                if let Some(slot) = counts.get_mut(position) {
-                    *slot += 1;
-                } else {
-                    let position = position - counts.len();
-                    let (Some(slot), Some(total), Some(counter)) = (
-                        sums.get_mut(position),
-                        totals.get_mut(position),
-                        bound.sums.get(position),
-                    ) else {
-                        return Err(GatewayAttemptError::Corrupt);
-                    };
-                    *total = cumulative(store, &counter.key, *slot)?;
-                    *slot += 1;
-                }
-            }
+            GatewayInsert::Exists { index } => candidate.advance(store, index - 1)?,
         }
     }
     Ok(Reserved::Contended)
@@ -3381,61 +3104,20 @@ fn insert_claim(
     record: &mut Record,
     entries: &[GatewayRecordEntry],
     admission: &Admission,
-    bound: Option<&crate::bounds::BoundAdmission>,
-    sums: &[u64],
-    totals: &[u64],
+    candidate: Option<&capacity::CapacityCandidate<'_>>,
 ) -> Result<GatewayInsert, GatewayAttemptError> {
     let mut dependencies = admission.dependencies();
     let native_end = dependencies.len();
-    if let Some(bound) = bound {
-        if sums.len() != bound.sums.len() || totals.len() != sums.len() {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        for (counter, slot) in bound.sums.iter().zip(sums) {
-            if let Some(previous) = slot.checked_sub(1) {
-                dependencies.push((
-                    GatewayRecordKind::SumSlot,
-                    GatewayAttemptKey(crate::bounds::sum_slot_key(&counter.key, previous)),
-                ));
-            }
-        }
-    } else if !sums.is_empty() || !totals.is_empty() {
-        return Err(GatewayAttemptError::Corrupt);
+    if let Some(candidate) = candidate {
+        dependencies.extend(candidate.dependencies());
     }
     store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
         if snapshots.len() != dependencies.len() {
             return Err(GatewayAttemptError::Corrupt);
         }
         admission.stamp(record, &snapshots[..native_end])?;
-        if let Some(bound) = bound {
-            let mut predecessors = snapshots[native_end..].iter();
-            for ((counter, slot), total) in bound.sums.iter().zip(sums).zip(totals) {
-                match slot.checked_sub(1) {
-                    None if *total != 0 => return Err(GatewayAttemptError::Corrupt),
-                    None => {}
-                    Some(previous) => {
-                        let bytes = predecessors
-                            .next()
-                            .and_then(|bytes| bytes.as_deref())
-                            .ok_or(GatewayAttemptError::Corrupt)?;
-                        let row: SumSlotRecord = serde_json::from_slice(bytes)
-                            .map_err(|_| GatewayAttemptError::Corrupt)?;
-                        if canonical(&row)? != bytes
-                            || row.schema != SUM_SLOT_SCHEMA
-                            || row.counter != hex::encode(counter.key)
-                            || row.slot != previous
-                            || row.amount > row.cumulative
-                            || row.cumulative != *total
-                            || row.window_seconds != bound.window_seconds
-                            || row.window_index != bound.window_index
-                            || row.window_end != bound.window_end
-                            || row.cumulative > counter.capacity
-                        {
-                            return Err(GatewayAttemptError::Corrupt);
-                        }
-                    }
-                }
-            }
+        if let Some(candidate) = candidate {
+            candidate.validate_predecessors(&snapshots[native_end..])?;
         }
         encode(record)
     })
@@ -3553,8 +3235,7 @@ impl GatewayAttempts {
                         record: encode(&record)?,
                         expires_at: None,
                     }];
-                    match insert_claim(&*store, &mut record, &entries, &admission, None, &[], &[])?
-                    {
+                    match insert_claim(&*store, &mut record, &entries, &admission, None)? {
                         GatewayInsert::Inserted => Ok(Reserved::Claimed {
                             stored: encode(&record)?,
                             record: Box::new(record),
