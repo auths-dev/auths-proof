@@ -9,6 +9,9 @@ use auths_connections::{
 };
 use ed25519_dalek::{Signer as _, SigningKey};
 
+#[path = "effect_prerequisite_tests.rs"]
+mod prerequisite_tests;
+
 /// Native read authority is independent of an expired source writer. File
 /// provenance is real; the source entry is a test grant with no provider send.
 #[tokio::test]

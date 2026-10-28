@@ -451,7 +451,7 @@ fn context_for(
                     "permissions",
                 )?,
                 vec![fixture(
-                    ResourceId::parse(&format!("mcp://{SERVICE}/")),
+                    ResourceId::parse(&format!("mcp://{}/", unbound.service())),
                     "namespace",
                 )?],
                 fixture(AudienceSet::new(vec![audience()?]), "audiences")?,

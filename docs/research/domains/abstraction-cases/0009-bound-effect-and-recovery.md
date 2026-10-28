@@ -251,3 +251,22 @@ evidence, and a replay that adds no I/O or journal revision. The scenario corpus
 removes the former second lease, repeated credential checks and post-write read.
 Installed journeys, ancillary read admission and final translated/refinement
 artifacts remain required before this boundary has complete acceptance evidence.
+
+
+## Prerequisite declaration comparison
+
+The Stripe reference contributes account and denied-capability checks plus a
+relative-ceiling read; Airtable contributes the pre-entry read. Compiler `/5`
+retains the existing closed requests rather than reconstructing provider paths.
+The shared fields are exact method/URL/headers, one-call and response-byte
+allowances, transport/freshness bounds and absence of disclosure. Evaluation
+purposes remain tagged: account equality, expected refusal, selected pre-entry
+requirements and relative arithmetic are not interchangeable response meanings.
+
+`prerequisite-compilation.json` uses signed native proofs and exact approvals to
+freeze both plans, including account-scope header placement, resolved bound
+values, exclusion of the onboarding probe, native recompilation and obsolete
+compiler refusal. The Airtable case has no pre-entry observation requirement;
+it tests compilation, not admission eligibility. The fixture has no provider,
+custody, durable acquisition or human-channel claim. Runtime accounting,
+independent differential execution and installed evidence remain required.

@@ -7,8 +7,8 @@
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, verify_detailed};
 use crate::recipe::ObservationTemplate;
 use crate::{
-    ClosedActionRead, ClosedProviderRequest, CompiledRecipe, GatewayConnectionDescriptor,
-    LogicalOperationId, OperatorNamespace, QualificationPolicy,
+    ClosedProviderRequest, CompiledRecipe, GatewayConnectionDescriptor, LogicalOperationId,
+    OperatorNamespace, QualificationPolicy,
 };
 use auths_connections::ConnectionRecord;
 use auths_model::{PortableVerificationResult, Timestamp, TrustedContext, VerificationResources};
@@ -19,10 +19,12 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 mod acquisition;
+mod prerequisite;
 pub(crate) use acquisition::{
     MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL, RecoveryCapacity, RecoveryPlan,
 };
 pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
+use prerequisite::Prerequisites;
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
 pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
@@ -30,7 +32,7 @@ pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/4";
+const COMPILER: &str = "auths.gateway-effect-compiler/5";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -225,7 +227,10 @@ pub(crate) fn approve_driver_fixture(
     let effect = BoundEffect {
         review: serde_json::json!({"scope": "synthetic post-verification oracle; no human review claim"}),
         binding,
-        command: CompiledEffect::Mutation(Box::new(command)),
+        command: CompiledEffect::Mutation(Box::new(VerifiedMutation {
+            command,
+            prerequisites: Prerequisites::oracle_empty(),
+        })),
         connection,
         proof: Zeroizing::new(Vec::new()),
         action: Zeroizing::new(Vec::new()),
@@ -285,7 +290,7 @@ pub(crate) fn store_binding_fixture(
         },
         reservations: Vec::new(),
         protocol: Protocol::Mutation {
-            request: request_commitment(request)?,
+            request: request_commitment(request, &Prerequisites::oracle_empty())?,
         },
     })
 }
@@ -614,8 +619,13 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
 /// Closed protocol-specific compiler output. Neither alternative is transport
 /// authority, and a mutation-only admission path must refuse an acquisition.
 enum CompiledEffect {
-    Mutation(Box<VerifiedCommand>),
+    Mutation(Box<VerifiedMutation>),
     Acquisition(Box<acquisition::VerifiedAcquisition>),
+}
+
+struct VerifiedMutation {
+    command: VerifiedCommand,
+    prerequisites: Prerequisites,
 }
 
 /// Sealed native compilation result. It owns both the private binding and the
@@ -722,7 +732,7 @@ impl BoundEffect {
     #[must_use]
     pub fn private_request(&self) -> Option<&ClosedProviderRequest> {
         match &self.command {
-            CompiledEffect::Mutation(command) => Some(&command.request),
+            CompiledEffect::Mutation(mutation) => Some(&mutation.command.request),
             CompiledEffect::Acquisition(_) => None,
         }
     }
@@ -752,12 +762,21 @@ impl BoundEffect {
                 "credential_generation": self.connection.credential_generation().get(),
                 "connection_contract": self.connection.contract().as_str(),
             }),
-            semantic: self.review.clone(),
+            semantic: match &self.command {
+                CompiledEffect::Mutation(mutation) => {
+                    let mut review = self.review.clone();
+                    review["prerequisite_acquisitions"] =
+                        serde_json::to_value(&mutation.prerequisites)
+                            .map_err(|_| not_entered("gateway.effect.invalid-binding"))?;
+                    review
+                }
+                CompiledEffect::Acquisition(_) => self.review.clone(),
+            },
             effect_id_hex: hex::encode(self.binding.id().as_bytes()),
             binding_canonical,
             native: match &self.command {
-                CompiledEffect::Mutation(command) => {
-                    serde_json::to_value(crate::engine::review_command(command)?)
+                CompiledEffect::Mutation(mutation) => {
+                    serde_json::to_value(crate::engine::review_command(&mutation.command)?)
                         .map_err(|_| not_entered("gateway.effect.invalid-binding"))?
                 }
                 CompiledEffect::Acquisition(command) => command.private_review(),
@@ -989,7 +1008,7 @@ impl ApprovedEffect {
     }
     pub(crate) fn command(&self) -> Option<&VerifiedCommand> {
         match &self.effect.command {
-            CompiledEffect::Mutation(command) => Some(command),
+            CompiledEffect::Mutation(mutation) => Some(&mutation.command),
             CompiledEffect::Acquisition(_) => None,
         }
     }
@@ -1107,6 +1126,11 @@ fn bind_mutation(
     action: &[u8],
 ) -> Result<BoundEffect, EffectBindingError> {
     let request = &command.request;
+    let prerequisites = Prerequisites::compile(
+        installed.recipe,
+        &command,
+        *installed.connection.account_commitment(),
+    )?;
     let mut reservations = Vec::new();
     if let Some(bound) = &command.bound {
         for count in &bound.counts {
@@ -1161,7 +1185,7 @@ fn bind_mutation(
         },
         reservations,
         protocol: Protocol::Mutation {
-            request: request_commitment(request)?,
+            request: request_commitment(request, &prerequisites)?,
         },
     })?;
     let review = serde_json::json!({
@@ -1172,7 +1196,10 @@ fn bind_mutation(
     let effect = BoundEffect {
         review,
         binding,
-        command: CompiledEffect::Mutation(Box::new(command)),
+        command: CompiledEffect::Mutation(Box::new(VerifiedMutation {
+            command,
+            prerequisites,
+        })),
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
@@ -1233,18 +1260,6 @@ struct ReadWire<'a> {
     maximum_response_bytes: usize,
 }
 
-fn read_wire(read: &ClosedActionRead) -> ReadWire<'_> {
-    ReadWire {
-        url: read.url(),
-        headers: read
-            .headers()
-            .iter()
-            .map(|header| (header.name(), header.value()))
-            .collect(),
-        maximum_response_bytes: read.maximum_response_bytes(),
-    }
-}
-
 #[derive(Serialize)]
 struct RequestWire<'a> {
     method: &'a str,
@@ -1256,11 +1271,13 @@ struct RequestWire<'a> {
     idempotency: Option<&'a str>,
     echo: Option<&'a str>,
     observation: Option<&'a ObservationTemplate>,
-    pre_entry: Option<ReadWire<'a>>,
-    relative_ceiling: Option<ReadWire<'a>>,
+    prerequisite_acquisitions: &'a Prerequisites,
 }
 
-fn request_commitment(request: &ClosedProviderRequest) -> Result<[u8; 32], EffectBindingError> {
+fn request_commitment(
+    request: &ClosedProviderRequest,
+    prerequisites: &Prerequisites,
+) -> Result<[u8; 32], EffectBindingError> {
     let wire = RequestWire {
         method: request.method().as_str(),
         url: request.url(),
@@ -1275,8 +1292,7 @@ fn request_commitment(request: &ClosedProviderRequest) -> Result<[u8; 32], Effec
         idempotency: request.idempotency_key(),
         echo: request.echo_token(),
         observation: request.observation_template(),
-        pre_entry: request.pre_entry_read().map(read_wire),
-        relative_ceiling: request.relative_ceiling_read().map(read_wire),
+        prerequisite_acquisitions: prerequisites,
     };
     let bytes = canonical(&wire)?;
     commitment("auths.effect-transport/1", &bytes)

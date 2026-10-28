@@ -409,3 +409,30 @@ step machine has no read-back/resume mode: recording a response stops it, and
 observation requires the independent recovery acquisition. Ancillary/application
 reads remain the next production cutovers. The native corpus is file-journal mechanism evidence
 with synthetic entry/response/clock inputs, not installed transport qualification.
+
+
+## Prerequisite acquisition compilation
+
+Compiler `/5` retains each mutation prerequisite as a closed compiler request
+and a typed purpose. The ordered plan is part of the mutation transport
+commitment and appears in native private approval review. Account reads pin the
+installed account commitment and comparison domain; denied reads pin their
+ordinal and refused statuses; relative-ceiling reads resolve the verified
+argument and bind values; pre-entry reads pin their pointers and complete
+selected native authority. There is no deserializer or application constructor
+for this compiler output.
+
+The maximum plan is seven reads, each allowed once with its exact response bound,
+a 15-second transport deadline, a 30-second evidence-age ceiling and no release
+of content. Existing proof freshness conditions can be stricter. Onboarding
+probes are outside this mutation plan. The same exact-approval and native
+recompilation machinery binds these declarations; no separate token format or
+approval owner is introduced.
+
+This checkpoint does not implement prerequisite admission or grants. The
+existing raw prerequisite calls still require direct cutover to journaled,
+charged acquisition entries and one-use permits. The parent approval is evidence
+for only its enumerated recipe-derived reads; it is not general read authority
+or authority to repeat an uncertain read. The native fixture establishes signed
+compilation/review only, not entry eligibility, accounting, transport or the
+installed human channel.

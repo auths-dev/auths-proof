@@ -143,7 +143,7 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
 The concrete native encoding is `auths.bound-effect/3`, with effect compiler
-`auths.gateway-effect-compiler/4`. Reservations use a closed window alternative:
+`auths.gateway-effect-compiler/5`. Reservations use a closed window alternative:
 fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
@@ -212,6 +212,19 @@ reads must also be bound, bounded ancillary acquisition operations derived from
 the approved recipe. Account for their entry and limits explicitly; they must not
 be invisible I/O outside the model. Acquiring those bytes does not authorize
 disclosing them to the agent.
+
+Mutation compiler `/5` retains an ordered prerequisite acquisition plan beside
+its verified command and commits the complete plan in the transport identity.
+The plan names at most seven requests: one account check, up to four denied
+capability checks, one pre-entry read and one relative-ceiling read. Each pins
+its compiler-owned GET/HEAD, headers, response-byte ceiling (at most 65,536),
+evaluation purpose and resolved values, one call, 15 transport seconds, at most
+30 seconds of evidence age, and no disclosure. Tighter native evidence freshness
+requirements still apply. Onboarding probes and later observations are separate
+operations and cannot borrow this allowance. Private approval review renders
+these declarations. The declaration alone is neither a capacity reservation nor
+an entry permit; runtime must durably account and grant every constituent read
+through the shared journal before contacting the provider.
 
 Independent recovery compilation uses the reserved native MCP tool
 `auths_gateway_recovery_read_v1`; a mutation recipe cannot claim that name.

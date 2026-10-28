@@ -530,6 +530,37 @@ closure regeneration passed after that correction (one artifact-generation test)
   replacement credentials/read-policy limits, disclosure/ACK, maintained
   consumer/UI cutover and complete installed/fault/formal/CI evidence.
 
+## Prerequisite declaration checkpoint
+
+- Compiler `/5` now commits the full ordered prerequisite acquisition plan in
+  the mutation transport identity and retains the original closed read values
+  beside the verified command. Native private review renders each typed purpose,
+  exact request, response limit, one-call allowance, transport/freshness bounds
+  and no-disclosure declaration. Old compiler bindings are refused directly.
+- Account comparisons pin the installed account commitment/domain; denied reads
+  pin their ordinal and refused statuses; ceiling reads resolve verified values;
+  pre-entry reads pin pointers and selected native authority. The seven-read
+  maximum excludes onboarding probes and post-write observations.
+- A new signed native fixture covers Stripe's four prerequisites and Airtable's
+  pre-entry plan. Initial generation caught fixture-only trust namespace and
+  delegation-depth errors, now corrected. The shared test trust helper now uses
+  the requested MCP service instead of the default harness service. It does not
+  broaden installed trust.
+- Required native prerequisite, effect/review/approval, recovery acquisition,
+  mutation-entry and replay artifact generators passed on `119d1f78` plus this
+  source (one exact test each). Entry generation refreshed the signed journal
+  and transition fuzz seeds. Native CLI approval-envelope construction matched
+  the signed corpus, and final semantic-closure generation passed. These are
+  artifact-construction results, not full-suite or hosted CI evidence.
+- Preserved remote bot commit `7c7ff71b` by fast-forward after inspecting its
+  isolated qualification source-closure hash update. No hosted workflow results
+  have been inspected.
+- This is compilation/approval work, not durable read accounting. Existing raw
+  prerequisite calls remain an explicit open cutover. They must next consume the
+  retained compiler requests through the shared journal, capacity accounting and
+  one-use permits. No A01–A22 criterion closes; installed UI/bindings, disclosure,
+  replacement credentials, ordered admission, faults and formal/CI remain open.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
