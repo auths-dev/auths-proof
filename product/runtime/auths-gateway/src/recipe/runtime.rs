@@ -377,8 +377,8 @@ impl CompiledRecipe {
     pub(crate) fn idempotency_retention(&self) -> Option<u64> {
         self.source
             .write
-            .idempotency
             .as_ref()
+            .and_then(|write| write.idempotency.as_ref())
             .map(IdempotencySource::retention_seconds)
     }
 

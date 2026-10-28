@@ -708,3 +708,23 @@ records three actual provider requests and redacted native facts. Public fixed
 keys simulate actors; neither installed UI/language integration, isolated hostile
 agent containment nor PostgreSQL/full fault coverage is inferred. Differential
 reference and bounded performance exit gates remain open.
+
+
+### Content-only installation
+
+The absence of a mutation declaration is now represented by a closed compiled
+`ContentOnly` alternative containing no `WritePlan`. It shares existing source
+credential/header/resource validation and native content compilation; it does
+not derive a read from a dummy write or add a provider operation branch. Only the
+reserved native read tool is accepted, content is required, and all mutation
+adjuncts are refused. Mutation construction is impossible for this compiled kind.
+Review/audit expose absent mutation method/recovery rather than a fictitious
+recorded-write capability. Existing mutation canonical source/review identities
+are preserved by the native artifact comparisons.
+
+A generated negative corpus and real local CLI/daemon install/read/disclosure
+journey establish the narrow capability and its mutation refusal. The installed
+trust in that journey contains only read/release permissions. Existing mixed
+read/write process composition still passes. No new provider capability, Google
+metadata interpretation, AP070 policy semantics, formal theorem or adapter
+assumption is extracted by this change; those complete gates remain pending.

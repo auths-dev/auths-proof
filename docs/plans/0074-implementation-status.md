@@ -1433,6 +1433,49 @@ closure regeneration passed after that correction (one artifact-generation test)
   and required hosted evidence remain outstanding. No broad local gate or CI
   observation was performed.
 
+## Standalone content-only installation checkpoint
+
+- Based on pushed `c80902ab`, the previous process-composition increment. This
+  continuation implements the missing read-only installation needed before AP070
+  can move its managed reads to the native owner.
+- Source `/3` may omit `write` only with the reserved native content tool and a
+  valid required content capability. The compiler rejects mutation observation,
+  echo, pre-entry/preconditions, relative ceiling and spend bounds in that case.
+  Its lock admits binding/resource/account fields only; existing credential and
+  registered-header validation remain authoritative.
+- Lowering now has a closed `Mutation(Box<WritePlan>) | ContentOnly` alternative.
+  ContentOnly has no write plan, and mutation construction refuses it before
+  request/custody/transport. Native acquisition, disclosure, candidate credential
+  checks and the journal/reducer are reused. No dummy write URL/body, GET write
+  method, second read executor or provider dispatch was added.
+- Rust review method and mutation recovery APIs now return Option. Content-only
+  review/audit render absent mutation method/recovery rather than an imaginary
+  recorded-write capability, with empty write path and zero body allowance. The
+  content GET declaration remains explicit. All affected Rust/fuzz callers were
+  cut over directly; existing mutation JSON/source identities are unchanged.
+- `native_read_only_recipe_fixture_is_current` writes source/lock/review under
+  `bindings/fixtures/gateway/content-only`, a negative read-only corpus and native
+  fuzz seed. It covers missing content, custom tool, mutation adjuncts and write
+  injection under the reserved read tool, plus absence of a native write plan.
+- `native_read_only_process_journey_fixture_is_current` installs the real daemon
+  with read/release-only native trust, refuses mutation review/submission and
+  mutation recovery from acquired content, then performs exactly one counted
+  provider GET and separate authenticated recipient disclosure/ACK.
+- Final required artifact generation passed six exact native tests in 32.17
+  seconds: read-only source, existing review contract, content/candidate/recovery
+  compilation and semantic closure. Existing mutation review, content compilation,
+  candidate and recovery artifacts remained byte-for-byte unchanged. The final
+  read-only and mixed read/write process generators passed two tests in 3.05
+  seconds; the previous mixed process artifact also remained unchanged. No broad
+  local test/build/lint/formal suite was run.
+- The user's subsequent explicit request to investigate/fix CI authorizes earlier
+  CI triage. A CI subagent works only in an isolated checkout and reports commits
+  for integration after this increment; it does not modify the main worktree.
+  Final required hosted verification on the completed specification remains open.
+- No complete A01–A22 case closes. Google metadata/reference parity, refresh
+  custody, AP070 Python state-owner removal, installed language/UI, hostile
+  containment and complete adapter/fault/formal/performance evidence still remain.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1440,14 +1483,14 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition/disclosure runtime, call authoring and CLI process composition wired | Installed bindings/authenticated UI, standalone read recipe and AP070 Python owner removal |
+| P3 | Acquisition/disclosure runtime, call authoring and CLI process composition wired | Installed bindings/authenticated UI, Google metadata/refresh and AP070 Python owner removal |
 | P4 | Partial CLI process journey | Differential, full faults/adapters, installed bindings/UI, formal/performance links and CI |
 
 ## Acceptance ledger
 
 `Authored` means scenario source exists, not that it passed. `Executed` requires
 the exact tested revision and a reproducible result. External qualification is a
-separate claim. No AP074 acceptance case is currently executed or qualified.
+separate claim. No complete AP074 acceptance gate is currently closed or externally qualified.
 
 | Case | Required evidence | Implementation / authored / executed | Limitation or next work |
 | --- | --- | --- | --- |

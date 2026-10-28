@@ -964,3 +964,237 @@ fn native_content_process_journey_fixture_is_current() {
     }
     assert_eq!(std::fs::read(output).expect("fixture"), artifact);
 }
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "read-only installation and external-call assertions"
+)]
+fn native_read_only_process_journey_fixture_is_current() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bindings/fixtures/gateway");
+    let source = std::fs::read(fixtures.join("content-only/recipe.json")).expect("source");
+    let lock = std::fs::read(fixtures.join("content-only/profile.lock.json")).expect("lock");
+    let recipe = CompiledRecipe::compile(&source, &lock).expect("read-only recipe");
+    assert!(recipe.review().method().is_none());
+    assert!(recipe.recovery().is_none());
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_secs();
+    let tools = [CONTENT_READ_TOOL, DISCLOSURE_TOOL].map(|tool| {
+        McpToolCall::new(recipe.review().service(), tool, serde_json::Map::new()).expect("tool")
+    });
+    let trust = tools_context(&tools, now).expect("read/release-only native trust");
+    let reviewer = SigningKey::from_bytes(&[29; 32]);
+    let recipient = SigningKey::from_bytes(&[31; 32]);
+    let policy = EffectPolicy::new(
+        "readonly-process-journey".to_owned(),
+        1,
+        reviewer.verifying_key().to_bytes(),
+    )
+    .expect("policy");
+    let directory = tempfile::Builder::new()
+        .prefix("ap74-ro-")
+        .tempdir_in("/tmp")
+        .expect("directory");
+    let root = std::fs::canonicalize(directory.path()).expect("canonical");
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).expect("mode");
+    let state = root.join("state");
+    let socket = root.join("app.sock");
+    for (name, bytes) in [
+        ("recipe", source),
+        ("lock", lock),
+        ("trust", trust),
+        (
+            "policy",
+            policy.to_private_bytes().expect("policy").to_vec(),
+        ),
+    ] {
+        private(&root.join(name), &bytes);
+    }
+    let provider = Provider::start();
+    let review: Value = serde_json::from_slice(&success(cli(
+        "review",
+        &[
+            ("--recipe", path(&root.join("recipe"))),
+            ("--profile-lock", path(&root.join("lock"))),
+        ],
+        &[],
+        None,
+    )))
+    .expect("operator review");
+    assert!(review["method"].is_null());
+    assert!(review["recovery"].is_null());
+    assert_eq!(review["maximum_body_bytes"], 0);
+    assert_eq!(review["path"], json!([]));
+    assert_eq!(review["content_acquisition"]["method"], "GET");
+    success(cli(
+        "install",
+        &[
+            ("--state-dir", path(&state)),
+            ("--recipe", path(&root.join("recipe"))),
+            ("--profile-lock", path(&root.join("lock"))),
+            ("--trusted-context", path(&root.join("trust"))),
+            ("--effect-policy", path(&root.join("policy"))),
+            ("--approve-digest", &recipe.digest_hex()),
+            ("--provider", "airtable"),
+            ("--alias", "read-only"),
+            ("--account-label", "public-readonly-fixture"),
+        ],
+        &["--credential-stdin"],
+        Some(SECRET),
+    ));
+    let arguments = root.join("resource.json");
+    let call = root.join("read.call");
+    private(
+        &arguments,
+        &serde_json::to_vec(&json!({"record_id":RECORD})).expect("arguments"),
+    );
+    success(cli(
+        "effect-content-call",
+        &[
+            ("--state-dir", path(&state)),
+            ("--resource-arguments", path(&arguments)),
+            ("--operation", "read"),
+            ("--call-out", path(&call)),
+        ],
+        &[],
+        None,
+    ));
+    let read = approve(
+        &state,
+        &call_file(&call),
+        "read",
+        now,
+        &reviewer,
+        &[],
+        &["--content"],
+    );
+    let invalid_review = root.join("invalid-review");
+    assert!(
+        !cli(
+            "effect-review",
+            &[
+                ("--state-dir", path(&state)),
+                ("--proof", path(&read.proof)),
+                ("--action", path(&read.action)),
+                ("--not-before", &(now - 1).to_string()),
+                ("--expires-at", &(now + 300).to_string()),
+                ("--request-out", path(&invalid_review))
+            ],
+            &[],
+            None
+        )
+        .status
+        .success()
+    );
+    assert!(!invalid_review.exists());
+    assert!(provider.calls().is_empty());
+    let daemon = Daemon::start(&state, &socket, provider.port);
+    let rejected_mutation = public(read.execute("submit", &socket, &[], &[], None));
+    assert_eq!(
+        rejected_mutation["outcome"], "not-entered",
+        "{rejected_mutation}"
+    );
+    assert!(
+        provider.calls().is_empty(),
+        "native read authority and approval cannot enter mutation"
+    );
+    let acquired = public(read.execute("content-acquire", &socket, &[], &[], None));
+    assert_eq!(
+        acquired["history"]["snapshot"]["stage"], "response-recorded",
+        "{acquired}"
+    );
+    let uid = rustix::process::geteuid().as_raw();
+    let target = root.join("target.json");
+    private(
+        &target,
+        &serde_json::to_vec(&AppDisclosureTarget {
+            source_operation: "read".to_owned(),
+            recipient_key: recipient.verifying_key().to_bytes(),
+            channel: UnixDisclosurePolicy::new(uid, uid, [7; 32]),
+            delivery_instance: [8; 32],
+        })
+        .expect("target"),
+    );
+    let call = root.join("release.call");
+    success(cli(
+        "effect-disclosure-call",
+        &[
+            ("--state-dir", path(&state)),
+            ("--target", path(&target)),
+            ("--operation", "release"),
+            ("--call-out", path(&call)),
+        ],
+        &[],
+        None,
+    ));
+    let release = approve(
+        &state,
+        &call_file(&call),
+        "release",
+        now,
+        &reviewer,
+        &[("--disclosure", path(&target))],
+        &[],
+    );
+    let received = root.join("content");
+    let ack = root.join("ack");
+    assert_eq!(
+        public(release.execute(
+            "disclosure-receive",
+            &socket,
+            &[
+                ("--target", path(&target)),
+                ("--expected-binding", path(&release.binding)),
+                ("--expected-bytes", &CONTENT.len().to_string()),
+                ("--content-out", path(&received)),
+                ("--acknowledgement-out", path(&ack))
+            ],
+            &["--recipient-seed-stdin"],
+            Some(&[31; 32])
+        ))["outcome"],
+        "recipient-ack-sent"
+    );
+    assert_eq!(std::fs::read(&received).expect("content"), CONTENT);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let disclosed = loop {
+        let value = history(&socket, "release");
+        if value["history"]["snapshot"]["stage"] == "acknowledged" {
+            break value;
+        }
+        assert!(Instant::now() < deadline, "ACK persistence: {value}");
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(
+        !cli(
+            "effect-recovery-call",
+            &[
+                ("--state-dir", path(&state)),
+                ("--source-operation", "read"),
+                ("--recovery-operation", "fake-mutation")
+            ],
+            &[],
+            None
+        )
+        .status
+        .success()
+    );
+    assert_eq!(
+        provider.calls(),
+        [format!(
+            "GET /documents/{RECORD}?format=text%2Fplain HTTP/1.1"
+        )]
+    );
+    drop(daemon);
+    let artifact=serde_json::to_vec_pretty(&json!({"schema":"auths.read-only-process-journey/1",
+        "scope":"production local CLI/daemon processes, file custody/journal, native read/release-only grants and public fixed test approval keys; no Google metadata, UI, language package, hostile UID isolation or PostgreSQL claim",
+        "recipe_digest":recipe.digest_hex(),"operator_review":review,"provider_requests":provider.calls(),
+        "mutation_refusal":rejected_mutation,"mutation_review_refused":true,"acquisition":acquired,"disclosure":disclosed,
+        "content_source_cannot_be_mutation_recovery_source":true,"no_mutation_permission_or_plan_installed":true})).expect("artifact");
+    let output = fixtures.join("read-only-process-journey.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&output, &artifact).expect("write");
+    }
+    assert_eq!(std::fs::read(output).expect("fixture"), artifact);
+}

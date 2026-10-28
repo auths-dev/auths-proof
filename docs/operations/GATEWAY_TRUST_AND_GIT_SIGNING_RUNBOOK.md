@@ -428,3 +428,20 @@ ACK-loss crash/reopen/no-redelivery/late ACK, an exact write and independent
 observation, plus separate-process disable before release. Public fixed keys
 simulate signing. This establishes neither human presence, installed language
 binding integration, hostile UID/egress isolation nor PostgreSQL durability.
+
+
+A standalone content installation can omit `write` from recipe source `/3`.
+Its source and profile lock must name `auths_gateway_content_read_v1`, and the
+source must declare `content`. Include only binding/resource/account fields;
+mutation observation, echo, pre-entry, preconditions, relative ceilings and spend
+bounds are refused. The native review explicitly shows no mutation method or
+recovery capability, an empty write path and zero body allowance, alongside the
+content GET declaration. Do not interpret its null method as an unspecified
+method or substitute a default write. `RecipeReview::method` and mutation
+`recovery` return `Option` in Rust; JSON consumers receive native null values.
+
+The generated `bindings/fixtures/gateway/content-only/` files are a synthetic
+local recipe example. `read-only-process-journey.json` proves real installation,
+read-only authority, mutation refusal, one GET and separate recipient disclosure.
+It is not a Google integration or a replacement for AP070's pending metadata,
+credential-custody and Python state-owner cutover.

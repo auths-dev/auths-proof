@@ -1065,3 +1065,30 @@ histories use the shared file adapter and public fixed test signing keys.
 Authenticated UI, installed language packages, complete fault/concurrency tests,
 PostgreSQL and hostile process isolation remain distinct incomplete obligations.
 No production transition predicate or wire schema changed in this increment.
+
+
+## Standalone read-only recipe decision
+
+A source `/3` with no `write` declaration is a content-only installation. It must
+name the reserved native content tool and declare content; mutation-specific
+observation, echo, pre-entry, precondition, relative-ceiling and spend-sum fields
+are refused. Its profile lock names only the existing binding fields, resource
+and optional account field. Existing credential guards and registered headers
+retain their owners. No fake write URL, body or mutation permission is installed.
+
+The compiler lowers this into a closed `ContentOnly` execution alternative,
+which contains no `WritePlan`. Mutation request construction rejects that
+alternative before constructing a request. Content acquisition, candidate reads,
+release, approval and journaling remain existing native paths. Wire parsing may
+represent an absent write, but one compiler validates the relation and the sealed
+compiled execution kind is authoritative. This is an extension of source `/3`,
+not an old-schema reader or parallel runtime mode. Existing mutation canonical
+bytes and semantics must stay unchanged. Operator review represents no mutation
+with null method/mutation recovery, empty write path and zero write-body bound, while rendering
+the complete declared content GET separately. No `GET` is added to write methods.
+
+The required evidence is a bounded source/lock negative corpus, native
+mutation-refusal and real read-only install/acquisition/disclosure process
+journey. Google metadata semantics, token refresh custody and AP070's Python
+owner removal remain separate required cutovers; supporting a content-only recipe
+does not establish those provider capabilities or their equivalence.

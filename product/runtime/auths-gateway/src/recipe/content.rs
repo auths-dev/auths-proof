@@ -83,6 +83,10 @@ enum ContentProjection {
 }
 
 impl ContentSource {
+    pub(super) fn resource_field(&self) -> &str {
+        &self.resource_field
+    }
+
     pub(super) fn validate(
         &self,
         fields: &BTreeMap<String, FieldSchema>,

@@ -539,15 +539,17 @@ impl CompiledRecipe {
             serde_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
         let lock: ProfileLockFile = serde_json::from_slice(lock_bytes)
             .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
-        if source.schema != RECIPE_SOURCE_SCHEMA
-            || matches!(
+        let valid_tool = match &source.write {
+            Some(_) => !matches!(
                 source.tool.as_str(),
                 crate::effect::RECOVERY_READ_TOOL
                     | crate::effect::CANDIDATE_CHECK_TOOL
                     | crate::effect::CONTENT_READ_TOOL
                     | crate::effect::DISCLOSURE_TOOL
-            )
-        {
+            ),
+            None => source.tool == crate::effect::CONTENT_READ_TOOL,
+        };
+        if source.schema != RECIPE_SOURCE_SCHEMA || !valid_tool {
             return Err(GatewayRecipeError::InvalidSource);
         }
         validate_lock(&lock)?;
@@ -613,10 +615,16 @@ impl CompiledRecipe {
         &self.namespace
     }
 
-    /// What this recipe can prove after an ambiguous write.
+    /// What a mutation recipe can prove after an ambiguous write. Content-only
+    /// recipes have no mutation recovery capability.
     #[must_use]
-    pub fn recovery(&self) -> RecoveryCapability {
-        recovery_capability(self.recovery_declarations())
+    pub fn recovery(&self) -> Option<RecoveryCapability> {
+        match self.plans.execution {
+            lower::ExecutionPlan::Mutation(_) => {
+                Some(recovery_capability(self.recovery_declarations()))
+            }
+            lower::ExecutionPlan::ContentOnly => None,
+        }
     }
 
     fn recovery_declarations(&self) -> RecoveryDeclarations {
@@ -632,7 +640,12 @@ impl CompiledRecipe {
             }
             Some(_) => StateObservation::VerifiedLocator,
         };
-        let idempotency = match &self.source.write.idempotency {
+        let idempotency = match self
+            .source
+            .write
+            .as_ref()
+            .and_then(|write| write.idempotency.as_ref())
+        {
             None => LostClaimReentry::None,
             Some(IdempotencySource::DerivedHeader { retention_seconds }) => {
                 LostClaimReentry::Declared {
@@ -751,6 +764,14 @@ impl CompiledRecipe {
         arguments: &Map<String, Value>,
         action_commitment: [u8; 32],
     ) -> Result<ClosedProviderRequest, GatewayRecipeError> {
+        let lower::ExecutionPlan::Mutation(plan) = &self.plans.execution else {
+            return Err(GatewayRecipeError::ActionMismatch);
+        };
+        let write = self
+            .source
+            .write
+            .as_ref()
+            .ok_or(GatewayRecipeError::InvalidSource)?;
         let values = self.argument_values(arguments)?;
         let operation_id = arguments
             .get("operation_id")
@@ -763,18 +784,18 @@ impl CompiledRecipe {
             .as_ref()
             .map(|_| echo_token(&self.namespace, &operation_id, &action_commitment));
         let key = matches!(
-            self.source.write.idempotency,
+            write.idempotency,
             Some(IdempotencySource::DerivedHeader { .. })
         )
         .then(|| idempotency_key(&self.namespace, &operation_id));
         let built = construct::construct_write(
-            &self.plans.write,
+            plan,
             &values,
             echo.as_deref().unwrap_or_default().as_bytes(),
             key.as_deref().unwrap_or_default().as_bytes(),
         )
         .map_err(GatewayRecipeError::from_construct)?;
-        let content_type = match self.plans.write.body {
+        let content_type = match plan.body {
             construct::BodyPlan::Json(_) => "application/json",
             construct::BodyPlan::Form(_) => "application/x-www-form-urlencoded",
         };
@@ -809,7 +830,7 @@ impl CompiledRecipe {
             action_commitment,
             echo,
             idempotency_key: key,
-            method: self.source.write.method,
+            method: write.method,
             url: ascii(built.url)?,
             content_type,
             body: built.body,

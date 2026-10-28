@@ -368,6 +368,28 @@ same native binding, review renderer and approval machinery serve both types.
 This compilation contract does not itself implement read admission, an entry
 permit, observation evidence or disclosure.
 
+A standalone read-only recipe uses source `/3` with no `write` declaration,
+the reserved `auths_gateway_content_read_v1` tool and a required content capability.
+It cannot declare mutation observation, echo, pre-entry, precondition,
+relative-ceiling or spend-sum configuration. Its profile lock has only the
+existing binding fields, exact resource field and optional account scope.
+The native compiler lowers this to `ContentOnly`, which contains no mutation
+plan. Mutation request construction fails before custody or transport. Candidate
+credential reads, content acquisition and disclosure continue through the existing
+native owners. Operator review has null mutation method/recovery, empty write path
+and zero write-body allowance; its content GET declaration is rendered separately.
+Rust review method/recovery APIs return explicit absence for this case. Existing
+mutation source/review bytes remain unchanged. No GET write method, fake write
+endpoint or separate read executor is introduced.
+
+The native read-only corpus freezes source/lock/review and rejects mutation
+adjuncts, missing content, custom tools and write injection under the reserved
+read tool. A real CLI/daemon fixture installs it under read/release-only native
+trust, refuses mutation submission/review and mutation recovery from acquired
+content, and performs exactly one content GET plus authenticated disclosure.
+This supports standalone native reads; Google metadata gating, credential refresh,
+AP070 owner removal, authenticated UI and installed language evidence remain open.
+
 Explicit content acquisition is a versioned opt-in recipe capability,
 `content.schema = auths.gateway-content-read/1`, within recipe source `/3`.
 It is included in the recipe digest and operator review; absence permits no

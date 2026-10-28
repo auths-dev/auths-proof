@@ -33,7 +33,7 @@ pub struct RecipeReview {
     service: String,
     tool: String,
     origin: String,
-    method: WriteMethod,
+    method: Option<WriteMethod>,
     path: Vec<String>,
     credential: CredentialRequirement,
     maximum_body_bytes: usize,
@@ -41,7 +41,7 @@ pub struct RecipeReview {
     sends_idempotency_key: bool,
     echo: Option<RecipeEchoReview>,
     preconditions: Option<RecipePreconditionReview>,
-    recovery: RecoveryCapability,
+    recovery: Option<RecoveryCapability>,
 }
 
 /// Operator review of the verified arguments the request never renders.
@@ -116,9 +116,9 @@ impl RecipeReview {
     pub fn origin(&self) -> &str {
         &self.origin
     }
-    /// Returns the fixed write method.
+    /// Returns the fixed write method, or `None` for a content-only recipe.
     #[must_use]
-    pub const fn method(&self) -> WriteMethod {
+    pub const fn method(&self) -> Option<WriteMethod> {
         self.method
     }
     /// Returns fixed and typed path segments for operator review.
@@ -158,9 +158,9 @@ impl RecipeReview {
     pub const fn preconditions(&self) -> Option<&RecipePreconditionReview> {
         self.preconditions.as_ref()
     }
-    /// Returns what the recipe can prove after an ambiguous write.
+    /// Returns mutation recovery capability, absent for content-only recipes.
     #[must_use]
-    pub const fn recovery(&self) -> RecoveryCapability {
+    pub const fn recovery(&self) -> Option<RecoveryCapability> {
         self.recovery
     }
 }
@@ -242,21 +242,28 @@ impl CompiledRecipe {
             service: source.service.clone(),
             tool: source.tool.clone(),
             origin: source.origin.clone(),
-            method: source.write.method,
+            method: source.write.as_ref().map(|write| write.method),
             path: source
                 .write
-                .path
                 .iter()
+                .flat_map(|write| &write.path)
                 .map(|segment| match segment_review(segment) {
                     Value::String(text) => text,
                     _ => String::new(),
                 })
                 .collect(),
             credential: super::credential_requirement(&source.credential),
-            maximum_body_bytes: MAX_BODY_BYTES,
+            maximum_body_bytes: if source.write.is_some() {
+                MAX_BODY_BYTES
+            } else {
+                0
+            },
             has_observation: source.observation.is_some(),
             sends_idempotency_key: matches!(
-                source.write.idempotency,
+                source
+                    .write
+                    .as_ref()
+                    .and_then(|write| write.idempotency.as_ref()),
                 Some(IdempotencySource::DerivedHeader { .. })
             ),
             echo: source.echo.as_ref().map(|echo| {
@@ -295,7 +302,7 @@ impl CompiledRecipe {
             "service": review.service(),
             "tool": review.tool(),
             "origin": review.origin(),
-            "method": review.method().as_str(),
+            "method": review.method().map(WriteMethod::as_str),
             "path": review.path(),
             "credential": review.credential(),
             "maximum_body_bytes": review.maximum_body_bytes(),
@@ -312,7 +319,7 @@ impl CompiledRecipe {
                 "verified": preconditions.verified(),
                 "disclosure": preconditions.disclosure(),
             })),
-            "recovery": recovery_document(&review.recovery()),
+            "recovery": review.recovery().as_ref().map(recovery_document),
             "write_is_conditional": false,
         });
         document["provider_headers"] =
@@ -339,31 +346,30 @@ impl CompiledRecipe {
                 "disclosure": "independent native read authority and exact approval required; response remains private; release requires separate authorization and entry",
             });
         }
-        document["idempotency"] =
-            source
-                .write
-                .idempotency
-                .as_ref()
-                .map_or(Value::Null, |idempotency| {
-                    let mut value = json!({
-                        "kind": match idempotency {
-                            IdempotencySource::DerivedHeader { .. } => "derived-header",
-                            IdempotencySource::OperationIdField { .. } => "operation-id-field",
-                        },
-                        "retention_seconds": idempotency.retention_seconds(),
-                        "disclosure": IDEMPOTENCY_DISCLOSURE,
-                    });
-                    if let IdempotencySource::OperationIdField { location, .. } = idempotency {
-                        value["location"] = serde_json::to_value(location).unwrap_or(Value::Null);
-                    }
-                    value
+        document["idempotency"] = source
+            .write
+            .as_ref()
+            .and_then(|write| write.idempotency.as_ref())
+            .map_or(Value::Null, |idempotency| {
+                let mut value = json!({
+                    "kind": match idempotency {
+                        IdempotencySource::DerivedHeader { .. } => "derived-header",
+                        IdempotencySource::OperationIdField { .. } => "operation-id-field",
+                    },
+                    "retention_seconds": idempotency.retention_seconds(),
+                    "disclosure": IDEMPOTENCY_DISCLOSURE,
                 });
+                if let IdempotencySource::OperationIdField { location, .. } = idempotency {
+                    value["location"] = serde_json::to_value(location).unwrap_or(Value::Null);
+                }
+                value
+            });
         document["observation"] = source
             .observation
             .as_ref()
             .map_or(Value::Null, |observation| {
                 json!({
-                    "locator": observation_name(review.recovery().state_observation),
+                    "locator": observation_name(review.recovery().map_or(StateObservation::None, |capability| capability.state_observation)),
                     "path": path_review(&observation.path),
                     "json_pointer": observation.json_pointer,
                     "expected_field": observation.expected_field,

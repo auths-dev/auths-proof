@@ -1275,7 +1275,11 @@ fn oracle_request(recipe: &CompiledRecipe, arguments: &Map<String, Value>, commi
         .map(|echo| (&echo.write, request.echo_token().expect("token")));
     assert_eq!(
         request.body(),
-        oracle::body(&recipe.source.write.body, echo, arguments),
+        oracle::body(
+            &recipe.source.write.as_ref().expect("mutation recipe").body,
+            echo,
+            arguments
+        ),
         "body"
     );
     assert_eq!(
@@ -1283,7 +1287,10 @@ fn oracle_request(recipe: &CompiledRecipe, arguments: &Map<String, Value>, commi
         format!(
             "{}{}",
             recipe.source.origin,
-            oracle::path(&recipe.source.write.path, arguments)
+            oracle::path(
+                &recipe.source.write.as_ref().expect("mutation recipe").path,
+                arguments
+            )
         ),
         "url"
     );
@@ -1532,5 +1539,161 @@ fn native_review_contract_fixture_is_current() {
             std::fs::write(&path, &seed).expect("seed");
         }
         assert_eq!(std::fs::read(path).expect("seed"), seed);
+    }
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one standalone read recipe and negative source corpus"
+)]
+fn native_read_only_recipe_fixture_is_current() {
+    let (source, lock) = fixture("airtable");
+    let mut source: Value = serde_json::from_slice(source).expect("source");
+    let mut lock: Value = serde_json::from_slice(lock).expect("lock");
+    for field in [
+        "write",
+        "observation",
+        "echo",
+        "pre_entry",
+        "preconditions",
+        "relative_ceiling",
+        "bounds",
+    ] {
+        source.as_object_mut().expect("source").remove(field);
+    }
+    source["tool"] = json!(crate::effect::CONTENT_READ_TOOL);
+    lock["tool"] = source["tool"].clone();
+    lock["command_schema"]["fields"]
+        .as_object_mut()
+        .expect("fields")
+        .remove("replacement");
+    let schema = serde_json_canonicalizer::to_vec(&lock["command_schema"]).expect("schema");
+    lock["schema_digest"] = json!(hex::encode(Sha256::digest(&schema)));
+    source["profile_schema_digest"] = lock["schema_digest"].clone();
+    source["review"]["fields"]
+        .as_object_mut()
+        .expect("review fields")
+        .remove("replacement");
+    source["review"]["consequences"] = json!([
+        "Acquire the displayed resource as private content. Disclosure requires separate authorization; no provider mutation is available."
+    ]);
+    source["content"] = json!({"schema":"auths.gateway-content-read/1", "resource_field":"record_id",
+        "path":[{"kind":"fixed","value":"documents"},{"kind":"field","name":"record_id"}],
+        "query":[{"name":"format","value":"text/plain"}],"projection":{"kind":"utf8"},
+        "maximum_response_bytes":1024,"maximum_content_bytes":64});
+    let source_bytes = serde_json::to_vec_pretty(&source).expect("source");
+    let lock_bytes = serde_json::to_vec_pretty(&lock).expect("lock");
+    let recipe = CompiledRecipe::compile(&source_bytes, &lock_bytes).expect("read-only recipe");
+    assert!(matches!(
+        recipe.plans.execution,
+        lower::ExecutionPlan::ContentOnly
+    ));
+    assert_eq!(recipe.review().method(), None);
+    assert_eq!(recipe.recovery(), None);
+    assert!(recipe.review_document()["recovery"].is_null());
+    assert!(recipe.review().path().is_empty());
+    assert_eq!(recipe.review().maximum_body_bytes(), 0);
+    assert!(!recipe.review().has_observation());
+    assert!(recipe.credential_reads().expect("reads").is_empty());
+    let resource = json!({"record_id":"recTEST0000000001"})
+        .as_object()
+        .expect("resource")
+        .clone();
+    assert!(recipe.content_read(&resource).is_ok());
+    let args = arguments(
+        &recipe,
+        &json!({"operation_id":"write","record_id":"recTEST0000000001"}),
+    );
+    assert_eq!(
+        recipe.closed_request_from_arguments(&args, [0; 32]).err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
+    let mut negatives = Vec::new();
+    for field in [
+        "observation",
+        "echo",
+        "pre_entry",
+        "preconditions",
+        "relative_ceiling",
+        "bounds",
+    ] {
+        let mut hostile = source.clone();
+        hostile[field] = match field {
+            "observation" => {
+                json!({"path":[{"kind":"field","name":"record_id"}],"json_pointer":"/value","expected_field":"record_id","maximum_response_bytes":64})
+            }
+            "echo" => json!({"write":{"kind":"json-pointer","pointer":"/echo"},"observe":"/echo"}),
+            "pre_entry" => {
+                json!({"path":[{"kind":"field","name":"record_id"}],"pointers":["/value"],"maximum_response_bytes":64})
+            }
+            "preconditions" => json!({"verified":["record_id"]}),
+            "relative_ceiling" => {
+                json!({"argument":"record_id","basis_points":100,"path":[{"kind":"field","name":"record_id"}],"json_pointer":"/value","maximum_response_bytes":64})
+            }
+            "bounds" => json!({}),
+            _ => unreachable!(),
+        };
+        let error =
+            CompiledRecipe::compile(&serde_json::to_vec(&hostile).expect("hostile"), &lock_bytes)
+                .expect_err("mutation adjunct refused");
+        assert_eq!(error, GatewayRecipeError::InvalidSource);
+        negatives.push(json!({"case":field,"code":error.code()}));
+    }
+    for field in ["content", "tool"] {
+        let mut hostile = source.clone();
+        if field == "content" {
+            hostile.as_object_mut().expect("object").remove(field);
+        } else {
+            hostile[field] = json!("unbound_custom_read");
+        }
+        let error =
+            CompiledRecipe::compile(&serde_json::to_vec(&hostile).expect("hostile"), &lock_bytes)
+                .expect_err("missing protocol");
+        assert_eq!(error, GatewayRecipeError::InvalidSource);
+        negatives.push(json!({"case":format!("missing-or-wrong-{field}"),"code":error.code()}));
+    }
+    let mut smuggled = source.clone();
+    let mutation: Value = serde_json::from_slice(fixture("airtable").0).expect("mutation");
+    smuggled["write"] = mutation["write"].clone();
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&smuggled).expect("source"), &lock_bytes).err(),
+        Some(GatewayRecipeError::InvalidSource)
+    );
+    negatives.push(
+        json!({"case":"write-with-reserved-read-tool","code":"gateway.recipe.invalid-source"}),
+    );
+    let directory =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bindings/fixtures/gateway");
+    let mut seed = u32::try_from(source_bytes.len())
+        .expect("bounded source")
+        .to_be_bytes()
+        .to_vec();
+    seed.extend_from_slice(&source_bytes);
+    seed.extend_from_slice(&lock_bytes);
+    let seed_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("fuzz/corpus/target_gateway_recipe/content-only");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&seed_path, &seed).expect("seed");
+    }
+    assert_eq!(std::fs::read(seed_path).expect("seed"), seed);
+    let review = serde_json::to_vec_pretty(&recipe.review_document()).expect("review");
+    let corpus = serde_json::to_vec_pretty(&json!({"schema":"auths.read-only-recipe/1",
+        "source":source,"lock":lock,"review":recipe.review_document(),"negative_sources":negatives,
+        "mutation_plan_absent":true,"mutation_construction_refused":true,
+        "scope":"native compilation and closed request construction; process transport and installed binding evidence are separate"})).expect("corpus");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::create_dir_all(directory.join("content-only")).expect("directory");
+    }
+    for (name, bytes) in [
+        ("content-only/recipe.json", source_bytes),
+        ("content-only/profile.lock.json", lock_bytes),
+        ("content-only/review.json", review),
+        ("read-only-recipe.json", corpus),
+    ] {
+        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+            std::fs::write(directory.join(name), &bytes).expect("write");
+        }
+        assert_eq!(std::fs::read(directory.join(name)).expect("fixture"), bytes);
     }
 }
