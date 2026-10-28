@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/12`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/13`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/12";
+const SCHEMA: &str = "auths.gateway-attempt/13";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -710,8 +710,8 @@ mod acquisition;
 mod capacity;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
-    GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts,
-    ReservedAcquisition,
+    ContentProjectionStatus, GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot,
+    RecoverySourceFacts, ReservedAcquisition,
 };
 pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
 

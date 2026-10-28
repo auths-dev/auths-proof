@@ -21,6 +21,7 @@ use zeroize::Zeroizing;
 mod acquisition;
 mod candidate;
 mod content;
+pub(crate) use content::ContentPlan;
 pub use content::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
 mod disclosure;
 pub use disclosure::{

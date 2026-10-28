@@ -27,6 +27,8 @@ const SCHEMA: &str = "auths.gateway-codes/1";
 /// none exists yet). The fixture letters are R for the recipe corpus, A for
 /// the attempt scenarios, B for the bounds cases, and O for the outcomes.
 const ROWS: &[&str] = &[
+    "gateway.content.response-version ContentProjectionError response new 74 -",
+    "gateway.content.response-encoding ContentProjectionError response new 74 -",
     "gateway.content.response-status ContentProjectionError projection new 74 -",
     "gateway.content.response-media-type ContentProjectionError projection new 74 -",
     "gateway.content.response-too-large ContentProjectionError projection new 74 -",

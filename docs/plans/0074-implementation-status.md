@@ -1164,6 +1164,53 @@ closure regeneration passed after that correction (one artifact-generation test)
   observed. Bounded decoded response buffers and partial transport accumulation
   are zeroized on drop. Fetch found no new upstream commits.
 
+## Protected content projection checkpoint
+
+- The previous goal turn made progress (`71fd4f7f`, committed/pushed); this
+  continuation adds protected content to that same response transaction.
+  Attempt `/13` rejects all obsolete `/12` state, without a compatibility reader.
+  A complete content response now retains either protected readiness or the
+  exact typed projection refusal. Neither result grants disclosure authority.
+- The compiler and retained-response paths share one pure projection leaf.
+  Retained version agreement, identity encoding and exact media/projection are
+  enforced; empty content is valid. Encoded/wrong-media/malformed/over-limit
+  responses stay recorded and charged. Public snapshots expose only byte count
+  or stable refusal; response-version/encoding have distinct native codes.
+- Protected content uses the pinned workspace HMAC-SHA256 primitive plus native
+  domain/canonical framing, with a fresh private 32-byte key and exact source,
+  projection, byte count and private content digest. Loads reproject and verify
+  the keyed commitment (or recompute the refusal); replay preserves the key and
+  original record bytes. No plaintext digest, key, commitment or body is public.
+  Existing journal access protection remains required; no encryption or defense
+  against a malicious journal/key administrator is claimed.
+- Exact artifact generation passed on `71fd4f7f` plus this source: content
+  compilation/journal, code inventory, attempt scenarios, prerequisite entry
+  and native entry/fuzz seeds (six exact generators, 9.31 seconds). The initial
+  compile failure used a nonexistent pointer helper; it now invokes the existing
+  response-pointer and escape validators. A schema-edit script initially read
+  ripgrep stdin rather than the tree; it was corrected to an explicit `.` root.
+- The strengthened `native_content_journal_fixture_is_current` generator then
+  passed (one test, 3.30 seconds). Version-2 evidence contains fifteen real HTTP
+  cases: repeated/empty/exact/over-limit/invalid UTF-8 content, identity/gzip/
+  duplicate encodings, wrong/missing media, missing required version, HTTP denial
+  and oversized response, plus lost permit and seventeenth source refusal.
+  It rejects key/tag/length/schema/body/version/media mutations and swapping
+  protected material between independently valid sources containing the same
+  bytes. Reopened replay leaves the private key and complete record unchanged.
+- `cargo xtask arch --update` completed required dependency-snapshot generation;
+  the reviewed delta is only `auths-gateway -> hmac` (no package or other edge
+  changes). Building that generator surfaced existing unused observation/raw-read
+  helpers, now gated to their test/testkit consumers instead of shipping unused
+  production read interfaces. Final semantic-closure generation passed (one exact
+  test, 0.28 seconds). These are artifact construction, not broad local gates or
+  hosted CI evidence. Fetch found no upstream commits; no hosted results were
+  inspected.
+- Next: sealed retained source and native disclosure compilation, then shared
+  disclosure admission/entry, authenticated transport and persistent ACKs. The
+  standalone read-only installation, AP070 metadata/owner cutover, full
+  engine/CLI/UI/binding journey and P4 adapter/fault/differential/formal/performance
+  evidence remain required. No A01–A22 case closes at this checkpoint.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

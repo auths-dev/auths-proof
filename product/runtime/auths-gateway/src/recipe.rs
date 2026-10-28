@@ -21,6 +21,7 @@ use url::{Host, Url};
 pub use auths_gateway_kernel::{construct, recovery};
 
 mod content;
+pub(crate) use content::ContentProjectionSpec;
 pub use content::{CONTENT_READ_SCHEMA, ClosedContentRead, ContentProjectionError};
 mod effect_review;
 mod lower;
@@ -1322,6 +1323,7 @@ impl ClosedObservationRequest {
     /// Extracts the observed value and, when an echo field is declared and
     /// present, its value from bounded response bytes. A response that is too
     /// large, not JSON, or lacks the observed value yields `None`.
+    #[cfg(any(test, feature = "testkit-harness"))]
     pub(crate) fn observed_values(&self, response: &[u8]) -> Option<(Value, Option<Value>)> {
         if response.len() > self.maximum_response_bytes {
             return None;

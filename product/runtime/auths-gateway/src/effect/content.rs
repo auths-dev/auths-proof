@@ -317,6 +317,17 @@ impl ContentPlan {
         Ok(contract)
     }
 
+    pub(crate) fn projection(
+        &self,
+    ) -> Result<crate::recipe::ContentProjectionSpec, EffectBindingError> {
+        crate::recipe::ContentProjectionSpec::from_contract(&self.witness()?["content"])
+            .ok_or(EffectBindingError::Invalid)
+    }
+
+    pub(crate) fn projection_commitment(&self) -> Result<[u8; 32], EffectBindingError> {
+        commitment(CONTRACT, self.contract.as_bytes())
+    }
+
     pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
         let contract = self.witness()?;
         let maximum_bytes = contract["content"]["request"]["maximum_response_bytes"]
@@ -352,6 +363,7 @@ impl ContentPlan {
         binding: &EffectBinding,
     ) -> Result<AcquisitionCapacity, EffectBindingError> {
         let capacity = self.capacity()?;
+        self.projection()?;
         let connection = self.connection()?;
         let bytes = Zeroizing::new(
             connection

@@ -461,7 +461,13 @@ async fn native_content_journal_fixture_is_current() {
     let public = key.verifying_key().to_bytes();
     let policy =
         EffectPolicy::new("synthetic-content-journal".to_owned(), 1, public).expect("policy");
-    let recipe = content_recipe(declaration(json!({"kind": "utf8"}))).expect("recipe");
+    let (source, lock) = h::recipe_sources(&json!({}), &Value::Null).expect("source");
+    let mut source: Value = serde_json::from_slice(&source).expect("source JSON");
+    source["content"] = declaration(json!({"kind": "utf8"}));
+    source["provider_headers"] = json!({"Stripe-Version": "2024-06-20"});
+    let recipe =
+        CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
+            .expect("recipe");
     let initial = connection(&recipe);
     let credentials = auths_connections::InMemoryCredentialStore::new(1, 1024).expect("custody");
     let reference = credentials
@@ -615,6 +621,7 @@ async fn native_content_journal_fixture_is_current() {
         .await
         .expect("lease");
     let mut histories = vec![];
+    let mut first_protected = Value::Null;
     for index in 0..17 {
         let approved = approve(&format!("content-journal-{index}"));
         let claim = attempts
@@ -651,7 +658,7 @@ async fn native_content_journal_fixture_is_current() {
                 .is_err(),
             "one grant only"
         );
-        if index >= 8 {
+        if index == 15 {
             drop(permit);
             let snapshot = granted.record_unknown().await.expect("unknown");
             assert_eq!(snapshot.reserved_calls, 1);
@@ -668,14 +675,19 @@ async fn native_content_journal_fixture_is_current() {
                 "Content-Type: text/plain\r\nContent-Encoding: identity\r\nContent-Encoding: gzip\r\n"
             }
             5 => "Content-Type: application/json\r\n",
-            6 | 7 => "Content-Type: text/plain\r\n",
+            6..=12 | 14 => "Content-Type: text/plain\r\n",
+            13 => "Content-Type: text/plain\r\nContent-Encoding: identity\r\n",
             _ => unreachable!(),
         };
-        let body = if index == 6 {
-            vec![b'x'; 1025]
-        } else {
-            b"PRIVATE-SYNTHETIC-CONTENT".to_vec()
+        let body = match index {
+            6 => vec![b'x'; 1025],
+            9 => vec![],
+            10 => vec![b'x'; 64],
+            11 => vec![b'x'; 65],
+            12 => vec![255],
+            _ => b"PRIVATE-SYNTHETIC-CONTENT".to_vec(),
         };
+        let expected_body = body.clone();
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let port = listener.local_addr().expect("port").port();
         let server = tokio::spawn(async move {
@@ -702,7 +714,16 @@ async fn native_content_journal_fixture_is_current() {
             } else {
                 "200 OK"
             };
-            stream.write_all(format!("HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.expect("headers");
+            assert!(
+                head.to_ascii_lowercase()
+                    .contains("stripe-version: 2024-06-20\r\n")
+            );
+            let version = if index == 14 {
+                ""
+            } else {
+                "Stripe-Version: 2024-06-20\r\n"
+            };
+            stream.write_all(format!("HTTP/1.1 {status}\r\n{headers}{version}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.expect("headers");
             stream.write_all(&body).await.expect("body");
         });
         let transport = crate::transport::GatewayHttpTransport::for_loopback_test(&recipe, port);
@@ -747,13 +768,14 @@ async fn native_content_journal_fixture_is_current() {
             let expected_encoding = match index {
                 1 => json!({"kind": "single", "value": "gzip"}),
                 4 => json!({"kind": "invalid"}),
+                13 => json!({"kind": "single", "value": "identity"}),
                 _ => json!({"kind": "missing"}),
             };
             assert_eq!(metadata["media_type"], expected_media);
             assert_eq!(metadata["encoding"], expected_encoding);
             assert_eq!(
                 phase["response"]["body_b64"],
-                base64ct::Base64::encode_string(b"PRIVATE-SYNTHETIC-CONTENT")
+                base64ct::Base64::encode_string(&expected_body)
             );
             // Content cannot be decoded as ordinary credential evidence by
             // stripping the authenticated transport metadata variant.
@@ -763,6 +785,7 @@ async fn native_content_journal_fixture_is_current() {
                 .expect("phase");
             phase.insert("stage".to_owned(), json!("response-recorded"));
             phase.remove("metadata");
+            phase.remove("content");
             let changed = serde_json_canonicalizer::to_vec(&downgraded).expect("corrupt bytes");
             store
                 .replace(crate::GatewayRecordKind::Attempt, &key, &retained, &changed)
@@ -773,6 +796,81 @@ async fn native_content_journal_fixture_is_current() {
                 .expect("restore fixture");
         } else {
             assert_eq!(phase["stage"], "unknown");
+        }
+        let projection = serde_json::to_value(&snapshot.content_projection).expect("status");
+        let expected_projection = match index {
+            0 | 8 | 9 | 10 | 13 => json!({"kind": "ready", "bytes": expected_body.len()}),
+            1 | 4 => json!({"kind": "rejected", "code": "gateway.content.response-encoding"}),
+            2 | 3 | 5 => json!({"kind": "rejected", "code": "gateway.content.response-media-type"}),
+            6 => Value::Null,
+            7 => json!({"kind": "rejected", "code": "gateway.content.response-status"}),
+            11 => json!({"kind": "rejected", "code": "gateway.content.content-too-large"}),
+            12 => json!({"kind": "rejected", "code": "gateway.content.invalid-response"}),
+            14 => json!({"kind": "rejected", "code": "gateway.content.response-version"}),
+            _ => unreachable!(),
+        };
+        assert_eq!(projection, expected_projection);
+        if index == 0 {
+            first_protected = phase["content"].clone();
+            for pointer in [
+                "/schema",
+                "/state/facts/phase/content/value/key/0",
+                "/state/facts/phase/content/value/commitment/0",
+                "/state/facts/phase/content/value/bytes",
+                "/state/facts/phase/content/value/schema",
+                "/state/facts/phase/response/body_b64",
+                "/state/facts/phase/response/version_ok",
+                "/state/facts/phase/metadata/media_type/value",
+            ] {
+                let mut changed = value.clone();
+                let cell = changed.pointer_mut(pointer).expect("field");
+                *cell = match pointer {
+                    "/schema" => json!("auths.gateway-attempt/12"),
+                    "/state/facts/phase/content/value/schema" => {
+                        json!("auths.gateway-protected-content/0")
+                    }
+                    "/state/facts/phase/response/body_b64" => {
+                        json!(base64ct::Base64::encode_string(b"CHANGED-PRIVATE-CONTENT"))
+                    }
+                    "/state/facts/phase/response/version_ok" => json!(false),
+                    "/state/facts/phase/metadata/media_type/value" => json!("application/json"),
+                    _ => json!(cell.as_u64().expect("number") ^ 1),
+                };
+                let bytes = serde_json_canonicalizer::to_vec(&changed).expect("changed bytes");
+                store
+                    .replace(crate::GatewayRecordKind::Attempt, &key, &retained, &bytes)
+                    .expect("inject");
+                assert!(
+                    attempts.read_acquisition(&approved).await.is_err(),
+                    "{pointer}"
+                );
+                store
+                    .replace(crate::GatewayRecordKind::Attempt, &key, &bytes, &retained)
+                    .expect("restore");
+            }
+        }
+        if index == 8 {
+            assert_ne!(
+                phase["content"]["value"]["key"],
+                first_protected["value"]["key"]
+            );
+            assert_ne!(
+                phase["content"]["value"]["commitment"],
+                first_protected["value"]["commitment"]
+            );
+            let mut changed = value.clone();
+            changed["state"]["facts"]["phase"]["content"] = first_protected.clone();
+            let bytes = serde_json_canonicalizer::to_vec(&changed).expect("changed bytes");
+            store
+                .replace(crate::GatewayRecordKind::Attempt, &key, &retained, &bytes)
+                .expect("substitute source");
+            assert!(
+                attempts.read_acquisition(&approved).await.is_err(),
+                "same bytes from another source do not satisfy this commitment"
+            );
+            store
+                .replace(crate::GatewayRecordKind::Attempt, &key, &bytes, &retained)
+                .expect("restore");
         }
         let retained_text = String::from_utf8(retained.clone()).expect("JSON");
         assert!(!retained_text.contains("SYNTHETIC-CONTENT-TEST-CREDENTIAL"));
@@ -798,6 +896,8 @@ async fn native_content_journal_fixture_is_current() {
         );
         let public_json = serde_json::to_string(&snapshot).expect("public");
         assert!(!public_json.contains("PRIVATE-SYNTHETIC-CONTENT"));
+        assert!(!public_json.contains("commitment"));
+        assert!(!public_json.contains("key"));
         histories.push(
             json!({"case": index, "snapshot": snapshot, "private_response_metadata": metadata}),
         );
@@ -814,9 +914,11 @@ async fn native_content_journal_fixture_is_current() {
             .expect("source match")
             .0
     );
-    let fixture = json!({"schema": "auths.gateway-content-journal-fixture/1",
+    let fixture = json!({"schema": "auths.gateway-content-journal-fixture/2",
         "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
-        "permanent_source_attempts": 16, "history": histories});
+        "permanent_source_attempts": 16, "real_http_requests": 15,
+        "protected_content_mutations_refused": true, "same_content_foreign_source_refused": true,
+        "history": histories});
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/content-journal.json");
     let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");

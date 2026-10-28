@@ -10,8 +10,15 @@ pub const CONTENT_READ_SCHEMA: &str = "auths.gateway-content-read/1";
 
 /// Why retained provider evidence cannot produce the declared private content.
 /// These are response facts, never native authorization denials.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize, thiserror::Error)]
+#[serde(rename_all = "kebab-case")]
 pub enum ContentProjectionError {
+    /// The response does not match required provider-version headers.
+    #[error("provider response version does not permit content projection")]
+    Version,
+    /// Compressed, duplicate or malformed content encoding.
+    #[error("provider response encoding does not permit content projection")]
+    Encoding,
     /// The response status differs from the declared successful status.
     #[error("provider response status does not permit content projection")]
     Status,
@@ -37,6 +44,8 @@ impl ContentProjectionError {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::Version => "gateway.content.response-version",
+            Self::Encoding => "gateway.content.response-encoding",
             Self::Status => "gateway.content.response-status",
             Self::MediaType => "gateway.content.response-media-type",
             Self::ResponseLimit => "gateway.content.response-too-large",
@@ -207,10 +216,65 @@ impl ClosedContentRead {
         media_type: &str,
         body: &[u8],
     ) -> Result<Zeroizing<Vec<u8>>, ContentProjectionError> {
+        ContentProjectionSpec {
+            projection: self.projection.clone(),
+            maximum_response_bytes: self.read.maximum_response_bytes(),
+            maximum_content_bytes: self.maximum_content_bytes,
+        }
+        .project(status, media_type, body)
+    }
+}
+
+/// Pure interpretation of a compiler-owned private content contract. It has no
+/// request, credential or execution method and is never caller-selected policy.
+pub(crate) struct ContentProjectionSpec {
+    projection: ContentProjection,
+    maximum_response_bytes: usize,
+    maximum_content_bytes: usize,
+}
+
+impl ContentProjectionSpec {
+    pub(crate) fn from_contract(value: &Value) -> Option<Self> {
+        let projection: ContentProjection =
+            serde_json::from_value(value["projection"].clone()).ok()?;
+        let maximum_response_bytes =
+            usize::try_from(value["request"]["maximum_response_bytes"].as_u64()?).ok()?;
+        let maximum_content_bytes =
+            usize::try_from(value["maximum_content_bytes"].as_u64()?).ok()?;
+        let spec = Self {
+            projection,
+            maximum_response_bytes,
+            maximum_content_bytes,
+        };
+        if value["schema"] != CONTENT_READ_SCHEMA
+            || value["required_status"] != 200
+            || value["required_media_type"] != spec.media_type()
+            || !(1..=65_536).contains(&maximum_response_bytes)
+            || !(1..=maximum_response_bytes).contains(&maximum_content_bytes)
+            || matches!(&spec.projection, ContentProjection::JsonString { pointer } if (!super::validate::valid_response_pointer(pointer) || !valid_escapes(pointer)))
+        {
+            return None;
+        }
+        Some(spec)
+    }
+
+    const fn media_type(&self) -> &'static str {
+        match self.projection {
+            ContentProjection::Utf8 => "text/plain",
+            ContentProjection::JsonString { .. } => "application/json",
+        }
+    }
+
+    pub(crate) fn project(
+        &self,
+        status: u16,
+        media_type: &str,
+        body: &[u8],
+    ) -> Result<Zeroizing<Vec<u8>>, ContentProjectionError> {
         if status != 200 {
             return Err(ContentProjectionError::Status);
         }
-        if body.len() > self.read.maximum_response_bytes() {
+        if body.len() > self.maximum_response_bytes {
             return Err(ContentProjectionError::ResponseLimit);
         }
         if media_type.len() > 128 || !self.accepts_media_type(media_type) {

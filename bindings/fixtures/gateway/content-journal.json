@@ -1,7 +1,10 @@
 {
-  "schema": "auths.gateway-content-journal-fixture/1",
+  "schema": "auths.gateway-content-journal-fixture/2",
   "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
   "permanent_source_attempts": 16,
+  "real_http_requests": 15,
+  "protected_content_mutations_refused": true,
+  "same_content_foreign_source_refused": true,
   "history": [
     {
       "case": 0,
@@ -14,7 +17,11 @@
         "policy_byte_counters": 0,
         "response_status": 200,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 25
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -37,7 +44,11 @@
         "policy_byte_counters": 0,
         "response_status": 200,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-encoding"
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -61,7 +72,11 @@
         "policy_byte_counters": 0,
         "response_status": 200,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-media-type"
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -83,7 +98,11 @@
         "policy_byte_counters": 0,
         "response_status": 200,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-media-type"
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -105,7 +124,11 @@
         "policy_byte_counters": 0,
         "response_status": 200,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-encoding"
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -128,7 +151,11 @@
         "policy_byte_counters": 0,
         "response_status": 200,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-media-type"
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -166,7 +193,11 @@
         "policy_byte_counters": 0,
         "response_status": 403,
         "response_bytes": 25,
-        "response_version_ok": true
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-status"
+        }
       },
       "private_response_metadata": {
         "media_type": {
@@ -179,101 +210,193 @@
       }
     },
     {
-      "case": "lost-permit",
+      "case": 8,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 25
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
       }
     },
     {
-      "case": "lost-permit",
+      "case": 9,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 0,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 0
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
       }
     },
     {
-      "case": "lost-permit",
+      "case": 10,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 64,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 64
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
       }
     },
     {
-      "case": "lost-permit",
+      "case": 11,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 65,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.content-too-large"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
       }
     },
     {
-      "case": "lost-permit",
+      "case": 12,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 1,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.invalid-response"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
       }
     },
     {
-      "case": "lost-permit",
+      "case": 13,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 25
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "single",
+          "value": "identity"
+        }
       }
     },
     {
-      "case": "lost-permit",
+      "case": 14,
       "snapshot": {
         "revision": 3,
-        "stage": "unknown",
+        "stage": "response-recorded",
         "reserved_calls": 1,
         "reserved_bytes": 1024,
         "policy_count_counters": 0,
         "policy_byte_counters": 0,
-        "response_status": null,
-        "response_bytes": null,
-        "response_version_ok": null
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": false,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-version"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
       }
     },
     {

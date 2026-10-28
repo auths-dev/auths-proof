@@ -126,6 +126,20 @@ impl ContentResponseMetadata {
     pub(crate) fn valid(&self) -> bool {
         self.media_type.valid() && self.encoding.valid()
     }
+    pub(crate) fn projection_media_type(
+        &self,
+    ) -> Result<&str, crate::recipe::ContentProjectionError> {
+        use crate::recipe::ContentProjectionError;
+        if !matches!(self.encoding, ContentResponseHeader::Missing)
+            && !matches!(&self.encoding, ContentResponseHeader::Single(value) if value.eq_ignore_ascii_case("identity"))
+        {
+            return Err(ContentProjectionError::Encoding);
+        }
+        match &self.media_type {
+            ContentResponseHeader::Single(value) => Ok(value.as_str()),
+            _ => Err(ContentProjectionError::MediaType),
+        }
+    }
 }
 
 impl ProviderResponse {
@@ -146,6 +160,7 @@ impl ProviderResponse {
 /// counting provider. No method may retry a write.
 pub(crate) trait ProviderPort {
     /// Shared sealed acquisition path, including counting test providers.
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn acquire(
         &self,
         permit: crate::store::AcquisitionEntryPermit,
@@ -177,6 +192,7 @@ pub(crate) trait ProviderPort {
     /// Performs one bounded GET of an action read or observation and returns
     /// the complete response, or `None` after a transport failure or an
     /// oversized body.
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn action_read(
         &self,
         url: &str,
@@ -185,6 +201,7 @@ pub(crate) trait ProviderPort {
     ) -> Option<ProviderResponse>;
 
     /// Performs one credential read with the leased secret.
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse>;
 }
 
@@ -197,6 +214,7 @@ impl<P: ProviderPort> ProviderPort for &P {
         (**self).write(permit).await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn action_read(
         &self,
         url: &str,
@@ -208,6 +226,7 @@ impl<P: ProviderPort> ProviderPort for &P {
             .await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse> {
         (**self).credential_read(read).await
     }
@@ -227,6 +246,7 @@ impl ProviderPort for LeasedTransport<'_> {
         self.transport.write(permit, self.lease).await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn action_read(
         &self,
         url: &str,
@@ -245,6 +265,7 @@ impl ProviderPort for LeasedTransport<'_> {
             .await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse> {
         let secret = self.lease.expose(Instant::now()).ok()?;
         self.transport.credential_read(read, secret).await

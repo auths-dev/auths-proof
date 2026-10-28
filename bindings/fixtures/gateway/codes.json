@@ -268,6 +268,14 @@
       "case": null
     },
     {
+      "code": "gateway.content.response-encoding",
+      "owner": "ContentProjectionError",
+      "stage": "response",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.content.response-media-type",
       "owner": "ContentProjectionError",
       "stage": "projection",
@@ -287,6 +295,14 @@
       "code": "gateway.content.response-too-large",
       "owner": "ContentProjectionError",
       "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.content.response-version",
+      "owner": "ContentProjectionError",
+      "stage": "response",
       "status": "new",
       "epic": 74,
       "case": null

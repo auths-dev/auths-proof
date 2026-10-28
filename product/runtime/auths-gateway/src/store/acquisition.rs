@@ -7,6 +7,9 @@ use crate::effect::{
     AcquisitionCapacity, AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind,
 };
 
+mod content;
+pub use content::ContentProjectionStatus;
+use content::ContentResult;
 mod candidate;
 pub use candidate::CandidatePublication;
 mod recovery;
@@ -39,6 +42,10 @@ pub struct AcquisitionSnapshot {
     pub response_bytes: Option<u64>,
     /// Whether required response-version headers matched the installed recipe.
     pub response_version_ok: Option<bool>,
+    /// Native interpretation of a complete content response. No raw content,
+    /// hiding key or private correlation commitment appears here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_projection: Option<ContentProjectionStatus>,
 }
 
 /// Acquisition has no mutation-observed or disclosure-acknowledged state.
@@ -81,6 +88,7 @@ enum AcquisitionPhase {
     ContentResponseRecorded {
         response: AcquisitionResponse,
         metadata: crate::transport::ContentResponseMetadata,
+        content: ContentResult,
     },
 }
 
@@ -147,9 +155,11 @@ impl JournalProtocol for AcquisitionState {
             refusal: matches!(record.state.phase, AcquisitionPhase::NotEntered { .. }),
             response: match &record.state.phase {
                 AcquisitionPhase::ResponseRecorded { response } => canonical(response)?,
-                AcquisitionPhase::ContentResponseRecorded { response, metadata } => {
-                    canonical(&(response, metadata))?
-                }
+                AcquisitionPhase::ContentResponseRecorded {
+                    response,
+                    metadata,
+                    content,
+                } => canonical(&(response, metadata, content))?,
                 _ => Vec::new(),
             },
             pre_entry: Vec::new(),
@@ -225,6 +235,17 @@ impl JournalProtocol for AcquisitionState {
             && !metadata.valid()
         {
             return Err(GatewayAttemptError::Corrupt);
+        }
+        if let AcquisitionPhase::ContentResponseRecorded {
+            response,
+            metadata,
+            content,
+        } = &record.state.phase
+        {
+            let AcquisitionPlan::Content(plan) = &record.state.plan else {
+                return Err(GatewayAttemptError::Corrupt);
+            };
+            content.validate(&binding, plan, response, metadata)?;
         }
         match &record.state.phase {
             AcquisitionPhase::NotEntered { code } if !valid_code(code) => {
@@ -312,6 +333,10 @@ impl Record<AcquisitionState> {
                 .count() as u64,
             response_status,
             response_bytes,
+            content_projection: match &self.state.phase {
+                AcquisitionPhase::ContentResponseRecorded { content, .. } => Some(content.status()),
+                _ => None,
+            },
             response_version_ok: match &self.state.phase {
                 AcquisitionPhase::ResponseRecorded { response }
                 | AcquisitionPhase::ContentResponseRecorded { response, .. } => {
@@ -1052,18 +1077,26 @@ impl GrantedAcquisition {
         response: crate::transport::ContentProviderResponse,
         received_at: u64,
     ) -> Result<AcquisitionSnapshot, GatewayAttemptError> {
-        if !matches!(self.attempt.record.state.plan, AcquisitionPlan::Content(_)) {
+        let AcquisitionPlan::Content(plan) = &self.attempt.record.state.plan else {
             return Err(GatewayAttemptError::InvalidTransition);
-        }
+        };
+        let retained = AcquisitionResponse {
+            status: response.status,
+            version_ok: response.version_ok,
+            body_b64: Base64::encode_string(&response.body),
+            received_at,
+        };
+        let content = ContentResult::create(
+            &self.attempt.record.validate_header()?,
+            plan,
+            &retained,
+            &response.metadata,
+        )?;
         let mut next = self.attempt.record.clone();
         next.state.phase = AcquisitionPhase::ContentResponseRecorded {
-            response: AcquisitionResponse {
-                status: response.status,
-                version_ok: response.version_ok,
-                body_b64: Base64::encode_string(&response.body),
-                received_at,
-            },
+            response: retained,
             metadata: response.metadata,
+            content,
         };
         self.attempt.advance(next).await?.record.snapshot()
     }

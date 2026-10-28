@@ -188,7 +188,7 @@ held which key, is operator evidence and is not produced by this code.
   `auths.lifecycle.postgresql/8`; it installs only into an empty database.
   A database created with an obsolete schema is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
-  `auths.gateway-attempt/12`; a store holding obsolete records is refused as
+  `auths.gateway-attempt/13`; a store holding obsolete records is refused as
   corrupt, so the file store's attempts directory is recreated too. The journal
   keeps typed mutation/acquisition facts under one header. Recovery allocations
   are permanent source-lifetime count/byte reservations and are never swept.

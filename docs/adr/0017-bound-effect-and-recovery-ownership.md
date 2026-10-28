@@ -856,3 +856,33 @@ file adapter, actual loopback HTTP, durable source exhaustion and reopened
 journal replay. Protected projected-content construction, separate disclosure,
 full engine/CLI process journeys, PostgreSQL faults and AP070 differential
 cutover remain required; this evidence grants no provider qualification.
+
+
+## Protected content in the response transaction
+
+Attempt `/13` extends the existing content response fact with one closed
+protected/refused result. Projection and key generation happen before the same
+response acknowledgement; a crash cannot leave a published content identifier
+without its retained response, or re-create a provider permit. Loading recomputes
+projection/refusal from the bound contract and retained transport facts. No
+separate content lifecycle, external write, schema migration or retry rule is
+introduced. Ready projected bytes are reconstructed only inside the native owner.
+
+The receipt disclosure protector is a storage port, and MCP execution references
+are bound to another protocol; neither supplies the required content commitment.
+The gateway therefore uses the already-pinned workspace `hmac` primitive with
+SHA-256 and the existing native canonical/domain codec. A fresh private 32-byte
+key scopes each commitment to one source effect, projection, exact length and
+private content digest. The key is stored under the same private-journal policy,
+not returned in public snapshots. The snapshot exposes only readiness/length or
+a stable refusal. This is hiding against public offline guesses while the key is
+private; it is not journal encryption or protection against malicious journal
+administration. No new cryptographic algorithm or general protection framework
+is extracted.
+
+`content-journal.json` now includes fifteen HTTP cases, empty/exact/over-limit
+content, bad UTF-8/version/encoding/media, original-byte replay, altered protected
+fields and substitution from another valid acquisition with identical content.
+The same pure projection leaf serves compiler-only and durable response paths.
+Disclosure still needs separate native authority, approval, accounting, recipient
+channel authentication and the shared final-entry fence.

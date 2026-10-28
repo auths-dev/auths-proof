@@ -581,3 +581,26 @@ rejected. Synthetic credential/provider data stays private; the artifact contain
 only public snapshots and synthetic response header facts. This is not an
 independent-process, PostgreSQL, full engine, protected-content/disclosure,
 AP070 equivalence or isolation claim. These evidence gates remain open.
+
+
+## Protected projection comparison
+
+The durable content owner now invokes the same bounded projection leaf as the
+compiler corpus after checking retained version and encoding facts. The domain
+boundary remains unchanged: no Google file-ID/trash/canDownload/MIME predicate is
+inferred. JSON-string projection is data-only and duplicate rejecting; UTF-8 is
+exact and never lossy or truncated. Ready content is reconstructible from the
+immutable raw response and contract, while refusal stays a distinct retained
+fact. This performs no additional provider read or recipient delivery.
+
+The hiding commitment is a direct composition of the pinned HMAC-SHA256 primitive,
+native canonical tuples and native domain commitments. Its private per-source
+key and source/projection/length/content binding are explicit. It does not reuse
+the unrelated MCP execution-reference format or turn a receipt-protection port
+into a semantic owner. The protected journal remains a deployment assumption.
+`content-journal.json` version 2 covers fifteen actual HTTP responses plus lost
+permit/exhaustion, typed response refusal, key/tag/length/body/metadata mutation,
+foreign-source material, old-schema refusal and unchanged replay. Random keys
+and tags are never emitted into the canonical fixture; only checked facts and
+public redacted statuses are stored. This is still narrow file-adapter evidence,
+not PostgreSQL, independent-process or AP070 differential qualification.

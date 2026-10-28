@@ -323,7 +323,7 @@ read proof/approval. Custody is checked for the exact staged reference before
 publication; independently stored custody and connection state are not claimed
 to be one atomic transaction.
 
-The concrete journal encoding is `auths.gateway-attempt/12`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/13`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded
@@ -411,16 +411,41 @@ encoding facts. Each header is missing, one value of at most 128 bytes, or inval
 by decoding a content record as ordinary prerequisite/recovery evidence.
 
 The typed `content-response-recorded` phase projects to the existing acquisition
-response stage under the sole reducer. Neither this stage nor HTTP success proves
-that a body is usable content. Later protected-content construction must reject
-bad encoding/media/version/projection using retained metadata; it cannot refetch.
+response stage under the sole reducer. Attempt schema `/13` atomically retains
+one additional closed result: protected content or a typed projection refusal.
+Obsolete `/12` records are rejected; no compatibility decoder or migration exists.
+Required-version agreement, identity encoding, one valid media type and the exact
+compiled projection must all hold before protected content is constructed.
+Encoding may be absent or a single case-insensitive `identity` value; compressed
+or ambiguous encodings refuse. Empty content is valid and distinct from absence.
+The raw response and refusal remain durable even when projection fails; charges
+are not refunded. Two additional stable codes distinguish response-version and
+response-encoding failure.
+
+The private `auths.gateway-protected-content/1` record contains a freshly sampled
+32-byte key, a 32-byte HMAC-SHA256 commitment and the exact projected byte count.
+The MAC message is the existing native domain commitment under that schema over
+the canonical tuple `(source EffectId, acquisition projection commitment, byte
+count, private content digest)`. The private content digest uses
+`auths.gateway-content-bytes/1` over the exact projected bytes. The content digest
+and key are never public identifiers; the key stays private with the journal.
+This reuses the workspace HMAC primitive and native canonical/domain framing.
+Every load reprojects the retained response and verifies the byte count and MAC
+with constant-time verification. A refusal is also recomputed rather than trusted
+as an arbitrary stored code. The projected bytes need not be duplicated in the
+journal: immutable raw evidence and the bound projection reconstruct them exactly
+without provider I/O. Key fields and decoded/projected buffers are zeroized on
+drop where supported. Existing protected-journal access policy is required; this
+mechanism is not encryption or defense against an attacker controlling that
+journal and its keys.
+
 Restart and post-grant replay return recorded facts without a credential lease
 or new provider permit. Unknown/oversized responses retain their full charges.
-
-The content engine API returns redacted acquisition facts only. Standalone
-read-only installation, AP070 metadata predicates, protected projected-content
-commitments/retention, disclosure entry/transport and installed CLI/binding
-journeys remain required before the complete consumer cutover.
+The public acquisition projection reports only `ready { bytes }` or
+`rejected { code }`, never the private key, content digest, hiding commitment or
+plaintext. A ready result grants no disclosure authority. Standalone read-only
+installation, AP070 metadata predicates, native disclosure compilation/entry/
+transport and installed CLI/binding journeys remain required for the cutover.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
