@@ -1589,6 +1589,11 @@ closure regeneration passed after that correction (one artifact-generation test)
   changed. Final closure-only regeneration after that extraction passed one
   exact generator in 0.08 seconds. No AP070 migration, test ignore, authorization
   bypass or completed A01–A22 claim is made.
+- Final semantic-freeze construction after integrating the SDK/harness changes
+  succeeded at freeze 392. Only the three changed identity/public-SDK/public-surface
+  subjects reported by the generator advanced, alongside the freeze version.
+  This refresh does not claim a hosted pass. The CI agent is authorized to push
+  the exact integrated revision non-forcibly to the existing PR branch.
 
 ## Phase gates
 
