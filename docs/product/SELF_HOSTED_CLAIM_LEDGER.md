@@ -209,9 +209,11 @@ observation never satisfies; and an observer that is also in the authority
 chain is refused. **The live Airtable run has not been done**, no hosted CI
 result is cited here, and no document may yet describe gateway grants as
 conditioned on observed provider state. The Python and TypeScript gateway
-clients expose the observation request (`observe_read_back`/`observe_outcome`,
-`observeReadBack`/`observeOutcome`) and return the exact signed bytes and
-media type, parsed as a closed result. Both SDKs can now attach a returned
+clients expose local outcome/pre-entry history and independently approved
+recovery. AP074 removes the unapproved application read-back request. Synthetic
+read-back observations for the reference journey now come only from the private
+harness control socket; they do not establish managed acquisition or disclosure.
+Both SDKs can now attach a returned
 observation to the next action (`attach_observations`/`attachObservations`,
 or `observations` on the authoring functions). The descriptors are bound by
 the action signature, and the SDK's final verification reaches the gateway's

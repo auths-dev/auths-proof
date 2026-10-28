@@ -12,8 +12,7 @@ use crate::connection::{
 };
 use crate::effect::{ApprovedEffect, ExactEffectApproval};
 use crate::observer::{
-    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
-    outcome_facts, read_back_facts,
+    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, operation_subject, outcome_facts,
 };
 use crate::recipe::{ENTRY_DEADLINE_SECONDS, GuardChecks};
 use crate::submit::{self, SubmitContext, SubmitIo};
@@ -21,9 +20,14 @@ use crate::transport::{
     GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderPort, ProviderResponse,
     WriteTransportOutcome,
 };
+#[cfg(any(test, feature = "testkit-harness"))]
 use crate::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, GatewayAttempts,
-    GatewayConnectionDescriptor, GatewayEvidenceChannel, GatewayProviderEvidence,
+    ClosedObservationRequest,
+    observer::{READ_BACK_SCHEMA, read_back_facts},
+};
+use crate::{
+    ClosedProviderRequest, CompiledRecipe, GatewayAttempts, GatewayConnectionDescriptor,
+    GatewayEvidenceChannel, GatewayProviderEvidence,
 };
 use auths_connections::{
     ConnectionAlias, ConnectionCredentialStore, ConnectionProfile, ConnectionRecord,
@@ -243,9 +247,6 @@ impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum GatewayObserveRequest {
-    /// Read the recipe's observed field now and sign what was read.
-    /// `arguments` names exactly the observation path's fields.
-    ReadBack { arguments: Map<String, Value> },
     /// Sign the stored record of one logical operation in this
     /// installation's namespace. No provider is contacted.
     Outcome { operation_id: String },
@@ -1710,11 +1711,9 @@ impl GatewayEngine {
             .map_err(|_| ())
     }
 
-    /// Signs one observation for the application. A read-back uses the
-    /// installed connection and credential for exactly one bounded read-only
-    /// GET built from the approved recipe, after the lease passes every
-    /// declared credential check; an outcome reads only the local attempt
-    /// store. Nothing here writes to a provider or to the store.
+    /// Projects or signs retained local history for the application. This
+    /// route never leases a credential or contacts a provider. Independently
+    /// authorized provider evidence uses `recover` and its durable acquisition.
     pub async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
         if let GatewayObserveRequest::PreEntry { operation_id } = request {
             return observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await;
@@ -1738,37 +1737,6 @@ impl GatewayEngine {
             }
             GatewayObserveRequest::PreEntry { operation_id } => {
                 observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await
-            }
-            GatewayObserveRequest::ReadBack { arguments } => {
-                let Ok(target) = self.recipe.read_back_target(arguments) else {
-                    return refused("gateway.observer.invalid-read-back");
-                };
-                let Ok(prepared) = self.prepare_entry().await else {
-                    return refused("gateway.observer.connection-unavailable");
-                };
-                let Ok(lease) = self.lease(&prepared).await else {
-                    return refused("gateway.observer.credential-unavailable");
-                };
-                let port = LeasedTransport {
-                    transport: &prepared.transport,
-                    lease: &lease,
-                };
-                let prefix = self.recipe.guard_checks().is_none_or(|guard| {
-                    lease
-                        .expose(Instant::now())
-                        .is_ok_and(|secret| guard.admits_secret(secret))
-                });
-                if !submit::lease_checks(
-                    &self.recipe,
-                    &port,
-                    prefix,
-                    Some(*prepared.loaded.record().account_commitment()),
-                )
-                .await
-                {
-                    return refused("gateway.observer.credential-guard");
-                }
-                observe_read_back(&target, observer, &port, wall_clock_seconds).await
             }
         }
     }
@@ -2325,6 +2293,7 @@ pub(crate) async fn observe_pre_entry(
 /// Performs one read-only observation and signs what it read. The observation
 /// time is taken before the request is sent, so the signed time is never later
 /// than the provider state the response reflects.
+#[cfg(any(test, feature = "testkit-harness"))]
 pub(crate) async fn observe_read_back(
     target: &ClosedObservationRequest,
     observer: &GatewayObserver,

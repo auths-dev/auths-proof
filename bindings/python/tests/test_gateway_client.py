@@ -211,30 +211,23 @@ async def _serve_once(
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_requests_read_back_and_returns_signed_bytes(socket_dir) -> None:
+def test_client_recovery_carries_exact_native_envelope_and_returns_bytes(socket_dir) -> None:
+    corpus = json.loads((Path(__file__).resolve().parents[2] / "fixtures/gateway/application-recovery-frame.json").read_text())
+    request = corpus["request"]
+    def decode(field: str) -> bytes:
+        encoded = request["submission"][field]
+        return base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
     async def scenario() -> None:
         seen: list[dict[str, object]] = []
-        server = await _serve_once(socket_dir / "gateway.sock", _signed(), seen)
+        reply = json.dumps(corpus["cases"][0]["response"]).encode()
+        server = await _serve_once(socket_dir / "gateway.sock", reply, seen)
         async with server:
             client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
-            result = await client.observe_read_back({"record_id": "recTEST0000000001"})
-        assert result == GatewaySignedObservation(
-            "auths.gateway-readback/1",
-            _SUBJECT,
-            1_790_000_000,
-            _MEDIA_TYPE,
-            _OBSERVATION,
-        )
-        assert seen == [
-            {
-                "schema": "auths.gateway-observe/2",
-                "request": {
-                    "kind": "read-back",
-                    "arguments": {"record_id": "recTEST0000000001"},
-                },
-            }
-        ]
-
+            result = await client.recover(request["source_operation"], proof=decode("proof_b64"),
+                                          action=decode("action_b64"), approval=decode("approval_b64"))
+        assert result == reply
+        assert seen == [request]
+        assert not hasattr(client, "observe_read_back")
     asyncio.run(scenario())
 
 
@@ -258,7 +251,7 @@ def test_client_requests_outcome_and_surfaces_refusal(socket_dir) -> None:
     )
     assert seen == [
         {
-            "schema": "auths.gateway-observe/2",
+            "schema": "auths.gateway-observe/3",
             "request": {"kind": "outcome", "operation_id": "step-1"},
         }
     ]
@@ -278,28 +271,28 @@ def test_client_rejects_malformed_observation_frames(socket_dir) -> None:
             client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
             if outcome is not None:
                 return await client.observe_outcome(outcome)
-            return await client.observe_read_back({"record_id": "rec1"})
+            return await client.observe_outcome("step-1")
 
     # A signed read-back is not accepted as the answer to an outcome request.
     with pytest.raises(GatewayProtocolError):
         asyncio.run(scenario(_signed(), "step-1"))
     for hostile in [
-        _signed(schema="auths.gateway-outcome/2"),
-        _signed(media_type="application/cbor"),
-        _signed(subject=""),
-        _signed(subject="s" * 1_025),
-        _signed(observed_at=-1),
-        _signed(observed_at=True),
-        _signed(observed_at="1790000000"),
-        _signed(observation_b64=""),
-        _signed(observation_b64=_b64(_OBSERVATION) + "="),
-        _signed(observation_b64=base64.b64encode(b"\xfb\xff").decode()),
-        _signed(observation_b64="AB"),
-        _signed(observation_b64="A"),
-        _signed(observation_b64="QUJD RA"),
-        _signed(observation_b64=_b64(b"x" * 4_097)),
-        _signed(confirmed=True),
-        _signed(observation=_b64(_OBSERVATION)),
+        _signed(schema="retired"),
+        _signed(schema="auths.gateway-outcome/2", media_type="application/cbor"),
+        _signed(schema="auths.gateway-outcome/2", subject=""),
+        _signed(schema="auths.gateway-outcome/2", subject="s" * 1_025),
+        _signed(schema="auths.gateway-outcome/2", observed_at=-1),
+        _signed(schema="auths.gateway-outcome/2", observed_at=True),
+        _signed(schema="auths.gateway-outcome/2", observed_at="1790000000"),
+        _signed(schema="auths.gateway-outcome/2", observation_b64=""),
+        _signed(schema="auths.gateway-outcome/2", observation_b64=_b64(_OBSERVATION) + "="),
+        _signed(schema="auths.gateway-outcome/2", observation_b64=base64.b64encode(b"\xfb\xff").decode()),
+        _signed(schema="auths.gateway-outcome/2", observation_b64="AB"),
+        _signed(schema="auths.gateway-outcome/2", observation_b64="A"),
+        _signed(schema="auths.gateway-outcome/2", observation_b64="QUJD RA"),
+        _signed(schema="auths.gateway-outcome/2", observation_b64=_b64(b"x" * 4_097)),
+        _signed(schema="auths.gateway-outcome/2", confirmed=True),
+        _signed(schema="auths.gateway-outcome/2", observation=_b64(_OBSERVATION)),
         b'{"outcome":"refused"}',
         b'{"outcome":"refused","code":""}',
         b'{"outcome":"refused","code":"x","reason":"y"}',
@@ -338,7 +331,7 @@ def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
     assert result == GatewayPreEntryObservations("step-1", (_OBSERVATION,))
     assert seen == [
         {
-            "schema": "auths.gateway-observe/2",
+            "schema": "auths.gateway-observe/3",
             "request": {"kind": "pre-entry", "operation_id": "step-1"},
         }
     ]
@@ -363,18 +356,13 @@ def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
 
 def test_client_rejects_unbounded_observation_requests(socket_dir) -> None:
     client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
-    for arguments in [
-        {},
-        {"record_id": ""},
-        {"record_id": "x" * 129},
-        {"record_id": "a\x00b"},
-        {"record_id": 7},
-        {"-record": "rec1"},
-        {f"field{index}": "v" for index in range(17)},
-    ]:
+    assert not hasattr(client, "observe_read_back")
+    for proof, action, approval in [(b"", b"a", b"a"), (b"p", b"", b"a"), (b"p", b"a", b""), (b"p", b"a", b"a" * 4097)]:
         with pytest.raises(ValueError):
-            asyncio.run(client.observe_read_back(arguments))  # type: ignore[arg-type]
+            asyncio.run(client.recover("source-1", proof=proof, action=action, approval=approval))
     for operation in ["", "-step", "step 1", "s" * 129, "stép"]:
+        with pytest.raises(ValueError):
+            asyncio.run(client.recover(operation, proof=b"p", action=b"a", approval=b"a"))
         with pytest.raises(ValueError):
             asyncio.run(client.observe_outcome(operation))
         with pytest.raises(ValueError):

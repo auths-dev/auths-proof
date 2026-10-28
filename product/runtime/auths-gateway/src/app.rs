@@ -1,6 +1,6 @@
 //! The application-socket protocol: one length-prefixed JSON frame in, one
-//! out. A frame is exactly one of two closed schemas, a proof/action
-//! submission or an observation request; anything else is refused without
+//! out. Frames carry a proof/action submission, independently approved recovery,
+//! or retained local history; anything else is refused without
 //! reaching the application.
 
 use crate::effect::{ExactEffectApproval, MAX_EFFECT_APPROVAL_BYTES};
@@ -18,7 +18,9 @@ use zeroize::{Zeroize as _, Zeroizing};
 /// Schema of a proof/action submission frame.
 pub const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/2";
 /// Schema of an observation request frame.
-pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/2";
+pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/3";
+/// Independently approved recovery acquisition and evidence refinement.
+pub const APP_RECOVERY_SCHEMA: &str = "auths.gateway-recover/1";
 /// Largest frame either side accepts.
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
@@ -199,16 +201,62 @@ pub struct AppObservation {
     pub request: GatewayObserveRequest,
 }
 
-/// Every application frame is exactly one of the two closed schemas.
+/// One separately authorized provider recovery read. The nested submission
+/// uses the same bounded canonical decoder as mutation and operator recovery.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppRecovery {
+    /// Must equal `APP_RECOVERY_SCHEMA`.
+    pub schema: String,
+    /// Original retained mutation, never a provider path.
+    pub source_operation: String,
+    /// Native read authority and exact approval.
+    pub submission: AppSubmission,
+}
+
+impl AppRecovery {
+    /// Decodes transport data only; native compilation still establishes authority.
+    ///
+    /// # Errors
+    /// Refuses obsolete schema, invalid operation and invalid native envelope.
+    pub fn decode(&self) -> Result<DecodedSubmission, &'static str> {
+        if self.schema != APP_RECOVERY_SCHEMA
+            || crate::LogicalOperationId::parse(&self.source_operation).is_err()
+        {
+            return Err("gateway.submit.invalid-frame");
+        }
+        self.submission.decode()
+    }
+}
+
+/// Redacted native facts or a native refusal. No response body or signed
+/// provider value is released through this channel.
+#[derive(Serialize)]
+#[serde(tag = "outcome", rename_all = "kebab-case")]
+pub enum AppRecoveryResult {
+    /// Distinct retained mutation/acquisition facts, not a claim of success.
+    RecoveryReport {
+        /// Native redacted source/acquisition projection.
+        report: crate::GatewayRecoveryReport,
+    },
+    /// Native refusal/indeterminate outcome preserves its stable code.
+    Refused {
+        /// Original native stage and refusal code.
+        result: GatewaySubmitResult,
+    },
+}
+
+/// Every application frame selects one closed native operation.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum AppFrame {
     Submit(AppSubmission),
     Observe(AppObservation),
+    Recover(AppRecovery),
 }
 
 /// Which closed frame `bytes` parse as, schema included: `submit`,
-/// `observe`, or `None`.
+/// `observe`, `recover`, or `None`.
 #[cfg(feature = "fuzzing")]
 pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
     match serde_json::from_slice::<AppFrame>(bytes).ok()? {
@@ -218,6 +266,7 @@ pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
         AppFrame::Observe(observation) => {
             (observation.schema == APP_OBSERVE_SCHEMA).then_some("observe")
         }
+        AppFrame::Recover(recovery) => recovery.decode().ok().map(|_| "recover"),
     }
 }
 
@@ -232,7 +281,16 @@ pub trait GatewayApplication {
         approval: ExactEffectApproval,
     ) -> impl Future<Output = GatewaySubmitResult>;
 
-    /// Signs one read-only observation.
+    /// Acquires separately approved recovery evidence through the native engine.
+    fn recover(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> impl Future<Output = AppRecoveryResult>;
+
+    /// Signs or returns retained local history, without provider I/O.
     fn observe(
         &self,
         request: &GatewayObserveRequest,
@@ -247,6 +305,21 @@ impl GatewayApplication for GatewayEngine {
         approval: ExactEffectApproval,
     ) -> GatewaySubmitResult {
         GatewayEngine::submit(self, proof, action, approval).await
+    }
+
+    async fn recover(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> AppRecoveryResult {
+        match GatewayEngine::recover(self, source_operation, proof, action, approval).await {
+            Ok(snapshot) => AppRecoveryResult::RecoveryReport {
+                report: snapshot.report(),
+            },
+            Err(result) => AppRecoveryResult::Refused { result },
+        }
     }
 
     async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
@@ -313,6 +386,27 @@ async fn submit_frame(submission: AppSubmission, application: &impl GatewayAppli
     serde_json::to_vec(&result).unwrap_or_default()
 }
 
+async fn recovery_frame(recovery: AppRecovery, application: &impl GatewayApplication) -> Vec<u8> {
+    let result = match recovery.decode() {
+        Ok(decoded) => {
+            application
+                .recover(
+                    &recovery.source_operation,
+                    &decoded.proof,
+                    &decoded.action,
+                    decoded.approval,
+                )
+                .await
+        }
+        Err(code) => AppRecoveryResult::Refused {
+            result: GatewaySubmitResult::Indeterminate {
+                code: code.to_owned(),
+            },
+        },
+    };
+    serde_json::to_vec(&result).unwrap_or_default()
+}
+
 async fn observe_frame(
     observation: AppObservation,
     application: &impl GatewayApplication,
@@ -348,6 +442,7 @@ pub async fn app_session_within(
             Ok(bytes) => match serde_json::from_slice::<AppFrame>(&bytes) {
                 Ok(AppFrame::Submit(submission)) => submit_frame(submission, application).await,
                 Ok(AppFrame::Observe(observation)) => observe_frame(observation, application).await,
+                Ok(AppFrame::Recover(recovery)) => recovery_frame(recovery, application).await,
                 Err(_) => serde_json::to_vec(&invalid_frame()).unwrap_or_default(),
             },
             Err(_) => serde_json::to_vec(&invalid_frame()).unwrap_or_default(),
@@ -398,6 +493,20 @@ mod tests {
             self.finished.store(true, Ordering::SeqCst);
             GatewaySubmitResult::Indeterminate {
                 code: "x".repeat(self.result_bytes),
+            }
+        }
+
+        async fn recover(
+            &self,
+            _source: &str,
+            _proof: &[u8],
+            _action: &[u8],
+            _approval: ExactEffectApproval,
+        ) -> AppRecoveryResult {
+            AppRecoveryResult::Refused {
+                result: GatewaySubmitResult::NotEntered {
+                    code: "test.unused".to_owned(),
+                },
             }
         }
 
@@ -544,7 +653,8 @@ mod tests {
             "schema": APP_OBSERVE_SCHEMA,
             "request": {"kind": "outcome", "operation_id": "step-1"}
         });
-        for frame in [&read_back, &outcome] {
+        assert!(serde_json::from_value::<AppFrame>(read_back.clone()).is_err());
+        for frame in [&outcome] {
             assert!(matches!(
                 serde_json::from_value::<AppFrame>(frame.clone()),
                 Ok(AppFrame::Observe(_))
@@ -575,5 +685,148 @@ mod tests {
         let mut unknown = outcome;
         unknown["request"]["kind"] = serde_json::Value::String("write".to_owned());
         assert!(serde_json::from_value::<AppFrame>(unknown).is_err());
+    }
+
+    /// Real socket framing/dispatch evidence. The application is a counting
+    /// refusal oracle; this does not claim installed proof or provider entry.
+    #[tokio::test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one bounded framing corpus keeps mutations and dispatch evidence together"
+    )]
+    async fn native_application_recovery_frame_fixture_is_current() {
+        use std::sync::atomic::AtomicUsize;
+        struct Counted {
+            calls: AtomicUsize,
+        }
+        impl GatewayApplication for Counted {
+            async fn submit(
+                &self,
+                _: &[u8],
+                _: &[u8],
+                _: ExactEffectApproval,
+            ) -> GatewaySubmitResult {
+                panic!("wrong route")
+            }
+            async fn observe(&self, _: &GatewayObserveRequest) -> GatewayObserveResult {
+                panic!("provider read used observation route")
+            }
+            async fn recover(
+                &self,
+                source: &str,
+                proof: &[u8],
+                action: &[u8],
+                _: ExactEffectApproval,
+            ) -> AppRecoveryResult {
+                assert_eq!(source, "source-1");
+                assert_eq!(proof, &[0]);
+                assert_eq!(action, &[0]);
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                AppRecoveryResult::Refused {
+                    result: GatewaySubmitResult::NotEntered {
+                        code: "gateway.acquisition.binding".to_owned(),
+                    },
+                }
+            }
+        }
+        let native: serde_json::Value = serde_json::from_slice(&submission()).expect("submission");
+        let valid = serde_json::json!({"schema": APP_RECOVERY_SCHEMA, "source_operation": "source-1", "submission": native});
+        let corpus_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fuzz/corpus/target_gateway_app_frame");
+        for (name, frame) in [
+            ("recover", valid.clone()),
+            ("submit", valid["submission"].clone()),
+            (
+                "obsolete-read-back",
+                serde_json::json!({"schema": APP_OBSERVE_SCHEMA,
+                "request": {"kind": "read-back", "arguments": {"record_id": "recTEST0000000001"}}}),
+            ),
+        ] {
+            let bytes = serde_json::to_vec(&frame).expect("seed");
+            let path = corpus_root.join(name);
+            if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+                std::fs::write(&path, &bytes).expect("seed");
+            }
+            assert_eq!(std::fs::read(path).expect("seed"), bytes);
+        }
+        let mut cases = vec![("bounded-envelope", valid.clone(), true)];
+        for (name, pointer, replacement) in [
+            (
+                "obsolete-recovery-schema",
+                "/schema",
+                serde_json::json!("auths.gateway-recover/0"),
+            ),
+            (
+                "obsolete-submit-schema",
+                "/submission/schema",
+                serde_json::json!("auths.gateway-submit/1"),
+            ),
+            (
+                "invalid-operation",
+                "/source_operation",
+                serde_json::json!("../other"),
+            ),
+            (
+                "null-approval",
+                "/submission/approval_b64",
+                serde_json::Value::Null,
+            ),
+            (
+                "invalid-approval",
+                "/submission/approval_b64",
+                serde_json::json!("AA"),
+            ),
+            (
+                "oversized-approval",
+                "/submission/approval_b64",
+                serde_json::json!("A".repeat(MAX_EFFECT_APPROVAL_BYTES * 2)),
+            ),
+        ] {
+            let mut frame = valid.clone();
+            *frame.pointer_mut(pointer).expect("field") = replacement;
+            cases.push((name, frame, false));
+        }
+        let mut missing = valid.clone();
+        missing["submission"]
+            .as_object_mut()
+            .expect("submission")
+            .remove("approval_b64");
+        cases.push(("missing-approval", missing, false));
+        let mut substituted = valid.clone();
+        substituted["url"] = serde_json::json!("https://attacker.example");
+        cases.push(("transport-substitution", substituted, false));
+        for schema in ["auths.gateway-observe/2", APP_OBSERVE_SCHEMA] {
+            cases.push((schema, serde_json::json!({"schema": schema, "request": {"kind": "read-back", "arguments": {"record_id": "recTEST0000000001"}}}), false));
+        }
+        let mut evidence = Vec::new();
+        for (name, frame, dispatched) in cases {
+            let application = Arc::new(Counted {
+                calls: AtomicUsize::new(0),
+            });
+            let (mut client, server) = UnixStream::pair().expect("socket pair");
+            let held = Arc::clone(&application);
+            let task = tokio::spawn(async move { app_session(server, &*held).await });
+            write_frame(&mut client, &serde_json::to_vec(&frame).expect("frame"))
+                .await
+                .expect("write");
+            let response: serde_json::Value =
+                serde_json::from_slice(&read_frame(&mut client).await.expect("response"))
+                    .expect("JSON");
+            task.await.expect("server");
+            let calls = application.calls.load(Ordering::SeqCst);
+            assert_eq!(calls, usize::from(dispatched));
+            evidence.push(serde_json::json!({"case": name, "recovery_dispatches": calls, "response": response}));
+        }
+        let fixture = serde_json::to_vec_pretty(&serde_json::json!({
+            "schema": "auths.application-recovery-frame-fixture/1",
+            "scope": "real Unix socket and bounded decoder with counting refusal oracle; no installed native authority or provider entry claim",
+            "request": valid, "cases": evidence,
+        })).expect("fixture");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../bindings/fixtures/gateway/application-recovery-frame.json");
+        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+            std::fs::write(&path, &fixture).expect("write fixture");
+        }
+        assert_eq!(std::fs::read(path).expect("fixture"), fixture);
     }
 }

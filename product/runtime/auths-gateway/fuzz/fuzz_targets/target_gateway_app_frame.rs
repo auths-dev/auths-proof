@@ -4,7 +4,7 @@
 #![no_main]
 
 use auths_gateway::admin::{ADMIN_REQUEST_SCHEMA, parse_admin_request};
-use auths_gateway::app::{APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA};
+use auths_gateway::app::{APP_OBSERVE_SCHEMA, APP_RECOVERY_SCHEMA, APP_REQUEST_SCHEMA};
 use auths_gateway::fuzzing;
 use libfuzzer_sys::fuzz_target;
 use serde_json::Value;
@@ -23,7 +23,9 @@ fuzz_target!(|data: &[u8]| {
     if let Some(kind) = fuzzing::app_frame_kind(data) {
         let expected = match kind {
             "submit" => APP_REQUEST_SCHEMA,
-            _ => APP_OBSERVE_SCHEMA,
+            "observe" => APP_OBSERVE_SCHEMA,
+            "recover" => APP_RECOVERY_SCHEMA,
+            _ => panic!("unknown closed application frame"),
         };
         assert_eq!(schema().as_deref(), Some(expected));
     }

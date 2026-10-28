@@ -6,7 +6,7 @@ requirement: the record's current value must equal the action's ``expected``
 argument, as signed by the gateway observer at most 60 seconds before the
 gateway verifies.
 
-1. Request a read-back observation.
+1. Obtain a synthetic observation from the private harness control plane.
 2. Attach it to the replacement action.
 3. Submit: the write is authorized.
 4. Change the record: the stale expectation is refused. The SDK refuses to
@@ -121,7 +121,7 @@ def _bytes(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
-async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
+async def _control_response(socket: Path, request: dict[str, object]) -> dict[str, object]:
     reader, writer = await asyncio.open_unix_connection(str(socket))
     payload = json.dumps(request).encode()
     writer.write(struct.pack(">I", len(payload)) + payload)
@@ -132,7 +132,12 @@ async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
     await writer.wait_closed()
     if response.get("ok") is not True:
         raise AssertionError(f"harness refused {request}")
-    return cast("dict[str, int]", response)
+    return cast("dict[str, object]", response)
+
+
+async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
+    response = await _control_response(socket, request)
+    return {key: cast(int, response[key]) for key in ("now", "writes", "reads", "leases")}
 
 
 class Journey:
@@ -158,7 +163,10 @@ class Journey:
         )
 
     async def read_back(self) -> GatewaySignedObservation:
-        result = await self.client.observe_read_back({"record_id": self.record["record_id"]})
+        response = await _control_response(self.control, {"command": "reference-read-back", "record_id": self.record["record_id"]})
+        wire = cast("dict[str, object]", response["observation"])
+        result = GatewaySignedObservation(cast(str, wire["schema"]), cast(str, wire["subject"]),
+            cast(int, wire["observed_at"]), cast(str, wire["media_type"]), _bytes(cast(str, wire["observation_b64"])))
         assert isinstance(result, GatewaySignedObservation), result
         assert result.subject == self.record["read_back_subject"]
         return result

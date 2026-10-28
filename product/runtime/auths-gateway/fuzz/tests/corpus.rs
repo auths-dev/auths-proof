@@ -141,6 +141,6 @@ fn frame_seeds_parse_as_their_closed_schemas() {
     for (name, data) in seeds("target_gateway_app_frame") {
         let parsed = fuzzing::app_frame_kind(&data).is_some()
             || auths_gateway::admin::parse_admin_request(&data).is_ok();
-        assert!(parsed, "{name}");
+        assert_eq!(parsed, !name.starts_with("obsolete-"), "{name}");
     }
 }

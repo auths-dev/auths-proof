@@ -434,11 +434,7 @@ impl Harness {
             .as_object()
             .expect("object")
             .clone();
-        signed_bytes(
-            self.core
-                .observe(&GatewayObserveRequest::ReadBack { arguments }, at)
-                .await,
-        )
+        signed_bytes(self.core.reference_read_back(&arguments, at).await)
     }
 
     async fn outcome(&self, operation: &str, at: u64) -> GatewayObserveResult {

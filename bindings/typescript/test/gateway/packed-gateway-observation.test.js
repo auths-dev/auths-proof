@@ -103,7 +103,10 @@ try {
     record_uri: record.read_back_subject,
   });
   const readBack = async () => {
-    const observed = await client.observeReadBack({ record_id: record.record_id });
+    // Synthetic reference evidence comes from the private test control plane.
+    const wire = (await control({ command: "reference-read-back", record_id: record.record_id })).observation;
+    const observed = { outcome: wire.outcome, schema: wire.schema, subject: wire.subject,
+      observedAt: wire.observed_at, mediaType: wire.media_type, observation: bytes(wire.observation_b64) };
     if (observed.outcome !== "signed" || observed.subject !== record.read_back_subject) {
       throw new Error("read-back refused: " + JSON.stringify(observed));
     }

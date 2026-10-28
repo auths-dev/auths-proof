@@ -328,3 +328,22 @@ writer-before-admission dependency order. Authority uses the explicit-time
 approval oracle; opaque dependency bytes exercise adapter ordering, not native
 revocation semantics. The same conformance source is authored for PostgreSQL.
 Installed authority races, process faults and performance remain required.
+
+
+## Application provider-read cutover
+
+The application `read-back` request previously had neither native proof nor
+exact approval and could make credential/account checks and a provider read.
+It is removed from production, the shared application frame, CLI and SDKs.
+The existing native recovery engine now also serves a closed application frame
+with separate proof/action/approval. It preserves source/read distinctions and
+returns only the already-defined redacted report. The same bounded decoder and
+engine serve operator and application callers; no second decision owner exists.
+
+`application-recovery-frame.json` constructs real Unix socket decoder/dispatch
+histories with a counting refusal oracle, including obsolete schemas, omitted
+or malformed approvals, invalid source IDs and transport substitution.
+`application-recovery-cli.json` captures the production CLI's exact request and
+response over a real socket. These are transport artifacts, not installed proof,
+provider, disclosure or end-to-end acceptance evidence. The independent old
+observation evaluator remains confined to test-only reference/control paths.

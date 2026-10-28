@@ -657,13 +657,10 @@ mod unix {
         },
         /// Ask the app socket for one signed observation, or for one
         /// operation's stored pre-entry observations; never a write.
-        #[command(group(clap::ArgGroup::new("request").required(true).args(["read_back", "outcome", "pre_entry"])))]
+        #[command(group(clap::ArgGroup::new("request").required(true).args(["outcome", "pre_entry"])))]
         Observe {
             #[arg(long)]
             app_socket: PathBuf,
-            /// JSON object naming exactly the recipe observation path fields.
-            #[arg(long)]
-            read_back: Option<String>,
             /// Logical operation ID whose stored outcome to sign.
             #[arg(long)]
             outcome: Option<String>,
@@ -671,6 +668,19 @@ mod unix {
             /// return; nothing is signed.
             #[arg(long)]
             pre_entry: Option<String>,
+        },
+        /// Acquire/refine separately approved evidence through the application socket.
+        AppRecover {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            source_operation: String,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
         },
         /// Check offline whether a provider record holds one action's echo
         /// token. Reads no network and no gateway state; exits 0 only on a
@@ -3148,19 +3158,51 @@ mod unix {
         Ok(())
     }
 
+    async fn app_recover(
+        socket: PathBuf,
+        source_operation: String,
+        proof: PathBuf,
+        action: PathBuf,
+        approval: PathBuf,
+    ) -> Result<(), Failure> {
+        let request = auths_gateway::app::AppRecovery {
+            schema: auths_gateway::app::APP_RECOVERY_SCHEMA.to_owned(),
+            source_operation,
+            submission: AppSubmission {
+                schema: APP_REQUEST_SCHEMA.to_owned(),
+                proof_b64: Base64UrlUnpadded::encode_string(&read_bounded(
+                    &proof,
+                    4 * 1024 * 1024,
+                )?),
+                action_b64: Base64UrlUnpadded::encode_string(&read_bounded(&action, 64 * 1024)?),
+                approval_b64: Base64UrlUnpadded::encode_string(&read_bounded(
+                    &approval,
+                    auths_gateway::effect::MAX_EFFECT_APPROVAL_BYTES,
+                )?),
+            },
+        };
+        request.decode()?;
+        let bytes = serde_json::to_vec(&request).map_err(|_| "gateway.submit.encoding-failed")?;
+        let mut stream = connect_app_socket(&socket, "gateway.submit.socket-unavailable").await?;
+        write_frame(&mut stream, &bytes).await?;
+        let response = read_frame(&mut stream).await?;
+        let result: serde_json::Value =
+            serde_json::from_slice(&response).map_err(|_| "gateway.submit.invalid-response")?;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.submit.invalid-response")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
-        read_back: Option<String>,
         outcome: Option<String>,
         pre_entry: Option<String>,
     ) -> Result<(), Failure> {
-        let request = match (read_back, outcome, pre_entry) {
-            (Some(arguments), None, None) => GatewayObserveRequest::ReadBack {
-                arguments: serde_json::from_str(&arguments)
-                    .map_err(|_| "gateway.observe.invalid-arguments")?,
-            },
-            (None, Some(operation_id), None) => GatewayObserveRequest::Outcome { operation_id },
-            (None, None, Some(operation_id)) => GatewayObserveRequest::PreEntry { operation_id },
+        let request = match (outcome, pre_entry) {
+            (Some(operation_id), None) => GatewayObserveRequest::Outcome { operation_id },
+            (None, Some(operation_id)) => GatewayObserveRequest::PreEntry { operation_id },
             _ => return Err("gateway.observe.invalid-request".into()),
         };
         let bytes = serde_json::to_vec(&AppObservation {
@@ -4331,12 +4373,18 @@ mod unix {
             }
             Command::ObserverInit { state_dir } => observer_init(&state_dir),
             Command::ObserverShow { state_dir } => observer_show(&state_dir),
+            Command::AppRecover {
+                app_socket,
+                source_operation,
+                proof,
+                action,
+                approval,
+            } => app_recover(app_socket, source_operation, proof, action, approval).await,
             Command::Observe {
                 app_socket,
-                read_back,
                 outcome,
                 pre_entry,
-            } => observe(app_socket, read_back, outcome, pre_entry).await,
+            } => observe(app_socket, outcome, pre_entry).await,
             Command::EchoVerify {
                 record,
                 pointer,

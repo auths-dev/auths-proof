@@ -920,6 +920,7 @@ impl Harness {
 
     /// Runs the engine's submission driver at `now`. A replay never writes
     /// again.
+    #[cfg(test)]
     pub(crate) async fn submit(
         &self,
         proof: &[u8],
@@ -954,9 +955,7 @@ impl Harness {
         .await
     }
 
-    /// Mirrors the engine's observation request at `now`: a read-back leases
-    /// the credential for one read-only GET; an outcome or the pre-entry
-    /// observations read only the store.
+    /// Mirrors the engine's local history projection at `now`.
     pub(crate) async fn observe(
         &self,
         request: &GatewayObserveRequest,
@@ -976,16 +975,22 @@ impl Harness {
             GatewayObserveRequest::PreEntry { operation_id } => {
                 observe_pre_entry(&self.store, self.recipe.namespace(), operation_id).await
             }
-            GatewayObserveRequest::ReadBack { arguments } => {
-                let Ok(target) = self.recipe.read_back_target(arguments) else {
-                    return GatewayObserveResult::Refused {
-                        code: "gateway.observer.invalid-read-back".to_owned(),
-                    };
-                };
-                self.provider.leases.fetch_add(1, Ordering::SeqCst);
-                observe_read_back(&target, &self.observer, &self.provider, || Some(now)).await
-            }
         }
+    }
+
+    /// Synthetic provider reference, never an application-socket operation.
+    pub(crate) async fn reference_read_back(
+        &self,
+        arguments: &Map<String, Value>,
+        now: u64,
+    ) -> GatewayObserveResult {
+        let Ok(target) = self.recipe.read_back_target(arguments) else {
+            return GatewayObserveResult::Refused {
+                code: "gateway.observer.invalid-read-back".to_owned(),
+            };
+        };
+        self.provider.leases.fetch_add(1, Ordering::SeqCst);
+        observe_read_back(&target, &self.observer, &self.provider, || Some(now)).await
     }
 }
 
@@ -1051,9 +1056,18 @@ mod process {
     #[derive(Deserialize)]
     #[serde(tag = "command", rename_all = "kebab-case", deny_unknown_fields)]
     enum Control {
-        SetRecord { record_id: String, status: String },
-        AdvanceClock { seconds: u64 },
+        SetRecord {
+            record_id: String,
+            status: String,
+        },
+        AdvanceClock {
+            seconds: u64,
+        },
         Counts,
+        /// Synthetic reference only, isolated from the application protocol.
+        ReferenceReadBack {
+            record_id: String,
+        },
     }
 
     #[derive(Serialize)]
@@ -1063,6 +1077,8 @@ mod process {
         writes: usize,
         reads: usize,
         leases: usize,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        observation: Option<GatewayObserveResult>,
     }
 
     struct Application {
@@ -1087,6 +1103,22 @@ mod process {
                 .await
         }
 
+        async fn recover(
+            &self,
+            _source: &str,
+            _proof: &[u8],
+            _action: &[u8],
+            _approval: crate::effect::ExactEffectApproval,
+        ) -> crate::app::AppRecoveryResult {
+            // This synthetic driver has no installed recovery authority. The
+            // production engine owns that path; never use a raw-read fallback.
+            crate::app::AppRecoveryResult::Refused {
+                result: GatewaySubmitResult::NotEntered {
+                    code: "gateway.acquisition.binding".to_owned(),
+                },
+            }
+        }
+
         async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
             self.harness
                 .observe(request, self.clock.load(Ordering::SeqCst))
@@ -1104,7 +1136,8 @@ mod process {
             }
         }
 
-        fn control(&self, bytes: &[u8]) -> ControlResponse {
+        async fn control(&self, bytes: &[u8]) -> ControlResponse {
+            let mut observation = None;
             let ok = match serde_json::from_slice::<Control>(bytes) {
                 Ok(Control::SetRecord { record_id, status }) => {
                     matches!(status.as_str(), "Approved" | "Pending")
@@ -1120,6 +1153,18 @@ mod process {
                             .is_ok()
                 }
                 Ok(Control::Counts) => true,
+                Ok(Control::ReferenceReadBack { record_id }) => {
+                    let arguments = serde_json::Map::from_iter([(
+                        "record_id".to_owned(),
+                        serde_json::Value::String(record_id),
+                    )]);
+                    observation = Some(
+                        self.harness
+                            .reference_read_back(&arguments, self.clock.load(Ordering::SeqCst))
+                            .await,
+                    );
+                    true
+                }
                 Err(_) => false,
             };
             let counts = self.counts();
@@ -1129,13 +1174,14 @@ mod process {
                 writes: counts.writes,
                 reads: counts.reads,
                 leases: counts.leases,
+                observation,
             }
         }
     }
 
     async fn control_session(mut stream: UnixStream, application: &Application) {
         if let Ok(bytes) = read_frame(&mut stream).await
-            && let Ok(response) = serde_json::to_vec(&application.control(&bytes))
+            && let Ok(response) = serde_json::to_vec(&application.control(&bytes).await)
         {
             let _ = write_frame(&mut stream, &response).await;
         }

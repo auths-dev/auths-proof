@@ -107,6 +107,15 @@ available to the agent may bypass these gates or substitute caller-controlled
 transport bytes. An operator commissioning path must satisfy the same effect
 binding, approval and entry protocol in addition to its commissioning authority.
 
+The application protocol `auths.gateway-observe/3` accepts only local outcome
+and pre-entry history queries. Obsolete observation schemas and the unapproved
+`read-back` request are rejected. `auths.gateway-recover/1` supplies a source
+operation and the bounded `auths.gateway-submit/2` proof/action/approval envelope
+for an independently authorized recovery read. It invokes the same native
+engine and returns only a redacted recovery report or native refusal. Neither
+route authorizes disclosure of acquired provider content. The former raw read
+helper is a test-only reference on the private synthetic harness control plane.
+
 State the deployment threat model: an untrusted agent process is outside the
 credential, private review, journal and operator boundaries. The trusted host,
 gateway operator, custody service and configured transport enforce those

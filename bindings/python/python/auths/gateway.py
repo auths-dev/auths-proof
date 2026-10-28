@@ -22,22 +22,18 @@ from pathlib import Path
 from typing import Final, Literal, Mapping, Optional, Union, cast
 
 _REQUEST_SCHEMA = "auths.gateway-submit/2"
-_OBSERVE_SCHEMA = "auths.gateway-observe/2"
-_READ_BACK_SCHEMA: Final = "auths.gateway-readback/1"
+_OBSERVE_SCHEMA = "auths.gateway-observe/3"
 _OUTCOME_SCHEMA: Final = "auths.gateway-outcome/2"
 _OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 _MAX_OBSERVATION_BYTES = 4_096
 _MAX_PRE_ENTRY_OBSERVATIONS = 4
 _MAX_SUBJECT_BYTES = 1_024
-_MAX_READ_BACK_ARGUMENTS = 16
-_MAX_ARGUMENT_BYTES = 128
 _MAX_PROOF_BYTES = 4 * 1024 * 1024
 _MAX_ACTION_BYTES = 64 * 1024
 # Room for four maximal pre-entry observations in one base64url response.
 _MAX_RESPONSE_BYTES = 32 * 1024
 _ECHO = re.compile(r"auths-e1-[0-9a-f]{64}")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
-_FIELD_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 _OPERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]*")
 _MAX_U64 = 2**64 - 1
@@ -425,30 +421,24 @@ def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryRes
     )
 
 
-def _read_back_request(arguments: Mapping[str, str]) -> dict[str, object]:
-    if not isinstance(arguments, Mapping) or not (
-        1 <= len(arguments) <= _MAX_READ_BACK_ARGUMENTS
-    ):
-        raise ValueError("read-back arguments must be a bounded mapping")
-    checked: dict[str, str] = {}
-    for name, value in cast(Mapping[object, object], arguments).items():
-        if not isinstance(name, str) or _FIELD_NAME.fullmatch(name) is None:
-            raise ValueError("read-back argument names must be recipe field names")
-        if (
-            not isinstance(value, str)
-            or "\x00" in value
-            or not 1
-            <= len(value.encode("utf-8", "surrogatepass"))
-            <= _MAX_ARGUMENT_BYTES
-        ):
-            raise ValueError("read-back argument values must be bounded strings")
-        checked[name] = value
-    return {"kind": "read-back", "arguments": checked}
+def _submission(proof: bytes, action: bytes, approval: bytes) -> dict[str, str]:
+    if not isinstance(proof, bytes) or not 1 <= len(proof) <= _MAX_PROOF_BYTES:
+        raise ValueError("proof must be bounded bytes")
+    if not isinstance(action, bytes) or not 1 <= len(action) <= _MAX_ACTION_BYTES:
+        raise ValueError("action must be bounded bytes")
+    if not isinstance(approval, bytes) or not 1 <= len(approval) <= 4096:
+        raise ValueError("approval must be bounded native canonical bytes")
+    return {
+        "schema": _REQUEST_SCHEMA,
+        "proof_b64": _encode_base64url(proof),
+        "action_b64": _encode_base64url(action),
+        "approval_b64": _encode_base64url(approval),
+    }
 
 
 class GatewayClient:
-    """Submit canonical proof, action and exact approval bytes over the local app socket,
-    or request one read-only gateway-signed observation."""
+    """Submit exact approved effects, acquire approved recovery evidence, or
+    inspect retained local history over the application socket."""
 
     def __init__(self, endpoint: GatewayEndpoint) -> None:
         if not isinstance(endpoint, GatewayEndpoint):
@@ -461,20 +451,8 @@ class GatewayClient:
         An IPC failure is not a retry signal: the gateway may have entered the
         provider before the client lost its response.
         """
-        if not isinstance(proof, bytes) or not 1 <= len(proof) <= _MAX_PROOF_BYTES:
-            raise ValueError("proof must be bounded bytes")
-        if not isinstance(action, bytes) or not 1 <= len(action) <= _MAX_ACTION_BYTES:
-            raise ValueError("action must be bounded bytes")
-        if not isinstance(approval, bytes) or not 1 <= len(approval) <= 4096:
-            raise ValueError("approval must be bounded native canonical bytes")
         payload = json.dumps(
-            {
-                "schema": _REQUEST_SCHEMA,
-                "proof_b64": _encode_base64url(proof),
-                "action_b64": _encode_base64url(action),
-                "approval_b64": _encode_base64url(approval),
-            },
-            separators=(",", ":"),
+            _submission(proof, action, approval), separators=(",", ":")
         ).encode("utf-8")
         return _parse_result(
             await self._exchange(
@@ -482,21 +460,31 @@ class GatewayClient:
             )
         )
 
-    async def observe_read_back(
-        self, arguments: Mapping[str, str]
-    ) -> GatewayObserveResult:
-        """Ask the gateway to read the recipe's observed field now and sign it.
+    async def recover(
+        self, source_operation: str, *, proof: bytes, action: bytes, approval: bytes
+    ) -> bytes:
+        """Return the bounded native recovery-report/refusal JSON unchanged.
 
-        ``arguments`` names exactly the recipe observation path's fields (for
-        example ``{"record_id": "rec..."}``); the gateway derives the URL,
-        subject, and time itself. The application learns the observed value.
-
-        Raises ``ValueError`` for unbounded or non-string arguments and
-        ``GatewayProtocolError`` when the socket or bounded response is
-        unavailable or malformed. A refusal is a result, not an exception.
+        The read requires its own native proof/action and exact approval. The
+        report separates mutation and acquisition facts and contains no provider
+        content. A lost reply never authorizes a retry or another provider call.
         """
-        request = _read_back_request(arguments)
-        return await self._observe(request, _READ_BACK_SCHEMA)
+        if (
+            not isinstance(source_operation, str)
+            or _OPERATION_ID.fullmatch(source_operation) is None
+        ):
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        payload = json.dumps(
+            {
+                "schema": "auths.gateway-recover/1",
+                "source_operation": source_operation,
+                "submission": _submission(proof, action, approval),
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return await self._exchange(
+            payload, "gateway recovery exchange unavailable; outcome may be unknown"
+        )
 
     async def observe_outcome(self, operation_id: str) -> GatewayObserveResult:
         """Ask the gateway to sign the stored outcome of one logical operation.

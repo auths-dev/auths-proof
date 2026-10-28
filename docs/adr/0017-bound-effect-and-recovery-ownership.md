@@ -556,3 +556,23 @@ than reused from the earlier candidate evaluation.
 histories with an explicit-time approval oracle. It does not establish installed
 native revocation, PostgreSQL execution or process fault qualification. The same
 adapter conformance source is available for the hosted PostgreSQL fixture.
+
+
+## Application recovery cutover
+
+The application observation socket must not turn caller-supplied recipe path
+arguments into unapproved credential-bearing reads. Remove its `read-back`
+request and CLI/SDK convenience methods directly. `observe` retains only local
+outcome and pre-entry history projections. A new closed application recovery
+frame supplies the source operation and the existing bounded native
+proof/action/exact-approval envelope; it calls the same engine recovery method
+as the operator interface and returns only the native redacted recovery report
+or native refusal. It cannot supply a URL, request body, credential or time.
+No provider body or newly signed provider value is disclosed by this route.
+
+The old observation evaluator remains a test-only reference, reachable only
+through direct tests and the private synthetic harness control plane. It is
+removed from the shared application protocol even in harness builds. General
+acquisition/disclosure and the installed approval journey remain separate
+unfinished requirements; this cutover must not present a report as disclosure
+or a provider response as a successful mutation.

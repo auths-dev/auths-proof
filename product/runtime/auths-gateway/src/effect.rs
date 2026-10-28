@@ -186,7 +186,7 @@ impl EffectPolicy {
 /// Post-verification driver oracle only. It deliberately does not establish
 /// installed native authority, isolation or a real human review. Production
 /// builds cannot construct this fixture or select it through an app request.
-#[cfg(any(test, feature = "testkit-harness"))]
+#[cfg(test)]
 pub(crate) fn approve_driver_fixture(
     command: VerifiedCommand,
     recipe_digest: [u8; 32],
@@ -334,7 +334,7 @@ pub(crate) fn store_binding_fixture(
 }
 
 /// Signs synthetic store oracle data with the fixed test-only approver.
-#[cfg(any(test, feature = "testkit-harness"))]
+#[cfg(test)]
 pub(crate) fn approval_fixture(
     binding: &EffectBinding,
     now: u64,

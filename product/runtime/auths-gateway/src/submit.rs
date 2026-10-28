@@ -14,9 +14,9 @@ use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
 use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES};
 use crate::store::BoundedClaim;
-use crate::transport::{
-    GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
-};
+#[cfg(test)]
+use crate::transport::ProviderPort;
+use crate::transport::{GatewayTransportError, ProviderResponse, WriteTransportOutcome};
 use crate::{
     ClaimedGatewayAttempt, CompiledRecipe, GatewayAttemptError, GatewayAttempts, GatewayObserver,
     GatewayPreEntry, GatewayRelativeBasis,
@@ -846,6 +846,7 @@ fn unavailable_state() -> GatewaySubmitResult {
 /// The lease-time credential checks of a read outside a submission (an
 /// observation request): the prefix guard, the account read, and each
 /// denied read in declaration order, stopping at the first failure.
+#[cfg(test)]
 pub(crate) async fn lease_checks<P: ProviderPort>(
     recipe: &CompiledRecipe,
     provider: &P,

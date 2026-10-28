@@ -37,13 +37,15 @@ print(result.outcome)
 
 There is no Auths application token, remote executor URL, or provider
 credential in application code. The gateway endpoint is an
-operator-provisioned local socket. Every result is one closed dataclass:
+operator-provisioned local socket. Every mutation result is one closed dataclass:
 `GatewayDenied`, `GatewayIndeterminate`, `GatewayNotEntered`,
 `GatewayUnknown`, `GatewayResponseRecorded`, `GatewayObserved`, or
-`GatewayObservedByProvider`. The gateway can also sign a read-only observation
-of a provider field (`observe_read_back`), of an operation's stored outcome
-(`observe_outcome`), or return the pre-entry observations it stored for an
-operation (`observe_pre_entry`).
+`GatewayObservedByProvider`. The gateway also signs local stored outcomes (`observe_outcome`) and returns
+stored pre-entry observations (`observe_pre_entry`). Independently approved
+provider recovery uses `recover(source_operation, proof=..., action=...,
+approval=...)`, returning bounded native recovery-report/refusal JSON bytes.
+It returns no provider content or disclosure acknowledgement. The former
+unapproved `observe_read_back` route is removed.
 
 The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
 runs the whole journey: a grant with limits, approvals from any two of three

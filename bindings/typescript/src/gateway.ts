@@ -8,14 +8,12 @@ import { createConnection } from "node:net";
 import { platform } from "node:os";
 
 const REQUEST_SCHEMA = "auths.gateway-submit/2";
-const OBSERVE_SCHEMA = "auths.gateway-observe/2";
+const OBSERVE_SCHEMA = "auths.gateway-observe/3";
 const READ_BACK_SCHEMA = "auths.gateway-readback/1";
 const OUTCOME_SCHEMA = "auths.gateway-outcome/2";
 const OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
 const MAX_OBSERVATION_BYTES = 4_096;
 const MAX_SUBJECT_BYTES = 1_024;
-const MAX_READ_BACK_ARGUMENTS = 16;
-const MAX_ARGUMENT_BYTES = 128;
 const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES = 64 * 1024;
 const MAX_APPROVAL_BYTES = 4_096;
@@ -29,7 +27,6 @@ const MAX_SOCKET_PATH_BYTES = SUN_PATH_BYTES - 1;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const ECHO = /^auths-e1-[0-9a-f]{64}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
-const FIELD_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const BASE64URL = /^[A-Za-z0-9_-]*$/;
 
@@ -336,25 +333,18 @@ function parsePreEntryResult(bytes: Uint8Array, operationId: string): GatewayPre
   };
 }
 
-function readBackRequest(argumentsMap: Readonly<Record<string, string>>): Record<string, unknown> {
-  if (typeof argumentsMap !== "object" || argumentsMap === null || Array.isArray(argumentsMap)) {
-    throw new TypeError("read-back arguments must be a bounded object");
+function submission(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Record<string, string> {
+  if (!(input.proof instanceof Uint8Array) || input.proof.length < 1 || input.proof.length > MAX_PROOF_BYTES) {
+    throw new TypeError("proof must be bounded bytes");
   }
-  const entries = Object.entries(argumentsMap as Record<string, unknown>);
-  if (entries.length < 1 || entries.length > MAX_READ_BACK_ARGUMENTS) {
-    throw new TypeError("read-back arguments must be a bounded object");
+  if (!(input.action instanceof Uint8Array) || input.action.length < 1 || input.action.length > MAX_ACTION_BYTES) {
+    throw new TypeError("action must be bounded bytes");
   }
-  const checked: Record<string, string> = {};
-  for (const [name, value] of entries) {
-    if (!FIELD_NAME.test(name)) {
-      throw new TypeError("read-back argument names must be recipe field names");
-    }
-    if (typeof value !== "string" || value.includes("\0") || value.length < 1 || utf8Length(value) > MAX_ARGUMENT_BYTES) {
-      throw new TypeError("read-back argument values must be bounded strings");
-    }
-    checked[name] = value;
+  if (!(input.approval instanceof Uint8Array) || input.approval.length < 1 || input.approval.length > MAX_APPROVAL_BYTES) {
+    throw new TypeError("approval must be bounded native canonical bytes");
   }
-  return { kind: "read-back", arguments: checked };
+  return { schema: REQUEST_SCHEMA, proof_b64: encodeBase64Url(input.proof),
+    action_b64: encodeBase64Url(input.action), approval_b64: encodeBase64Url(input.approval) };
 }
 
 function concatenate(parts: readonly Uint8Array[], total: number): Uint8Array {
@@ -368,8 +358,8 @@ function concatenate(parts: readonly Uint8Array[], total: number): Uint8Array {
 }
 
 /**
- * Submit only canonical proof and action bytes, or request one read-only signed
- * observation; no credential or raw HTTP API exists.
+ * Submit exact approved effects, acquire approved recovery evidence, or inspect
+ * retained local history. No credential or raw HTTP API exists.
  */
 export class GatewayClient {
   readonly #endpoint: GatewayEndpoint;
@@ -382,34 +372,20 @@ export class GatewayClient {
   }
 
   async submit(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<GatewayResult> {
-    if (!(input.proof instanceof Uint8Array) || input.proof.length < 1 || input.proof.length > MAX_PROOF_BYTES) {
-      throw new TypeError("proof must be bounded bytes");
-    }
-    if (!(input.action instanceof Uint8Array) || input.action.length < 1 || input.action.length > MAX_ACTION_BYTES) {
-      throw new TypeError("action must be bounded bytes");
-    }
-    if (!(input.approval instanceof Uint8Array) || input.approval.length < 1 || input.approval.length > MAX_APPROVAL_BYTES) {
-      throw new TypeError("approval must be bounded native canonical bytes");
-    }
-    const payload = new TextEncoder().encode(JSON.stringify({
-      schema: REQUEST_SCHEMA,
-      proof_b64: encodeBase64Url(input.proof),
-      action_b64: encodeBase64Url(input.action),
-      approval_b64: encodeBase64Url(input.approval),
-    }));
+    const payload = new TextEncoder().encode(JSON.stringify(submission(input)));
     return this.#exchange(payload, "outcome may be unknown", parseResult);
   }
 
-  /**
-   * Asks the gateway to read the recipe's observed field now and sign what it read.
-   * `argumentsMap` names exactly the recipe observation path's fields (for example
-   * `{ record_id: "rec..." }`); the gateway derives URL, subject, and time itself, and
-   * the application learns the observed value. Throws `TypeError` for unbounded or
-   * non-string arguments and `GatewayProtocolError` for an unavailable or malformed
-   * exchange; a refusal is a result, not an exception.
-   */
-  async observeReadBack(argumentsMap: Readonly<Record<string, string>>): Promise<GatewayObserveResult> {
-    return this.#observe(readBackRequest(argumentsMap), READ_BACK_SCHEMA);
+  /** Returns bounded native recovery-report/refusal JSON unchanged. The separately
+   * approved read uses native admission and accounting. No provider content is
+   * disclosed. A lost response never authorizes a retry. */
+  async recover(sourceOperation: string, input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<Uint8Array> {
+    if (typeof sourceOperation !== "string" || !OPERATION_ID.test(sourceOperation)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-recover/1",
+      source_operation: sourceOperation, submission: submission(input) }));
+    return this.#exchange(payload, "recovery outcome may be unknown", (bytes) => bytes);
   }
 
   /**

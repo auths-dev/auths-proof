@@ -671,6 +671,40 @@ closure regeneration passed after that correction (one artifact-generation test)
   authority/adapter/process faults, differential/formal/performance and final
   hosted evidence remain required.
 
+## Application recovery route checkpoint
+
+- Removed the unapproved provider `read-back` request from the production
+  engine, application protocol, CLI and Python/TypeScript client methods.
+  Observation `/3` exposes local outcome/pre-entry history only; `/2` is refused.
+  Application `auths.gateway-recover/1` carries a source operation and the same
+  bounded native proof/action/exact-approval envelope as operator recovery.
+- The application adapter calls `GatewayEngine::recover` directly. It returns
+  only the native redacted recovery report or native refusal, never provider
+  response bytes or a newly signed provider field. Existing source eligibility,
+  native verification, exact approval, capacity, fencing and refinement still
+  apply. This is not general content acquisition or recipient disclosure.
+- CLI `app-recover` and SDK `recover` methods use this frame. Thin clients return
+  bounded native JSON bytes unchanged; authored parity tests use the native
+  frame corpus. The old synthetic observation reference now lives only in
+  direct tests and the private test harness control socket, never the shared
+  application route. Maintained reference consumers and current docs reflect
+  that restricted scope. The synthetic submission harness refuses recovery
+  rather than pretending to implement installed authority.
+- Native artifact construction passed: application socket framing/dispatch and
+  production CLI/socket round trip, including the harness feature build. The
+  counting/refusal server establishes decoder, routing and exact transport
+  bytes; it does not establish installed authorization or provider execution.
+  Retired submit/admin/read-back fuzz seeds are explicit rejection cases, with
+  current submit/recovery seeds generated from the native envelope.
+- Test-only raw claim/approval helpers no longer compile into the standalone
+  harness when unused. Final source closure is regenerated with this slice.
+  No broad local suite, language suite or hosted CI was run/observed, and no
+  A01–A22 acceptance gate closes.
+- Remaining: onboarding/rotation reads and recovery ancillary reads, safe
+  credential replacement, managed read-policy limits, general acquisition and
+  controlled disclosure/ACK, Python-owner removal, authenticated UI/bindings,
+  and complete installed/process/PostgreSQL/fault/formal/performance/CI evidence.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -678,7 +712,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery and prerequisite acquisition routes wired | Application/onboarding read cutovers, disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes wired | Onboarding/rotation and ancillary reads, general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

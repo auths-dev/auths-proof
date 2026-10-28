@@ -2273,7 +2273,7 @@ impl GatewayAttempts {
     }
 
     /// Reference-store oracle only; production admission requires ApprovedEffect.
-    #[cfg(any(test, feature = "testkit-harness"))]
+    #[cfg(test)]
     pub(crate) async fn claim(
         &self,
         request: &ClosedProviderRequest,
@@ -2289,7 +2289,7 @@ impl GatewayAttempts {
             .await
     }
 
-    #[cfg(any(test, feature = "testkit-harness"))]
+    #[cfg(test)]
     async fn claim_binding(
         &self,
         request: &ClosedProviderRequest,
