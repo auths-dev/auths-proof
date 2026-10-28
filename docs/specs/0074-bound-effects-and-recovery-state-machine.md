@@ -668,6 +668,15 @@ optional input to future managed Google capability/differential extraction. The
 existing broker and corpus are preserved; native Google metadata, token refresh
 and Python journal migration are deferred rather than AP074 exit gates.
 
+`content-process-capacity.json` adds a real two-daemon file-store history with
+separate joined local custody. After fifteen source acquisitions, two new exact
+approved reads contend for the final lifetime allocation. One grant/request wins;
+the other native record is not-entered for exhaustion with no new charge. Sixteen
+grant audits, allocations, provider calls and full response ceilings are retained.
+Restart/replay changes neither journal bytes nor provider count. This is finite
+source-lifetime count/byte evidence, not fixed-window count/sum or PostgreSQL
+conformance; those acceptance requirements remain open.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

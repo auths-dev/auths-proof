@@ -211,11 +211,15 @@ impl Drop for Provider {
 struct Daemon(Child);
 impl Daemon {
     fn start(state: &Path, socket: &Path, port: u16) -> Self {
+        Self::start_at_admin(state, socket, &state.join("admin.sock"), port)
+    }
+    fn start_at_admin(state: &Path, socket: &Path, admin: &Path, port: u16) -> Self {
         let child = command(
             "serve",
             &[
                 ("--state-dir", path(state)),
                 ("--app-socket", path(socket)),
+                ("--admin-socket", path(admin)),
                 ("--loopback-provider", &port.to_string()),
             ],
             &[],
@@ -1197,4 +1201,347 @@ fn native_read_only_process_journey_fixture_is_current() {
         std::fs::write(&output, &artifact).expect("write");
     }
     assert_eq!(std::fs::read(output).expect("fixture"), artifact);
+}
+
+struct ReadOnlyInstallation {
+    _directory: tempfile::TempDir,
+    root: PathBuf,
+    state: PathBuf,
+    now: u64,
+    reviewer: SigningKey,
+}
+impl ReadOnlyInstallation {
+    fn create() -> Self {
+        let fixtures =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bindings/fixtures/gateway");
+        let source = std::fs::read(fixtures.join("content-only/recipe.json")).expect("source");
+        let lock = std::fs::read(fixtures.join("content-only/profile.lock.json")).expect("lock");
+        let recipe = CompiledRecipe::compile(&source, &lock).expect("recipe");
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_secs();
+        let tools = [CONTENT_READ_TOOL, DISCLOSURE_TOOL].map(|tool| {
+            McpToolCall::new(recipe.review().service(), tool, serde_json::Map::new()).expect("tool")
+        });
+        let trust = tools_context(&tools, now).expect("trust");
+        let reviewer = SigningKey::from_bytes(&[29; 32]);
+        let policy = EffectPolicy::new(
+            "process-capacity".to_owned(),
+            1,
+            reviewer.verifying_key().to_bytes(),
+        )
+        .expect("policy");
+        let directory = tempfile::Builder::new()
+            .prefix("ap74-cap-")
+            .tempdir_in("/tmp")
+            .expect("directory");
+        let root = std::fs::canonicalize(directory.path()).expect("canonical");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).expect("mode");
+        let state = root.join("state");
+        for (name, bytes) in [
+            ("recipe", source),
+            ("lock", lock),
+            ("trust", trust),
+            (
+                "policy",
+                policy.to_private_bytes().expect("policy").to_vec(),
+            ),
+        ] {
+            private(&root.join(name), &bytes);
+        }
+        success(cli(
+            "install",
+            &[
+                ("--state-dir", path(&state)),
+                ("--recipe", path(&root.join("recipe"))),
+                ("--profile-lock", path(&root.join("lock"))),
+                ("--trusted-context", path(&root.join("trust"))),
+                ("--effect-policy", path(&root.join("policy"))),
+                ("--approve-digest", &recipe.digest_hex()),
+                ("--provider", "airtable"),
+                ("--alias", "capacity"),
+                ("--account-label", "public-capacity-fixture"),
+            ],
+            &["--credential-stdin"],
+            Some(SECRET),
+        ));
+        private(
+            &root.join("resource.json"),
+            &serde_json::to_vec(&json!({"record_id":RECORD})).expect("resource"),
+        );
+        Self {
+            _directory: directory,
+            root,
+            state,
+            now,
+            reviewer,
+        }
+    }
+    fn join_peer(&self) -> PathBuf {
+        let peer = self.root.join("peer");
+        let recipe = CompiledRecipe::compile(
+            &std::fs::read(self.root.join("recipe")).expect("recipe"),
+            &std::fs::read(self.root.join("lock")).expect("lock"),
+        )
+        .expect("recipe");
+        success(cli(
+            "install",
+            &[
+                ("--state-dir", path(&peer)),
+                ("--attempt-store", path(&self.state.join("attempts"))),
+                ("--recipe", path(&self.root.join("recipe"))),
+                ("--profile-lock", path(&self.root.join("lock"))),
+                ("--trusted-context", path(&self.root.join("trust"))),
+                ("--effect-policy", path(&self.root.join("policy"))),
+                ("--approve-digest", &recipe.digest_hex()),
+                ("--provider", "airtable"),
+                ("--alias", "capacity"),
+            ],
+            &["--join", "--credential-stdin"],
+            Some(SECRET),
+        ));
+        peer
+    }
+    fn approve_read(&self, operation: &str) -> Approved {
+        let call = self.root.join(format!("{operation}.call"));
+        success(cli(
+            "effect-content-call",
+            &[
+                ("--state-dir", path(&self.state)),
+                (
+                    "--resource-arguments",
+                    path(&self.root.join("resource.json")),
+                ),
+                ("--operation", operation),
+                ("--call-out", path(&call)),
+            ],
+            &[],
+            None,
+        ));
+        approve(
+            &self.state,
+            &call_file(&call),
+            operation,
+            self.now,
+            &self.reviewer,
+            &[],
+            &["--content"],
+        )
+    }
+}
+
+fn private_capacity_records(state: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+    std::fs::read_dir(state.join("attempts"))
+        .expect("journal directory")
+        .map(|entry| entry.expect("journal entry").path())
+        .filter(|path| {
+            path.file_name().is_some_and(|name| {
+                let name = name.to_string_lossy();
+                name.ends_with(".json")
+                    && (name.starts_with("claim-") || name.starts_with("allocation-"))
+            })
+        })
+        .map(|path| {
+            (
+                path.file_name()
+                    .expect("name")
+                    .to_string_lossy()
+                    .into_owned(),
+                std::fs::read(path).expect("private journal"),
+            )
+        })
+        .collect()
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one real two-daemon allocation, replay and restart history"
+)]
+fn native_content_process_capacity_fixture_is_current() {
+    let installation = ReadOnlyInstallation::create();
+    let root = &installation.root;
+    let provider = Provider::start();
+    let left_socket = root.join("left.sock");
+    let right_socket = root.join("right.sock");
+    let left = Daemon::start_at_admin(
+        &installation.state,
+        &left_socket,
+        &root.join("left-admin.sock"),
+        provider.port,
+    );
+    let peer = installation.join_peer();
+    let right = Daemon::start_at_admin(
+        &peer,
+        &right_socket,
+        &root.join("right-admin.sock"),
+        provider.port,
+    );
+    assert_ne!(left.0.id(), right.0.id(), "independent gateway processes");
+    let operations: Vec<_> = (0..17).map(|index| format!("capacity-{index}")).collect();
+    let approved: Vec<_> = operations
+        .iter()
+        .map(|operation| installation.approve_read(operation))
+        .collect();
+    assert!(
+        provider.calls().is_empty(),
+        "authoring does not acquire capacity or contact provider"
+    );
+    let mut histories = Vec::new();
+    for (index, effect) in approved.iter().enumerate().take(15) {
+        let socket = if index % 2 == 0 {
+            &left_socket
+        } else {
+            &right_socket
+        };
+        let result = public(effect.execute("content-acquire", socket, &[], &[], None));
+        assert_eq!(
+            result["history"]["snapshot"]["stage"], "response-recorded",
+            "{result}"
+        );
+        histories.push(result);
+    }
+    assert_eq!(provider.calls().len(), 15);
+    let barrier = std::sync::Barrier::new(3);
+    let (a, b) = thread::scope(|scope| {
+        let first = scope.spawn(|| {
+            barrier.wait();
+            public(approved[15].execute("content-acquire", &left_socket, &[], &[], None))
+        });
+        let second = scope.spawn(|| {
+            barrier.wait();
+            public(approved[16].execute("content-acquire", &right_socket, &[], &[], None))
+        });
+        barrier.wait();
+        (
+            first.join().expect("first contender"),
+            second.join().expect("second contender"),
+        )
+    });
+    let race = [a, b];
+    assert_eq!(
+        race.iter()
+            .filter(|value| value["history"]["snapshot"]["stage"] == "response-recorded")
+            .count(),
+        1,
+        "one final allocation: {race:?}"
+    );
+    let refused = race
+        .iter()
+        .find(|value| value["history"]["snapshot"]["stage"] == "not-entered")
+        .unwrap_or_else(|| panic!("missing capacity refusal: {race:?}"))
+        .clone();
+    assert_eq!(refused["history"]["snapshot"]["reserved_calls"], 0);
+    assert_eq!(refused["history"]["snapshot"]["reserved_bytes"], 0);
+    histories.extend(race);
+    let calls: u64 = histories
+        .iter()
+        .map(|value| {
+            value["history"]["snapshot"]["reserved_calls"]
+                .as_u64()
+                .expect("calls")
+        })
+        .sum();
+    let bytes: u64 = histories
+        .iter()
+        .map(|value| {
+            value["history"]["snapshot"]["reserved_bytes"]
+                .as_u64()
+                .expect("bytes")
+        })
+        .sum();
+    assert_eq!(
+        (calls, bytes),
+        (16, 16 * 1024),
+        "lifetime count and full response ceiling conserved"
+    );
+    assert_eq!(
+        provider.calls().len(),
+        16,
+        "one external request per admitted read"
+    );
+    for (operation, expected) in operations.iter().zip(&histories) {
+        assert_eq!(
+            &history(&right_socket, operation),
+            expected,
+            "cross-process history"
+        );
+    }
+    let retained = private_capacity_records(&installation.state);
+    let claims: Vec<Value> = retained
+        .iter()
+        .filter(|(name, _)| name.starts_with("claim-"))
+        .map(|(_, bytes)| serde_json::from_slice(bytes).expect("native record"))
+        .collect();
+    assert_eq!(claims.len(), 17);
+    assert_eq!(
+        claims
+            .iter()
+            .filter(|record| !record["entry"].is_null())
+            .count(),
+        16,
+        "one durable grant per provider entry"
+    );
+    let not_entered = claims
+        .iter()
+        .find(|record| record["state"]["facts"]["phase"]["stage"] == "not-entered")
+        .expect("durable capacity refusal");
+    assert_eq!(not_entered["state"]["protocol"], "acquisition");
+    assert_eq!(
+        not_entered["state"]["facts"]["phase"]["code"],
+        "gateway.acquisition.exhausted"
+    );
+    assert!(not_entered["entry"].is_null());
+    assert!(not_entered["state"]["facts"]["allocation"].is_null());
+    assert_eq!(not_entered["state"]["facts"]["counters"], json!([]));
+    assert_eq!(
+        retained
+            .keys()
+            .filter(|name| name.starts_with("allocation-"))
+            .count(),
+        16
+    );
+    drop(left);
+    drop(right);
+    let reopened_socket = root.join("reopened.sock");
+    let reopened = Daemon::start_at_admin(
+        &installation.state,
+        &reopened_socket,
+        &root.join("reopened-admin.sock"),
+        provider.port,
+    );
+    for ((effect, operation), expected) in approved.iter().zip(&operations).zip(&histories) {
+        assert_eq!(
+            &public(effect.execute("content-acquire", &reopened_socket, &[], &[], None)),
+            expected,
+            "restart replay {operation}"
+        );
+    }
+    assert_eq!(
+        provider.calls().len(),
+        16,
+        "replays cannot allocate or refetch after restart"
+    );
+    assert_eq!(
+        private_capacity_records(&installation.state),
+        retained,
+        "replay leaves journal, grants and allocations byte-for-byte unchanged"
+    );
+    drop(reopened);
+    let artifact = serde_json::to_vec_pretty(&json!({"schema":"auths.content-process-capacity/1",
+        "scope":"two independent production daemon processes with separate joined local custody and CLI callers; real native proof/approval/fenced file adapter, counting local HTTP; source-lifetime acquisition count/response ceilings only, not managed fixed-window count/sum, PostgreSQL, distributed fencing or power loss",
+        "initial_allocations":15,"final_contenders":2,"final_grants":1,"exhausted":1,
+        "provider_calls":provider.calls().len(),"retained_calls":calls,"retained_response_bytes":bytes,
+        "all_requests_exact":provider.calls().iter().all(|line|line==&format!("GET /documents/{RECORD}?format=text%2Fplain HTTP/1.1")),
+        "restart_replay_no_refetch":true,"cross_process_history_matches":true,
+        "durable_grants":16,"permanent_allocations":16,"native_refusal_code":"gateway.acquisition.exhausted",
+        "journal_and_allocations_unchanged_after_restart_replay":true,
+        "successful_read":histories[0],"capacity_refusal":refused})).expect("artifact");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/content-process-capacity.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &artifact).expect("write artifact");
+    }
+    assert_eq!(std::fs::read(path).expect("artifact"), artifact);
 }

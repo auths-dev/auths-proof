@@ -1595,6 +1595,42 @@ closure regeneration passed after that correction (one artifact-generation test)
   This refresh does not claim a hosted pass. The CI agent is authorized to push
   the exact integrated revision non-forcibly to the existing PR branch.
 
+## Independent production-process source-capacity checkpoint
+
+- Based on pushed `6009de25`. The previous user-facing status was not new
+  implementation progress; this continuation revalidated the clean tree and
+  implemented a real cross-process capacity case rather than another in-process
+  store-instance test. AP070 remains independent and unchanged.
+- `native_content_process_capacity_fixture_is_current` starts two production
+  daemons with separate private custody, joined to one native connection and
+  shared file attempt store. Native CLI authoring, real proofs, exact review and
+  approvals prepare 17 operations for the same resource. Fifteen reads consume
+  all but the final source-lifetime allocation; two independently running gateways
+  then contend for it. Exactly one enters the counting HTTP provider.
+- The case asserts 16 actual provider calls, 16 permanent source allocations and
+  16 durable entry audits; the loser retains a NotEntered native record with
+  `gateway.acquisition.exhausted`, no entry, no allocation and no policy slots.
+  Aggregate retained capacity is 16 calls and 16,384 full-ceiling response bytes.
+  Cross-process history agrees. Killing both daemons and reopening preserves
+  byte-for-byte journal/grant/allocation data; all 17 replays add no provider I/O.
+- Initial construction mistakenly shared one local credential file between both
+  daemons, so transient custody contention could refuse a contender before the
+  admission race. The final fixture uses the supported two-host install/join
+  layout, retaining independent local custody and one shared journal. No custody
+  error was ignored or production authorization check relaxed.
+- Public acquisition snapshots currently expose NotEntered and charges but not
+  its specific refusal code. The test checks that reason in the protected native
+  journal; the missing public reason remains a projection limitation for A10.
+- Required artifact construction:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --features testkit-harness,loopback-provider --test content_journey -- --exact native_content_process_capacity_fixture_is_current`
+  passed one generator in 6.52 seconds after the retained native-record assertions
+  were added. The artifact is `bindings/fixtures/gateway/content-process-capacity.json`.
+- Scope is actual production daemon/CLI/native authority and final file fencing
+  for source-lifetime acquisition count/byte ceilings. It is not managed fixed
+  windows/count/sum, PostgreSQL, hostile UID containment, distributed filesystem
+  fencing or power-loss evidence. A04 remains partial and no A01–A22 gate closes.
+  The PostgreSQL/process/fault cases and CI batch corrections are the next work.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1616,7 +1652,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission, prerequisite and managed read charge fixtures | Full adapter concurrency and all units pending |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real two-daemon native file acquisition capacity / final source allocation, retained count/bytes and no refetch after restart executed | Fixed-window count/sum and complete PostgreSQL/process cases pending |
 | A05 | Crash at every persistence/transport boundary | Partial / real daemon/recipient crash after receipt before ACK / charged unknown and exact late ACK executed | Remaining persistence/send boundaries and PostgreSQL |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
