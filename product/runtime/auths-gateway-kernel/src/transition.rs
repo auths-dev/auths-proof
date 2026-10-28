@@ -21,6 +21,8 @@ pub enum Protocol {
     Mutation,
     /// A bounded acquisition records a response, never mutation success.
     Acquisition,
+    /// Recipient delivery records authenticated acknowledgement, never a provider response.
+    Disclosure,
 }
 
 /// The stage of an attempt record.
@@ -40,6 +42,8 @@ pub enum Stage {
     Observed,
     /// A read-back found this action's token and value; terminal.
     ObservedByProvider,
+    /// The exact recipient acknowledged this delivery; terminal.
+    Acknowledged,
 }
 
 /// The read-back comparison recorded with an `observed` stage.
@@ -85,6 +89,9 @@ pub struct AttemptView {
     pub pre_entry: Vec<u8>,
     /// Canonical bytes of the response status and digest; empty when absent.
     pub response: Vec<u8>,
+    /// Canonical authenticated recipient evidence; empty until acknowledged.
+    /// The runtime verifies its binding and signature before projecting it here.
+    pub acknowledgement: Vec<u8>,
     /// Canonical bytes of the response locator; empty when absent.
     pub locator: Vec<u8>,
     /// The recorded comparison.
@@ -159,7 +166,8 @@ pub const fn refusal_stage(stage: Stage) -> bool {
         | Stage::Unknown
         | Stage::ResponseRecorded
         | Stage::Observed
-        | Stage::ObservedByProvider => false,
+        | Stage::ObservedByProvider
+        | Stage::Acknowledged => false,
     }
 }
 
@@ -172,7 +180,8 @@ pub const fn requires_response(stage: Stage) -> bool {
         | Stage::EntryGranted
         | Stage::NotEntered
         | Stage::Unknown
-        | Stage::ObservedByProvider => false,
+        | Stage::ObservedByProvider
+        | Stage::Acknowledged => false,
     }
 }
 
@@ -181,7 +190,11 @@ pub const fn requires_response(stage: Stage) -> bool {
 pub const fn permits_response(stage: Stage) -> bool {
     match stage {
         Stage::ResponseRecorded | Stage::Observed | Stage::ObservedByProvider => true,
-        Stage::Reserved | Stage::EntryGranted | Stage::NotEntered | Stage::Unknown => false,
+        Stage::Reserved
+        | Stage::EntryGranted
+        | Stage::NotEntered
+        | Stage::Unknown
+        | Stage::Acknowledged => false,
     }
 }
 
@@ -195,7 +208,8 @@ pub const fn observed_stage(stage: Stage) -> bool {
         | Stage::NotEntered
         | Stage::Unknown
         | Stage::ResponseRecorded
-        | Stage::ObservedByProvider => false,
+        | Stage::ObservedByProvider
+        | Stage::Acknowledged => false,
     }
 }
 
@@ -209,7 +223,8 @@ pub const fn provider_stage(stage: Stage) -> bool {
         | Stage::NotEntered
         | Stage::Unknown
         | Stage::ResponseRecorded
-        | Stage::Observed => false,
+        | Stage::Observed
+        | Stage::Acknowledged => false,
     }
 }
 
@@ -217,7 +232,9 @@ pub const fn provider_stage(stage: Stage) -> bool {
 #[must_use]
 pub const fn terminal_stage(stage: Stage) -> bool {
     match stage {
-        Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider => true,
+        Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider | Stage::Acknowledged => {
+            true
+        }
         Stage::Reserved | Stage::EntryGranted | Stage::Unknown | Stage::ResponseRecorded => false,
     }
 }
@@ -244,6 +261,7 @@ pub fn consistent(view: &AttemptView) -> bool {
         && view.revision > 0
         && view.revision <= 9_007_199_254_740_991
         && requires_entry(view.stage) == !absent(&view.entry)
+        && acknowledgement_stage(view.stage) == !absent(&view.acknowledgement)
         && refusal_stage(view.stage) == view.refusal
         && (!requires_response(view.stage) || has_response)
         && (!has_response || permits_response(view.stage))
@@ -255,11 +273,18 @@ pub fn consistent(view: &AttemptView) -> bool {
         && (!view.evidence || has_response || resolves_unknown(view.link))
 }
 
-/// Acquisition cannot carry mutation observations, locators or pre-entry reads.
+/// Whether a stage requires authenticated recipient evidence.
+#[must_use]
+pub const fn acknowledgement_stage(stage: Stage) -> bool {
+    matches!(stage, Stage::Acknowledged)
+}
+
+/// Acquisition and disclosure cannot acquire each other's evidence or mutation
+/// observations. A common stage does not make their external boundaries equal.
 #[must_use]
 pub fn protocol_consistent(view: &AttemptView) -> bool {
     match view.protocol {
-        Protocol::Mutation => true,
+        Protocol::Mutation => !acknowledgement_stage(view.stage) && absent(&view.acknowledgement),
         Protocol::Acquisition => {
             matches!(
                 view.stage,
@@ -268,7 +293,24 @@ pub fn protocol_consistent(view: &AttemptView) -> bool {
                     | Stage::NotEntered
                     | Stage::Unknown
                     | Stage::ResponseRecorded
-            ) && absent(&view.pre_entry)
+            ) && absent(&view.acknowledgement)
+                && absent(&view.pre_entry)
+                && absent(&view.locator)
+                && !view.observation
+                && !view.evidence
+                && matches!(view.reading, Reading::None)
+                && matches!(view.link, Link::None)
+        }
+        Protocol::Disclosure => {
+            matches!(
+                view.stage,
+                Stage::Reserved
+                    | Stage::EntryGranted
+                    | Stage::NotEntered
+                    | Stage::Unknown
+                    | Stage::Acknowledged
+            ) && absent(&view.response)
+                && absent(&view.pre_entry)
                 && absent(&view.locator)
                 && !view.observation
                 && !view.evidence
@@ -283,7 +325,9 @@ pub fn protocol_consistent(view: &AttemptView) -> bool {
 pub const fn same_protocol(left: Protocol, right: Protocol) -> bool {
     matches!(
         (left, right),
-        (Protocol::Mutation, Protocol::Mutation) | (Protocol::Acquisition, Protocol::Acquisition)
+        (Protocol::Mutation, Protocol::Mutation)
+            | (Protocol::Acquisition, Protocol::Acquisition)
+            | (Protocol::Disclosure, Protocol::Disclosure)
     )
 }
 
@@ -296,12 +340,14 @@ pub const fn requires_entry(stage: Stage) -> bool {
         | Stage::Unknown
         | Stage::ResponseRecorded
         | Stage::Observed
-        | Stage::ObservedByProvider => true,
+        | Stage::ObservedByProvider
+        | Stage::Acknowledged => true,
     }
 }
 
 /// The one transition table: a reservation cannot acquire response evidence
-/// or become unknown until it has received a durable entry grant.
+/// or become unknown until it has received a durable entry grant. Protocol
+/// consistency separately confines ACKs to disclosure and responses to providers.
 #[must_use]
 pub const fn stage_transition_allowed(from: Stage, to: Stage, link: Link) -> bool {
     match from {
@@ -310,17 +356,19 @@ pub const fn stage_transition_allowed(from: Stage, to: Stage, link: Link) -> boo
             Stage::Reserved | Stage::NotEntered | Stage::EntryGranted
         ),
         Stage::EntryGranted => match to {
-            Stage::Unknown | Stage::ResponseRecorded => true,
+            Stage::Unknown | Stage::ResponseRecorded | Stage::Acknowledged => true,
             Stage::ObservedByProvider => resolves_unknown(link),
             _ => false,
         },
         Stage::Unknown => match to {
-            Stage::ResponseRecorded => true,
+            Stage::ResponseRecorded | Stage::Acknowledged => true,
             Stage::ObservedByProvider => resolves_unknown(link),
             _ => false,
         },
         Stage::ResponseRecorded => matches!(to, Stage::Observed | Stage::ObservedByProvider),
-        Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider => false,
+        Stage::NotEntered | Stage::Observed | Stage::ObservedByProvider | Stage::Acknowledged => {
+            false
+        }
     }
 }
 
@@ -375,6 +423,31 @@ pub fn response_kept(old: &AttemptView, new: &AttemptView) -> bool {
         || (same_bytes(&old.response, &new.response) && same_bytes(&old.locator, &new.locator))
 }
 
+/// Authenticated ACK bytes may be added only after a grant, including late
+/// evidence for an unknown delivery. They can never be replaced or removed.
+#[must_use]
+pub fn acknowledgement_kept(old: &AttemptView, new: &AttemptView) -> bool {
+    if matches!(old.stage, Stage::EntryGranted | Stage::Unknown) && acknowledgement_stage(new.stage)
+    {
+        absent(&old.acknowledgement) && !absent(&new.acknowledgement)
+    } else {
+        same_bytes(&old.acknowledgement, &new.acknowledgement)
+    }
+}
+
+/// Exact repeated evidence is an observation of existing history, not a state
+/// transition. Callers return the retained revision and must not mint a permit,
+/// charge again, rewrite evidence or consult current execution authority.
+/// Authentication and exact effect/source/recipient/channel/content matching
+/// precede this comparison at the runtime boundary.
+#[must_use]
+pub fn exact_acknowledgement_replay(view: &AttemptView, acknowledgement: &[u8]) -> bool {
+    matches!(view.protocol, Protocol::Disclosure)
+        && acknowledgement_stage(view.stage)
+        && consistent(view)
+        && same_bytes(&view.acknowledgement, acknowledgement)
+}
+
 /// Whether the stored plan's summary is unchanged.
 #[must_use]
 pub const fn plan_kept(old: &AttemptView, new: &AttemptView) -> bool {
@@ -418,6 +491,7 @@ pub fn valid_transition(old: &AttemptView, new: &AttemptView) -> bool {
         && checkpoint_valid(old, new)
         && pre_entry_kept(old, new)
         && response_kept(old, new)
+        && acknowledgement_kept(old, new)
         && consistent(new)
 }
 
@@ -426,7 +500,7 @@ mod tests {
     use super::*;
     use alloc::vec;
 
-    const STAGES: [Stage; 7] = [
+    const STAGES: [Stage; 8] = [
         Stage::Reserved,
         Stage::EntryGranted,
         Stage::NotEntered,
@@ -434,6 +508,7 @@ mod tests {
         Stage::ResponseRecorded,
         Stage::Observed,
         Stage::ObservedByProvider,
+        Stage::Acknowledged,
     ];
 
     fn view(stage: Stage, link: Link) -> AttemptView {
@@ -455,6 +530,7 @@ mod tests {
             refusal: refusal_stage(stage),
             pre_entry: Vec::new(),
             response,
+            acknowledgement: Vec::new(),
             locator: Vec::new(),
             reading: if observed_stage(stage) {
                 Reading::Match
@@ -611,14 +687,15 @@ mod proofs {
     use alloc::vec::Vec;
 
     fn any_stage() -> Stage {
-        match kani::any::<u8>() % 7 {
+        match kani::any::<u8>() % 8 {
             0 => Stage::EntryGranted,
             1 => Stage::NotEntered,
             2 => Stage::Unknown,
             3 => Stage::ResponseRecorded,
             4 => Stage::Observed,
             5 => Stage::Reserved,
-            _ => Stage::ObservedByProvider,
+            6 => Stage::ObservedByProvider,
+            _ => Stage::Acknowledged,
         }
     }
 
@@ -651,10 +728,10 @@ mod proofs {
 
     fn any_view() -> AttemptView {
         AttemptView {
-            protocol: if kani::any() {
-                Protocol::Mutation
-            } else {
-                Protocol::Acquisition
+            protocol: match kani::any::<u8>() % 3 {
+                0 => Protocol::Mutation,
+                1 => Protocol::Acquisition,
+                _ => Protocol::Disclosure,
             },
             revision: kani::any(),
             entry: any_bytes(),
@@ -663,6 +740,7 @@ mod proofs {
             refusal: kani::any(),
             pre_entry: any_bytes(),
             response: any_bytes(),
+            acknowledgement: any_bytes(),
             locator: any_bytes(),
             reading: any_reading(),
             evidence: kani::any(),
@@ -677,15 +755,17 @@ mod proofs {
             (from, to),
             (
                 Stage::EntryGranted,
-                Stage::Unknown | Stage::ResponseRecorded
+                Stage::Unknown | Stage::ResponseRecorded | Stage::Acknowledged
             ) | (
                 Stage::Reserved,
                 Stage::Reserved | Stage::NotEntered | Stage::EntryGranted
-            ) | (Stage::Unknown, Stage::ResponseRecorded)
-                | (
-                    Stage::ResponseRecorded,
-                    Stage::Observed | Stage::ObservedByProvider
-                )
+            ) | (
+                Stage::Unknown,
+                Stage::ResponseRecorded | Stage::Acknowledged
+            ) | (
+                Stage::ResponseRecorded,
+                Stage::Observed | Stage::ObservedByProvider
+            )
         ) || (matches!(
             (from, to),
             (
@@ -704,6 +784,7 @@ mod proofs {
             Stage::Reserved | Stage::EntryGranted | Stage::Unknown => {
                 !view.refusal && !response && !reading && !view.evidence
             }
+            Stage::Acknowledged => !view.refusal && !response && !reading && !view.evidence,
             Stage::ResponseRecorded => !view.refusal && response && !reading && !view.evidence,
             Stage::Observed => {
                 !view.refusal && response && reading && view.observation && !view.evidence
@@ -717,9 +798,30 @@ mod proofs {
             }
         };
         let protocol = match view.protocol {
-            Protocol::Mutation => true,
+            Protocol::Mutation => {
+                view.stage != Stage::Acknowledged && view.acknowledgement.is_empty()
+            }
             Protocol::Acquisition => {
-                !matches!(view.stage, Stage::Observed | Stage::ObservedByProvider)
+                !matches!(
+                    view.stage,
+                    Stage::Observed | Stage::ObservedByProvider | Stage::Acknowledged
+                ) && view.acknowledgement.is_empty()
+                    && view.pre_entry.is_empty()
+                    && view.locator.is_empty()
+                    && view.reading == Reading::None
+                    && !view.evidence
+                    && !view.observation
+                    && view.link == Link::None
+            }
+            Protocol::Disclosure => {
+                matches!(
+                    view.stage,
+                    Stage::Reserved
+                        | Stage::EntryGranted
+                        | Stage::NotEntered
+                        | Stage::Unknown
+                        | Stage::Acknowledged
+                ) && view.response.is_empty()
                     && view.pre_entry.is_empty()
                     && view.locator.is_empty()
                     && view.reading == Reading::None
@@ -730,6 +832,7 @@ mod proofs {
         };
         shape
             && protocol
+            && ((view.stage == Stage::Acknowledged) == !view.acknowledgement.is_empty())
             && view.revision > 0
             && view.revision <= 9_007_199_254_740_991
             && (view.locator.is_empty() || response)
@@ -750,6 +853,20 @@ mod proofs {
         if terminal_stage(from) {
             assert!(!stage_transition_allowed(from, to, link));
         }
+    }
+
+    /// Historical ACK replay is exact and read-only; all providers and all
+    /// pre-ACK stages are refused even if byte fields are otherwise equal.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn acknowledgement_replay_requires_exact_terminal_disclosure() {
+        let view = any_view();
+        let evidence = any_bytes();
+        let expected = view.protocol == Protocol::Disclosure
+            && view.stage == Stage::Acknowledged
+            && fields_match_stage(&view)
+            && view.acknowledgement == evidence;
+        assert_eq!(exact_acknowledgement_replay(&view, &evidence), expected);
     }
 
     /// Exhaustive over every pair of bounded records (each byte field absent
@@ -785,6 +902,13 @@ mod proofs {
         } else {
             old.entry == new.entry
         };
+        let acknowledgement = if matches!(old.stage, Stage::EntryGranted | Stage::Unknown)
+            && new.stage == Stage::Acknowledged
+        {
+            old.acknowledgement.is_empty() && !new.acknowledgement.is_empty()
+        } else {
+            old.acknowledgement == new.acknowledgement
+        };
         let expected = old.revision < 9_007_199_254_740_991
             && new.revision == old.revision + 1
             && old.fixed == new.fixed
@@ -796,6 +920,7 @@ mod proofs {
             && table(old.stage, new.stage, old.link)
             && pre_entry
             && response
+            && acknowledgement
             && fields_match_stage(&new);
         assert_eq!(valid_transition(&old, &new), expected);
     }

@@ -42,12 +42,12 @@ pub struct OutcomeFacts {
     pub relative_basis_digest: bool,
 }
 
-/// Whether an outcome may name `stage`: every stage but `entry-granted`, which
-/// an outcome reports as `unknown`.
+/// Whether a provider outcome may name `stage`. Entry grants project unknown;
+/// recipient acknowledgement belongs to the distinct disclosure projection.
 #[must_use]
 pub const fn outcome_stage(stage: Stage) -> bool {
     match stage {
-        Stage::EntryGranted => false,
+        Stage::EntryGranted | Stage::Acknowledged => false,
         Stage::Reserved
         | Stage::NotEntered
         | Stage::Unknown
@@ -124,6 +124,7 @@ mod tests {
             }
         ));
         assert!(!outcome_facts_present(Stage::EntryGranted, NONE));
+        assert!(!outcome_facts_present(Stage::Acknowledged, NONE));
     }
 
     #[test]
@@ -167,14 +168,15 @@ mod proofs {
     use super::*;
 
     fn any_stage() -> Stage {
-        match kani::any::<u8>() % 7 {
+        match kani::any::<u8>() % 8 {
             0 => Stage::EntryGranted,
             1 => Stage::NotEntered,
             2 => Stage::Unknown,
             3 => Stage::ResponseRecorded,
             4 => Stage::Observed,
             5 => Stage::Reserved,
-            _ => Stage::ObservedByProvider,
+            6 => Stage::ObservedByProvider,
+            _ => Stage::Acknowledged,
         }
     }
 
@@ -198,7 +200,7 @@ mod proofs {
         let pairs = facts.http_status == facts.response_digest
             && facts.relative_basis == facts.relative_basis_digest;
         let table = match stage {
-            Stage::EntryGranted => false,
+            Stage::EntryGranted | Stage::Acknowledged => false,
             Stage::NotEntered => {
                 facts.refusal && !facts.http_status && !facts.observation && !facts.evidence_digest
             }

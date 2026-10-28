@@ -1038,6 +1038,44 @@ closure regeneration passed after that correction (one artifact-generation test)
   maintained consumers, authenticated UI/bindings and full adapter/fault/formal/
   performance/hosted evidence remain required. Hosted CI has not been observed.
 
+## Native disclosure acknowledgement and reducer checkpoint
+
+- Extended the existing kernel transition owner with typed disclosure and a
+  distinct terminal `Acknowledged` stage. ACK bytes are separate from provider
+  response/observation fields. All protocols retain immutable identity,
+  allocation, grant and monotonic revision checks. Disclosure cannot acquire
+  provider facts; mutation/acquisition cannot carry ACKs. The provider outcome
+  presence predicate refuses the disclosure terminal stage.
+- Native `auths.gateway-disclosure-ack/1` binds effect, source, protected content,
+  raw-key recipient, channel, delivery instance, projection, ceiling and actual
+  byte count. It uses existing canonical/domain commitment and strict Ed25519
+  verification, derives the recipient through the existing raw-key descriptor,
+  rejects duplicate/unknown/noncanonical/obsolete/oversized input before use,
+  and returns a sealed historical assertion. Debug is redacted and encoded
+  buffers are zeroized. Verification supplies no execution authority.
+- Late evidence requires no current-authority or time argument. It must still
+  match the retained delivery and protected content length and pass the shared
+  reducer. Exact repeated ACKs are read-only comparisons of consistent terminal
+  history; they do not advance revision, change evidence or issue another grant.
+- Exact artifact construction passed on `cac8c75b` plus this source:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact effect::disclosure_tests::native_disclosure_acknowledgement_fixture_is_current`.
+  The final run passed one test in 0.03 seconds. Its fixture covers 576 protocol/
+  stage pairs, four disclosure histories, immutable state-field substitutions,
+  revision saturation, changed binding dimensions, independently re-signed ACK
+  assertions, foreign signatures, exact byte-count limits and malformed codecs.
+  The initial compiler error combined raw-key construction and principal
+  derivation errors with incompatible Result types; each is now mapped at its
+  own boundary. Final semantic-closure generation passed one exact test.
+- Kani source includes disclosure, the new ACK field and an exact terminal-replay
+  obligation. Kani and translated Lean/refinement evidence have not been run
+  or regenerated; they remain P4 work. No broad local gate or hosted CI was run.
+- This is a native evidence/reducer slice, not an installed release path. Content
+  acquisition/custody, disclosure compilation/approval, transactional admission
+  and entry, authenticated recipient transport, persistent ACK recording and
+  AP070 Python-owner removal remain required. Synthetic fixed allocations in
+  this corpus do not establish durable accounting or actual byte delivery. No
+  A01–A22 acceptance criterion closes.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1063,8 +1101,8 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |
-| A08 | ACK loss, restart, no redelivery, late ACK | Pending / no / no | Typed ACK protocol |
-| A09 | ACK substitution in every dimension | Pending / no / no | Authenticated exact ACK |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / native ACK/reducer corpus / pure histories executed | Persistent disclosure grant, actual send/ACK loss and restart pending |
+| A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Wire recipient/channel and journal integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
@@ -1075,7 +1113,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |
-| A20 | Generated histories and shipping predicate refinement | Pending / no / no | Update linked artifacts |
+| A20 | Generated histories and shipping predicate refinement | Partial / 576 typed stage pairs, ACK histories and Kani source / pure corpus executed | Full generated concurrent histories and source-linked formal artifacts pending |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / local approved candidate CLI / candidate subprocess journey | Full installed read/disclosure/write/observation and authenticated UI |
 

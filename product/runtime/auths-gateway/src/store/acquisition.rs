@@ -140,6 +140,7 @@ impl JournalProtocol for AcquisitionState {
                 _ => Vec::new(),
             },
             pre_entry: Vec::new(),
+            acknowledgement: Vec::new(),
             locator: Vec::new(),
             reading: Reading::None,
             evidence: false,

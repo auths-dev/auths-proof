@@ -20,6 +20,14 @@ use zeroize::Zeroizing;
 
 mod acquisition;
 mod candidate;
+mod disclosure;
+pub use disclosure::{
+    AuthenticatedDisclosureAcknowledgement, DISCLOSURE_ACK_SCHEMA, DisclosureAcknowledgement,
+    DisclosureAcknowledgementRequest, MAX_DISCLOSURE_ACK_BYTES,
+};
+#[cfg(test)]
+#[path = "effect_disclosure_tests.rs"]
+mod disclosure_tests;
 pub(crate) use candidate::CandidatePlan;
 pub use candidate::{
     CANDIDATE_CHECK_TOOL, CandidateCredentialTarget, compile_candidate_credential,
@@ -1508,7 +1516,7 @@ mod tests {
         );
     }
 
-    fn wire() -> BindingWire {
+    pub(super) fn wire() -> BindingWire {
         BindingWire {
             schema: EFFECT_BINDING_SCHEMA.to_owned(),
             namespace: "synthetic".to_owned(),

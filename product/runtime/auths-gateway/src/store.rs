@@ -910,6 +910,7 @@ impl Record {
                 .transpose()?
                 .unwrap_or_default(),
             response,
+            acknowledgement: Vec::new(),
             locator: self
                 .state
                 .response_locator

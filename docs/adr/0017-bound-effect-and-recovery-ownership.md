@@ -772,3 +772,31 @@ secret, bad prefix, corrupt cleanup notes, substituted floor and runtime refusal
 to repair a missing floor. The production CLI artifact exercises actual install
 and a separate resume process. Full approved provider journeys, process faults
 and PostgreSQL evidence remain separate unfinished requirements.
+
+
+## Recipient acknowledgement ownership
+
+`effect::disclosure` constructs and verifies the bounded native
+`auths.gateway-disclosure-ack/1` statement. Recipient identity is the existing
+raw-key principal derived from the statement's nonweak Ed25519 public key and
+must equal the immutable disclosure binding. The exact protected-content length
+comes from authoritative retained data, not the ACK. Successful verification
+returns a sealed historical assertion, never a transport capability. It accepts
+no clock/current-authority input, permitting late evidence after expiry or
+revocation. This cannot authorize a new delivery.
+
+`auths-gateway-kernel::transition::valid_transition` remains the sole transition
+owner. Disclosure shares the fixed identity/allocation/revision/grant contract
+and adds a separate immutable acknowledgement field and terminal stage. It
+cannot acquire provider responses, pre-entry observations, locators or mutation
+facts. Provider journal projections supply an empty acknowledgement field.
+`exact_acknowledgement_replay` is a read-only equality predicate on consistent
+terminal disclosure history, not a second state transition rule. Persistence
+must still fence the original record; duplicate ACKs must return retained bytes
+and revision without rewriting or recharging.
+
+This checkpoint implements the evidence contract and pure relation. The
+protected-content owner, disclosure admission/entry, recipient transport and
+runtime journal projection remain required before this is a managed release
+path. Kani oracle source includes disclosure; source-linked Lean regeneration
+and refinement are still open P4 obligations, with no new proof claim.

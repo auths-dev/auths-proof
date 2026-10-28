@@ -502,3 +502,29 @@ This strengthens the existing mechanism comparison without adding a production
 abstraction or claiming human presence, deployment isolation, PostgreSQL faults
 or live provider qualification. Maintained deployment/demo consumers still need
 the exact authority/approval and qualification bootstrap cutover.
+
+
+## Recipient evidence and disclosure reducer checkpoint
+
+The shared predicate now admits only the disclosure edges reserved→not-entered,
+reserved→entry-granted, entry-granted→unknown/acknowledged and
+unknown→acknowledged. Fixed allocation bytes and grant bytes survive every edge;
+ACK is a separate terminal fact. Exact repeated evidence is a read-only lookup.
+Acquisition/mutation cannot carry ACK bytes, and disclosure cannot carry HTTP or
+observation facts. Existing provider outcome signing refuses the ACK stage.
+
+The native Ed25519 ACK contract binds every release dimension and exact protected
+content length, using the existing raw-key principal derivation, canonical codec
+and domain-separated commitment. It adds no token system, recipient registry or
+provider-specific branch. Recipient evidence is historical and independent of
+current execution authority; the future entry fence must separately establish
+that authority before releasing any content.
+
+`disclosure-acknowledgement.json` is generated from real native signatures and
+the shipping transition predicate: 576 same/cross-protocol stage pairs, four
+histories, changed field/signature/encoding cases and read-only replay. Its
+retained content identities and journal projections are synthetic. It is neither
+AP070 differential equivalence nor a durability, actual delivery, authenticated
+channel or process-isolation claim. Those remain required for the direct consumer
+cutover. Kani source is extended, not executed; translated Lean/refinement work
+remains pending.

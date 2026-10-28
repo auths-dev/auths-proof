@@ -443,6 +443,27 @@ This diagram is a projection of a typed state model. `ResponseRecorded` belongs 
 not erase uncertainty, release charges or imply permission to retry. Invalid
 cross-protocol transitions must be unrepresentable or refused by the sole reducer.
 
+The native recipient evidence contract is `auths.gateway-disclosure-ack/1`,
+bounded to 4,096 canonical bytes before decoding. It signs the exact effect,
+source effect, protected content commitment, raw-key recipient and Ed25519 key,
+channel, delivery instance, projection, byte ceiling and actual acknowledged
+byte count. The key must derive the bound recipient through the existing
+`raw-key-v1` principal mechanism; a key supplied by the envelope is not a new
+trust anchor. The actual byte count is compared with protected content metadata
+from the journal/content owner. Unknown fields, duplicates, alternate encodings,
+obsolete schemas and noncanonical signatures are refused. All correlations stay
+on the private channel; the ACK is not a public receipt.
+
+ACK verification deliberately has no current permission, approval expiry or
+clock input. Its authenticated historical assertion must still match a retained
+delivery grant and pass the sole reducer. Only disclosure may carry immutable
+ACK bytes and reach `Acknowledged`; provider protocols cannot reinterpret them
+as response or observation evidence. Exact repeated canonical ACKs return the
+existing revision without a state transition. The signature establishes the
+recipient's assertion under the pinned identity, not human attention or proof
+of the transport implementation. This evidence contract and pure predicate do
+not themselves implement content acquisition, disclosure admission or delivery.
+
 ### 5.3 Retry and recovery contract
 
 For this milestone, provider-entry and disclosure-entry permits are one-use, and replay never reissues them. The model distinguishes re-running pure verification, retrying an uncommitted transaction, retrieving existing state, repeating an authorized observation, and repeating an external effect.
