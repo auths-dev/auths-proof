@@ -86,6 +86,19 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     assert_eq!(effect.private_request().url(), expected.url());
     assert_eq!(effect.private_request().headers(), expected.headers());
     let bytes = effect.binding().to_private_bytes().expect("binding bytes");
+    let private_review = effect.private_review().expect("native private review");
+    let review_bytes = private_review.to_private_bytes().expect("review JSON");
+    let review_json: Value = serde_json::from_slice(&review_bytes).expect("review JSON");
+    assert_eq!(
+        review_json["effect_id_hex"],
+        hex::encode(effect.binding().id().as_bytes())
+    );
+    assert_eq!(
+        review_json["native"]["request"]["body"],
+        std::str::from_utf8(expected.body()).expect("body")
+    );
+    assert_eq!(review_json["native"]["request"]["url"], expected.url());
+    assert!(!format!("{private_review:?}").contains("private-sentinel"));
     assert_eq!(
         &EffectBinding::from_private_bytes(&bytes).expect("binding data"),
         effect.binding()

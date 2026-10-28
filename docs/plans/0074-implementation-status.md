@@ -63,6 +63,36 @@ No stage is complete merely because types, documentation or a happy path exist.
   generation test passes after this change, including independently expiring
   resource authority while human approval remains current. Transactional wiring
   and fencing are still pending; this API alone makes no linearization claim.
+- Native private review now renders the sealed command through the same
+  projection as offline recipe review. It carries the exact effect identity and
+  canonical binding; no binding/UI request reconstruction is needed. Review
+  data explicitly contains private content and has a separate 128 KiB limit.
+
+## Immediate implementation continuation
+
+1. Complete the installed policy and IPC review/approve/submit cutover. The new
+   `effect` module currently owns native compile/approve/revalidate operations,
+   but `GatewayEngine::submit`, `SubmitIo`, the application socket and clients
+   still use the baseline proof/action submission. Replace that path with the
+   approved effect; do not leave a bypass or an optional compatibility mode.
+2. Store the complete immutable binding in the existing attempt journal, with
+   replay keyed independently of the effect digest. Reuse the approved effect's
+   single owned command for send and reporting; reject changed binding as conflict.
+3. Refactor the existing transition/order owner to distinguish reservation from
+   durable entry. The current `Attempting` state must not remain the authority
+   for both. Validate full native authority and exact approval after acquiring
+   the store transaction lock; fence connection/configuration against the same
+   transaction. Publish consumed permits only after durable acknowledgement.
+4. Then finish acquisition/disclosure/ACK and AP070 direct cutover, installed
+   bindings, adapter fault/concurrency/process evidence and formal links.
+5. Regenerate semantic closure and all affected canonical/formal artifacts once
+   source stabilizes. Required hosted workflows have deliberately not been
+   observed yet. The draft's current CI is not completion evidence.
+
+The native artifact-generation run last passed for the source subsequently
+committed in `464f0b2a`. The private-review projection changes have source tests
+authored but have not been executed locally. All unfulfilled AP074 gates remain
+open, and the goal remains active.
 
 ## Phase gates
 

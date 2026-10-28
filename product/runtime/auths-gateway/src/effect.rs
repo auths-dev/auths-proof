@@ -31,6 +31,9 @@ const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 pub const MAX_EFFECT_APPROVAL_BYTES: usize = 4_096;
 /// Exact approval cannot remain eligible for more than one hour.
 pub const MAX_EFFECT_APPROVAL_SECONDS: u64 = 3_600;
+/// Private human review can contain the exact body and full binding. Public
+/// activity/receipt projections have a different, smaller disclosure contract.
+pub const MAX_PRIVATE_EFFECT_REVIEW_BYTES: usize = 131_072;
 
 /// Private audit identity. Do not publish it as a hiding content commitment.
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -308,6 +311,43 @@ pub struct BoundEffect {
     action: Zeroizing<Vec<u8>>,
 }
 
+/// Human review produced entirely by native code from the sealed effect.
+/// It includes private request content and must travel only on the authorized
+/// review channel. It is not suitable for public receipts or support logs.
+#[cfg(unix)]
+#[derive(Serialize)]
+pub struct PrivateEffectReview {
+    schema: &'static str,
+    effect_id_hex: String,
+    binding_canonical: String,
+    native: crate::GatewaySubmissionReview,
+}
+
+#[cfg(unix)]
+impl fmt::Debug for PrivateEffectReview {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PrivateEffectReview { private: [redacted] }")
+    }
+}
+
+#[cfg(unix)]
+impl PrivateEffectReview {
+    /// Encodes the native private review; consumers display it without
+    /// reconstructing identity, provider bytes or authority facts themselves.
+    ///
+    /// # Errors
+    /// Refuses an encoding failure or a review above the fixed byte limit.
+    pub fn to_private_bytes(&self) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
+        let bytes = Zeroizing::new(
+            serde_json_canonicalizer::to_vec(self).map_err(|_| EffectBindingError::Invalid)?,
+        );
+        if bytes.len() > MAX_PRIVATE_EFFECT_REVIEW_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(bytes)
+    }
+}
+
 impl fmt::Debug for BoundEffect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("BoundEffect { private: [redacted] }")
@@ -326,6 +366,28 @@ impl BoundEffect {
     #[must_use]
     pub const fn private_request(&self) -> &ClosedProviderRequest {
         &self.command.request
+    }
+
+    /// Renders the exact immutable effect reviewed before human approval.
+    /// This never reads a provider, leases credentials or reserves capacity.
+    ///
+    /// # Errors
+    /// Returns a closed projection/encoding refusal without private input.
+    #[cfg(unix)]
+    pub fn private_review(&self) -> Result<PrivateEffectReview, GatewaySubmitResult> {
+        let binding = self
+            .binding
+            .to_private_bytes()
+            .map_err(|_| not_entered("gateway.effect.invalid-binding"))?;
+        let binding_canonical = std::str::from_utf8(&binding)
+            .map_err(|_| not_entered("gateway.effect.invalid-binding"))?
+            .to_owned();
+        Ok(PrivateEffectReview {
+            schema: "auths.private-effect-review/1",
+            effect_id_hex: hex::encode(self.binding.id().as_bytes()),
+            binding_canonical,
+            native: crate::engine::review_command(&self.command)?,
+        })
     }
 
     /// Constructs the exact private review statement for an installed human

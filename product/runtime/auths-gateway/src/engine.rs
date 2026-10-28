@@ -171,6 +171,15 @@ pub fn review_submission(
     action: &[u8],
 ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
     let command = verify_detailed(recipe, context, now, proof, action)?;
+    review_command(&command)
+}
+
+/// Both installed effect review and the offline reference projection render
+/// the native command's compiler output, without a second request compiler.
+#[cfg(unix)]
+pub(crate) fn review_command(
+    command: &VerifiedCommand,
+) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
     let request = &command.request;
     Ok(GatewaySubmissionReview {
         schema: "auths.gateway-submission-review/1",
@@ -180,7 +189,7 @@ pub fn review_submission(
             .map(|actor| actor.as_str().to_owned())
             .collect(),
         action_commitment: hex::encode(request.action_commitment()),
-        arguments: command.arguments,
+        arguments: command.arguments.clone(),
         request: GatewayRequestReview {
             method: request.method().as_str().to_owned(),
             url: request.url().to_owned(),
