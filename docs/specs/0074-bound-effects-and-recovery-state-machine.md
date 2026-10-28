@@ -623,6 +623,16 @@ public test keys simulating the reviewer, actor and recipient. They do not close
 human approval UI, installed language packages, hostile UID/egress containment,
 PostgreSQL, every crash boundary or live-provider qualification gates.
 
+The AP070 concrete Drive metadata reference is frozen separately from native
+acquisition in `google-metadata-reference.json`. It exercises exact file identity,
+required download capability, document/plain-text selection, optional size and
+trashed semantics, malformed input and the existing 16 KiB bound. The reference
+reader uses one typed domain validator; malformed MIME/decimal inputs deny.
+Historical duplicate, alternate-encoding, nonboolean-trash and Unicode-size
+acceptance are explicitly marked for stricter native refusal. This corpus is an
+input to the required native metadata capability/differential extraction; it does
+not complete that capability, token refresh or Python journal cutover.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

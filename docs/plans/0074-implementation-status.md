@@ -1482,15 +1482,15 @@ closure regeneration passed after that correction (one artifact-generation test)
   inspected hosted failures at `c80902ab`. Main implementation continued without
   shared-file edits. The first isolated fix `991c223d` was reviewed and integrated
   as `9c939036` after the read-only increment `cfaa8596` was committed.
-- That fix updates the Python gateway export inventory from 17 to 18 (total190),
-  the TypeScript declaration digest, Python3.9 runner matrices/artifact names to
-  Ubuntu24.04, and both qualification family corpus/contract source hashes.
+- That fix updates the Python gateway export inventory from 17 to 18 (total 190),
+  the TypeScript declaration digest, Python 3.9 runner matrices/artifact names to
+  Ubuntu 24.04, and both qualification family corpus/contract source hashes.
   Qualification assumptions and declarations were preserved. The agent reports
   the API snapshot check and six focused qualification tests passing; exact
   commands/hosted job links are to be recorded with its completed report.
 - Hosted preflight also found the semantic freeze stale. Required artifact
   construction `cargo xtask semantic-freeze --update` identified nine changed
-  subjects. Freeze391 and only those subject versions were advanced; regeneration
+  subjects. Freeze 391 and only those subject versions were advanced; regeneration
   succeeded. The current formal source closure did not change. This refresh is
   not a formal proof execution or a completed hosted gate.
 - Remaining reported CI roots include stale native/installed tests expecting
@@ -1499,6 +1499,30 @@ closure regeneration passed after that correction (one artifact-generation test)
   actual native authorization/recovery or truthful response-only expectations;
   tests/approvals may not be bypassed. Investigation continues in the isolated
   checkout, with deeper maintained demo integration still part of AP074.
+
+## AP070 concrete metadata reference checkpoint
+
+- Based on pushed `1ccfc09a`. The native content-only installation is available;
+  the next provider-specific gap is the metadata gate preceding a Drive content
+  GET. Current AP070 Python admission/release still remains to be removed.
+- The Drive reader now calls one pure concrete metadata validator returning a
+  closed document/plain-text representation. Custody, transport, status/media,
+  task checks and state decisions remain outside that validator. Existing request
+  selection uses the typed result. The existing 16 KiB bound is checked again;
+  malformed MIME and excessive decimal conversions return typed refusal.
+- A deterministic domain corpus freezes identity, download restriction, MIME,
+  optional size/trashed semantics, malformed/nonobject inputs and byte boundaries.
+  It explicitly labels historical duplicate/alternate-encoding, nonboolean trash
+  and Unicode decimal acceptance as cases requiring stricter native refusal.
+  Matching a weak historical parser is not a native acceptance requirement.
+- Required artifact construction:
+  `PYTHONPATH=demos/google-employee-delegation/broker/src AUTHS_UPDATE_FIXTURES=1 python3 demos/google-employee-delegation/broker/tests/test_google_metadata_reference.py`
+  passed one generator in 0.002 seconds. It imports only the pure domain contract;
+  no native package, Google credential, provider call or cloud account is used.
+- This is concrete reference evidence ahead of extraction, not a completed native
+  metadata gate or AP070 cutover. Full native/compiler/journal/freshness parity,
+  both supported content paths, token refresh custody, bindings/UI and removal of
+  the competing Python shared state owner remain open. No A01–A22 gate closes.
 
 ## Phase gates
 

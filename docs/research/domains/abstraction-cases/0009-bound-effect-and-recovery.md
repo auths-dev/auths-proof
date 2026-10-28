@@ -728,3 +728,25 @@ trust in that journey contains only read/release permissions. Existing mixed
 read/write process composition still passes. No new provider capability, Google
 metadata interpretation, AP070 policy semantics, formal theorem or adapter
 assumption is extracted by this change; those complete gates remain pending.
+
+
+### Concrete Drive metadata reference before extraction
+
+The AP070 Drive reference now separates bounded metadata validation from token
+custody, transport, admission and release. The existing reader invokes that same
+pure domain function and selects its existing export/media path from a closed
+representation enum. No native capability, account approval, budget rule or
+provider callback is inferred. Missing/mismatched identity, download restriction,
+MIME selection and optional size/trashed behavior are frozen in
+`demos/google-employee-delegation/contracts/examples/google-metadata-reference.json`.
+The pure function rechecks the existing 16 KiB bound and returns typed denial for
+malformed MIME values or decimal conversion overflow rather than runtime errors.
+
+The reference records historical last-member-wins JSON, alternate encoding,
+nonboolean trashed values and Unicode decimal acceptance as explicit divergences:
+native bounded UTF-8/typed decoding must refuse them. It does not authorize
+weakening native parsing to match a weaker historical reference. Status/media,
+lease, native resource authority, prerequisite freshness and actual content entry
+remain separate gates. Native metadata capability/refinement, request selection,
+refresh custody and AP070's Python journal removal are still required; this
+provider reference is an extraction input, not proof of their implementation.
