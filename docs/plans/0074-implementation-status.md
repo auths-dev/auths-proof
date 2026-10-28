@@ -246,6 +246,11 @@ Attempting send path is not represented as compliant final entry.
   `semantic_closure::tests::semantic_closure_is_current` passed (one test).
   These are artifact construction, not adapter race, formal or hosted CI evidence.
 
+The configuration checkpoint is committed and pushed as `8dbd9939`. A follow-up
+source audit found the PostgreSQL health projection still reported literal schema
+6; it now derives the version from the active schema constant. Required semantic
+closure regeneration passed after that correction (one artifact-generation test).
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

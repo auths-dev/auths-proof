@@ -711,7 +711,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 6,
+            schema_version: u16::try_from(SCHEMA_VERSION).map_err(|_| StoreError::Corrupt)?,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })
