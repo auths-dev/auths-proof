@@ -1,5 +1,5 @@
 //! Candidate checks use the shared acquisition owner and exact staged custody.
-//! A response remains evidence; this module does not publish a connection.
+//! Publication is a separate operator action over complete retained evidence.
 
 use super::*;
 use crate::effect::{BoundEffect, CandidateCredentialTarget, compile_candidate_credential};
@@ -22,6 +22,15 @@ impl GatewayEngine {
         self.check_candidate_predecessor(target)
             .await
             .map_err(not_entered)?;
+        self.compile_candidate_target(target, proof, action)
+    }
+
+    fn compile_candidate_target(
+        &self,
+        target: &CandidateCredentialTarget,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<BoundEffect, GatewaySubmitResult> {
         let now = self
             .qualification
             .effect_time()
@@ -46,6 +55,21 @@ impl GatewayEngine {
         target: &CandidateCredentialTarget,
     ) -> Result<(), &'static str> {
         self.check_effect_configuration().await?;
+        self.check_candidate_location(target)?;
+        let current = self.connection.load().await.map_err(|error| match error {
+            SharedConnectionError::Rollback => "gateway.connection.restore-rollback",
+            _ => "gateway.connection.unavailable",
+        })?;
+        if !target.predecessor_matches(current.as_ref().map(LoadedConnection::private_bytes)) {
+            return Err("gateway.connection.changed");
+        }
+        Ok(())
+    }
+
+    fn check_candidate_location(
+        &self,
+        target: &CandidateCredentialTarget,
+    ) -> Result<(), &'static str> {
         let record = target.record();
         if record.provider_kind() != self.connection.provider()
             || record.alias() != self.connection.alias()
@@ -55,14 +79,111 @@ impl GatewayEngine {
         {
             return Err("gateway.connection.unavailable");
         }
-        let current = self.connection.load().await.map_err(|error| match error {
-            SharedConnectionError::Rollback => "gateway.connection.restore-rollback",
-            _ => "gateway.connection.unavailable",
-        })?;
-        if !target.predecessor_matches(current.as_ref().map(LoadedConnection::private_bytes)) {
+        Ok(())
+    }
+
+    /// Publishes an exact staged credential using complete, fresh journaled
+    /// checks. Only the trusted operator service may call this method; a read
+    /// proof and approval do not grant connection administration authority.
+    /// Native authority/configuration, retained check purposes and exact
+    /// predecessor/absence are checked together under the store writer fence.
+    /// No provider request or new allocation occurs. `AlreadyCurrent` reports
+    /// exact state without attributing it to this invocation.
+    ///
+    /// # Errors
+    /// Refuses missing custody, incomplete/failed/stale checks, invalid native
+    /// authority or approval, and changed predecessor/configuration. A failed
+    /// durability acknowledgement cannot report publication; retry observes
+    /// current state and cannot recreate transport permits. Errors report
+    /// unavailability, never that a connection write definitely did not occur.
+    pub async fn publish_candidate_credential(
+        &self,
+        target: &CandidateCredentialTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::CandidatePublication, &'static str> {
+        let started = Instant::now();
+        self.check_effect_configuration().await?;
+        self.check_candidate_location(target)?;
+        let current = self
+            .connection
+            .load()
+            .await
+            .map_err(|_| "gateway.connection.unavailable")?;
+        if !target.predecessor_matches(current.as_ref().map(LoadedConnection::private_bytes))
+            && !current
+                .as_ref()
+                .is_some_and(|loaded| loaded.record() == target.record())
+        {
             return Err("gateway.connection.changed");
         }
-        Ok(())
+        let effect = self
+            .compile_candidate_target(target, proof, action)
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or("gateway.verify.clock-unavailable")?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| "gateway.effect.approval")?,
+        );
+        self.holds(target.record())
+            .await
+            .map_err(|_| "gateway.credential.unavailable")?;
+        let disposition = self
+            .attempts
+            .publish_candidate(approved, self.candidate_validation(target, started)?, now)
+            .await
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        // Loading advances the independently retained generation floor. A
+        // concurrent later update is not represented as this candidate.
+        let current = self
+            .connection
+            .load()
+            .await
+            .map_err(|_| "gateway.connection.unavailable")?
+            .ok_or("gateway.connection.unavailable")?;
+        if current.record() != target.record() {
+            return Err("gateway.connection.changed");
+        }
+        self.schedule_retirement(
+            target.record(),
+            target
+                .previous()
+                .map(ConnectionRecord::credential_generation),
+        );
+        self.delete_superseded_credentials(target.record()).await;
+        Ok(disposition)
+    }
+
+    fn candidate_validation(
+        &self,
+        target: &CandidateCredentialTarget,
+        started: Instant,
+    ) -> Result<crate::entry::EntryValidation, &'static str> {
+        Ok(crate::entry::EntryValidation::Installed(Box::new(
+            crate::entry::InstalledEntry {
+                recipe: self.recipe.clone(),
+                trust: self.trusted_context.clone(),
+                observer: None,
+                policy: self.effect_policy.clone(),
+                configuration: self.shared_configuration()?,
+                connection: crate::entry::EntryConnection::Candidate(Box::new(target.clone())),
+                connection_key: crate::connection_key(
+                    self.connection.provider(),
+                    self.connection.alias(),
+                ),
+                qualification: Arc::clone(&self.qualification),
+                workload: self.workload_id.clone(),
+                profile: self.profile.clone(),
+                started,
+                #[cfg(unix)]
+                commissioning: None,
+            },
+        )))
     }
 
     /// Durably admits and executes native-approved candidate checks using the
@@ -183,27 +304,9 @@ impl AcquisitionIo for CandidateIo<'_> {
         self.engine.qualification.effect_time()
     }
     fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
-        Ok(crate::entry::EntryValidation::Installed(Box::new(
-            crate::entry::InstalledEntry {
-                recipe: self.engine.recipe.clone(),
-                trust: self.engine.trusted_context.clone(),
-                observer: None,
-                policy: self.engine.effect_policy.clone(),
-                configuration: self.engine.shared_configuration()?,
-                connection: crate::entry::EntryConnection::Candidate(Box::new(self.target.clone())),
-                connection_key: crate::connection_key(
-                    self.engine.connection.provider(),
-                    self.engine.connection.alias(),
-                ),
-                qualification: Arc::clone(&self.engine.qualification),
-                workload: self.engine.workload_id.clone(),
-                profile: self.engine.profile.clone(),
-                started: self.started,
-                #[cfg(unix)]
-                commissioning: None,
-            },
-        )))
+        self.engine.candidate_validation(self.target, self.started)
     }
+
     async fn acquisition_send(
         &self,
         lease: &Self::Lease,

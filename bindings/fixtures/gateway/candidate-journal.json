@@ -1,6 +1,6 @@
 {
   "schema": "auths.candidate-journal-fixture/1",
-  "scope": "native signed authority and actual fenced entry predicates with real file journal; synthetic configuration, clock and provider bodies; no installed provider, publication or PostgreSQL claim",
+  "scope": "native signed authority and actual fenced entry predicates with real file journal; synthetic configuration, clock and provider bodies; includes fenced operator publication; no installed provider, custody or PostgreSQL claim",
   "cases": [
     {
       "target": "first-install",
@@ -53,6 +53,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -103,6 +104,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -119,6 +121,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -169,6 +172,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -219,6 +223,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -240,6 +245,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -290,6 +296,494 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-success",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "published",
+            "replay": "already-current",
+            "exact_candidate": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-final",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-version",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": false
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-unknown",
+          "snapshot": {
+            "revision": 2,
+            "stage": "unknown",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": null,
+            "response_bytes": null,
+            "response_version_ok": null
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-primary",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-child",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-expired-approval",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-configuration",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-predecessor",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
           "restart_preserves_facts_and_charges": true
         }
       ]
@@ -345,6 +839,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -395,6 +890,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -411,6 +907,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -461,6 +958,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -511,6 +1009,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -532,6 +1031,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -582,6 +1082,494 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-success",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "published",
+            "replay": "already-current",
+            "exact_candidate": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-final",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-version",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": false
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-unknown",
+          "snapshot": {
+            "revision": 2,
+            "stage": "unknown",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": null,
+            "response_bytes": null,
+            "response_version_ok": null
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-primary",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-child",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-expired-approval",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-configuration",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-predecessor",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
           "restart_preserves_facts_and_charges": true
         }
       ]
@@ -637,6 +1625,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -687,6 +1676,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -703,6 +1693,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -753,6 +1744,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -803,6 +1795,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -824,6 +1817,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -874,6 +1868,494 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-success",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "published",
+            "replay": "already-current",
+            "exact_candidate": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-final",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-version",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": false
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-unknown",
+          "snapshot": {
+            "revision": 2,
+            "stage": "unknown",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": null,
+            "response_bytes": null,
+            "response_version_ok": null
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-primary",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-child",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-expired-approval",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-configuration",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-predecessor",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
           "restart_preserves_facts_and_charges": true
         }
       ]
@@ -929,6 +2411,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -979,6 +2462,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -995,6 +2479,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -1045,6 +2530,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -1095,6 +2581,7 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -1116,6 +2603,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -1166,6 +2654,494 @@
               "response_version_ok": true
             }
           ],
+          "publication": null,
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-success",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "published",
+            "replay": "already-current",
+            "exact_candidate": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-final",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-version",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": false
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-unknown",
+          "snapshot": {
+            "revision": 2,
+            "stage": "unknown",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": null,
+            "response_bytes": null,
+            "response_version_ok": null
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-primary",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-child",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-expired-approval",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-configuration",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-predecessor",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 403,
+            "response_bytes": 0,
+            "response_version_ok": true
+          },
+          "children": [
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 18,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 65536,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 27,
+              "response_version_ok": true
+            },
+            {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 16384,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 403,
+              "response_bytes": 0,
+              "response_version_ok": true
+            }
+          ],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
           "restart_preserves_facts_and_charges": true
         }
       ]
@@ -1182,11 +3158,12 @@
             "reserved_bytes": 8192,
             "policy_count_counters": 0,
             "policy_byte_counters": 0,
-            "response_status": 403,
-            "response_bytes": 0,
+            "response_status": 200,
+            "response_bytes": 18,
             "response_version_ok": true
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -1203,6 +3180,7 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
           "restart_preserves_facts_and_charges": true
         },
         {
@@ -1224,6 +3202,168 @@
             "response_version_ok": null
           },
           "children": [],
+          "publication": null,
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-success",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 18,
+            "response_version_ok": true
+          },
+          "children": [],
+          "publication": {
+            "result": "published",
+            "replay": "already-current",
+            "exact_candidate": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-final",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 17,
+            "response_version_ok": true
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-bad-version",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 18,
+            "response_version_ok": false
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-unknown",
+          "snapshot": {
+            "revision": 2,
+            "stage": "unknown",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": null,
+            "response_bytes": null,
+            "response_version_ok": null
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-stale-primary",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 18,
+            "response_version_ok": true
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-expired-approval",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 18,
+            "response_version_ok": true
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-configuration",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 18,
+            "response_version_ok": true
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
+          "restart_preserves_facts_and_charges": true
+        },
+        {
+          "case": "publish-changed-predecessor",
+          "snapshot": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 8192,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 18,
+            "response_version_ok": true
+          },
+          "children": [],
+          "publication": {
+            "result": "refused",
+            "connection_unchanged": true
+          },
           "restart_preserves_facts_and_charges": true
         }
       ]

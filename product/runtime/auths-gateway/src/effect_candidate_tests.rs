@@ -1,4 +1,4 @@
-//! Native candidate compilation corpus; no candidate publication/entry claim.
+//! Native candidate compilation, acquisition and fenced publication corpus.
 use super::*;
 use crate::effect::{
     CANDIDATE_CHECK_TOOL, CandidateCredentialTarget, compile_candidate_credential,
@@ -505,7 +505,7 @@ async fn native_candidate_compilation_fixture_is_current() {
         std::fs::write(&path, &fixture).expect("write fixture");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), fixture);
-    let fixture = serde_json::to_vec_pretty(&json!({"schema": "auths.candidate-journal-fixture/1", "scope": "native signed authority and actual fenced entry predicates with real file journal; synthetic configuration, clock and provider bodies; no installed provider, publication or PostgreSQL claim", "cases": journal_cases, "cross_proposal_capacity": capacity_cases})).expect("fixture");
+    let fixture = serde_json::to_vec_pretty(&json!({"schema": "auths.candidate-journal-fixture/1", "scope": "native signed authority and actual fenced entry predicates with real file journal; synthetic configuration, clock and provider bodies; includes fenced operator publication; no installed provider, custody or PostgreSQL claim", "cases": journal_cases, "cross_proposal_capacity": capacity_cases})).expect("fixture");
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/candidate-journal.json");
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
@@ -538,10 +538,23 @@ async fn candidate_journal(
         "changed-before-admission",
         "changed-before-child",
         "changed-before-main",
+        "publish-success",
+        "publish-bad-final",
+        "publish-bad-version",
+        "publish-unknown",
+        "publish-stale-primary",
+        "publish-stale-child",
+        "publish-expired-approval",
+        "publish-changed-configuration",
+        "publish-changed-predecessor",
     ] {
         if matches!(
             case,
-            "missing-child" | "bad-probe" | "stale-child" | "changed-before-child"
+            "missing-child"
+                | "bad-probe"
+                | "stale-child"
+                | "changed-before-child"
+                | "publish-stale-child"
         ) && approved.prerequisite_plans().expect("plans").is_empty()
         {
             continue;
@@ -690,15 +703,14 @@ async fn candidate_journal(
         if case == "changed-before-main" {
             change_predecessor(&connection, target, previous).await;
         }
-        if case == "stale-child" {
-            clock.set(NOW + 31);
-        }
+        let main_time = match case {
+            "stale-child" => NOW + 31,
+            "publish-stale-child" => NOW + 30,
+            _ => NOW,
+        };
+        clock.set(main_time);
         let granted = reserved
-            .grant_entry(
-                Arc::clone(approved),
-                validation(),
-                if case == "stale-child" { NOW + 31 } else { NOW },
-            )
+            .grant_entry(Arc::clone(approved), validation(), main_time)
             .await;
         if matches!(
             case,
@@ -719,9 +731,24 @@ async fn candidate_journal(
                 serde_json::to_value(target.final_request()).expect("compiled request")
             );
             drop(permit);
-            if case == "recorded" {
+            if case == "recorded" || (case.starts_with("publish-") && case != "publish-unknown") {
+                let (status, body): (u16, &[u8]) = match target.final_kind() {
+                    PrerequisiteKind::Probe => (200, br#"{"livemode":false}"#),
+                    PrerequisiteKind::Account => (200, br#"{"id":"acct_TESTACCOUNT01"}"#),
+                    PrerequisiteKind::DeniedCapability(_) => (403, b""),
+                    _ => panic!("credential final purpose"),
+                };
+                let (status, body) = if case == "publish-bad-final" {
+                    match target.final_kind() {
+                        PrerequisiteKind::Probe => (200, br#"{"livemode":true}"#.as_slice()),
+                        PrerequisiteKind::Account => (200, br#"{"id":"wrong"}"#.as_slice()),
+                        _ => (200, b"".as_slice()),
+                    }
+                } else {
+                    (status, body)
+                };
                 granted
-                    .record_response(403, true, b"", NOW)
+                    .record_response(status, case != "publish-bad-version", body, main_time)
                     .await
                     .expect("record primary");
             } else {
@@ -755,9 +782,100 @@ async fn candidate_journal(
                 crate::AcquisitionClaim::Existing(_)
             ));
         }
+        let mut publication = Value::Null;
+        if case.starts_with("publish-") {
+            let publish_time = match case {
+                "publish-stale-primary" | "publish-stale-child" => NOW + 31,
+                "publish-expired-approval" => NOW + 61,
+                _ => NOW,
+            };
+            clock.set(publish_time);
+            if case == "publish-changed-configuration" {
+                let changed = crate::configuration::SharedConfiguration::new(
+                    Arc::clone(&store),
+                    policy
+                        .configuration_key(installed.recipe.namespace())
+                        .expect("key"),
+                    [99; 32],
+                );
+                changed
+                    .activate(
+                        configuration.current_revision().expect("revision"),
+                        &qualification,
+                    )
+                    .expect("activate");
+            }
+            if case == "publish-changed-predecessor" {
+                if previous.is_some() {
+                    change_predecessor(&connection, target, previous).await;
+                } else {
+                    let revoked = target
+                        .record()
+                        .transition_state(ConnectionState::Revoked, NOW)
+                        .expect("revoked");
+                    connection
+                        .insert(&revoked)
+                        .await
+                        .expect("conflicting installation");
+                }
+            }
+            let connection_key =
+                crate::connection_key(target.record().provider_kind(), target.record().alias());
+            let before_publish = store
+                .load(crate::GatewayRecordKind::Connection, &connection_key)
+                .expect("before");
+            let result = reopened
+                .publish_candidate(Arc::clone(approved), validation(), publish_time)
+                .await;
+            if case == "publish-success" {
+                assert_eq!(
+                    result.expect("publish"),
+                    crate::CandidatePublication::Published
+                );
+                let bytes = target.record().to_canonical_cbor().expect("bytes");
+                assert_eq!(
+                    store
+                        .load(crate::GatewayRecordKind::Connection, &connection_key)
+                        .expect("after"),
+                    Some(bytes.clone())
+                );
+                // Losing the caller's acknowledgement cannot cause provider I/O,
+                // reallocation or evidence renewal on the next explicit action.
+                assert_eq!(
+                    reopened
+                        .publish_candidate(Arc::clone(approved), validation(), publish_time)
+                        .await
+                        .expect("repeat"),
+                    crate::CandidatePublication::AlreadyCurrent
+                );
+                assert_eq!(
+                    store
+                        .load(crate::GatewayRecordKind::Connection, &connection_key)
+                        .expect("repeat bytes"),
+                    Some(bytes)
+                );
+                publication = json!({"result": "published", "replay": "already-current", "exact_candidate": true});
+            } else {
+                assert!(result.is_err(), "publication must refuse {name}/{case}");
+                assert_eq!(
+                    store
+                        .load(crate::GatewayRecordKind::Connection, &connection_key)
+                        .expect("after"),
+                    before_publish
+                );
+                publication = json!({"result": "refused", "connection_unchanged": true});
+            }
+            assert_eq!(
+                reopened
+                    .read_acquisition(approved)
+                    .await
+                    .expect("unchanged root"),
+                Some(snapshot.clone())
+            );
+        }
         assert_eq!(snapshot.reserved_calls, 1);
         assert_eq!(snapshot.reserved_bytes, before.reserved_bytes);
-        histories.push(json!({"case": case, "snapshot": snapshot, "children": children, "restart_preserves_facts_and_charges": true}));
+        histories.push(json!({"case": case, "snapshot": snapshot, "children": children, "publication": publication, "restart_preserves_facts_and_charges": true}));
     }
     json!({"target": name, "histories": histories})
 }

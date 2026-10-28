@@ -112,6 +112,43 @@ impl EntryValidation {
         }
     }
 
+    /// Publication is a trusted operator action. Native read evidence still
+    /// must satisfy its exact final purpose; HTTP status is not that predicate.
+    pub(crate) fn validate_candidate_evidence(
+        &self,
+        approved: &ApprovedEffect,
+        acquired: &[crate::store::PrerequisiteResponse],
+        primary: &crate::store::PrerequisiteResponse,
+        now: u64,
+    ) -> Result<(), &'static str> {
+        let invalid = "gateway.entry.prerequisite-evidence";
+        let target = approved.candidate_target().ok_or(invalid)?;
+        if target.final_kind() != primary.kind
+            || primary.observed_at > primary.received_at
+            || primary.received_at > now
+            || !now
+                .checked_sub(primary.observed_at)
+                .is_some_and(|age| age <= crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
+        {
+            return Err(invalid);
+        }
+        self.validate_prerequisite_evidence(
+            approved,
+            &crate::GatewayPreEntry::default(),
+            acquired,
+            now,
+        )?;
+        match self {
+            Self::Installed(entry) => validate_credential_evidence(
+                &entry.recipe,
+                *target.record().account_commitment(),
+                primary,
+            ),
+            #[cfg(any(test, feature = "testkit-harness"))]
+            Self::Oracle { .. } => Ok(()),
+        }
+    }
+
     pub(crate) fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
         match self {
             Self::Installed(entry) => {

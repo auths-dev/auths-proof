@@ -684,3 +684,23 @@ use the same helper. `acquire_candidate_credential` leases only the exact alread
 staged candidate and returns redacted acquisition facts. It does not publish the
 credential. CLI staging, final-purpose validation, safely fenced publication and
 removal of the old onboarding/rotation read routes remain required.
+
+
+## Candidate credential publication
+
+Publication uses the existing insert/replace writer fence over the connection,
+root and child acquisition records/allocations and native dependencies. It is an
+explicit trusted operator action, with no application route and no new lifecycle
+state. The primary response now receives its actual recipe purpose check, just
+like each retained child. All timestamps remain original; publication cannot
+renew evidence or spend capacity again. Missing/unknown, bad and stale evidence,
+changed configuration and changed predecessor refuse the write.
+
+The runtime verifies exact staged custody, invokes this fence and reloads the
+published connection through the generation-floor owner before scheduling
+superseded credential retirement. Independent custody availability is not part
+of the store's atomicity guarantee. Every later lease still checks the exact
+credential binding. `AlreadyCurrent` is an exact-state observation for an
+explicit retry, including lost acknowledgement; it makes no causal claim and
+issues no capability. Staging/CLI cutover and installed custody/transport fault
+coverage remain separate required work.

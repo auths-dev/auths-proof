@@ -427,3 +427,21 @@ permits and restart. Cross-proposal capacity checks preserve the credential's
 first byte ceiling. Configuration and time are test-controlled; provider bodies
 are synthetic. These artifacts do not establish installed provider execution,
 PostgreSQL conformance, final-check acceptance or credential publication.
+
+
+### Retained candidate evidence at publication
+
+The candidate publication change composes the existing connection insert/replace
+fence, typed acquisition evidence and concrete credential-purpose predicates.
+It adds no acquisition phase, callback-based lifecycle or provider-specific
+publication policy. First install checks absence; rotation checks exact previous
+bytes and preserves administrative state. The common native fence validates the
+same proof, approval, configuration and qualification used at entry, while
+retained primary/child grants bound evidence age. Exact already-current state is
+reported without asserting fresh evidence or attributing publication to a retry.
+
+The native file corpus adds successful publication/replay and refusals for bad
+final purpose/version, unknown primary, stale primary/children, expired approval,
+changed configuration and changed predecessor. Acquisition snapshots and charges
+remain unchanged across publication. This evidence remains narrower than process
+faults, installed custody/provider execution or PostgreSQL conformance.

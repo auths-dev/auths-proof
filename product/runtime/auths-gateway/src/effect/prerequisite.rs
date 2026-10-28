@@ -297,7 +297,7 @@ pub(crate) enum PrerequisiteKind {
 }
 
 impl Purpose {
-    const fn kind(&self) -> PrerequisiteKind {
+    pub(super) const fn kind(&self) -> PrerequisiteKind {
         match self {
             Self::Probe { .. } => PrerequisiteKind::Probe,
             Self::Account { .. } => PrerequisiteKind::Account,

@@ -7,6 +7,8 @@ use crate::effect::{
     AcquisitionCapacity, AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind,
 };
 
+mod candidate;
+pub use candidate::CandidatePublication;
 mod recovery;
 pub(super) use recovery::RecoveryEvidenceLink;
 pub use recovery::{
@@ -349,6 +351,14 @@ impl Record<AcquisitionState> {
         let AcquisitionPlan::Prerequisite(plan) = &self.state.plan else {
             return Err(GatewayAttemptError::BindingConflict);
         };
+        self.response_evidence(plan.kind().map_err(|_| GatewayAttemptError::Corrupt)?, now)
+    }
+
+    fn response_evidence(
+        &self,
+        kind: PrerequisiteKind,
+        now: u64,
+    ) -> Result<PrerequisiteResponse, GatewayAttemptError> {
         let AcquisitionPhase::ResponseRecorded { response } = &self.state.phase else {
             return Err(GatewayAttemptError::InvalidTransition);
         };
@@ -373,7 +383,7 @@ impl Record<AcquisitionState> {
             .capacity()
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         Ok(PrerequisiteResponse {
-            kind: plan.kind().map_err(|_| GatewayAttemptError::Corrupt)?,
+            kind,
             response: crate::transport::ProviderResponse {
                 status: response.status,
                 version_ok: response.version_ok,

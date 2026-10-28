@@ -854,6 +854,32 @@ closure regeneration passed after that correction (one artifact-generation test)
   Python-owner removal, authenticated UI/bindings and full acceptance evidence
   remain open. No A01–A22 criterion is fully closed.
 
+## Candidate publication checkpoint
+
+- The operator API publishes exact staged candidate records through the existing
+  store writer fence. It validates the root/child records and allocations, fresh
+  native authority/approval/configuration/qualification, actual final and child
+  credential predicates, and predecessor/absence before connection insertion or
+  replacement. No acquisition state, charge or evidence timestamp changes.
+- Exact already-current state has a separate result with no causal attribution,
+  capability or evidence refresh. The runtime checks exact custody beforehand
+  and reloads through the generation-floor owner before scheduling retirement.
+  Independent custody availability is not claimed atomic with shared state.
+  Publication errors do not claim the connection write definitely did not occur.
+- Candidate artifact construction passed on `57332c58` plus this source: 80
+  native file-journal histories, including publication success/replay and
+  refusals for bad final purpose/version, unknown primary, stale primary/child,
+  expired approval, changed configuration and changed predecessor. Response
+  bodies, clock and installed configuration remain synthetic. This is not
+  installed provider/custody, process-fault or PostgreSQL evidence.
+- Code inventory and final semantic-closure artifact construction also passed.
+  No broad local gate was run. The publication API is an operator method only;
+  no application framing or existing provider request identity changes.
+- Durable staging/proposal CLI and removal of raw onboarding/rotation paths
+  remain next. General acquisition/disclosure/ACK, safe recovery replacement,
+  Python-owner removal, authenticated UI/bindings and full acceptance evidence
+  remain open. No A01–A22 criterion is closed and no hosted CI was observed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -861,7 +887,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation staging/publication (candidate acquisition API wired), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation staging and CLI cutover (candidate acquisition/publication APIs wired), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

@@ -101,6 +101,14 @@ impl CandidateCredentialTarget {
         }
     }
 
+    pub(crate) fn previous(&self) -> Option<&ConnectionRecord> {
+        self.previous.as_ref()
+    }
+
+    pub(crate) fn final_kind(&self) -> PrerequisiteKind {
+        self.last.purpose.kind()
+    }
+
     pub(crate) fn final_request(&self) -> &ClosedPrerequisiteRead {
         &self.last.request
     }

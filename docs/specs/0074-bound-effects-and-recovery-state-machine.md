@@ -274,6 +274,21 @@ change once its credential identity has an allocation. Candidate acquisition
 returns retained response/unknown facts; publication remains a separate operator
 action requiring the final purpose and complete fresh retained evidence.
 
+The trusted operator publication API fences the exact candidate root, its
+permanent allocation, every child response/allocation, native configuration
+and expected predecessor (or absence) with the connection replacement/insertion.
+It re-evaluates every actual check purpose, including the primary response,
+and measures evidence age from the retained grant time. Missing, unknown,
+failed or stale evidence cannot publish. Publication creates no transport permit,
+changes no acquisition fact and resets no charge. `Published` means the store
+acknowledged this transition. `AlreadyCurrent` means only that exact candidate
+bytes were observed as current; it does not attribute causation or refresh
+checks. This distinction permits explicit observation after acknowledgement
+loss. The operator channel supplies publication authority separately from native
+read proof/approval. Custody is checked for the exact staged reference before
+publication; independently stored custody and connection state are not claimed
+to be one atomic transaction.
+
 The concrete journal encoding is `auths.gateway-attempt/12`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,

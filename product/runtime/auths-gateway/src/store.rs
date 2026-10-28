@@ -709,8 +709,9 @@ enum ProtocolState {
 mod acquisition;
 mod capacity;
 pub use acquisition::{
-    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, GatewayRecoveryReport,
-    RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
+    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
+    GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts,
+    ReservedAcquisition,
 };
 pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
 
