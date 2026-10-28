@@ -445,3 +445,22 @@ final purpose/version, unknown primary, stale primary/children, expired approval
 changed configuration and changed predecessor. Acquisition snapshots and charges
 remain unchanged across publication. This evidence remains narrower than process
 faults, installed custody/provider execution or PostgreSQL conformance.
+
+
+### Staging and local custody serialization
+
+The staged rotation path preserves the existing concrete connection/credential
+relationship. It records the cleanup generation, stores without overwriting a
+candidate, and hands its private proposal to the shared native read owner.
+No provider semantics move into custody. The operator CLI directly uses native
+call compilation, review, acquisition and publication; unapproved rotation is
+limited to recipes with no network checks. Published-secret join is exact
+credential confirmation without acquisition.
+
+The persistent file credential store now orders operations with a stable
+cross-process sidecar lock and reloads bounded state. This is an existing store
+mechanism correction needed by independent operator/runtime processes, not a
+new lifecycle owner. The production CLI corpus drives two competing staging
+processes and a held-lock refusal. Native staging evidence checks stale handle
+refresh and conflicting successor refusal. Broader fault and adapter evidence
+remains required before AP074 acceptance closes.

@@ -81,6 +81,7 @@ const ROWS: &[&str] = &[
     "gateway.trust.key-aliased install install-and-serve new 5 -",
     "gateway.trust.observer-key-in-authority-chain engine before-claim new 5 -",
     "gateway.observer.credential-guard observer observe new 3 -",
+    "gateway.admin.candidate-approval-required admin admin new 74 -",
     "gateway.admin.credential-account admin admin new 3 -",
     "gateway.admin.credential-capability admin admin new 3 -",
     "gateway.admin.credential-guard admin admin new 3 -",

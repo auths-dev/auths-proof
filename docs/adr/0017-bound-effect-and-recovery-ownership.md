@@ -716,3 +716,25 @@ and rejects noncanonical/duplicate/unknown/obsolete data. No persisted proof of
 current custody, predecessor, authority or completed checks is implied. This
 format prepares the operator CLI to retain a stable target across approval and
 restart without adding a second execution path or serializable capability.
+
+
+## Candidate staging and operator CLI
+
+Rotation staging now records cleanup obligations before a non-overwriting
+custody replace, preserving the current connection and secret. The exact native
+proposal feeds call authoring, `effect-review --candidate`, acquisition under
+runtime read identity and publication under operator identity. Read-bearing
+recipes refuse the old unapproved rotation/commit routes; no-read recipes retain
+an explicit offline operator flow. Joining an already-published secret uses
+exact reference confirmation and does not acquire new provider evidence.
+
+Independent CLI processes exposed a local file-custody lifetime problem:
+previous handles retained snapshots that could overwrite a later successor.
+The existing persistent custody owner now uses a stable sidecar lock, reloads
+bounded canonical state under it, and fails immediately on lock contention.
+Atomic database rename remains the persistence boundary. Readers refresh before
+selecting the exact credential; a completed deletion cannot be hidden by a stale
+process cache. This is a store mechanism, with no change to credential identity,
+read authorization or publication policy. Staged/CLI fixtures cover real file
+custody, independent competing processes, held-lock refusal and stale handles;
+they do not establish AWS, PostgreSQL or full process-crash qualification.

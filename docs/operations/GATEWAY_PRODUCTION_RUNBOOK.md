@@ -51,11 +51,42 @@ the write-only operator identity. The operator process reads with the former
 and creates/deletes with the latter; the serving process keeps only its
 read-only identity. Neither role needs broader permissions.
 
-Use the operator identity and `rotate-prepare --operator-process
---credential-stdin --state-dir ...`, piping the new provider secret. It runs
-the recipe's fixed credential checks and stores a successor without publishing
-it. Retain only the returned reference commitment. Then use `rotate-commit
---operator-process --state-dir ... --commitment ...` to atomically publish it.
+For a recipe with credential reads, use the approved candidate workflow:
+
+1. Under operator identity, pipe the secret to `candidate-stage-rotation
+   --credential-stdin --state-dir ... --proposal-out /private/candidate.json`.
+   The absolute output must be new. Staging writes cleanup notes and custody,
+   preserves the live record, and performs no credential lease or provider read.
+2. Run `effect-candidate-call --state-dir ... --candidate /private/candidate.json
+   --operation ... --call-out /private/call.json`. Use the normal native authoring
+   flow to obtain proof/action for this exact call. The proposal is private data,
+   not authorization.
+3. Run `effect-review --candidate /private/candidate.json --state-dir ...
+   --proof ... --action ... --not-before ... --expires-at ... --request-out ...`.
+   Review the actual requests and connection/predecessor, obtain the reviewer's
+   signature, and assemble the exact envelope with `effect-approval`.
+4. Under runtime read identity, run `candidate-acquire --state-dir ...
+   --candidate /private/candidate.json --proof ... --action ... --approval ...`.
+   It returns retained response/unknown facts. An unknown result does not permit
+   blind retry or publication.
+5. Under operator identity, run `candidate-publish` with the same state directory,
+   proposal, proof, action and approval. The connection changes only if fresh
+   native authorization and every retained credential predicate pass under the
+   writer fence. Evidence expires 30 seconds after its original grant, including
+   earlier children. `AlreadyCurrent` reports exact state without attributing a
+   prior publication to this invocation.
+
+Keep the exact private proposal across restart. A different secret at an already
+staged generation is refused; staging never deletes it implicitly. Local file
+custody serializes independent processes with a stable lock and refreshes state;
+lock contention returns unavailable without a write. The current read-bearing
+rotation API refuses `rotate`, `rotate-prepare` and commitment-only
+`rotate-commit` with `gateway.admin.candidate-approval-required`. Those commands
+remain the offline operator flow for recipes declaring no credential reads.
+Joining an already-published connection confirms the exact committed secret
+without acquiring new provider evidence. First-install candidate staging and
+full installed provider/custody qualification remain unfinished AP074 work.
+
 Check status on both hosts; each must see the same shared generation and hold
 the exact committed credential generation. The old generation remains for at
 least the fixed 20-second retirement delay. Run `credential-collect --state-dir

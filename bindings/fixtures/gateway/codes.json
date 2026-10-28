@@ -129,6 +129,14 @@
       "case": null
     },
     {
+      "code": "gateway.admin.candidate-approval-required",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.admin.credential-account",
       "owner": "admin",
       "stage": "admin",

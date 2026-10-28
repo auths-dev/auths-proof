@@ -188,8 +188,11 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
             /// Compile independent read authority for this retained source.
-            #[arg(long)]
+            #[arg(long, conflicts_with = "candidate")]
             recovery_of: Option<String>,
+            /// Private staged candidate proposal for credential-check review.
+            #[arg(long, conflicts_with = "recovery_of")]
+            candidate: Option<PathBuf>,
             #[arg(long)]
             proof: PathBuf,
             #[arg(long)]
@@ -201,6 +204,56 @@ mod unix {
             /// New absolute owner-private file for the canonical signing request.
             #[arg(long)]
             request_out: PathBuf,
+        },
+        /// Operator-only: stage a rotation secret from stdin and save its exact
+        /// private proposal. No provider read, lease or publication occurs.
+        CandidateStageRotation {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long, required = true)]
+            credential_stdin: bool,
+            #[arg(long)]
+            proposal_out: PathBuf,
+        },
+        /// Author the native call for exact staged candidate checks. No I/O
+        /// authority or completed-check claim is created.
+        EffectCandidateCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            candidate: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            call_out: PathBuf,
+        },
+        /// Execute independently authorized staged credential checks using the
+        /// runtime custody identity; returns redacted acquisition facts only.
+        CandidateAcquire {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            candidate: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Operator-only: publish an exact candidate from fresh retained checks.
+        /// Performs no provider I/O and creates no new read allocation.
+        CandidatePublish {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            candidate: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
         },
         /// Author the exact private call for an independently authorized
         /// recovery read. No proof, approval, reservation or entry is created.
@@ -596,7 +649,8 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
         },
-        /// Rotate the credential via the private operator socket and stdin.
+        /// Offline rotation for recipes without credential reads. Read-bearing
+        /// recipes use candidate-stage-rotation, candidate-acquire and candidate-publish.
         Rotate {
             #[arg(long)]
             state_dir: PathBuf,
@@ -611,7 +665,7 @@ mod unix {
             #[arg(long, default_value_t = false)]
             operator_process: bool,
         },
-        /// First phase of a two-phase rotation: store the new credential
+        /// Offline recipes only. First phase of a two-phase rotation: store the new credential
         /// from stdin without publishing it, and print its commitment.
         RotatePrepare {
             #[arg(long)]
@@ -627,7 +681,7 @@ mod unix {
             #[arg(long, default_value_t = false)]
             operator_process: bool,
         },
-        /// Second phase: publish the prepared credential the commitment
+        /// Offline recipes only. Second phase: publish the prepared credential the commitment
         /// names to every process sharing the store.
         RotateCommit {
             #[arg(long)]
@@ -3062,10 +3116,25 @@ mod unix {
             .map_err(|_| "gateway.effect.approval")
     }
 
+    fn read_candidate(
+        state_dir: &Path,
+        path: &Path,
+    ) -> Result<auths_gateway::effect::CandidateCredentialTarget, Failure> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| "gateway.state.invalid-path")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let recipe = installed_recipe(state_dir)?;
+        let bytes = Zeroizing::new(read_bounded(path, auths_gateway::effect::MAX_EFFECT_BYTES)?);
+        auths_gateway::effect::CandidateCredentialTarget::from_private_bytes(&recipe, &bytes)
+            .map_err(|_| "gateway.effect.review-refused".into())
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn effect_review(
         state_dir: PathBuf,
         recovery_of: Option<String>,
+        candidate: Option<PathBuf>,
         proof: PathBuf,
         action: PathBuf,
         not_before: u64,
@@ -3076,18 +3145,28 @@ mod unix {
         if !request_out.is_absolute() {
             return Err("gateway.state.invalid-path".into());
         }
+        let candidate = candidate
+            .as_ref()
+            .map(|path| read_candidate(&state_dir, path))
+            .transpose()?;
         let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
             .await
             .map_err(|_| "gateway.effect.unavailable")??;
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
-        let effect = match recovery_of {
-            Some(source) => {
+        let effect = match (recovery_of, candidate) {
+            (Some(source), None) => {
                 engine
                     .compile_recovery_effect(&source, &proof, &action)
                     .await
             }
-            None => engine.compile_effect(&proof, &action).await,
+            (None, Some(target)) => {
+                engine
+                    .compile_candidate_effect(&target, &proof, &action)
+                    .await
+            }
+            (None, None) => engine.compile_effect(&proof, &action).await,
+            (Some(_), Some(_)) => return Err("gateway.effect.review-refused".into()),
         }
         .map_err(|_| "gateway.effect.review-refused")?;
         let request = effect
@@ -3884,9 +3963,113 @@ mod unix {
                 .map_err(|_| "gateway.configuration.unavailable")??;
                 Ok(())
             }
+            Command::CandidateStageRotation {
+                state_dir,
+                credential_stdin,
+                proposal_out,
+            } => {
+                if !credential_stdin || std::io::stdin().is_terminal() {
+                    return Err("gateway.admin.credential-must-be-piped-to-stdin".into());
+                }
+                if !proposal_out.is_absolute() || proposal_out.exists() {
+                    return Err("gateway.state.file-exists-or-unavailable".into());
+                }
+                let candidate = read_install_credential()?;
+                let engine = operator_engine(&state_dir).await?;
+                let proposal = engine.stage_candidate_rotation(candidate).await?;
+                private_file(
+                    &proposal_out,
+                    &proposal
+                        .to_private_bytes()
+                        .map_err(|_| "gateway.effect.review-refused")?,
+                )?;
+                println!("credential candidate staged; private proposal saved");
+                Ok(())
+            }
+            Command::EffectCandidateCall {
+                state_dir,
+                candidate,
+                operation,
+                call_out,
+            } => {
+                if !call_out.is_absolute() {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let target = read_candidate(&state_dir, &candidate)?;
+                let recipe = installed_recipe(&state_dir)?;
+                let operation = auths_gateway::LogicalOperationId::parse(&operation)
+                    .map_err(|_| "gateway.effect.review-refused")?;
+                let call = target
+                    .authorization_call(&recipe, &operation)
+                    .map_err(|_| "gateway.effect.review-refused")?;
+                let bytes = Zeroizing::new(
+                    serde_json_canonicalizer::to_vec(&call).map_err(|_| "gateway.output")?,
+                );
+                private_file(&call_out, &bytes)?;
+                println!(
+                    "private candidate call saved; native proof and exact approval still required"
+                );
+                Ok(())
+            }
+            Command::CandidateAcquire {
+                state_dir,
+                candidate,
+                proof,
+                action,
+                approval,
+            } => {
+                let target = read_candidate(&state_dir, &candidate)?;
+                let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+                let action = read_bounded(&action, 64 * 1024)?;
+                let approval = read_effect_approval(&approval)?;
+                let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
+                    .await
+                    .map_err(|_| "gateway.effect.unavailable")??;
+                match engine
+                    .acquire_candidate_credential(&target, &proof, &action, approval)
+                    .await
+                {
+                    Ok(snapshot) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&snapshot).map_err(|_| "gateway.output")?
+                        );
+                        Ok(())
+                    }
+                    Err(result) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&result).map_err(|_| "gateway.output")?
+                        );
+                        Err("gateway.effect.review-refused".into())
+                    }
+                }
+            }
+            Command::CandidatePublish {
+                state_dir,
+                candidate,
+                proof,
+                action,
+                approval,
+            } => {
+                let target = read_candidate(&state_dir, &candidate)?;
+                let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+                let action = read_bounded(&action, 64 * 1024)?;
+                let approval = read_effect_approval(&approval)?;
+                let engine = operator_engine(&state_dir).await?;
+                let outcome = engine
+                    .publish_candidate_credential(&target, &proof, &action, approval)
+                    .await?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&outcome).map_err(|_| "gateway.output")?
+                );
+                Ok(())
+            }
             Command::EffectReview {
                 state_dir,
                 recovery_of,
+                candidate,
                 proof,
                 action,
                 not_before,
@@ -3896,6 +4079,7 @@ mod unix {
                 effect_review(
                     state_dir,
                     recovery_of,
+                    candidate,
                     proof,
                     action,
                     not_before,

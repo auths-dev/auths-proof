@@ -1,5 +1,7 @@
 //! Native candidate compilation, acquisition and fenced publication corpus.
 use super::*;
+#[path = "effect_candidate_staging_tests.rs"]
+mod staging;
 use crate::effect::{
     CANDIDATE_CHECK_TOOL, CandidateCredentialTarget, compile_candidate_credential,
 };
@@ -23,6 +25,7 @@ async fn native_candidate_compilation_fixture_is_current() {
     let mut cases = Vec::new();
     let mut journal_cases = Vec::new();
     let mut capacity_cases = Vec::new();
+    let mut staging_cases = Value::Null;
     let capacity_directory = tempfile::tempdir().expect("capacity directory");
     let capacity_store = std::sync::Arc::new(
         crate::FileGatewayAttemptStore::open(
@@ -173,6 +176,9 @@ async fn native_candidate_compilation_fixture_is_current() {
         )
         .expect("grant");
         let submission = submission_for_call(&root, &reader, &grant, &call, &[]);
+        if case == "rotation" {
+            staging_cases = staging::histories(&recipe, &trust, &policy).await;
+        }
         let installed = policy.installation(
             &recipe,
             &trust,
@@ -559,6 +565,13 @@ async fn native_candidate_compilation_fixture_is_current() {
         std::fs::write(&path, &fixture).expect("write fixture");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+    let fixture = serde_json::to_vec_pretty(&staging_cases).expect("staging fixture");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/candidate-staging.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &fixture).expect("staging write");
+    }
+    assert_eq!(std::fs::read(path).expect("staging fixture"), fixture);
 }
 
 #[allow(

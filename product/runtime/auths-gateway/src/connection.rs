@@ -339,8 +339,7 @@ pub async fn install_connection(
 }
 
 /// Joins a further process to an installed connection: loads the shared
-/// record, runs every credential check the recipe declares against the
-/// record's account commitment, and stores `candidate` at the record's
+/// record and stores `candidate` at the record's
 /// credential generation only when its reference commitment there equals
 /// the record's, compared in constant time. Because the commitment is bound
 /// to the credential generation rather than the current generation, a join
@@ -349,8 +348,8 @@ pub async fn install_connection(
 ///
 /// # Errors
 /// Returns `gateway.install.join-record-missing` without a record,
-/// `gateway.install.join-commitment-mismatch` for another secret, the
-/// onboarding codes of a refused candidate, and store codes otherwise.
+/// `gateway.install.join-commitment-mismatch` for another secret,
+/// and store codes otherwise. No provider read is performed.
 pub async fn join_connection(
     shared: &SharedConnection,
     credentials: &dyn ConnectionCredentialStore,
@@ -368,14 +367,9 @@ pub async fn join_connection(
     }
     crate::GatewayConnectionDescriptor::from_record(record, recipe)
         .map_err(|_| "gateway.install.join-recipe-mismatch")?;
-    crate::onboarding::check_candidate_credential(
-        recipe,
-        recipe.review().credential(),
-        candidate,
-        crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
-    )
-    .await
-    .map_err(crate::onboarding::OnboardingFailure::install_code)?;
+    // Joining confirms exactly the already-published secret. It does not
+    // acquire new provider evidence or authorize a changed credential.
+
     let secret =
         SecretBytes::new(candidate.to_vec()).map_err(|_| "gateway.install.invalid-credential")?;
     match credentials

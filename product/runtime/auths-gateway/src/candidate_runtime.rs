@@ -6,6 +6,83 @@ use crate::effect::{BoundEffect, CandidateCredentialTarget, compile_candidate_cr
 use crate::submit::AcquisitionIo;
 
 impl GatewayEngine {
+    /// Stages an operator-supplied rotation secret without leasing it or
+    /// contacting the provider. The exact proposal can be persisted for native
+    /// read authorization and approval. It never publishes the connection.
+    /// Existing successor custody is never revoked or overwritten; a different
+    /// secret at that generation fails. Cleanup notes precede the custody write.
+    /// Only the trusted operator service may call this method.
+    ///
+    /// # Errors
+    /// Refuses revoked/changed connections, missing current custody, invalid
+    /// credential syntax/prefix, recipes without candidate reads, exhausted
+    /// generations, conflicting staged custody or unavailable durable state.
+    /// A custody failure can be ambiguous: retained cleanup notes remain and
+    /// no automatic deletion or publication follows an error.
+    pub async fn stage_candidate_rotation(
+        &self,
+        mut candidate: zeroize::Zeroizing<Vec<u8>>,
+    ) -> Result<CandidateCredentialTarget, &'static str> {
+        self.check_effect_configuration().await?;
+        let current = self.load_for_admin().await?;
+        let record = current.record();
+        if record.state() == ConnectionState::Revoked {
+            return Err("gateway.admin.connection-not-active");
+        }
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !guard.admits_secret(&candidate))
+        {
+            return Err("gateway.admin.credential-guard");
+        }
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or("gateway.admin.clock-unavailable")?;
+        let proposed = record
+            .rotated(
+                record.descriptor().to_vec(),
+                *record.account_commitment(),
+                [0; 32],
+                now,
+            )
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        // Validate the complete relationship/check plan before touching custody.
+        CandidateCredentialTarget::new(&self.recipe, &proposed, Some(record))
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        self.holds(record)
+            .await
+            .map_err(|_| "gateway.admin.credential-unavailable")?;
+        let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+            .map_err(|_| "gateway.admin.invalid-credential")?;
+        self.note_credential(record, proposed.credential_generation())
+            .await?;
+        let reference = self
+            .credentials
+            .replace(
+                record.connection_id(),
+                record.generation(),
+                proposed.credential_generation(),
+                secret,
+            )
+            .await
+            .map_err(|_| "gateway.admin.credential-unavailable")?;
+        let proposed = record
+            .rotated(
+                record.descriptor().to_vec(),
+                *record.account_commitment(),
+                *reference.as_bytes(),
+                now,
+            )
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        let target = CandidateCredentialTarget::new(&self.recipe, &proposed, Some(record))
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        self.check_candidate_predecessor(&target).await?;
+        Ok(target)
+    }
+
     /// Compiles independently authorized checks for a staged credential. The
     /// exact predecessor/absence must currently match; no custody or provider
     /// I/O occurs. The final entry transaction repeats this check under its fence.

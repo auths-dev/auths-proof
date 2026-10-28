@@ -901,6 +901,54 @@ closure regeneration passed after that correction (one artifact-generation test)
   them. No new schema migration, legacy reader or alternate execution path was
   added. Existing candidate compiler/binding/journal identities are unchanged.
 
+## Candidate rotation staging and CLI checkpoint
+
+- `stage_candidate_rotation` checks installed configuration, current exact
+  connection, non-revocation, prefix, read plan, current custody and generations
+  before storing a successor. Durable cleanup notes precede the custody write.
+  It never leases, reads a provider, publishes, or discards another staged secret.
+  The fixed deployment-clock proposal can be persisted through approval/restart.
+- Added production `candidate-stage-rotation`, `effect-candidate-call`,
+  `effect-review --candidate`, `candidate-acquire` and `candidate-publish` CLI
+  commands using native owners. Stage/publish use operator custody identity;
+  acquisition uses runtime read identity. Proposals/calls are new mode-0600
+  files. Existing output and permissive proposal files are refused.
+- Read-bearing recipes now refuse the old `rotate`/`rotate-prepare`/
+  commitment-only `rotate-commit` routes before I/O. Recipes without reads keep
+  the offline operator path. Joining an already-published connection confirms
+  its exact credential reference without any provider read. First-install raw
+  checks and maintained deployment/qualification journey cutovers remain open.
+- Independent operator processes exposed persistent file-custody snapshot
+  overwrites. The existing custody owner now reloads bounded canonical state
+  under a stable cross-process sidecar lock. File-lock contention fails
+  immediately; stale handles cannot overwrite committed candidates or hide a
+  completed deletion. Reads allocate once into zeroizing buffers, with length
+  bounds and exact EOF checks. No new dependency, credential identity or
+  lifecycle owner is introduced; shared connection/custody atomicity is not claimed.
+- Native artifact construction passed on `861271a3` plus this source: five
+  durable staging cases (active/disabled, revoked, missing cleanup journal,
+  bad prefix), same-secret replay/different-secret refusal, custody reopen,
+  unchanged connection/witness and refusal of unapproved guarded rotation.
+  The 80 native candidate journal/publication histories and code/custody
+  inventories passed as well. Initial generator errors were a missing semicolon
+  and a fixture directory lacking mode 0700; both were corrected.
+- The production CLI artifact passed with actual competing processes, one
+  staging winner, held-custody-lock refusal, exact native call bytes, output
+  preservation and owner-private permissions. Its initial compile required a
+  borrowed operation string; its synthetic installation then needed the same
+  pinned qualification root and empty loaded bundle as the production loader.
+  Those fixture inputs were corrected instead of weakening configuration checks.
+- After the file-custody change, native staging regeneration passed again,
+  including stale-reader observation of a completed deletion; the independent
+  CLI process generator also passed again. Final source closure was regenerated
+  after all source edits.
+- These are scoped file/CLI facts, not a fully approved installed provider
+  rotation, AWS/PostgreSQL conformance or process-crash qualification. First
+  installation, full approved provider journeys, safe recovery credentials,
+  general acquisition/disclosure/ACK, Python-owner removal, authenticated UI and
+  complete fault/formal/performance/hosted evidence remain required. No A01–A22
+  acceptance criterion closes. No broad local gate or hosted CI was run.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -908,7 +956,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation staging and CLI cutover (candidate acquisition/publication APIs wired), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | First-install staging, maintained deployment and full approved rotation journeys (candidate CLI wired), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

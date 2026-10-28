@@ -272,6 +272,19 @@ and grants no native authority, custody lease, transport or publication. It is
 private operator data suitable for preserving an exact target across approval
 and restart; the journal and fresh fences remain authoritative.
 
+Rotation staging stores a successor only after validating the live predecessor,
+recipe, secret prefix, custody and generation and recording its durable cleanup
+obligation. It performs no provider read or lease, never deletes an existing
+successor, and returns the private proposal for native authorization. The CLI
+exposes staging, native call authoring, candidate review, acquisition and operator
+publication as separate steps. Read-bearing recipes cannot use commitment-only
+rotation; recipes with no reads retain their offline operator path. A join of
+an already-published connection confirms its exact credential binding without
+re-running provider checks. Local file custody reloads state under a stable
+cross-process lock for each operation; contention is bounded by immediate
+refusal, and stale handles cannot overwrite a successor or serve a generation
+already removed by a completed custody mutation.
+
 Candidate journal admission uses the expected connection row as a source
 rather than an invented source mutation. Both admission and every child/primary
 entry must recheck predecessor/absence, exact native authority, configuration,

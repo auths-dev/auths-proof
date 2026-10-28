@@ -808,41 +808,32 @@ impl GatewayEngine {
         Ok(self.drained("gateway.admin.enabled").await)
     }
 
-    /// Rotates the operator-held secret.
-    ///
-    /// The candidate must first pass every declared credential check: the
-    /// prefix, the probe, the account read against the record's commitment,
-    /// and the denied reads. A process that holds the record's current secret
-    /// commits a rotation: it stores the candidate at the next generation and
-    /// publishes the rotated record, which makes that generation the
-    /// credential generation. A process that does not hold it, because the
-    /// rotation was committed through another process, takes the candidate
-    /// into its own store at the credential generation only when its
-    /// reference commitment there equals the record's. A later disable or
-    /// enable leaves both valid.
+    /// Rotates an operator-held secret only for a recipe with no provider
+    /// credential reads. Read-bearing recipes require `stage_candidate_rotation`,
+    /// separately approved acquisition, and `publish_candidate_credential`.
+    /// A peer may take an already-published exact secret into local custody.
     ///
     /// # Errors
-    /// A refused candidate, a commitment that does not match, or a failed
-    /// durable transition never reports the rotation complete.
+    /// Refuses read-bearing recipes before custody or provider I/O, invalid
+    /// secret prefixes, substitution and unavailable durable state.
     pub async fn rotate_connection(
         &self,
         candidate: zeroize::Zeroizing<Vec<u8>>,
     ) -> Result<GatewayAdminOutcome, &'static str> {
+        self.require_offline_rotation()?;
         let current = self.load_for_admin().await?;
         let record = current.record();
         if record.state() == ConnectionState::Revoked {
             return Err("gateway.admin.connection-not-active");
         }
-        // The provider reads run before anything is stored or committed,
-        // and no submission waits on them.
-        crate::onboarding::check_candidate_credential(
-            &self.recipe,
-            self.recipe.review().credential(),
-            &candidate,
-            crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
-        )
-        .await
-        .map_err(crate::onboarding::OnboardingFailure::admin_code)?;
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !guard.admits_secret(&candidate))
+        {
+            return Err("gateway.admin.credential-guard");
+        }
         let mut candidate = candidate;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
@@ -861,6 +852,18 @@ impl GatewayEngine {
             let _ = self.credentials.revoke(record.connection_id(), next).await;
         }
         committed
+    }
+
+    /// Offline operator rotation cannot bypass any recipe-declared read.
+    fn require_offline_rotation(&self) -> Result<(), &'static str> {
+        let reads = self
+            .recipe
+            .credential_reads()
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        if reads.probe().is_some() || reads.account().is_some() || !reads.denied().is_empty() {
+            return Err("gateway.admin.candidate-approval-required");
+        }
+        Ok(())
     }
 
     /// Stores `secret` at the generation after `record`'s without changing
@@ -909,10 +912,10 @@ impl GatewayEngine {
         }
     }
 
-    /// The first phase of a two-phase rotation: checks the candidate against
-    /// the recipe's declared credential checks, stores it at the next
-    /// generation, and returns its reference commitment. The shared record
-    /// is unchanged, so every process keeps serving the current credential.
+    /// The first phase of an offline two-phase rotation: checks the secret
+    /// prefix, stores it at the next generation and returns its reference
+    /// commitment. Recipes with provider reads require the candidate workflow.
+    /// The shared record is unchanged, so every process keeps serving the current credential.
     /// It works on a disabled connection, which is how a possibly
     /// compromised credential is replaced.
     ///
@@ -923,19 +926,20 @@ impl GatewayEngine {
         &self,
         candidate: zeroize::Zeroizing<Vec<u8>>,
     ) -> Result<[u8; 32], &'static str> {
+        self.require_offline_rotation()?;
         let current = self.load_for_admin().await?;
         let record = current.record();
         if record.state() == ConnectionState::Revoked {
             return Err("gateway.admin.connection-not-active");
         }
-        crate::onboarding::check_candidate_credential(
-            &self.recipe,
-            self.recipe.review().credential(),
-            &candidate,
-            crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
-        )
-        .await
-        .map_err(crate::onboarding::OnboardingFailure::admin_code)?;
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !guard.admits_secret(&candidate))
+        {
+            return Err("gateway.admin.credential-guard");
+        }
         let mut candidate = candidate;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
@@ -945,7 +949,8 @@ impl GatewayEngine {
         self.store_successor(record, secret).await
     }
 
-    /// The second phase: replaces the credential generation and reference
+    /// The second phase for recipes without provider credential reads:
+    /// replaces the credential generation and reference
     /// commitment in the shared record with one compare-and-swap, only when
     /// the store holds, at the next generation, exactly the secret
     /// `commitment` names. The superseded generation is kept for the
@@ -959,6 +964,7 @@ impl GatewayEngine {
         &self,
         commitment: [u8; 32],
     ) -> Result<GatewayAdminOutcome, &'static str> {
+        self.require_offline_rotation()?;
         let current = self.load_for_admin().await?;
         if current.record().state() == ConnectionState::Revoked {
             return Err("gateway.admin.connection-not-active");

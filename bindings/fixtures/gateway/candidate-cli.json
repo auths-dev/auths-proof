@@ -1,0 +1,14 @@
+{
+  "schema": "auths.candidate-cli-fixture/1",
+  "scope": "production staging and call-authoring CLI with real file custody, cleanup journal and generation floor; synthetic installation/trust; no approved provider acquisition or publication claim",
+  "competing_processes_one_staging_winner": true,
+  "held_custody_fence_refuses_without_proposal": true,
+  "staged_generation": 2,
+  "current_record_unchanged": true,
+  "proposal_and_call_mode": "0600",
+  "existing_proposal_refused_without_overwrite": true,
+  "different_secret_same_generation_refused": true,
+  "reopened_custody_holds_exact_candidate": true,
+  "authored_call_matches_native": true,
+  "permissive_proposal_refused": true
+}
