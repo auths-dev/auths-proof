@@ -100,6 +100,27 @@ pub(in crate::store) fn retained(
     ))
 }
 
+/// Reconstructs bytes only for the final fenced delivery grant. The decoder
+/// revalidates the source MAC and transport/projection facts before returning.
+#[cfg(unix)]
+pub(in crate::store) fn retained_bytes(
+    bytes: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, GatewayAttemptError> {
+    let record: Record<AcquisitionState> = decode_as(bytes)?;
+    let AcquisitionPlan::Content(plan) = &record.state.plan else {
+        return Err(GatewayAttemptError::InvalidTransition);
+    };
+    let AcquisitionPhase::ContentResponseRecorded {
+        content: ContentResult::Ready(_),
+        response,
+        metadata,
+    } = &record.state.phase
+    else {
+        return Err(GatewayAttemptError::InvalidTransition);
+    };
+    project(plan, response, metadata)?.map_err(|_| GatewayAttemptError::Corrupt)
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(
     tag = "kind",

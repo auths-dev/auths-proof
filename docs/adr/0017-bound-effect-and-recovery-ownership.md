@@ -860,7 +860,7 @@ cutover remain required; this evidence grants no provider qualification.
 
 ## Protected content in the response transaction
 
-Attempt `/13` extends the existing content response fact with one closed
+Attempt `/15` retains the existing content response fact with one closed
 protected/refused result. Projection and key generation happen before the same
 response acknowledgement; a crash cannot leave a published content identifier
 without its retained response, or re-create a provider permit. Loading recomputes
@@ -926,7 +926,7 @@ acquisition allocator into a second disclosure ledger.
 
 ## Disclosure admission and historical ACK journal
 
-Attempt `/14` adds the closed disclosure state to the existing `JournalProtocol`
+Attempt `/15` retains the closed disclosure state to the existing `JournalProtocol`
 projection. The existing kernel reducer remains the sole transition decision;
 file/PostgreSQL adapters retain their existing fenced insert/replace/CAS contract.
 The plan is data only and validates source scope, installation, projection, exact
@@ -934,7 +934,7 @@ length, recipient key and typed reservations against the bound effect. Admission
 loads and validates the retained acquisition under the same writer fence as native
 configuration/authority. It atomically inserts one permanent source allocation
 and the existing count/sum policy slots. No disclosure ledger, callback, provider
-request or second capacity authority is introduced. Obsolete `/13` is rejected.
+request or second capacity authority is introduced. Obsolete `/14` is rejected.
 
 The protocol's immutable ACK field is verified on every decode. Historical ACK
 recording needs an existing grant and the common reducer, not fresh execution
@@ -942,7 +942,7 @@ authority. A concurrent identical ACK can be recognized after one bounded reload
 revision and charges remain unchanged. Public snapshots and support listings keep
 provider/acquisition/recipient facts distinct and contain no private correlations.
 Engine proposal/compile/admit operations have no delivery capability or custody.
-The final recipient-authenticated grant and one-use transport remain unwired.
+The final recipient-authenticated grant and one-use transport use the boundary below.
 
 `disclosure-journal.json` constructs real HTTP source content then executes native
 installed file admission, duplicate claim concurrency, changed source/connection/
@@ -952,3 +952,59 @@ synthetic retained grants, exercise the real durable CAS/decoder/reducer, and as
 pre-grant/foreign refusal, concurrent exact replay and late evidence after disabling
 the connection. They do not establish recipient authentication, actual send,
 independent-process isolation or PostgreSQL qualification.
+
+## Local authenticated disclosure channel boundary
+
+The first delivery transport uses an owned Unix stream, not an arbitrary callback
+or provider credential. A native channel commitment pins gateway UID, recipient
+UID and an operator-selected channel identifier. Both peers check kernel peer UID
+and their effective UID. The recipient additionally signs a freshly sampled
+challenge bound to the complete native ACK statement under a distinct
+`auths.gateway-disclosure-auth/1` domain. Authentication never signs an ACK or
+claims receipt. The owned stream and bounded authentication transcript must remain
+sealed through the final journal fence and the one-use send permit.
+
+The existing gateway admin listener already uses Tokio peer credentials. The
+exchange Unix adapter supplies peer observations but does not bind this recipient,
+effect, UID pair or fresh challenge; reusing its generic authenticated-server
+label would not establish the needed fact. Reuse the pinned Tokio/rustix/Ed25519
+primitives and native canonical/domain codec without adding a dependency or a new
+network authority framework. Native authority and exact approval still run at
+final entry; channel authentication cannot substitute for either.
+
+This is local transport under kernel/UID/socket-access isolation. A recipient must
+receive the expected effect and channel policy on its trusted private authoring
+channel and check the gateway UID before signing. A same-UID synthetic socket test
+establishes protocol behavior only, not hostile-process isolation. A malicious
+host, gateway UID or recipient key holder can bypass or forward their own data;
+that is outside this boundary. The retained MAC is opaque to the recipient: the
+trusted gateway binds its exact projected bytes to that identifier, and the
+recipient ACKs only after receiving the declared exact length on this channel.
+
+
+The concrete final grant fences the attempt, protected source, permanent source
+allocation, native connection/configuration dependencies and selected count/sum
+slots in the existing transaction. It validates full native authority/approval and
+the owned live channel, reconstructs exact content from the validated source, and
+persists entry plus authentication atomically. Only acknowledged persistence
+returns `DisclosureEntryPermit`; transport consumes it once. Neither a serialized
+transcript nor a retained grant can recreate it. The existing transition owner
+freezes `(EntryAudit, RecipientAuthentication)` as one immutable entry value.
+Attempt `/15` rejects missing/invalid authentication on a disclosure grant and
+rejects obsolete `/14`; no second reducer, store or compatible decoder exists.
+
+Framing is a four-byte unsigned big-endian length checked before allocation,
+4,096 bytes for canonical authentication/ACK and 65,536 bytes for content, with
+exact projected length. Authentication expires after five seconds; the whole
+session expires after fifteen seconds, including final fence wait and send/ACK.
+A transport timeout does not refresh native evidence or refund reservations.
+The gateway deployment clock remains the final authority/freshness owner.
+
+`disclosure-delivery.json` is constructed from actual socket pairs and native
+installed file grants over retained HTTP source content. It exercises actual
+receipt/ACK, loss of ACK with reopened no-redelivery and late refinement, dropped
+permits, competing authenticated channels, and connection/configuration/approval
+changes after authentication. Authentication substitutions, malformed frames and
+corrupt retained authentication refuse. This evidence is separate from the older
+synthetic-grant corpus; neither establishes independent-process containment,
+PostgreSQL parity, installed UI/bindings or completion of AP074 acceptance cases.

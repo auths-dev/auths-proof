@@ -27,6 +27,15 @@ const SCHEMA: &str = "auths.gateway-codes/1";
 /// none exists yet). The fixture letters are R for the recipe corpus, A for
 /// the attempt scenarios, B for the bounds cases, and O for the outcomes.
 const ROWS: &[&str] = &[
+    "gateway.disclosure.channel disclosure_transport authentication new 74 -",
+    "gateway.disclosure.peer disclosure_transport authentication new 74 -",
+    "gateway.disclosure.authentication disclosure_transport authentication new 74 -",
+    "gateway.disclosure.timeout disclosure_transport transport new 74 -",
+    "gateway.disclosure.acknowledgement disclosure_transport acknowledgement new 74 -",
+    "gateway.disclosure.length disclosure_transport transport new 74 -",
+    "gateway.disclosure.frame disclosure_transport transport new 74 -",
+    "gateway.disclosure.read disclosure_transport transport new 74 -",
+    "gateway.disclosure.write disclosure_transport transport new 74 -",
     "gateway.disclosure.exhausted effect admission new 74 -",
     "gateway.disclosure.binding effect compile new 74 -",
     "gateway.disclosure.unsupported-bounds effect compile new 74 -",

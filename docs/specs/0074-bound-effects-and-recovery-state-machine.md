@@ -323,7 +323,7 @@ read proof/approval. Custody is checked for the exact staged reference before
 publication; independently stored custody and connection state are not claimed
 to be one atomic transaction.
 
-The concrete journal encoding is `auths.gateway-attempt/14`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/15`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded
@@ -411,9 +411,9 @@ encoding facts. Each header is missing, one value of at most 128 bytes, or inval
 by decoding a content record as ordinary prerequisite/recovery evidence.
 
 The typed `content-response-recorded` phase projects to the existing acquisition
-response stage under the sole reducer. Attempt schema `/14` atomically retains
+response stage under the sole reducer. Attempt schema `/15` atomically retains
 one additional closed result: protected content or a typed projection refusal.
-Obsolete `/13` records are rejected; no compatibility decoder or migration exists.
+Obsolete `/14` records are rejected; no compatibility decoder or migration exists.
 Required-version agreement, identity encoding, one valid media type and the exact
 compiled projection must all hold before protected content is constructed.
 Encoding may be absent or a single case-insensitive `identity` value; compressed
@@ -444,7 +444,7 @@ or new provider permit. Unknown/oversized responses retain their full charges.
 The public acquisition projection reports only `ready { bytes }` or
 `rejected { code }`, never the private key, content digest, hiding commitment or
 plaintext. A ready result grants no disclosure authority. Standalone read-only
-installation, AP070 metadata predicates, disclosure entry/transport and installed
+installation, AP070 metadata predicates and installed
 CLI/binding journeys remain required for the cutover.
 
 The journal's sealed `RetainedContent` is private provenance, with no public
@@ -479,7 +479,7 @@ reservation itself authorizes a delivery. The separate final grant must recheck
 the reservations before issuing any one-use delivery capability.
 
 Disclosure admission now uses a third closed journal protocol under attempt
-schema `/14`. Its immutable plan retains source-binding/projection provenance and
+schema `/15`. Its immutable plan retains source-binding/projection provenance and
 recipient/channel/instance data; it cannot reconstruct an executable capability.
 The existing writer fence validates the source response/MAC, full current native
 authority and configuration, exact approval and fixed-window predecessors before
@@ -503,9 +503,44 @@ current permission is not required to record past facts. Exact replay returns th
 same revision. A concurrent CAS loser reloads at most once to recognize identical
 stored evidence, never to redeliver. The native engine exposes separate proposal,
 compile and admission operations, all without credential lease or byte delivery.
-Production authenticated recipient entry and the one-use delivery transport remain
-required. Current file ACK fixtures explicitly inject test-only retained grants;
-they establish journal behavior, not an authenticated send or a completed A08.
+The native Unix delivery API now authenticates an owned stream before the final
+fenced grant. `auths.gateway-unix-disclosure-channel/1` binds gateway/recipient
+UIDs and a private channel identifier into the approved channel value. Both peers
+check their effective UID and the kernel peer UID. Under
+`auths.gateway-disclosure-auth/1`, the recipient signs a fresh 32-byte challenge
+bound to the complete native delivery statement. This proves key possession for
+that handshake; it is distinct from an ACK and never asserts receipt.
+
+The final writer fence rechecks the source/MAC, exact current native authority,
+approval, configuration, allocation and managed counter memberships, plus the
+live channel and its deadline. It persists the immutable authentication transcript
+with the unique entry audit before returning a noncloneable delivery permit.
+Only consuming that permit can send the exact reconstructed bytes. Attempt `/15`
+requires authentication evidence whenever a disclosure has an entry grant;
+obsolete `/14` is rejected. Decoding historical evidence cannot reconstruct a
+socket or permit. ACK recording verifies the retained transcript and exact
+original delivery even after current authority is lost.
+
+The local protocol uses unsigned big-endian 32-bit frame lengths, bounded before
+allocation: authentication and ACK frames at most 4,096 bytes, content at most
+65,536 bytes and exactly the approved projected length, including zero. Native
+canonical decoding rejects duplicate/unknown/noncanonical authentication fields.
+Authentication has a five-second deadline; the entire authenticated session has a
+fifteen-second monotonic deadline. Those transport deadlines do not replace the
+native deployment clock or final fenced authority evaluation. A lost permit,
+partial send, lost ACK or ambiguous durable acknowledgement stays charged and
+cannot produce a replacement permit. The recipient explicitly ACKs only after
+complete receipt; retaining that native ACK enables later history recording.
+
+The recipient must obtain its expected effect and policy through its trusted
+private authoring channel. This transport relies on host-enforced UID and socket
+isolation; processes trusted under the gateway UID and a malicious host are
+outside the containment guarantee. The existing synthetic-grant journal corpus
+remains historical unit evidence. A separate real socket-pair/file fixture covers
+actual send/ACK loss, reopening, one-winner concurrent grants, grant-before-send
+loss and changes between authentication and grant. It is not independent-process,
+PostgreSQL, hostile-agent or full installed A07/A08/A22 evidence. Application/CLI
+routes, thin binding/UI integration and those complete journeys remain required.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

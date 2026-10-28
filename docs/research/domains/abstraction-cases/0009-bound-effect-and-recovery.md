@@ -638,10 +638,34 @@ the existing writer fence, alongside selected native dependencies and permanent
 source/fixed-window slots. The count/sum arithmetic, immutable allocation encoding,
 replay-key comparison and CAS transition owner remain shared. Provider evidence and
 recipient ACK bytes remain divergent typed fields; no generic success outcome is
-introduced. The native engine can reserve a disclosure but cannot deliver it yet.
+introduced. The native engine reserves and delivers through the sealed Unix
+channel boundary below.
 
 The file corpus adds real-source admission/exhaustion/replay and decoder mutations.
 A synthetic retained-grant assumption enables real ACK persistence/concurrency and
 late-history comparisons; it is explicitly not live recipient authentication or
-transport evidence. The production grant/transport and complete differential and
+transport evidence. The original corpus does not establish transport; complete differential and
 performance gates remain outstanding.
+
+
+### Authenticated local disclosure instance
+
+The new Unix transport reuses kernel UID observations and pinned cryptographic
+primitives, adding a closed fresh challenge over the exact native delivery
+statement. It does not repurpose provider response evidence or generic exchange
+server authentication as recipient possession. A proposed channel policy and a
+serialized historical transcript are data; only the owned authenticated stream
+can participate in the final native fenced decision. Only its acknowledged grant
+constructs a one-use content permit. The source projection and protected-content
+validator remain the acquisition owner; recipient code cannot supply a second
+plaintext or destination to the send function.
+
+The identical shared leaves remain native verification/recompile, exact approval,
+writer fencing, source/counter allocation membership, durable acknowledgement and
+immutable entry/evidence transitions. The distinct disclosure instance fixes a
+local UID/key/channel handshake and exact byte length with explicit bounded
+framing and deadlines. It adds no provider dispatch or policy callback. The real
+socket-pair/file artifact exercises ACK loss, late evidence, fresh-authentication
+replay, dropped permit, one-winner concurrency and dependency changes before the
+final fence. Independent processes/adapters, complete recipe differential and
+performance evidence remain required by the extraction and AP074 exit gates.

@@ -106,7 +106,7 @@ and full acceptance evidence remain open AP074 requirements.
 
 Compiler `/8` exposes native candidate-check compilation for an exact staged
 first-install or rotation descriptor. The corresponding engine acquisition API
-now uses journal `/14` and entry audit `/3`: predecessor/absence, current native
+now uses journal `/15` and entry audit `/3`: predecessor/absence, current native
 authority and all earlier check evidence are fenced before reads. It leases only
 the exact already-staged credential and returns redacted acquisition facts.
 This API does not publish credentials. The onboarding/rotation CLI staging and
@@ -188,7 +188,7 @@ held which key, is operator evidence and is not produced by this code.
   `auths.lifecycle.postgresql/8`; it installs only into an empty database.
   A database created with an obsolete schema is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
-  `auths.gateway-attempt/14`; a store holding obsolete records is refused as
+  `auths.gateway-attempt/15`; a store holding obsolete records is refused as
   corrupt, so the file store's attempts directory is recreated too. The journal
   keeps typed mutation/acquisition facts under one header. Recovery allocations
   are permanent source-lifetime count/byte reservations and are never swept.

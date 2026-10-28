@@ -470,6 +470,7 @@
     "fixture": "disclosure-journal.json",
     "admissions": 16,
     "refusals": 2,
-    "delivered_bytes": 0
+    "journal_only_delivered_bytes": 0,
+    "unix_delivery_fixture": "disclosure-delivery.json"
   }
 }

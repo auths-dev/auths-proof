@@ -1408,6 +1408,147 @@ impl GatewayEngine {
         }
     }
 
+    /// Authenticates one local recipient, rechecks source/authority/capacity under
+    /// the final writer fence, then consumes the unique acknowledged permit to
+    /// send exact retained bytes. Replay never authenticates or sends again.
+    ///
+    /// # Errors
+    /// Refuses native/approval/peer/channel failures before release. Lost sends,
+    /// ACKs or persistence return retained uncertainty without a retry or refund.
+    #[cfg(unix)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one typed admission, authenticated grant and evidence sequence"
+    )]
+    pub async fn disclose(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+        connection: crate::disclosure_transport::DisclosureConnection,
+    ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let effect = self
+            .compile_disclosure_effect(target, proof, action)
+            .await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        if let Some(snapshot) = self
+            .attempts
+            .read_disclosure(&approved)
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })?
+            && snapshot.stage != crate::DisclosureStage::Reserved
+        {
+            return Ok(snapshot);
+        }
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            commissioning: None,
+            commissioned_action: OnceLock::new(),
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await.map_err(not_entered)?;
+        let claim = self
+            .attempts
+            .claim_disclosure(&approved, now, io.entry_validation().map_err(not_entered)?)
+            .await;
+        let snapshot = match claim {
+            Ok(snapshot) => snapshot,
+            Err(crate::GatewayAttemptError::BindingConflict) => {
+                return Err(not_entered("gateway.effect.operation-conflict"));
+            }
+            Err(_) => {
+                return self
+                    .attempts
+                    .read_disclosure(&approved)
+                    .await
+                    .ok()
+                    .flatten()
+                    .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                        code: "gateway.attempt.state-unavailable".to_owned(),
+                    });
+            }
+        };
+        if snapshot.stage != crate::DisclosureStage::Reserved {
+            return Ok(snapshot);
+        }
+        let plan = approved
+            .disclosure_plan()
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        let bytes = plan
+            .capacity()
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?
+            .maximum_bytes;
+        let channel = crate::disclosure_transport::AuthenticatedDisclosureChannel::authenticate(
+            connection,
+            approved.effect().binding(),
+            bytes,
+            plan.recipient_key(),
+        )
+        .await
+        .map_err(not_entered)?;
+        let entry_started = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let granted = self
+            .attempts
+            .grant_disclosure(
+                Arc::clone(&approved),
+                io.entry_validation().map_err(not_entered)?,
+                entry_started,
+                channel,
+            )
+            .await;
+        if let Ok((grant, permit)) = granted {
+            if let Some(ack) = crate::disclosure_transport::deliver(permit).await {
+                let operation = crate::LogicalOperationId::parse(
+                    approved.effect().binding().journal_identity().1,
+                )
+                .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+                if let Ok(snapshot) = self
+                    .attempts
+                    .acknowledge_disclosure(self.recipe.namespace(), &operation, &ack)
+                    .await
+                {
+                    return Ok(snapshot);
+                }
+            }
+            // A concurrently recorded exact late ACK wins; the reducer refuses
+            // replacing it with unknown and the final projection retains it.
+            if let Ok(snapshot) = grant.record_unknown().await {
+                return Ok(snapshot);
+            }
+        }
+        self.attempts
+            .read_disclosure(&approved)
+            .await
+            .ok()
+            .flatten()
+            .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })
+    }
+
     /// Compiles a declared content GET from exact resource arguments using
     /// fresh independent native read authority. Performs no custody or provider
     /// I/O and returns private review/approval data only.

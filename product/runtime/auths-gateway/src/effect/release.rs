@@ -294,6 +294,10 @@ pub(crate) struct DisclosurePlan {
 }
 
 impl DisclosurePlan {
+    pub(crate) fn recipient_key(&self) -> [u8; 32] {
+        self.recipient_key
+    }
+
     pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
         EffectBinding::from_private_bytes(self.source_binding.as_bytes())
     }

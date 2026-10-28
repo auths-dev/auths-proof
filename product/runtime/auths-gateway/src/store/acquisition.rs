@@ -8,6 +8,8 @@ use crate::effect::{AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind, S
 mod content;
 use content::ContentResult;
 pub(super) use content::retained;
+#[cfg(unix)]
+pub(super) use content::retained_bytes;
 pub use content::{ContentProjectionStatus, RetainedContent};
 mod candidate;
 pub use candidate::CandidatePublication;

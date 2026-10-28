@@ -2,6 +2,7 @@
 //! Admission reserves capacity only. Persisted facts never mint a delivery permit.
 use super::acquisition::{append_dependencies, select_snapshots};
 use super::*;
+use crate::effect::disclosure_auth::RecipientAuthentication;
 use crate::effect::{DisclosureAcknowledgement, DisclosurePlan};
 
 /// Redacted disclosure facts, separate from provider response and observation.
@@ -45,6 +46,7 @@ pub(super) struct DisclosureState {
     allocation: Option<u64>,
     counters: Vec<CounterWire>,
     phase: DisclosurePhase,
+    authentication: Option<RecipientAuthentication>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -100,7 +102,7 @@ impl JournalProtocol for DisclosureState {
             entry: record
                 .entry
                 .as_ref()
-                .map(canonical)
+                .map(|entry| canonical(&(entry, &record.state.authentication)))
                 .transpose()?
                 .unwrap_or_default(),
             stage: record.state.phase.kernel(),
@@ -127,6 +129,18 @@ impl JournalProtocol for DisclosureState {
             .plan
             .validate(&binding)
             .map_err(|_| GatewayAttemptError::Corrupt)?;
+        if record.entry.is_some() != record.state.authentication.is_some() {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if let Some(authentication) = &record.state.authentication {
+            authentication
+                .validate(
+                    &binding,
+                    capacity.maximum_bytes,
+                    record.state.plan.recipient_key(),
+                )
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+        }
         let counters = capacity::decode_counters(&record.state.counters)?;
         if record.state.allocation.is_some() {
             let counts: Vec<_> = counters
@@ -337,6 +351,7 @@ impl GatewayAttempts {
                     allocation: None,
                     counters: Vec::new(),
                     phase: DisclosurePhase::Reserved,
+                    authentication: None,
                 },
             )?;
             base.validate_header()?;
@@ -523,6 +538,7 @@ impl GatewayAttempts {
         approved: &ApprovedEffect,
         now: u64,
         unknown: bool,
+        authentication: RecipientAuthentication,
     ) -> Result<DisclosureSnapshot, GatewayAttemptError> {
         let binding = approved.effect().binding();
         let (namespace, operation, _, _) = binding.journal_identity();
@@ -541,6 +557,7 @@ impl GatewayAttempts {
         let mut next = record.clone();
         next.record_grant(approved, now, now, None, &[])?;
         next.state.phase = DisclosurePhase::EntryGranted;
+        next.state.authentication = Some(authentication);
         if !valid_transition(&record, &next)? {
             return Err(GatewayAttemptError::InvalidTransition);
         }
@@ -560,5 +577,202 @@ impl GatewayAttempts {
         } else {
             attempt.record.disclosure_snapshot()
         }
+    }
+}
+
+/// Newly acknowledged local delivery authority. No clone, decoder or public
+/// plaintext accessor exists; only the closed transport consumes this value.
+#[cfg(unix)]
+pub(crate) struct DisclosureEntryPermit {
+    _approved: Arc<ApprovedEffect>,
+    channel: crate::disclosure_transport::AuthenticatedDisclosureChannel,
+    content: zeroize::Zeroizing<Vec<u8>>,
+}
+
+#[cfg(unix)]
+impl DisclosureEntryPermit {
+    pub(crate) fn into_delivery(
+        self,
+    ) -> (
+        crate::disclosure_transport::AuthenticatedDisclosureChannel,
+        zeroize::Zeroizing<Vec<u8>>,
+    ) {
+        (self.channel, self.content)
+    }
+}
+
+#[cfg(unix)]
+pub(crate) struct GrantedDisclosure {
+    attempt: Attempt<DisclosureState>,
+}
+
+#[cfg(unix)]
+impl GrantedDisclosure {
+    pub(crate) async fn record_unknown(self) -> Result<DisclosureSnapshot, GatewayAttemptError> {
+        let mut next = self.attempt.record.clone();
+        next.state.phase = DisclosurePhase::Unknown;
+        self.attempt
+            .advance(next)
+            .await?
+            .record
+            .disclosure_snapshot()
+    }
+}
+
+#[cfg(unix)]
+impl GatewayAttempts {
+    /// Fresh native, source, capacity and live-channel validation under the
+    /// common writer fence. The permit exists only after durable acknowledgement.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one final fenced disclosure decision and acknowledgement boundary"
+    )]
+    pub(crate) async fn grant_disclosure(
+        &self,
+        approved: Arc<ApprovedEffect>,
+        validation: crate::entry::EntryValidation,
+        authorization_started_at: u64,
+        channel: crate::disclosure_transport::AuthenticatedDisclosureChannel,
+    ) -> Result<(GrantedDisclosure, DisclosureEntryPermit), GatewayAttemptError> {
+        let binding = approved.effect().binding();
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let plan = approved
+            .disclosure_plan()
+            .map_err(|_| GatewayAttemptError::BindingConflict)?;
+        let capacity = plan
+            .validate(binding)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let (namespace, operation, _, _) = binding.journal_identity();
+        let namespace =
+            OperatorNamespace::parse(namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let operation =
+            LogicalOperationId::parse(operation).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let key = self.key(&namespace, &operation)?;
+        let source = plan.source().map_err(|_| GatewayAttemptError::Corrupt)?;
+        let source_operation = LogicalOperationId::parse(source.journal_identity().1)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let source_key = self.key(&namespace, &source_operation)?;
+        let store = Arc::clone(&self.store);
+        blocking(move || {
+            let stored = store
+                .load(GatewayRecordKind::Attempt, &key)?
+                .ok_or(GatewayAttemptError::Unavailable)?;
+            let record: Record<DisclosureState> = decode_as(&stored)?;
+            if !matches!(record.state.phase, DisclosurePhase::Reserved)
+                || record.state.plan != plan
+                || record.validate_header()? != *approved.effect().binding()
+            {
+                return Err(GatewayAttemptError::BindingConflict);
+            }
+            let slot = record
+                .state
+                .allocation
+                .ok_or(GatewayAttemptError::Corrupt)?;
+            let mut keys = vec![
+                (GatewayRecordKind::Attempt, key),
+                (GatewayRecordKind::Attempt, source_key),
+                (
+                    GatewayRecordKind::EffectAllocation,
+                    capacity::allocation_key(&capacity, slot),
+                ),
+            ];
+            let native_indices = append_dependencies(&mut keys, &validation.dependencies());
+            let native_end = keys.len();
+            keys.extend(capacity::dependencies(&record.state.counters)?);
+            let mut committed = None;
+            store.fenced_replace(&keys, &mut |snapshots| {
+                if snapshots.len() != keys.len()
+                    || snapshots[0].as_deref() != Some(stored.as_slice())
+                {
+                    return Err(GatewayAttemptError::Conflict);
+                }
+                let current: Record<DisclosureState> = decode_as(
+                    snapshots[0]
+                        .as_deref()
+                        .ok_or(GatewayAttemptError::Corrupt)?,
+                )?;
+                if !matches!(current.state.phase, DisclosurePhase::Reserved)
+                    || current.state.plan != plan
+                    || current.validate_header()? != *approved.effect().binding()
+                {
+                    return Err(GatewayAttemptError::BindingConflict);
+                }
+                let source_at = source_matches(&plan, snapshots[1].as_deref())?;
+                if snapshots[2].as_deref()
+                    != Some(canonical(&allocation(&plan, key, slot)?)?.as_slice())
+                {
+                    return Err(GatewayAttemptError::BindingConflict);
+                }
+                let now = validation
+                    .validate(
+                        &approved,
+                        &select_snapshots(snapshots, &native_indices)?,
+                        authorization_started_at,
+                    )
+                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                if now < source_at {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
+                capacity::validate_reservations(
+                    &current.namespace,
+                    &current.operation_id,
+                    &current.state.counters,
+                    key,
+                    approved.disclosure_bound(),
+                    &snapshots[native_end..],
+                    now,
+                )?;
+                channel
+                    .validate(
+                        approved.effect().binding(),
+                        capacity.maximum_bytes,
+                        plan.recipient_key(),
+                    )
+                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                let content = acquisition::retained_bytes(
+                    snapshots[1]
+                        .as_deref()
+                        .ok_or(GatewayAttemptError::Corrupt)?,
+                )?;
+                if content.len() as u64 != capacity.maximum_bytes {
+                    return Err(GatewayAttemptError::Corrupt);
+                }
+                let mut next = current.clone();
+                next.record_grant(
+                    &approved,
+                    authorization_started_at,
+                    now,
+                    None,
+                    &snapshots[1..],
+                )?;
+                next.state.phase = DisclosurePhase::EntryGranted;
+                next.state.authentication = Some(channel.evidence());
+                if !valid_transition(&current, &next)? {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
+                let bytes = encode(&next)?;
+                committed = Some((next, bytes.clone(), content));
+                Ok(bytes)
+            })?;
+            let (record, stored, content) = committed.ok_or(GatewayAttemptError::Unavailable)?;
+            Ok((
+                GrantedDisclosure {
+                    attempt: Attempt {
+                        store,
+                        key,
+                        stored,
+                        record,
+                    },
+                },
+                DisclosureEntryPermit {
+                    _approved: approved,
+                    channel,
+                    content,
+                },
+            ))
+        })
+        .await
     }
 }

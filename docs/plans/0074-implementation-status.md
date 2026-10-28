@@ -1288,6 +1288,49 @@ closure regeneration passed after that correction (one artifact-generation test)
   binding/UI cutovers, complete P4 evidence and hosted CI remain outstanding.
   No A01–A22 case is closed by this checkpoint; no broad local or hosted gate ran.
 
+## Authenticated disclosure entry and transport checkpoint
+
+- Based on pushed `3f23e5f3`. The preceding status-only turn changed no source;
+  this continuation finishes the pending native grant and Unix transport slice.
+- `UnixDisclosurePolicy` commits exact gateway/recipient UIDs and a private channel
+  identifier. Both peers check OS credentials; the recipient signs a fresh
+  challenge over the full bound delivery statement under an authentication domain
+  distinct from ACK. The owned socket remains sealed through the final grant.
+- Final disclosure entry uses the existing writer fence and sole reducer. It
+  revalidates retained source/MAC, native proof/approval/configuration, permanent
+  source allocation and managed policy membership before persisting the immutable
+  authentication transcript plus entry audit. Only acknowledged persistence
+  returns the one-use send permit. Attempt `/15` rejects obsolete `/14` and
+  granted records lacking valid authentication. Historical decode creates no
+  socket or permit. Public projections remain redacted.
+- `GatewayEngine::disclose` composes admission, fresh recipient authentication,
+  final native entry and exact retained-byte delivery. Recipient code explicitly
+  ACKs after complete receipt or retains native evidence for late recording.
+  Authentication/ACK frames are bounded to 4,096 canonical bytes, content to
+  65,536 and exact projected length. Five-second handshake/fifteen-second session
+  deadlines supplement, never replace, native fenced authority time.
+- Required artifact construction passed five exact generators in 8.94 seconds:
+  content journal (now also producing `disclosure-delivery.json`), code inventory,
+  attempt scenarios, prerequisite compilation and native entry/fuzz corpus.
+  Extended content/delivery generation then passed in 5.31 seconds. New source
+  evidence uses actual Unix socket pairs and the installed native file fence over
+  a real retained HTTP response. It covers actual receipt/ACK, lost ACK, reopened
+  no-redelivery, late ACK, dropped permit, competing authenticated channels with
+  one winner, and connection/configuration/approval/source changes after
+  authentication. It also refuses wrong UID/key/nonce, malformed/duplicate/
+  unknown/noncanonical/oversized authentication and corrupted retained proofs.
+- The configuration-change fixture initially named a nonexistent store variant
+  and passed a raw key. It now uses `EffectConfiguration` and the native key
+  wrapper; the repaired artifact passed without changing production checks.
+- Final content/disclosure and semantic-closure artifact construction passed
+  together (two exact tests, 5.31 seconds). Fetch found no upstream commits.
+- The earlier synthetic-grant ACK corpus remains explicitly scoped historical
+  unit evidence. New socket/file evidence is not an independent-process crash,
+  PostgreSQL, hostile-agent isolation, full engine/CLI/UI or A07/A08/A22 closure.
+  These, AP070 source-owner removal, standalone read-only installation, maintained
+  consumers and complete P4 evidence remain required. No broad local gate,
+  formal execution or hosted CI observation was run. AP073 remains untouched.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1295,7 +1338,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition runtime, disclosure admission and historical ACK persistence wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), authenticated disclosure grant/transport; remove Python semantic owner |
+| P3 | Acquisition and authenticated Unix disclosure runtime wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), application/CLI/binding disclosure integration; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -1312,12 +1355,12 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission, prerequisite and managed read charge fixtures | Full adapter concurrency and all units pending |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
-| A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / native ACK/reducer and file journal corpus / ACK persistence/replay under synthetic grants executed | Authenticated disclosure grant, actual send/ACK loss and process restart pending |
-| A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Authenticated live recipient/channel and complete delivery integration pending |
+| A07 | Revoke between acquisition and disclosure | Partial / socket-file corpus / connection disabled after authentication refuses entry | Independent-process revocation and installed journey pending |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / native ACK/reducer and socket-file corpus / actual send/ACK loss, reopen without redelivery and late ACK executed | Independent-process crash and installed runtime journey pending |
+| A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
-| A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
+| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate / dependency changes after authentication and competing live grants executed | Full independent-process races on both adapters pending |
 | A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and signed-observation cases / narrow file and native predicate fixtures | Installed lock-wait, independent expiry and adapter races pending |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |

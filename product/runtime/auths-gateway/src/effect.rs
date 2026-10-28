@@ -28,6 +28,8 @@ pub use content::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisit
 mod release;
 pub(crate) use release::DisclosurePlan;
 pub use release::{DISCLOSURE_TOOL, DisclosureTarget, compile_disclosure};
+pub(crate) mod disclosure_auth;
+pub use disclosure_auth::UnixDisclosurePolicy;
 mod disclosure;
 pub use disclosure::{
     AuthenticatedDisclosureAcknowledgement, DISCLOSURE_ACK_SCHEMA, DisclosureAcknowledgement,
@@ -504,13 +506,13 @@ impl fmt::Debug for EffectBinding {
     }
 }
 
-fn commitment(domain: &str, bytes: &[u8]) -> Result<[u8; 32], EffectBindingError> {
+pub(crate) fn commitment(domain: &str, bytes: &[u8]) -> Result<[u8; 32], EffectBindingError> {
     auths_codec::domain_commitment(domain, bytes)
         .map(|digest| *digest.as_bytes())
         .map_err(|_| EffectBindingError::Invalid)
 }
 
-fn canonical<T: Serialize>(value: &T) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
+pub(crate) fn canonical<T: Serialize>(value: &T) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
     let bytes = Zeroizing::new(
         serde_json_canonicalizer::to_vec(value).map_err(|_| EffectBindingError::Invalid)?,
     );
@@ -570,6 +572,10 @@ impl EffectBinding {
                 };
                 keys.iter().filter(|key| **key == entry.key).count() == 1
             })
+    }
+
+    pub(crate) fn disclosure_channel_matches(&self, channel: &[u8; 32]) -> bool {
+        matches!(&self.wire.protocol, Protocol::Disclosure { channel: expected, .. } if expected == channel)
     }
 
     pub(crate) fn is_mutation(&self) -> bool {

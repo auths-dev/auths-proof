@@ -24,10 +24,11 @@ pub(super) async fn corpus(
     let recipient = SigningKey::from_bytes(&[51; 32]);
     let key = SigningKey::from_bytes(&[29; 32]);
     let public = key.verifying_key().to_bytes();
+    let channel_policy = crate::effect::UnixDisclosurePolicy::new(0, 0, [20; 32]);
     let target = DisclosureTarget::new(
         retained.clone(),
         recipient.verifying_key().to_bytes(),
-        [20; 32],
+        channel_policy.commitment().expect("channel"),
         [21; 32],
     )
     .expect("target");
@@ -262,7 +263,7 @@ pub(super) async fn corpus(
         let mut changed = original.clone();
         let value = changed.pointer_mut(pointer).expect("field");
         *value = match pointer {
-            "/schema" => json!("auths.gateway-attempt/13"),
+            "/schema" => json!("auths.gateway-attempt/14"),
             "/state/protocol" => json!("acquisition"),
             "/state/facts/allocation" => json!(16),
             "/state/facts/plan/source_binding" | "/state/facts/plan/source_contract" => json!("{}"),
@@ -315,10 +316,17 @@ pub(super) async fn corpus(
             .expect("record"),
         first_bytes
     );
+    #[cfg(unix)]
+    let live_policy = {
+        let uid = rustix::process::geteuid().as_raw();
+        crate::effect::UnixDisclosurePolicy::new(uid, uid, [22; 32])
+    };
+    #[cfg(not(unix))]
+    let live_policy = crate::effect::UnixDisclosurePolicy::new(0, 0, [22; 32]);
     let alternate = DisclosureTarget::new(
         retained.clone(),
         recipient.verifying_key().to_bytes(),
-        [22; 32],
+        live_policy.commitment().expect("channel"),
         [21; 32],
     )
     .expect("target");
@@ -401,12 +409,20 @@ pub(super) async fn corpus(
         .filter(|(_, stage)| matches!(stage, crate::GatewayOperationStage::Disclosure(_)))
         .count();
     assert_eq!(disclosures, 18);
+    let authentication = |effect: &ApprovedEffect| {
+        crate::effect::disclosure_auth::RecipientAuthentication::synthetic(
+            effect.effect().binding(),
+            retained.bytes,
+            &recipient,
+            channel_policy.clone(),
+        )
+    };
     let first_grant = reopened
-        .synthetic_disclosure_grant(&first, NOW, false)
+        .synthetic_disclosure_grant(&first, NOW, false, authentication(&first))
         .await
         .expect("synthetic grant");
     let second_grant = reopened
-        .synthetic_disclosure_grant(&second, NOW, true)
+        .synthetic_disclosure_grant(&second, NOW, true, authentication(&second))
         .await
         .expect("synthetic unknown grant");
     assert_eq!(first_grant.stage, crate::DisclosureStage::Unknown);
@@ -485,7 +501,7 @@ pub(super) async fn corpus(
     );
     assert!(
         again
-            .synthetic_disclosure_grant(&first, NOW, false)
+            .synthetic_disclosure_grant(&first, NOW, false, authentication(&first))
             .await
             .is_err(),
         "history cannot regrant"
@@ -498,6 +514,30 @@ pub(super) async fn corpus(
             &original_connection,
         )
         .expect("restore connection");
+    #[cfg(unix)]
+    live_delivery::corpus(
+        &attempts,
+        store,
+        path,
+        policy,
+        recipe,
+        connection,
+        retained.bytes,
+        &recipient,
+        &live_policy,
+        |index, channel: &crate::effect::UnixDisclosurePolicy| {
+            let target = DisclosureTarget::new(
+                retained.clone(),
+                recipient.verifying_key().to_bytes(),
+                channel.commitment().expect("channel"),
+                [21; 32],
+            )
+            .expect("target");
+            approve(&format!("release-{index}"), &target, false)
+        },
+        validation,
+    )
+    .await;
     let public_history = serde_json::to_string(&history).expect("public history");
     for private in [
         "PRIVATE-SYNTHETIC-CONTENT",
@@ -524,5 +564,9 @@ pub(super) async fn corpus(
         std::fs::write(&output, &bytes).expect("write");
     }
     assert_eq!(std::fs::read(&output).expect("fixture"), bytes);
-    json!({"fixture": "disclosure-journal.json", "admissions": 16, "refusals": 2, "delivered_bytes": 0})
+    json!({"fixture": "disclosure-journal.json", "admissions": 16, "refusals": 2, "journal_only_delivered_bytes": 0, "unix_delivery_fixture": "disclosure-delivery.json"})
 }
+
+#[cfg(unix)]
+#[path = "effect_disclosure_delivery_tests.rs"]
+mod live_delivery;

@@ -371,9 +371,33 @@
       "case": null
     },
     {
+      "code": "gateway.disclosure.acknowledgement",
+      "owner": "disclosure_transport",
+      "stage": "acknowledgement",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.authentication",
+      "owner": "disclosure_transport",
+      "stage": "authentication",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.disclosure.binding",
       "owner": "effect",
       "stage": "compile",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.channel",
+      "owner": "disclosure_transport",
+      "stage": "authentication",
       "status": "new",
       "epic": 74,
       "case": null
@@ -387,9 +411,57 @@
       "case": null
     },
     {
+      "code": "gateway.disclosure.frame",
+      "owner": "disclosure_transport",
+      "stage": "transport",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.length",
+      "owner": "disclosure_transport",
+      "stage": "transport",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.peer",
+      "owner": "disclosure_transport",
+      "stage": "authentication",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.read",
+      "owner": "disclosure_transport",
+      "stage": "transport",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.timeout",
+      "owner": "disclosure_transport",
+      "stage": "transport",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.disclosure.unsupported-bounds",
       "owner": "effect",
       "stage": "compile",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.disclosure.write",
+      "owner": "disclosure_transport",
+      "stage": "transport",
       "status": "new",
       "epic": 74,
       "case": null

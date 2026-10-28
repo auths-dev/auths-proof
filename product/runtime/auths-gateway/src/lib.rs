@@ -29,6 +29,8 @@ mod engine;
 mod entry;
 mod execution_witness;
 pub use execution_witness::GatewayExecutionWitness;
+#[cfg(unix)]
+pub mod disclosure_transport;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
 mod generation_floor;
