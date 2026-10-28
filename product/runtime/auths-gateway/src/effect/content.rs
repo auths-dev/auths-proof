@@ -233,6 +233,43 @@ pub fn compile_content_acquisition(
     )
 }
 
+/// Compiles resource arguments directly from a native-verified content action.
+/// There is no separate application map capable of changing the selected resource.
+///
+/// # Errors
+/// Refuses non-content actions, malformed resource arguments and every normal
+/// native acquisition/installation constraint. Performs no custody or I/O.
+pub fn compile_content_action(
+    installed: &EffectInstallation<'_>,
+    now: u64,
+    proof: &[u8],
+    action: &[u8],
+) -> Result<BoundEffect, GatewaySubmitResult> {
+    use auths_profile_api::ActionProfile as _;
+    let invalid = || not_entered("gateway.acquisition.binding");
+    let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
+    let verified = sealed.action().ok_or_else(invalid)?;
+    let command = auths_profile_mcp::McpProfile
+        .decode_verified(verified)
+        .map_err(|_| invalid())?;
+    let arguments = command
+        .arguments()
+        .get("resource_arguments")
+        .and_then(Value::as_object)
+        .cloned()
+        .ok_or_else(invalid)?;
+    let target = ContentReadTarget::new(installed.recipe, installed.connection, arguments)
+        .map_err(|_| invalid())?;
+    super::acquisition::compile_verified_acquisition(
+        installed,
+        AcquisitionTarget::Content(Box::new(target)),
+        now,
+        proof,
+        action,
+        sealed,
+    )
+}
+
 /// Immutable reconstruction data, never a transport capability. The signed
 /// binding pins the complete contract and request; current connection bytes
 /// must also match under the common admission and entry fence.

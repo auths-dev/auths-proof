@@ -9,7 +9,7 @@ type ContentMac = Hmac<sha2::Sha256>;
 pub(crate) const PROTECTED_CONTENT_SCHEMA: &str = "auths.gateway-protected-content/1";
 
 /// Public response interpretation without plaintext, key or correlation digest.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum ContentProjectionStatus {
     /// Exact projected bytes are reconstructible from private retained evidence.

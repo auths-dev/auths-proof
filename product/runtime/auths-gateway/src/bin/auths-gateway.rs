@@ -189,11 +189,20 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
             /// Compile independent read authority for this retained source.
-            #[arg(long, conflicts_with = "candidate")]
+            #[arg(long, conflicts_with_all = ["candidate", "content", "disclosure"])]
             recovery_of: Option<String>,
             /// Private staged candidate proposal for credential-check review.
-            #[arg(long, conflicts_with = "recovery_of")]
+            #[arg(long, conflicts_with_all = ["recovery_of", "content", "disclosure"])]
             candidate: Option<PathBuf>,
+            /// Review independently authorized content from its signed action.
+            #[arg(long, conflicts_with_all = ["recovery_of", "candidate", "disclosure"])]
+            content: bool,
+            /// Private native recipient/source proposal to review.
+            #[arg(long, conflicts_with_all = ["recovery_of", "candidate", "content"])]
+            disclosure: Option<PathBuf>,
+            /// Preserve the exact native binding for the trusted recipient channel.
+            #[arg(long)]
+            binding_out: Option<PathBuf>,
             #[arg(long)]
             proof: PathBuf,
             #[arg(long)]
@@ -744,6 +753,59 @@ mod unix {
             action: PathBuf,
             #[arg(long)]
             approval: PathBuf,
+        },
+        /// Acquire approved content; returns facts only, never plaintext.
+        ContentAcquire {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Inspect retained content/disclosure facts without external I/O.
+        ContentHistory {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            operation: String,
+        },
+        /// Record an exact previously received ACK without redelivery.
+        DisclosureAcknowledge {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            acknowledgement: PathBuf,
+        },
+        /// Receive on the native authenticated channel, save private content and
+        /// late-ACK evidence, then send the ACK. Does not claim durable ACK storage.
+        DisclosureReceive {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            target: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+            /// Exact private binding from the trusted native review channel.
+            #[arg(long)]
+            expected_binding: PathBuf,
+            #[arg(long)]
+            expected_bytes: u64,
+            /// Raw 32-byte Ed25519 seed through non-interactive stdin only.
+            #[arg(long, required = true)]
+            recipient_seed_stdin: bool,
+            #[arg(long)]
+            content_out: PathBuf,
+            #[arg(long)]
+            acknowledgement_out: PathBuf,
         },
         /// Check offline whether a provider record holds one action's echo
         /// token. Reads no network and no gateway state; exits 0 only on a
@@ -3191,6 +3253,9 @@ mod unix {
         state_dir: PathBuf,
         recovery_of: Option<String>,
         candidate: Option<PathBuf>,
+        content: bool,
+        disclosure: Option<PathBuf>,
+        binding_out: Option<PathBuf>,
         proof: PathBuf,
         action: PathBuf,
         not_before: u64,
@@ -3201,6 +3266,16 @@ mod unix {
         if !request_out.is_absolute() {
             return Err("gateway.state.invalid-path".into());
         }
+        if binding_out
+            .as_ref()
+            .is_some_and(|path| !path.is_absolute() || path.exists())
+        {
+            return Err("gateway.state.file-exists-or-unavailable".into());
+        }
+        let disclosure = disclosure
+            .as_ref()
+            .map(|path| read_disclosure_target(path))
+            .transpose()?;
         let candidate = candidate
             .as_ref()
             .map(|path| read_candidate(&state_dir, path))
@@ -3210,19 +3285,29 @@ mod unix {
             .map_err(|_| "gateway.effect.unavailable")??;
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
-        let effect = match (recovery_of, candidate) {
-            (Some(source), None) => {
+        let effect = match (recovery_of, candidate, content, disclosure) {
+            (Some(source), None, false, None) => {
                 engine
                     .compile_recovery_effect(&source, &proof, &action)
                     .await
             }
-            (None, Some(target)) => {
+            (None, Some(target), false, None) => {
                 engine
                     .compile_candidate_effect(&target, &proof, &action)
                     .await
             }
-            (None, None) => engine.compile_effect(&proof, &action).await,
-            (Some(_), Some(_)) => return Err("gateway.effect.review-refused".into()),
+            (None, None, false, None) => engine.compile_effect(&proof, &action).await,
+            (None, None, true, None) => engine.compile_content_action(&proof, &action).await,
+            (None, None, false, Some(proposal)) => {
+                let target = proposal
+                    .resolve(&engine)
+                    .await
+                    .map_err(|_| "gateway.effect.review-refused")?;
+                engine
+                    .compile_disclosure_effect(&target, &proof, &action)
+                    .await
+            }
+            _ => return Err("gateway.effect.review-refused".into()),
         }
         .map_err(|_| "gateway.effect.review-refused")?;
         let request = effect
@@ -3254,6 +3339,15 @@ mod unix {
             .write_all(&output)
             .and_then(|()| std::io::stdout().flush())
             .map_err(|_| "gateway.output")?;
+        if let Some(path) = binding_out {
+            private_file(
+                &path,
+                &effect
+                    .binding()
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.review-refused")?,
+            )?;
+        }
         private_file(
             &request_out,
             &request
@@ -3290,6 +3384,158 @@ mod unix {
             "{}",
             serde_json::to_string(&result).map_err(|_| "gateway.submit.invalid-response")?
         );
+        Ok(())
+    }
+
+    fn content_submission(
+        proof: &Path,
+        action: &Path,
+        approval: &Path,
+    ) -> Result<AppSubmission, Failure> {
+        let submission = AppSubmission {
+            schema: APP_REQUEST_SCHEMA.to_owned(),
+            proof_b64: Base64UrlUnpadded::encode_string(&Zeroizing::new(read_bounded(
+                proof,
+                4 * 1024 * 1024,
+            )?)),
+            action_b64: Base64UrlUnpadded::encode_string(&Zeroizing::new(read_bounded(
+                action,
+                64 * 1024,
+            )?)),
+            approval_b64: Base64UrlUnpadded::encode_string(
+                &read_effect_approval(approval)?
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.approval")?,
+            ),
+        };
+        submission.decode()?;
+        Ok(submission)
+    }
+
+    fn read_disclosure_target(
+        path: &Path,
+    ) -> Result<auths_gateway::app::AppDisclosureTarget, Failure> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| "gateway.state.invalid-path")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.state.invalid-path".into());
+        }
+        serde_json::from_slice(&Zeroizing::new(read_bounded(path, 4096)?))
+            .map_err(|_| "gateway.disclosure.binding".into())
+    }
+
+    async fn content_exchange(socket: &Path, request: &impl Serialize) -> Result<(), Failure> {
+        let bytes = Zeroizing::new(
+            serde_json::to_vec(request).map_err(|_| "gateway.submit.encoding-failed")?,
+        );
+        let mut stream = connect_app_socket(socket, "gateway.submit.socket-unavailable").await?;
+        let clock = auths_gateway::app::SessionClock::start(auths_gateway::app::APP_SESSION_LIMITS);
+        clock.write_frame(&mut stream, &bytes).await?;
+        let bytes = tokio::time::timeout(
+            auths_gateway::app::APP_SESSION_LIMITS.result_wait,
+            read_frame(&mut stream),
+        )
+        .await
+        .map_err(|_| "gateway.ipc.read-timeout")??;
+        let result: auths_gateway::app::AppContentResult =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.submit.invalid-response")?;
+        if matches!(result, auths_gateway::app::AppContentResult::Ready) {
+            return Err("gateway.submit.invalid-response".into());
+        }
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "typed CLI inputs remain explicit at the native recipient boundary"
+    )]
+    async fn receive_disclosure_cli(
+        socket: &Path,
+        target: &Path,
+        proof: &Path,
+        action: &Path,
+        approval: &Path,
+        expected_binding: &Path,
+        expected_bytes: u64,
+        seed_stdin: bool,
+        content_out: &Path,
+        acknowledgement_out: &Path,
+    ) -> Result<(), Failure> {
+        if !seed_stdin || std::io::stdin().is_terminal() || expected_bytes > 65_536 {
+            return Err("gateway.disclosure.authentication".into());
+        }
+        for path in [content_out, acknowledgement_out] {
+            if !path.is_absolute() || path.exists() {
+                return Err("gateway.state.file-exists-or-unavailable".into());
+            }
+        }
+        if content_out == acknowledgement_out {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let mut seed = Zeroizing::new(Vec::new());
+        std::io::stdin()
+            .take(33)
+            .read_to_end(&mut seed)
+            .map_err(|_| "gateway.disclosure.authentication")?;
+        let key = ed25519_dalek::SigningKey::from_bytes(
+            seed.as_slice()
+                .try_into()
+                .map_err(|_| "gateway.disclosure.authentication")?,
+        );
+        let expected = auths_gateway::effect::EffectBinding::from_private_bytes(&Zeroizing::new(
+            read_bounded(expected_binding, auths_gateway::effect::MAX_EFFECT_BYTES)?,
+        ))
+        .map_err(|_| "gateway.disclosure.binding")?;
+        let request = auths_gateway::app::AppDisclosure {
+            schema: auths_gateway::app::APP_DISCLOSURE_SCHEMA.to_owned(),
+            target: read_disclosure_target(target)?,
+            submission: content_submission(proof, action, approval)?,
+        };
+        let stream = connect_app_socket(socket, "gateway.submit.socket-unavailable").await?;
+        match auths_gateway::app::receive_content_disclosure(
+            stream,
+            &request,
+            &expected,
+            expected_bytes,
+            &key,
+        )
+        .await?
+        {
+            auths_gateway::app::AppDisclosureReception::Received(received) => {
+                private_file(content_out, received.content())?;
+                let ack = received
+                    .acknowledgement(&key)?
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.disclosure.acknowledgement")?;
+                private_file(acknowledgement_out, &ack)?;
+                received.acknowledge(&key).await?;
+                println!(
+                    "{}",
+                    serde_json::json!({"outcome": "recipient-ack-sent", "received_bytes": expected_bytes})
+                );
+            }
+            auths_gateway::app::AppDisclosureReception::History(snapshot) => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&auths_gateway::app::AppContentResult::History {
+                        history: auths_gateway::ContentHistory::Disclosure(snapshot)
+                    })
+                    .map_err(|_| "gateway.output")?
+                );
+            }
+            auths_gateway::app::AppDisclosureReception::Refused(result) => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&auths_gateway::app::AppContentResult::Refused {
+                        result
+                    })
+                    .map_err(|_| "gateway.output")?
+                );
+            }
+        }
         Ok(())
     }
 
@@ -4151,6 +4397,9 @@ mod unix {
                 state_dir,
                 recovery_of,
                 candidate,
+                content,
+                disclosure,
+                binding_out,
                 proof,
                 action,
                 not_before,
@@ -4161,6 +4410,9 @@ mod unix {
                     state_dir,
                     recovery_of,
                     candidate,
+                    content,
+                    disclosure,
+                    binding_out,
                     proof,
                     action,
                     not_before,
@@ -4645,6 +4897,80 @@ mod unix {
                 outcome,
                 pre_entry,
             } => observe(app_socket, outcome, pre_entry).await,
+            Command::ContentAcquire {
+                app_socket,
+                proof,
+                action,
+                approval,
+            } => {
+                let request = auths_gateway::app::AppContent {
+                    schema: auths_gateway::app::APP_CONTENT_SCHEMA.to_owned(),
+                    submission: content_submission(&proof, &action, &approval)?,
+                };
+                request.decode()?;
+                content_exchange(&app_socket, &request).await
+            }
+            Command::ContentHistory {
+                app_socket,
+                operation,
+            } => {
+                auths_gateway::LogicalOperationId::parse(&operation)
+                    .map_err(|_| "gateway.submit.invalid-frame")?;
+                content_exchange(
+                    &app_socket,
+                    &auths_gateway::app::AppContentHistory {
+                        schema: auths_gateway::app::APP_CONTENT_HISTORY_SCHEMA.to_owned(),
+                        operation,
+                    },
+                )
+                .await
+            }
+            Command::DisclosureAcknowledge {
+                app_socket,
+                operation,
+                acknowledgement,
+            } => {
+                let bytes = Zeroizing::new(read_bounded(&acknowledgement, 4096)?);
+                let ack =
+                    auths_gateway::effect::DisclosureAcknowledgement::from_private_bytes(&bytes)
+                        .map_err(|_| "gateway.disclosure.acknowledgement")?;
+                let request = auths_gateway::app::AppDisclosureAcknowledgement {
+                    schema: auths_gateway::app::APP_DISCLOSURE_ACK_SCHEMA.to_owned(),
+                    operation,
+                    acknowledgement_b64: Base64UrlUnpadded::encode_string(
+                        &ack.to_private_bytes()
+                            .map_err(|_| "gateway.disclosure.acknowledgement")?,
+                    ),
+                };
+                request.decode()?;
+                content_exchange(&app_socket, &request).await
+            }
+            Command::DisclosureReceive {
+                app_socket,
+                target,
+                proof,
+                action,
+                approval,
+                expected_binding,
+                expected_bytes,
+                recipient_seed_stdin,
+                content_out,
+                acknowledgement_out,
+            } => {
+                receive_disclosure_cli(
+                    &app_socket,
+                    &target,
+                    &proof,
+                    &action,
+                    &approval,
+                    &expected_binding,
+                    expected_bytes,
+                    recipient_seed_stdin,
+                    &content_out,
+                    &acknowledgement_out,
+                )
+                .await
+            }
             Command::EchoVerify {
                 record,
                 pointer,

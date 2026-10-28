@@ -1008,3 +1008,39 @@ changes after authentication. Authentication substitutions, malformed frames and
 corrupt retained authentication refuse. This evidence is separate from the older
 synthetic-grant corpus; neither establishes independent-process containment,
 PostgreSQL parity, installed UI/bindings or completion of AP074 acceptance cases.
+
+
+## Content application and recipient-client boundary
+
+Four closed application schemas route acquisition, separate disclosure, local
+history and exact late ACK to the existing engine/journal. Content's resource
+arguments now come from its native-verified action. The existing acquisition
+compiler is split at the sealed verification result so target construction and
+binding use that same result without an additional verifier or weaker map. Native
+fixture parity compares this path with explicit target compilation. The initial
+verification precedes target validation; final entry recompilation remains the
+same full native check.
+
+The disclosure control path invokes native proposal/admission and emits either
+redacted history/refusal or Ready. Ready transfers the owned stream to the native
+engine and authenticating transport; it confers no entry permission. Current
+compilation/admission run again after the protocol switch, and the existing final
+writer fence still exclusively grants delivery. This bounded repetition avoids
+exporting an approved or live-channel capability to a generic application handler.
+The transport also honors the enclosing application's deadline. Lost control or
+ACK responses never schedule another read or delivery.
+
+The native recipient client checks UID/channel/key before sending its private
+request. CLI receipt writes new 0600 content and ACK files, syncing file and
+parent, before sending the ACK. It reports only that the recipient sent evidence;
+retained ACK persistence is queried separately. Native history restricts recipe,
+namespace, partition and epoch and exposes only typed redacted projections. Thin
+Python/TypeScript control methods pass proof/action/approval/ACK bytes without
+hashing, signing, recovery or accounting. No non-native recipient protocol is added.
+
+Application frame/fuzz fixtures exercise real sockets with a counting refusal
+oracle. The three control CLI cases capture exact envelopes against real refusal
+sockets. Native socket/file delivery cases now use the production recipient client
+with an explicit control-frame shim; the native installed file grant still uses
+real approved authority. These are not a complete installed app dispatcher,
+recipient CLI process, language runtime, authenticated UI or hostile-agent claim.

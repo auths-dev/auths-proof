@@ -1331,6 +1331,53 @@ closure regeneration passed after that correction (one artifact-generation test)
   consumers and complete P4 evidence remain required. No broad local gate,
   formal execution or hosted CI observation was run. AP073 remains untouched.
 
+## Native content application, CLI and control-binding checkpoint
+
+- Based on pushed `d5cfeb99`; the preceding goal turn made concrete progress and
+  left a clean worktree. This continuation adds the maintained application path
+  over that native disclosure runtime, not another executor or state owner.
+- Content acquisition now projects resource arguments from the native-verified
+  action. The existing acquisition compiler shares its body below that sealed
+  result. Native fixture parity confirms the same binding as explicit-target
+  compilation; candidate and recovery artifacts remain unchanged.
+- Four closed application envelopes expose content acquisition, disclosure,
+  redacted history and late ACK. Native admission returns history/refusal or Ready;
+  Ready only transfers the owned socket to native authentication and fresh final
+  entry. The transport inherits the application deadline. Control loss cannot
+  recreate a permit. Historical queries check recipe/namespace/partition/epoch;
+  acquisition/disclosure facts are typed, private content stays in its owner.
+- The Rust recipient client checks gateway UID/channel/key before sending private
+  proof/approval. CLI `content-acquire`, `content-history`,
+  `disclosure-acknowledge` and `disclosure-receive` call native operations. Receipt
+  saves new 0600 content and ACK files before sending ACK and reports only
+  `recipient-ack-sent`, never durable server persistence. Review supports content
+  and disclosure targets and can save the exact private recipient binding.
+- Python/TypeScript control methods carry acquisition/history/ACK envelopes and
+  return native bytes without effect hashing, projection, signing, accounting or
+  retry logic. Their fixture and bounds tests are authored, not executed. The
+  recipient protocol remains Rust-owned; full installed binding/UI integration
+  and native call-authoring CLI work remain open.
+- Required native application frame/content compilation/content journal artifact
+  generation passed three tests in 5.89 seconds. The first build caught two missed
+  `DisclosureConnection` deadline destructures; both peers now honor the parent
+  deadline. No production check was weakened to repair compilation.
+- `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --test application_content_cli -- --exact native_application_content_cli_fixture_is_current`
+  passed (one generator, 0.89 seconds). It executes the production CLI for three
+  control envelopes against real refusal sockets; it does not exercise installed
+  engine authority, recipient CLI delivery or actual provider I/O.
+- The native socket/file delivery generator now exercises the production recipient
+  client with an explicit control-frame shim, plus real approved native file grants.
+  It is not an installed application-dispatcher claim. Native history is tested
+  against retained snapshots and wrong-recipe refusal. The frame generator covers
+  closed routing, duplicate/obsolete/unknown/override/oversize refusal and writes
+  four maintained fuzz seeds; the fuzz dispatcher is updated for those schemas.
+- Final required artifact generation passed six exact tests in 34.94 seconds:
+  application content frame, content compilation/journal, candidate compilation,
+  recovery acquisition and semantic closure. Candidate/recovery artifacts stayed
+  byte-for-byte unchanged. No Python/TypeScript suite, broad local gate, formal
+  execution or hosted CI observation ran. No A01–A22 case is closed. AP073 remains
+  untouched; full installed process/adapters/UI and AP070 owner cutover remain.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1338,7 +1385,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition and authenticated Unix disclosure runtime wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), application/CLI/binding disclosure integration; remove Python semantic owner |
+| P3 | Acquisition/disclosure runtime and application controls wired | Native call-authoring CLI, full installed recipient/binding/UI journeys; remove AP070 Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -1366,11 +1413,11 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
-| A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |
+| A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |
 | A20 | Generated histories and shipping predicate refinement | Partial / 576 typed stage pairs, ACK histories and Kani source / pure corpus executed | Full generated concurrent histories and source-linked formal artifacts pending |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
-| A22 | Installed single-human/single-agent full journey/UI | Partial / local approved candidate CLI / candidate subprocess journey | Full installed read/disclosure/write/observation and authenticated UI |
+| A22 | Installed single-human/single-agent full journey/UI | Partial / candidate CLI and content application controls / candidate journey and content refusal-socket CLI executed | Full installed read/disclosure/write/observation, recipient CLI and authenticated UI |
 
 ## Deployment assumptions retained
 

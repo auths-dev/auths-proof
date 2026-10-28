@@ -1,6 +1,7 @@
 {
   "schema": "auths.gateway-disclosure-delivery-fixture/1",
-  "scope": "real Unix socket pairs and installed native file fence; no independent processes, hostile UID isolation or PostgreSQL claim",
+  "scope": "native application client with a control-frame shim, real Unix socket pairs and installed native file fence; no installed app dispatcher, independent processes, hostile UID isolation or PostgreSQL claim",
+  "native_application_client_protocol_switch": true,
   "authenticated_delivery": {
     "revision": 3,
     "stage": "acknowledged",

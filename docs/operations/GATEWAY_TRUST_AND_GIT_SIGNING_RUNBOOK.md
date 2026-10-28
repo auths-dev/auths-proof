@@ -372,3 +372,33 @@ verifier reads.
 
 Git trust pins a single root anchor today; the M-of-N composition in §1
 applies to gateway trust.
+
+
+## Native content controls under AP074
+
+A content-capable installation accepts `content-acquire --app-socket ... --proof
+... --action ... --approval ...`. Its result is redacted acquisition history;
+it does not release provider content. `effect-review --content` reviews the
+native signed read action. Release is separately authorized and reviewed with
+`effect-review --disclosure <private-proposal> --binding-out <new-private-file>`.
+The proposal is the closed native `AppDisclosureTarget`: source operation,
+recipient public key, exact UID/channel policy and delivery instance. Use native
+call authoring; the CLI authoring integration and full installed UI journey are
+still tracked by AP074 and are not completed by these controls.
+
+`disclosure-receive` requires the trusted expected-binding file, exact byte count,
+proposal and independent proof/action/approval. Pipe the recipient's raw 32-byte
+Ed25519 seed through non-interactive stdin with `--recipient-seed-stdin`; never
+put it in command arguments. Use new absolute `--content-out` and
+`--acknowledgement-out` paths. The native client checks the pinned gateway UID
+before sending private authority. It writes private content and native ACK files
+before transmitting the ACK. Its `recipient-ack-sent` result describes the client
+send, not durable gateway acknowledgement.
+
+Use `content-history --app-socket ... --operation ...` to inspect native retained
+facts. If a received ACK was lost before persistence, `disclosure-acknowledge
+--app-socket ... --operation ... --acknowledgement <private-ack-file>` records
+that exact evidence without redelivery. A disconnect, unknown outcome or retained
+grant must not trigger an automatic repeat. Python/TypeScript expose matching
+acquisition/history/ACK control methods returning native result bytes. Recipient
+handshake, binding/ACK interpretation and signing remain in Rust.

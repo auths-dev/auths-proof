@@ -1,0 +1,54 @@
+{
+  "schema": "auths.application-content-cli-fixture/1",
+  "scope": "production CLI with real refusal sockets; no installed engine/provider/disclosure-receive claim",
+  "cases": [
+    {
+      "command": "content-acquire",
+      "request": {
+        "schema": "auths.gateway-content/1",
+        "submission": {
+          "schema": "auths.gateway-submit/2",
+          "proof_b64": "AA",
+          "action_b64": "AA",
+          "approval_b64": "eyJyZXF1ZXN0Ijp7ImFwcHJvdmVyIjpbMjMyLDIxOCw5OSwxNjQsMTIsMTY2LDEzNSwyMDAsMTI0LDI1MiwyMjQsOTIsMTc4LDc0LDEyMCwxMDgsMTI2LDExNywyMDQsNzMsMTk5LDEzLDE4MSw4Nyw2MywyLDExMSwyOCwxMDYsMTM0LDIwNiwxNzBdLCJlZmZlY3QiOlsxODQsMTM1LDE3MiwyMTYsMSwyMSwxNDAsOTcsMTU5LDEwNiwyMDQsMTA1LDE1MSw4LDYwLDQ2LDE4OSwzNSw5MSw1MSwyNDUsMTM5LDE0LDY0LDIzLDMsMTEwLDIwOCwxNjYsNTAsMTU5LDYzXSwiZXhwaXJlc19hdCI6MTc5MDAwMDAzMCwibm90X2JlZm9yZSI6MTc5MDAwMDAwMCwic2NoZW1hIjoiYXV0aHMuZXhhY3QtZWZmZWN0LWFwcHJvdmFsLzEifSwic2lnbmF0dXJlX2I2NCI6ImxoWVhBQ0hLN1BueXpMVEpYTmxxVlIxdmFGYjJySGZiUmdVTkluSXlWdGF4TUlWOWIxQUd2OXZLWFZ1aUo3MFJ4M1ZycmRwYi0yYjhyRDdoWFVjZERnIn0"
+        }
+      },
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "not-entered",
+          "code": "gateway.acquisition.binding"
+        }
+      }
+    },
+    {
+      "command": "content-history",
+      "request": {
+        "schema": "auths.gateway-content-history/1",
+        "operation": "fixture-1"
+      },
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "not-entered",
+          "code": "gateway.attempt.state-unavailable"
+        }
+      }
+    },
+    {
+      "command": "disclosure-acknowledge",
+      "request": {
+        "schema": "auths.gateway-disclosure-acknowledge/1",
+        "operation": "fixture-1",
+        "acknowledgement_b64": "eyJyZXF1ZXN0Ijp7ImFja25vd2xlZGdlZF9ieXRlcyI6NDIsImNoYW5uZWwiOlsxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMiwxMl0sImRlbGl2ZXJ5X2luc3RhbmNlIjpbMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTMsMTNdLCJlZmZlY3QiOlsxODAsMTkwLDIzNSwzNSwyMzcsMTI1LDI1NCw5MSwyMiwyMzUsMjQxLDE4NywxMzksMTExLDExLDUsMjM0LDIyNiwxMTMsMTY0LDEwNywxMTEsMjM5LDg2LDIyNSw2OSwzNSwyMzIsMjQ2LDIxMywyNDcsMTY5XSwibWF4aW11bV9ieXRlcyI6MTAwLCJwcm9qZWN0aW9uIjpbMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTQsMTRdLCJwcm90ZWN0ZWRfY29udGVudCI6WzExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExLDExXSwicmVjaXBpZW50Ijoia2V5OnNoYTI1NjprZUNTNXVtdjRnZkpUejJpMDFvcGZIaDZXTWo5RjZrYzF0c3lleXFvaTdnIiwicmVjaXBpZW50X2tleSI6WzY3LDQsMTA3LDI1NCw2NCwxNDYsMTc5LDIzMyw3MywxNDgsMjM0LDIxOCwyMSwyMjAsMTk0LDEzLDEzOCwxNzAsNywxODIsODgsMjUzLDU3LDg0LDIzNSwxNDIsMTQsMjUxLDEzOSwyMjAsMTY1LDIyMl0sInNjaGVtYSI6ImF1dGhzLmdhdGV3YXktZGlzY2xvc3VyZS1hY2svMSIsInNvdXJjZV9lZmZlY3QiOlsxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMCwxMF19LCJzaWduYXR1cmVfYjY0IjoiMlZOR1Z6NmVjd3NDeUM0bGdiZkFxcl94b1FkUDhFM0UySEFmYmJJV29tNWNLTlpPSVdLSzFmeTBXaDZsRWozRWduaTN6NFVRT3N3SVE2bmZ5U1RmQmcifQ"
+      },
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "not-entered",
+          "code": "gateway.disclosure.acknowledgement"
+        }
+      }
+    }
+  ]
+}

@@ -669,3 +669,22 @@ socket-pair/file artifact exercises ACK loss, late evidence, fresh-authenticatio
 replay, dropped permit, one-winner concurrency and dependency changes before the
 final fence. Independent processes/adapters, complete recipe differential and
 performance evidence remain required by the extraction and AP074 exit gates.
+
+
+### Application and thin-client cutover
+
+Content application inputs no longer supply a resource map beside the signed
+native action. The acquisition compiler's existing body is shared below sealed
+verification, allowing content target reconstruction from that same verified
+command. This is one compilation owner; old explicit-target callers and new
+native-action callers produce identical bindings in the native corpus. Native
+history and ACK recording are exposed without capability reconstruction.
+
+The application control switch invokes existing native admission and then hands
+one owned socket to the existing authenticated delivery owner. It does not infer
+readiness, authorization or receipt from a transport label. Rust client/CLI code
+alone executes recipient authentication and signs ACKs after receipt. Python and
+TypeScript carry bounded envelopes and native result bytes; no shared semantic
+predicate, hash, signature or capacity rule moves into those wrappers. Frame,
+CLI refusal and native-client/file evidence have explicit narrow scopes. Full
+installed consumer, reference differential and isolation gates remain required.

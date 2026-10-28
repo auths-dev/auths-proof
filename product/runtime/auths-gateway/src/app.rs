@@ -1,7 +1,6 @@
-//! The application-socket protocol: one length-prefixed JSON frame in, one
-//! out. Frames carry a proof/action submission, independently approved recovery,
-//! or retained local history; anything else is refused without
-//! reaching the application.
+//! Closed application protocol: one control frame and native result, except
+//! disclosure, which explicitly switches to bounded recipient authentication,
+//! content and ACK frames. Native owners decide every effect and history change.
 
 use crate::effect::{ExactEffectApproval, MAX_EFFECT_APPROVAL_BYTES};
 use crate::{GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult};
@@ -14,6 +13,17 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::UnixStream;
 use tokio::time::{Instant, sleep_until, timeout_at};
 use zeroize::{Zeroize as _, Zeroizing};
+
+mod content;
+#[cfg(test)]
+#[path = "app/content_tests.rs"]
+mod content_tests;
+pub use content::{
+    APP_CONTENT_HISTORY_SCHEMA, APP_CONTENT_SCHEMA, APP_DISCLOSURE_ACK_SCHEMA,
+    APP_DISCLOSURE_SCHEMA, AppContent, AppContentHistory, AppContentResult, AppDisclosure,
+    AppDisclosureAcknowledgement, AppDisclosureTarget,
+};
+pub use content::{AppDisclosureReception, receive_content_disclosure};
 
 /// Schema of a proof/action submission frame.
 pub const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/2";
@@ -253,6 +263,10 @@ enum AppFrame {
     Submit(AppSubmission),
     Observe(AppObservation),
     Recover(AppRecovery),
+    Content(AppContent),
+    Disclose(AppDisclosure),
+    ContentHistory(AppContentHistory),
+    DisclosureAck(AppDisclosureAcknowledgement),
 }
 
 /// Which closed frame `bytes` parse as, schema included: `submit`,
@@ -267,6 +281,10 @@ pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
             (observation.schema == APP_OBSERVE_SCHEMA).then_some("observe")
         }
         AppFrame::Recover(recovery) => recovery.decode().ok().map(|_| "recover"),
+        AppFrame::Content(request) => request.decode().ok().map(|_| "content"),
+        AppFrame::Disclose(request) => request.decode().ok().map(|_| "disclose"),
+        AppFrame::ContentHistory(request) => request.validate().ok().map(|()| "content-history"),
+        AppFrame::DisclosureAck(request) => request.decode().ok().map(|_| "disclosure-ack"),
     }
 }
 
@@ -289,6 +307,43 @@ pub trait GatewayApplication {
         action: &[u8],
         approval: ExactEffectApproval,
     ) -> impl Future<Output = AppRecoveryResult>;
+
+    /// Native content acquisition. Synthetic applications refuse by default.
+    fn acquire_content(
+        &self,
+        _submission: DecodedSubmission,
+    ) -> impl Future<Output = AppContentResult> {
+        async { AppContentResult::refused("gateway.acquisition.binding") }
+    }
+    /// Native redacted history, with no current I/O authority.
+    fn content_history(&self, _operation: &str) -> impl Future<Output = AppContentResult> {
+        async { AppContentResult::refused("gateway.attempt.state-unavailable") }
+    }
+    /// Exact historical evidence. Default implementations cannot invent grants.
+    fn acknowledge_disclosure(
+        &self,
+        _operation: &str,
+        _ack: crate::effect::DisclosureAcknowledgement,
+    ) -> impl Future<Output = AppContentResult> {
+        async { AppContentResult::refused("gateway.disclosure.acknowledgement") }
+    }
+    /// Transfers the socket to the native disclosure protocol. This must finish
+    /// its bounded journal work rather than cancel after a possible grant.
+    fn disclose_content(
+        &self,
+        _target: AppDisclosureTarget,
+        _submission: DecodedSubmission,
+        mut stream: UnixStream,
+        clock: SessionClock,
+    ) -> impl Future<Output = ()> {
+        async move {
+            if let Ok(bytes) =
+                serde_json::to_vec(&AppContentResult::refused("gateway.disclosure.binding"))
+            {
+                let _ = clock.write_frame(&mut stream, &bytes).await;
+            }
+        }
+    }
 
     /// Signs or returns retained local history, without provider I/O.
     fn observe(
@@ -322,6 +377,45 @@ impl GatewayApplication for GatewayEngine {
         }
     }
 
+    async fn acquire_content(&self, submission: DecodedSubmission) -> AppContentResult {
+        match self
+            .acquire_content_action(&submission.proof, &submission.action, submission.approval)
+            .await
+        {
+            Ok(snapshot) => AppContentResult::History {
+                history: crate::ContentHistory::Acquisition(snapshot),
+            },
+            Err(result) => AppContentResult::Refused { result },
+        }
+    }
+    async fn content_history(&self, operation: &str) -> AppContentResult {
+        match GatewayEngine::content_history(self, operation).await {
+            Ok(history) => AppContentResult::History { history },
+            Err(result) => AppContentResult::Refused { result },
+        }
+    }
+    async fn acknowledge_disclosure(
+        &self,
+        operation: &str,
+        ack: crate::effect::DisclosureAcknowledgement,
+    ) -> AppContentResult {
+        match GatewayEngine::acknowledge_disclosure(self, operation, &ack).await {
+            Ok(snapshot) => AppContentResult::History {
+                history: crate::ContentHistory::Disclosure(snapshot),
+            },
+            Err(result) => AppContentResult::Refused { result },
+        }
+    }
+    async fn disclose_content(
+        &self,
+        target: AppDisclosureTarget,
+        submission: DecodedSubmission,
+        stream: UnixStream,
+        clock: SessionClock,
+    ) {
+        content::engine_disclose(self, target, submission, stream, clock).await;
+    }
+
     async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
         GatewayEngine::observe(self, request).await
     }
@@ -332,19 +426,26 @@ impl GatewayApplication for GatewayEngine {
 /// # Errors
 /// Returns a stable code for an unreadable or out-of-bounds frame.
 pub async fn read_frame(stream: &mut UnixStream) -> Result<Vec<u8>, &'static str> {
+    read_frame_limited(stream, MAX_FRAME_BYTES).await
+}
+
+async fn read_frame_limited(
+    stream: &mut UnixStream,
+    maximum: usize,
+) -> Result<Vec<u8>, &'static str> {
     let length = stream
         .read_u32()
         .await
         .map_err(|_| "gateway.ipc.read-failed")? as usize;
-    if length == 0 || length > MAX_FRAME_BYTES {
+    if length == 0 || length > maximum {
         return Err("gateway.ipc.invalid-size");
     }
-    let mut bytes = vec![0_u8; length];
+    let mut bytes = Zeroizing::new(vec![0_u8; length]);
     stream
         .read_exact(&mut bytes)
         .await
         .map_err(|_| "gateway.ipc.read-failed")?;
-    Ok(bytes)
+    Ok(bytes.to_vec())
 }
 
 /// Writes one bounded frame.
@@ -437,15 +538,27 @@ pub async fn app_session_within(
 ) {
     let clock = SessionClock::start(limits);
     let request = clock.read_frame(&mut stream).await;
+    let request = request.and_then(|bytes| {
+        let bytes = Zeroizing::new(bytes);
+        serde_json::from_slice::<AppFrame>(&bytes).map_err(|_| "gateway.submit.invalid-frame")
+    });
+    if let Ok(AppFrame::Disclose(request)) = request {
+        content::disclose(request, stream, application, clock).await;
+        return;
+    }
     let response = async {
         match request {
-            Ok(bytes) => match serde_json::from_slice::<AppFrame>(&bytes) {
-                Ok(AppFrame::Submit(submission)) => submit_frame(submission, application).await,
-                Ok(AppFrame::Observe(observation)) => observe_frame(observation, application).await,
-                Ok(AppFrame::Recover(recovery)) => recovery_frame(recovery, application).await,
-                Err(_) => serde_json::to_vec(&invalid_frame()).unwrap_or_default(),
-            },
-            Err(_) => serde_json::to_vec(&invalid_frame()).unwrap_or_default(),
+            Ok(AppFrame::Submit(submission)) => submit_frame(submission, application).await,
+            Ok(AppFrame::Observe(observation)) => observe_frame(observation, application).await,
+            Ok(AppFrame::Recover(recovery)) => recovery_frame(recovery, application).await,
+            Ok(AppFrame::Content(request)) => content::acquire(request, application).await,
+            Ok(AppFrame::ContentHistory(request)) => content::history(request, application).await,
+            Ok(AppFrame::DisclosureAck(request)) => {
+                content::acknowledge(request, application).await
+            }
+            Ok(AppFrame::Disclose(_)) | Err(_) => {
+                serde_json::to_vec(&invalid_frame()).unwrap_or_default()
+            }
         }
     };
     if let Some((mut stream, bytes)) = clock.complete(stream, response).await

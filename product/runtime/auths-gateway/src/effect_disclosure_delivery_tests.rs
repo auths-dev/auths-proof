@@ -3,7 +3,6 @@
 use super::*;
 use crate::disclosure_transport::{
     AuthenticatedDisclosureChannel, DisclosureConnection, ReceivedDisclosure, deliver,
-    receive_disclosure,
 };
 use crate::effect::UnixDisclosurePolicy;
 use tokio::net::UnixStream;
@@ -17,19 +16,59 @@ async fn authenticate(
     AuthenticatedDisclosureChannel,
     tokio::task::JoinHandle<Result<ReceivedDisclosure, &'static str>>,
 ) {
-    let (server, client) = UnixStream::pair().expect("socket pair");
+    use base64ct::{Base64UrlUnpadded, Encoding as _};
+    let (mut server, client) = UnixStream::pair().expect("socket pair");
     let binding = approved.effect().binding().clone();
-    let client_policy = policy.clone();
+    let source = approved
+        .disclosure_plan()
+        .expect("plan")
+        .source()
+        .expect("source");
+    let wire: Value =
+        serde_json::from_slice(&binding.to_private_bytes().expect("binding")).expect("JSON");
+    let request = crate::app::AppDisclosure {
+        schema: crate::app::APP_DISCLOSURE_SCHEMA.to_owned(),
+        target: crate::app::AppDisclosureTarget {
+            source_operation: source.journal_identity().1.to_owned(),
+            recipient_key: recipient.verifying_key().to_bytes(),
+            channel: policy.clone(),
+            delivery_instance: serde_json::from_value(
+                wire["protocol"]["delivery_instance"].clone(),
+            )
+            .expect("instance"),
+        },
+        // Framing shim only: the native installed grant below uses the real
+        // approved proof from the corpus. No installed app dispatch is claimed.
+        submission: crate::app::AppSubmission {
+            schema: crate::app::APP_REQUEST_SCHEMA.to_owned(),
+            proof_b64: "AA".to_owned(),
+            action_b64: "AA".to_owned(),
+            approval_b64: Base64UrlUnpadded::encode_string(
+                &approved.approval().to_private_bytes().expect("approval"),
+            ),
+        },
+    };
     let client_key = recipient.clone();
     let receiver = tokio::spawn(async move {
-        receive_disclosure(
-            DisclosureConnection::new(client, client_policy),
-            &binding,
-            bytes,
-            &client_key,
-        )
-        .await
+        match crate::app::receive_content_disclosure(client, &request, &binding, bytes, &client_key)
+            .await?
+        {
+            crate::app::AppDisclosureReception::Received(received) => Ok(received),
+            _ => Err("test.unexpected-history"),
+        }
     });
+    let frame = crate::app::read_frame(&mut server)
+        .await
+        .expect("client request");
+    let request: crate::app::AppDisclosure =
+        serde_json::from_slice(&frame).expect("typed envelope");
+    request.decode().expect("bounded envelope");
+    crate::app::write_frame(
+        &mut server,
+        &serde_json::to_vec(&crate::app::AppContentResult::Ready).expect("ready"),
+    )
+    .await
+    .expect("ready frame");
     let channel = AuthenticatedDisclosureChannel::authenticate(
         DisclosureConnection::new(server, policy.clone()),
         approved.effect().binding(),
@@ -168,6 +207,20 @@ pub(super) async fn corpus(
             )
             .expect("restore record");
     }
+
+    assert_eq!(
+        attempts
+            .content_history(recipe.namespace(), &operation, *recipe.digest())
+            .await
+            .expect("historical disclosure"),
+        crate::ContentHistory::Disclosure(acknowledged.clone())
+    );
+    assert!(
+        attempts
+            .content_history(recipe.namespace(), &operation, [0; 32])
+            .await
+            .is_err()
+    );
 
     // Actual receipt followed by loss of the ACK channel retains full charges.
     let second = approve(3, channel_policy);
@@ -452,8 +505,8 @@ pub(super) async fn corpus(
     authentication_failures(&first, bytes, recipient, channel_policy).await;
 
     let fixture = json!({"schema": "auths.gateway-disclosure-delivery-fixture/1",
-        "scope": "real Unix socket pairs and installed native file fence; no independent processes, hostile UID isolation or PostgreSQL claim",
-        "authenticated_delivery": acknowledged, "lost_ack": unknown, "late_ack": late,
+        "scope": "native application client with a control-frame shim, real Unix socket pairs and installed native file fence; no installed app dispatcher, independent processes, hostile UID isolation or PostgreSQL claim",
+        "native_application_client_protocol_switch": true, "authenticated_delivery": acknowledged, "lost_ack": unknown, "late_ack": late,
         "competing_live_channels": raced_snapshot, "approval_expired_after_authentication_refused": true,
         "configuration_changed_after_authentication_refused": true,
         "corrupt_source_after_authentication_refused": true, "retained_authentication_corruption_refused": true,

@@ -6,7 +6,8 @@ use crate::effect::disclosure_auth::RecipientAuthentication;
 use crate::effect::{DisclosureAcknowledgement, DisclosurePlan};
 
 /// Redacted disclosure facts, separate from provider response and observation.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct DisclosureSnapshot {
     /// Exact retained journal revision.
     pub revision: u64,
@@ -26,7 +27,7 @@ pub struct DisclosureSnapshot {
 }
 
 /// Disclosure cannot record provider responses or mutation observations.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum DisclosureStage {
     /// Reservation has no delivery permission.

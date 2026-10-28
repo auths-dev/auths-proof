@@ -2895,6 +2895,67 @@ fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttempt
     Ok(record)
 }
 
+/// Redacted retained content facts. History grants no current execution authority.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(
+    tag = "kind",
+    content = "snapshot",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+pub enum ContentHistory {
+    /// Provider acquisition facts; no content or recipient receipt claim.
+    Acquisition(AcquisitionSnapshot),
+    /// Separate recipient disclosure/ACK facts.
+    Disclosure(DisclosureSnapshot),
+}
+
+impl GatewayAttempts {
+    /// Loads exact local content history without reconstructing any entry permit.
+    ///
+    /// # Errors
+    /// Refuses absent, foreign or malformed state and non-content protocols.
+    pub async fn content_history(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+        recipe: [u8; 32],
+    ) -> Result<ContentHistory, GatewayAttemptError> {
+        let key = self.key(namespace, operation)?;
+        let store = Arc::clone(&self.store);
+        let bytes = blocking(move || store.load(GatewayRecordKind::Attempt, &key))
+            .await?
+            .ok_or(GatewayAttemptError::Unavailable)?;
+        let bytes = zeroize::Zeroizing::new(bytes);
+        let record = decode_protocol(&bytes)?;
+        let binding = record.validate_header()?;
+        if !self.policy.contains(&binding)
+            || record.namespace != namespace.as_str()
+            || record.operation_id != operation.as_str()
+            || record.recipe_digest != hex::encode(recipe)
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        match &record.state {
+            ProtocolState::Disclosure(_) => Ok(ContentHistory::Disclosure(
+                record
+                    .map_state(disclosure::DisclosureState::extract)?
+                    .disclosure_snapshot()?,
+            )),
+            ProtocolState::Acquisition(state)
+                if matches!(state.plan, crate::effect::AcquisitionPlan::Content(_)) =>
+            {
+                Ok(ContentHistory::Acquisition(
+                    record
+                        .map_state(acquisition::AcquisitionState::extract)?
+                        .snapshot()?,
+                ))
+            }
+            _ => Err(GatewayAttemptError::BindingConflict),
+        }
+    }
+}
+
 /// The snapshot of one stored record's bytes, for the fuzz targets.
 #[cfg(feature = "fuzzing")]
 pub(crate) fn fuzz_snapshot(bytes: &[u8]) -> Option<GatewayAttemptSnapshot> {

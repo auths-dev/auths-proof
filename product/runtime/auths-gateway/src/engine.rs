@@ -1549,6 +1549,93 @@ impl GatewayEngine {
             })
     }
 
+    /// Native compilation from the signed action's own resource arguments.
+    /// This application boundary accepts no independent URL/resource map.
+    ///
+    /// # Errors
+    /// Refuses malformed authority, unsupported content and changed installation.
+    pub async fn compile_content_action(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_content_action(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Acquires content under native authority and approval of that exact action.
+    /// The result contains retained facts only, never plaintext or a release permit.
+    ///
+    /// # Errors
+    /// Preserves native refusal/uncertainty; existing grants are never retried.
+    pub async fn acquire_content_action(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let effect = self.compile_content_action(proof, action).await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        self.acquire_read_approved(approved, now, started).await
+    }
+
+    /// Reads redacted content/disclosure history in this installed recipe and
+    /// partition. It performs no current authorization, custody or external I/O.
+    ///
+    /// # Errors
+    /// Refuses foreign, absent, obsolete or corrupt state without disclosing it.
+    pub async fn content_history(
+        &self,
+        operation: &str,
+    ) -> Result<crate::ContentHistory, GatewaySubmitResult> {
+        let operation = crate::LogicalOperationId::parse(operation)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        self.attempts
+            .content_history(self.recipe.namespace(), &operation, *self.recipe.digest())
+            .await
+            .map_err(|_| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })
+    }
+
+    /// Records historical recipient evidence without new delivery or capacity.
+    ///
+    /// # Errors
+    /// Refuses mismatched ACKs and absent/corrupt/foreign retained grants.
+    pub async fn acknowledge_disclosure(
+        &self,
+        operation: &str,
+        acknowledgement: &crate::effect::DisclosureAcknowledgement,
+    ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        self.content_history(operation).await?;
+        let operation = crate::LogicalOperationId::parse(operation)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        self.attempts
+            .acknowledge_disclosure(self.recipe.namespace(), &operation, acknowledgement)
+            .await
+            .map_err(|_| not_entered("gateway.disclosure.acknowledgement"))
+    }
+
     /// Compiles a declared content GET from exact resource arguments using
     /// fresh independent native read authority. Performs no custody or provider
     /// I/O and returns private review/approval data only.

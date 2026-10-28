@@ -436,3 +436,39 @@ def test_native_replay_projection_corpus() -> None:
     for value in corpus["reserved_decoding"]["invalid"]:
         with pytest.raises(GatewayProtocolError):
             _parse_result(json.dumps(value).encode())
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix application socket")
+@pytest.mark.parametrize("route", ["content", "content-history", "disclosure-ack"])
+def test_content_controls_preserve_native_envelopes(socket_dir, route) -> None:
+    corpus = json.loads((Path(__file__).resolve().parents[2] / "fixtures/gateway/application-content-frame.json").read_text())
+    request = corpus["requests"][route]
+    reply = json.dumps(next(case["response"] for case in corpus["cases"] if case["route"] == route and case["case"] == "valid")).encode()
+    def decode(value: str) -> bytes:
+        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    async def scenario() -> None:
+        seen: list[dict[str, object]] = []
+        server = await _serve_once(socket_dir / "gateway.sock", reply, seen)
+        async with server:
+            client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
+            if route == "content":
+                result = await client.acquire_content(**{name: decode(request["submission"][name + "_b64"]) for name in ("proof", "action", "approval")})
+            elif route == "content-history":
+                result = await client.content_history(request["operation"])
+            else:
+                result = await client.acknowledge_disclosure(request["operation"], decode(request["acknowledgement_b64"]))
+        assert result == reply
+        assert seen == [request]
+    asyncio.run(scenario())
+
+
+def test_content_controls_refuse_unbounded_or_invalid_input(socket_dir) -> None:
+    client = GatewayClient(GatewayEndpoint(socket_dir / "unused.sock"))
+    for operation in ("", "bad/id", "a" * 129):
+        with pytest.raises(ValueError):
+            asyncio.run(client.content_history(operation))
+        with pytest.raises(ValueError):
+            asyncio.run(client.acknowledge_disclosure(operation, b"ack"))
+    for acknowledgement in (b"", b"a" * 4097):
+        with pytest.raises(ValueError):
+            asyncio.run(client.acknowledge_disclosure("fixture-1", acknowledgement))

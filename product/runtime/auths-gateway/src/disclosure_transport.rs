@@ -22,7 +22,7 @@ impl UnixDisclosurePolicy {
     fn server_peer(&self, stream: &UnixStream) -> Result<(), &'static str> {
         self.peer(stream, self.gateway_uid(), self.recipient_uid())
     }
-    fn recipient_peer(&self, stream: &UnixStream) -> Result<(), &'static str> {
+    pub(crate) fn recipient_peer(&self, stream: &UnixStream) -> Result<(), &'static str> {
         self.peer(stream, self.recipient_uid(), self.gateway_uid())
     }
     fn peer(&self, stream: &UnixStream, local: u32, remote: u32) -> Result<(), &'static str> {
@@ -44,12 +44,21 @@ impl UnixDisclosurePolicy {
 pub struct DisclosureConnection {
     stream: UnixStream,
     policy: UnixDisclosurePolicy,
+    deadline: Option<Instant>,
 }
 impl DisclosureConnection {
     /// Transfers the stream into the closed disclosure protocol.
     #[must_use]
     pub fn new(stream: UnixStream, policy: UnixDisclosurePolicy) -> Self {
-        Self { stream, policy }
+        Self {
+            stream,
+            policy,
+            deadline: None,
+        }
+    }
+    pub(crate) fn within(mut self, deadline: Instant) -> Self {
+        self.deadline = Some(deadline);
+        self
     }
 }
 
@@ -67,11 +76,18 @@ impl AuthenticatedDisclosureChannel {
         bytes: u64,
         key: [u8; 32],
     ) -> Result<Self, &'static str> {
-        let DisclosureConnection { mut stream, policy } = connection;
+        let DisclosureConnection {
+            mut stream,
+            policy,
+            deadline: session_deadline,
+        } = connection;
         policy.matches(binding)?;
         policy.server_peer(&stream)?;
         let start = Instant::now();
-        let deadline = start + Duration::from_secs(SESSION_SECONDS);
+        let deadline = session_deadline
+            .map_or(start + Duration::from_secs(SESSION_SECONDS), |limit| {
+                limit.min(start + Duration::from_secs(SESSION_SECONDS))
+            });
         let mut nonce = [0; 32];
         getrandom::fill(&mut nonce).map_err(|_| "gateway.disclosure.authentication")?;
         let challenge = Challenge {
@@ -80,10 +96,13 @@ impl AuthenticatedDisclosureChannel {
             delivery: DisclosureAcknowledgementRequest::for_delivery(binding, bytes, key)
                 .map_err(|_| "gateway.disclosure.authentication")?,
         };
-        let response = timeout_at(start + Duration::from_secs(AUTH_SECONDS), async {
-            write_frame(&mut stream, &bounded(&challenge)?, MAX_AUTH_BYTES).await?;
-            decode::<Response>(&read_frame(&mut stream, MAX_AUTH_BYTES).await?)
-        })
+        let response = timeout_at(
+            deadline.min(start + Duration::from_secs(AUTH_SECONDS)),
+            async {
+                write_frame(&mut stream, &bounded(&challenge)?, MAX_AUTH_BYTES).await?;
+                decode::<Response>(&read_frame(&mut stream, MAX_AUTH_BYTES).await?)
+            },
+        )
         .await
         .map_err(|_| "gateway.disclosure.timeout")??;
         let authentication = RecipientAuthentication {
@@ -197,7 +216,11 @@ pub async fn receive_disclosure(
     bytes: u64,
     key: &SigningKey,
 ) -> Result<ReceivedDisclosure, &'static str> {
-    let DisclosureConnection { mut stream, policy } = connection;
+    let DisclosureConnection {
+        mut stream,
+        policy,
+        deadline: session_deadline,
+    } = connection;
     policy.matches(binding)?;
     policy.recipient_peer(&stream)?;
     let expected = DisclosureAcknowledgementRequest::for_delivery(
@@ -207,16 +230,21 @@ pub async fn receive_disclosure(
     )
     .map_err(|_| "gateway.disclosure.authentication")?;
     let start = Instant::now();
-    let deadline = start + Duration::from_secs(SESSION_SECONDS);
-    let challenge = timeout_at(start + Duration::from_secs(AUTH_SECONDS), async {
-        let challenge: Challenge = decode(&read_frame(&mut stream, MAX_AUTH_BYTES).await?)?;
-        if challenge.delivery != expected {
-            return Err("gateway.disclosure.authentication");
-        }
-        let response = Response::sign(&challenge, key)?;
-        write_frame(&mut stream, &bounded(&response)?, MAX_AUTH_BYTES).await?;
-        Ok::<_, &'static str>(challenge)
-    })
+    let deadline = session_deadline.map_or(start + Duration::from_secs(SESSION_SECONDS), |limit| {
+        limit.min(start + Duration::from_secs(SESSION_SECONDS))
+    });
+    let challenge = timeout_at(
+        deadline.min(start + Duration::from_secs(AUTH_SECONDS)),
+        async {
+            let challenge: Challenge = decode(&read_frame(&mut stream, MAX_AUTH_BYTES).await?)?;
+            if challenge.delivery != expected {
+                return Err("gateway.disclosure.authentication");
+            }
+            let response = Response::sign(&challenge, key)?;
+            write_frame(&mut stream, &bounded(&response)?, MAX_AUTH_BYTES).await?;
+            Ok::<_, &'static str>(challenge)
+        },
+    )
     .await
     .map_err(|_| "gateway.disclosure.timeout")??;
     let content = timeout_at(

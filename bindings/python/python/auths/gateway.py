@@ -486,6 +486,41 @@ class GatewayClient:
             payload, "gateway recovery exchange unavailable; outcome may be unknown"
         )
 
+    async def acquire_content(self, *, proof: bytes, action: bytes, approval: bytes) -> bytes:
+        """Return native acquisition/refusal bytes; no provider content is released.
+
+        Resource arguments come only from the signed native action. IPC failure
+        cannot authorize a new read. Disclosure uses the native recipient client.
+        """
+        payload = json.dumps({"schema": "auths.gateway-content/1",
+                              "submission": _submission(proof, action, approval)},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "content acquisition may be unknown")
+
+    async def content_history(self, operation: str) -> bytes:
+        """Return redacted native history unchanged, without provider I/O."""
+        if not isinstance(operation, str) or _OPERATION_ID.fullmatch(operation) is None:
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        payload = json.dumps({"schema": "auths.gateway-content-history/1", "operation": operation},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "content history unavailable")
+
+    async def acknowledge_disclosure(self, operation: str, acknowledgement: bytes) -> bytes:
+        """Carry exact ACK bytes produced by the native recipient client.
+
+        Rust validates the signature and retained grant. This wrapper does not
+        sign, hash, interpret evidence or authorize another delivery.
+        """
+        if not isinstance(operation, str) or _OPERATION_ID.fullmatch(operation) is None:
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        if not isinstance(acknowledgement, bytes) or not 1 <= len(acknowledgement) <= 4096:
+            raise ValueError("acknowledgement must be 1-4096 native canonical bytes")
+        payload = json.dumps({"schema": "auths.gateway-disclosure-acknowledge/1",
+                              "operation": operation,
+                              "acknowledgement_b64": _encode_base64url(acknowledgement)},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "disclosure acknowledgement persistence may be unknown")
+
     async def observe_outcome(self, operation_id: str) -> GatewayObserveResult:
         """Ask the gateway to sign the stored outcome of one logical operation.
 

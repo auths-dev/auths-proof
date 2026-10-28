@@ -20,7 +20,8 @@ pub use recovery::{
 };
 
 /// Public facts about a bounded acquisition, with no content or private digest.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AcquisitionSnapshot {
     /// Durable journal revision.
     pub revision: u64,
@@ -48,7 +49,7 @@ pub struct AcquisitionSnapshot {
 }
 
 /// Acquisition has no mutation-observed or disclosure-acknowledged state.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AcquisitionStage {
     /// Capacity held; no provider permit.
@@ -66,7 +67,7 @@ pub enum AcquisitionStage {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AcquisitionState {
-    plan: AcquisitionPlan,
+    pub(super) plan: AcquisitionPlan,
     allocation: Option<u64>,
     counters: Vec<CounterWire>,
     phase: AcquisitionPhase,

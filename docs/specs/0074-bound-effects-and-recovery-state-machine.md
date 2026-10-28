@@ -539,8 +539,46 @@ outside the containment guarantee. The existing synthetic-grant journal corpus
 remains historical unit evidence. A separate real socket-pair/file fixture covers
 actual send/ACK loss, reopening, one-winner concurrent grants, grant-before-send
 loss and changes between authentication and grant. It is not independent-process,
-PostgreSQL, hostile-agent or full installed A07/A08/A22 evidence. Application/CLI
-routes, thin binding/UI integration and those complete journeys remain required.
+PostgreSQL, hostile-agent or full installed A07/A08/A22 evidence. The application/CLI controls below do not close installed binding/UI integration
+or those complete journeys.
+
+The application now has closed `auths.gateway-content/1`,
+`auths.gateway-disclose/1`, `auths.gateway-content-history/1` and
+`auths.gateway-disclosure-acknowledge/1` frames. Acquisition carries only the
+native proof/action/approval envelope. Its resource arguments are projected from
+the verified action through the same acquisition compiler; no second caller map,
+URL or transport override is accepted. The existing eight-MiB application frame,
+four-MiB proof, 64-KiB action and native approval bounds remain in force.
+
+Disclosure carries a closed source-operation/recipient-key/channel/instance
+proposal and its independent native envelope. The application resolves protected
+source provenance and invokes native admission. Terminal replay returns redacted
+history; a reservation returns `ready` only to switch the owned socket to native
+recipient authentication. Ready is not a grant. The engine then repeats current
+compilation/admission and makes the existing final fenced decision. Changes after
+Ready fail closed. Transport inherits the application session deadline as well as
+its own tighter limits. No external send is cancelled into a false non-entry
+claim, and the session retains capacity until the bounded native work ends.
+
+The native recipient client checks gateway UID, expected binding/channel and its
+key before sending the private request. It accepts at most 4,096 bytes of control
+response, switches only on the typed Ready response, and exposes plaintext only
+through the existing authenticated receipt value. The CLI saves content and
+canonical late-ACK evidence to new owner-private files before sending its ACK;
+`recipient-ack-sent` does not assert that the gateway persisted it. History and
+late ACK use separate control calls and never request a fresh delivery. History
+is restricted to the installed recipe, namespace, partition and epoch and uses
+native redacted acquisition/disclosure projections.
+
+`effect-review --content` and `--disclosure <private-proposal>` use native complete
+review and approval requests. Optional `--binding-out` preserves the exact native
+binding for the trusted recipient channel. Python/TypeScript content acquisition,
+history and late-ACK methods carry native bytes unchanged; they implement no
+content projection, commitment, signing, accounting or retry decision. Recipient
+protocol execution stays in Rust. Native frame/CLI artifacts and socket-client
+cases are narrower than installed authority/UI/binding/hostile-process evidence;
+those full journeys, native call-authoring CLI integration and AP070 cutover remain
+required.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

@@ -388,6 +388,36 @@ export class GatewayClient {
     return this.#exchange(payload, "recovery outcome may be unknown", (bytes) => bytes);
   }
 
+  /** Native acquisition facts only. Resources come from the signed action;
+   * no content is released and a lost reply never permits another read. */
+  async acquireContent(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<Uint8Array> {
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-content/1", submission: submission(input) }));
+    return this.#exchange(payload, "content acquisition may be unknown", (bytes) => bytes);
+  }
+
+  /** Redacted native history, unchanged, with no provider or recipient I/O. */
+  async contentHistory(operation: string): Promise<Uint8Array> {
+    if (typeof operation !== "string" || !OPERATION_ID.test(operation)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-content-history/1", operation }));
+    return this.#exchange(payload, "content history unavailable", (bytes) => bytes);
+  }
+
+  /** Carries canonical ACK bytes produced by the native recipient client.
+   * Rust alone checks signatures and retained grants; this never redelivers. */
+  async acknowledgeDisclosure(operation: string, acknowledgement: Uint8Array): Promise<Uint8Array> {
+    if (typeof operation !== "string" || !OPERATION_ID.test(operation)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    if (!(acknowledgement instanceof Uint8Array) || acknowledgement.length < 1 || acknowledgement.length > 4096) {
+      throw new TypeError("acknowledgement must be 1-4096 native canonical bytes");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-disclosure-acknowledge/1",
+      operation, acknowledgement_b64: encodeBase64Url(acknowledgement) }));
+    return this.#exchange(payload, "disclosure acknowledgement persistence may be unknown", (bytes) => bytes);
+  }
+
   /**
    * Asks the gateway to sign the stored outcome of one logical operation. The gateway
    * reads only its own attempt store; no provider is contacted. Throws `TypeError` for a

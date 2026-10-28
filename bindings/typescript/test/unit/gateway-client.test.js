@@ -313,3 +313,30 @@ test("gateway decodes the native replay and reservation corpus", { skip: process
     await assert.rejects(replyOnce(JSON.stringify(invalid)), GatewayProtocolError);
   }
 });
+
+
+test("native content control envelopes preserve Rust fixtures", { skip: process.platform === "win32" }, async () => {
+  for (const route of ["content", "content-history", "disclosure-ack"]) {
+    const corpus = JSON.parse(await readFile(new URL("../../../fixtures/gateway/application-content-frame.json", import.meta.url), "utf8"));
+    const request = corpus.requests[route];
+    const reply = JSON.stringify(corpus.cases.find((item) => item.route === route && item.case === "valid").response);
+    const { result, seen } = await observeOnce(reply, (client) => {
+      if (route === "content") return client.acquireContent(Object.fromEntries(["proof", "action", "approval"].map((name) => [name, Buffer.from(request.submission[`${name}_b64`], "base64url")])));
+      if (route === "content-history") return client.contentHistory(request.operation);
+      return client.acknowledgeDisclosure(request.operation, Buffer.from(request.acknowledgement_b64, "base64url"));
+    });
+    assert.equal(new TextDecoder().decode(result), reply);
+    assert.deepEqual(seen, [request]);
+  }
+});
+
+test("content controls reject invalid operation and ACK bounds", async () => {
+  const client = new GatewayClient(new GatewayEndpoint("/tmp/unused-content.sock"));
+  for (const operation of ["", "bad/id", "a".repeat(129)]) {
+    await assert.rejects(client.contentHistory(operation), TypeError);
+    await assert.rejects(client.acknowledgeDisclosure(operation, new Uint8Array([1])), TypeError);
+  }
+  for (const acknowledgement of [new Uint8Array(), new Uint8Array(4097)]) {
+    await assert.rejects(client.acknowledgeDisclosure("fixture-1", acknowledgement), TypeError);
+  }
+});

@@ -485,16 +485,28 @@ pub fn compile_recovery_acquisition(
     )
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "one native verification path retains the closed acquisition target contracts"
-)]
 pub(super) fn compile_acquisition(
     installed: &EffectInstallation<'_>,
     target: AcquisitionTarget,
     now: u64,
     proof: &[u8],
     action: &[u8],
+) -> Result<BoundEffect, GatewaySubmitResult> {
+    let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
+    compile_verified_acquisition(installed, target, now, proof, action, sealed)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native verification path retains the closed acquisition target contracts"
+)]
+pub(super) fn compile_verified_acquisition(
+    installed: &EffectInstallation<'_>,
+    target: AcquisitionTarget,
+    now: u64,
+    proof: &[u8],
+    action: &[u8],
+    sealed: auths_verifier::SealedVerificationResult,
 ) -> Result<BoundEffect, GatewaySubmitResult> {
     let invalid = || not_entered("gateway.acquisition.binding");
     GatewayConnectionDescriptor::from_record(installed.connection, installed.recipe)
@@ -514,7 +526,6 @@ pub(super) fn compile_acquisition(
             .validate_installation(installed)
             .map_err(|_| invalid())?,
     }
-    let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
     let verified = sealed.action().ok_or_else(invalid)?;
     let command = McpProfile
         .decode_verified(verified)

@@ -24,7 +24,9 @@ pub(crate) use capacity::SourceCapacity;
 mod candidate;
 mod content;
 pub(crate) use content::ContentPlan;
-pub use content::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
+pub use content::{
+    CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition, compile_content_action,
+};
 mod release;
 pub(crate) use release::DisclosurePlan;
 pub use release::{DISCLOSURE_TOOL, DisclosureTarget, compile_disclosure};

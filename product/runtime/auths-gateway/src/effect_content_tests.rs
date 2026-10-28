@@ -257,6 +257,18 @@ fn native_content_compilation_fixture_is_current() {
             &submission.action,
         )
         .expect("native effect");
+        let from_action = crate::effect::compile_content_action(
+            &installed,
+            NOW,
+            &submission.proof,
+            &submission.action,
+        )
+        .expect("native action projection");
+        assert_eq!(
+            from_action.binding(),
+            effect.binding(),
+            "one resource and binding owner"
+        );
         assert!(effect.private_request().is_none(), "not a mutation");
         let review = effect.private_review().expect("review");
         let literal = review
@@ -434,7 +446,7 @@ fn native_content_compilation_fixture_is_current() {
     let fixture = json!({"schema": "auths.gateway-content-compilation-fixture/1",
         "scope": "native compilation and pure bounded projection; no acquisition entry, custody or disclosure",
         "cases": cases, "projections": projection_cases, "invalid_declarations": invalid_declarations(),
-        "undeclared_content_read_refused": true});
+        "undeclared_content_read_refused": true, "native_action_resource_projection_parity": true});
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/content-compilation.json");
     let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");
@@ -799,6 +811,21 @@ async fn native_content_journal_fixture_is_current() {
         } else {
             assert_eq!(phase["stage"], "unknown");
         }
+        let history_operation =
+            LogicalOperationId::parse(&format!("content-journal-{index}")).expect("operation");
+        assert_eq!(
+            attempts
+                .content_history(recipe.namespace(), &history_operation, *recipe.digest())
+                .await
+                .expect("content history"),
+            crate::ContentHistory::Acquisition(snapshot.clone())
+        );
+        assert!(
+            attempts
+                .content_history(recipe.namespace(), &history_operation, [0; 32])
+                .await
+                .is_err()
+        );
         let projection = serde_json::to_value(&snapshot.content_projection).expect("status");
         let expected_projection = match index {
             0 | 8 | 9 | 10 | 13 => json!({"kind": "ready", "bytes": expected_body.len()}),
