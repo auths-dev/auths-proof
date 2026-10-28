@@ -27,6 +27,9 @@ const SCHEMA: &str = "auths.gateway-codes/1";
 /// none exists yet). The fixture letters are R for the recipe corpus, A for
 /// the attempt scenarios, B for the bounds cases, and O for the outcomes.
 const ROWS: &[&str] = &[
+    "gateway.acquisition.binding effect compile new 74 -",
+    "gateway.acquisition.unsupported-bounds effect compile new 74 -",
+    "gateway.effect.protocol effect before-claim new 74 -",
     "gateway.recipe.echo-conflict GatewayRecipeError compile existing - R:form-echo-existing-field",
     "gateway.recipe.invalid-account-scope GatewayRecipeError compile new 2 R:account-scope-unregistered-header",
     "gateway.recipe.invalid-bounds GatewayRecipeError compile new 2 R:bounds-sum-argument-string",
@@ -164,6 +167,7 @@ fn expected_codes(value: &Value, found: &mut BTreeSet<String>) {
 /// Code families the revision introduced whole: every code under one of
 /// these prefixes that the crate defines must be in the inventory.
 const REVISION_FAMILIES: &[&str] = &[
+    "gateway.acquisition.",
     "gateway.account-scope.",
     "gateway.echo-verify.",
     "gateway.pre-entry.",

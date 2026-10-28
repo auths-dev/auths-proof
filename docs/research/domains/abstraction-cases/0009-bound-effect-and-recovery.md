@@ -178,3 +178,21 @@ reread, exact external counters and malformed reservation projections. It is
 narrow mechanism evidence; installed authority and PostgreSQL fault evidence
 remain open. Existing explicit operator observation tests retain their original
 scope and are not evidence of independent AP074 recovery authorization.
+
+
+## Recovery compiler checkpoint
+
+The native recovery compiler reuses the verified-action, canonical binding,
+exact approval and complete literal-review owners. It does not reuse mutation
+authority or its request type. A protected journal target supplies the source
+identity and closed observation GET; a distinct native reader authorizes that
+exact target and its count/byte/time limits. The reserved native read tool cannot
+be installed as a mutation recipe.
+
+`recovery-compilation.json` is generated from signed native proofs and an actual
+file-backed source record. It covers an expired original writer, a different
+reader, exact read approval, source/contract/limit substitution refusal and no
+source mutation. Its source entry uses a test oracle and sends no provider
+request. It proves compilation only: conserved acquisition charging, fresh
+transactional read entry, credential replacement, installed review channels and
+bounded observation execution remain open evidence gates.

@@ -2063,7 +2063,10 @@ impl GatewayAttempts {
         &self,
         approved: &ApprovedEffect,
     ) -> Result<Option<GatewayAttemptSnapshot>, GatewayAttemptError> {
-        let request = &approved.command().request;
+        let request = &approved
+            .command()
+            .ok_or(GatewayAttemptError::InvalidTransition)?
+            .request;
         let Some((_, record)) = self
             .load(request.namespace(), request.operation_id())
             .await?
@@ -2212,6 +2215,11 @@ impl ClaimedGatewayAttempt {
         pre_entry: &GatewayPreEntry,
     ) -> Result<(Self, ProviderEntryPermit), GatewayAttemptError> {
         let pre_entry = PreEntryWire::encode(pre_entry)?;
+        let request = approved
+            .command()
+            .ok_or(GatewayAttemptError::InvalidTransition)?
+            .request
+            .clone();
         blocking(move || {
             let mut attempt = self.attempt;
             let dependencies = validation.dependencies();
@@ -2264,7 +2272,11 @@ impl ClaimedGatewayAttempt {
                     .map_err(|_| GatewayAttemptError::InvalidTransition)?;
                 current.validate_reservations(
                     attempt.key,
-                    approved.command().bound.as_ref(),
+                    approved
+                        .command()
+                        .ok_or(GatewayAttemptError::InvalidTransition)?
+                        .bound
+                        .as_ref(),
                     &snapshots[dependency_end..],
                     now,
                 )?;
@@ -2314,7 +2326,13 @@ impl ClaimedGatewayAttempt {
             let (record, stored) = committed.ok_or(GatewayAttemptError::Unavailable)?;
             attempt.record = record;
             attempt.stored = stored;
-            Ok((Self { attempt }, ProviderEntryPermit { approved }))
+            Ok((
+                Self { attempt },
+                ProviderEntryPermit {
+                    _approved: approved,
+                    request,
+                },
+            ))
         })
         .await
     }
@@ -2401,15 +2419,17 @@ impl ClaimedGatewayAttempt {
 }
 
 /// One-use native transport capability, constructed only after a new durable
-/// entry acknowledgement. The shared reference retains the one sealed command;
+/// entry acknowledgement. The shared reference retains the approved effect;
 /// the permit itself is neither cloneable nor deserializable.
 pub(crate) struct ProviderEntryPermit {
-    approved: Arc<ApprovedEffect>,
+    _approved: Arc<ApprovedEffect>,
+    // Immutable clone of the exact sealed mutation request checked at grant.
+    request: ClosedProviderRequest,
 }
 
 impl ProviderEntryPermit {
     pub(crate) fn request(&self) -> &ClosedProviderRequest {
-        &self.approved.command().request
+        &self.request
     }
 }
 
@@ -2433,6 +2453,25 @@ impl ObservableGatewayAttempt {
     #[must_use]
     pub fn observation_request(&self) -> Option<ClosedObservationRequest> {
         self.attempt.record.observation_request()
+    }
+
+    /// Native private compilation target from this validated journal's plan.
+    /// It contains private data but grants no read or write authority.
+    ///
+    /// # Errors
+    /// Refuses corrupt binding data or a missing closed observation request.
+    pub fn recovery_target(
+        &self,
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let binding = crate::effect::EffectBinding::from_private_bytes(
+            self.attempt.record.binding_canonical.as_bytes(),
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let request = self
+            .observation_request()
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        crate::effect::RecoveryReadTarget::from_journal(binding, request, self.echo_token())
+            .map_err(|_| GatewayAttemptError::Corrupt)
     }
 
     /// Returns this attempt's echo token, derived from the stored verified
@@ -2915,7 +2954,10 @@ impl GatewayAttempts {
     ) -> Result<BoundedClaim, GatewayAttemptError> {
         match self.claim_new_bounded(approved, evaluated_at).await {
             Err(GatewayAttemptError::Replay) => {
-                let request = &approved.command().request;
+                let request = &approved
+                    .command()
+                    .ok_or(GatewayAttemptError::InvalidTransition)?
+                    .request;
                 let (stored, record) = self
                     .load(request.namespace(), request.operation_id())
                     .await?
@@ -2953,7 +2995,9 @@ impl GatewayAttempts {
         approved: &ApprovedEffect,
         evaluated_at: u64,
     ) -> Result<BoundedClaim, GatewayAttemptError> {
-        let command = approved.command();
+        let command = approved
+            .command()
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
         let request = &command.request;
         let binding = approved.effect().binding();
         if !self.policy.contains(binding) {

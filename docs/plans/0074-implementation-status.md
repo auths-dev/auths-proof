@@ -375,6 +375,42 @@ closure regeneration passed after that correction (one artifact-generation test)
   translated formal artifacts and hosted CI are not yet executed. No AP073 work
   or delegation occurred.
 
+## Independent recovery compilation checkpoint
+
+- Bound-effect `/3` and compiler `/4` use one sealed mutation/acquisition sum,
+  one native verifier, one exact approval and one complete private renderer.
+  Fixed-window mutation reservations remain fixed; source-lifetime read
+  reservations declare separate attempt-count and response-byte obligations.
+- A protected observable journal record supplies the source identity, exact GET,
+  response-derived locator when available, projection and echo. The new native
+  read call binds that contract and a distinct read operation. Fresh reader
+  authority is independent of the source writer. Mutation recipes cannot claim
+  the reserved native recovery-read tool, and mutation admission rejects reads.
+- Installed `effect-recovery-call` authors the private native call;
+  `effect-review --recovery-of` compiles its independently signed proof using
+  current installed configuration, connection and deployment time. Both are
+  effect-free: no credential lease, provider read, reservation or journal update.
+- Required `native_recovery_acquisition_fixture_is_current` generation passed:
+  real signed native proofs and file-derived source target; expired writer,
+  distinct reader, exact read review/approval, approval expiry/substitution,
+  changed source/contract/limit/namespace/operation refusal, reserved mutation
+  tool refusal, mutation-admission refusal and unchanged source journal. The
+  source grant uses a synthetic oracle and performs no provider send. This is
+  compilation evidence, not installed recovery execution or A15 closure.
+- Mutation binding, entry, attempt-scenario and stable-code native artifact
+  generators passed. Native CLI approval-envelope construction passed and
+  matched the regenerated signed corpus exactly. These runs used `eb3c31fb`
+  plus this compiler source; remote artifact commit `31a825d0` was inspected and
+  preserved by fast-forward. After the final boxed protocol representation,
+  recovery compilation and `semantic_closure::tests::semantic_closure_is_current`
+  generation both passed on `31a825d0` plus this source (one generator each).
+- Acquisition admission, conserved charging, fenced entry, evidence freshness
+  and transport remain unwired. The compiler currently refuses changed source
+  connection/generation and managed bounded-policy extensions; safe credential
+  replacement and enforcement of read-policy bounds are still required work.
+  Existing direct operator re-observation and all ancillary reads still need
+  replacement. No full acceptance gate, broad local suite or hosted CI is claimed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -382,7 +418,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Mutation grant and reservation restart wired | Public projections, independent recovery, installed fault/race evidence and formal links |
-| P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery compilation started | Acquisition admission/entry, disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -407,7 +443,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
 | A13 | Lock wait and independent evidence expiries | Pending / no / no | Clock/full verifier inside boundary |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
-| A15 | Recovery actor differs; original authority revoked | Pending / no / no | Separate recovery authority |
+| A15 | Recovery actor differs; original authority revoked | Partial / native compiler fixture / compilation only | Bounded recovery entry, revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Pending / no / no | Private audit/public separation |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |

@@ -187,6 +187,9 @@ mod unix {
         EffectReview {
             #[arg(long)]
             state_dir: PathBuf,
+            /// Compile independent read authority for this retained source.
+            #[arg(long)]
+            recovery_of: Option<String>,
             #[arg(long)]
             proof: PathBuf,
             #[arg(long)]
@@ -198,6 +201,16 @@ mod unix {
             /// New absolute owner-private file for the canonical signing request.
             #[arg(long)]
             request_out: PathBuf,
+        },
+        /// Author the exact private call for an independently authorized
+        /// recovery read. No proof, approval, reservation or entry is created.
+        EffectRecoveryCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            source_operation: String,
+            #[arg(long)]
+            recovery_operation: String,
         },
         /// Attach an external reviewer's Ed25519 signature to native signing
         /// data. Submission still verifies installed trust, binding and time.
@@ -2975,6 +2988,7 @@ mod unix {
     #[allow(clippy::too_many_arguments)]
     async fn effect_review(
         state_dir: PathBuf,
+        recovery_of: Option<String>,
         proof: PathBuf,
         action: PathBuf,
         not_before: u64,
@@ -2990,10 +3004,15 @@ mod unix {
             .map_err(|_| "gateway.effect.unavailable")??;
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
-        let effect = engine
-            .compile_effect(&proof, &action)
-            .await
-            .map_err(|_| "gateway.effect.review-refused")?;
+        let effect = match recovery_of {
+            Some(source) => {
+                engine
+                    .compile_recovery_effect(&source, &proof, &action)
+                    .await
+            }
+            None => engine.compile_effect(&proof, &action).await,
+        }
+        .map_err(|_| "gateway.effect.review-refused")?;
         let request = effect
             .approval_request(not_before, expires_at)
             .map_err(|_| "gateway.effect.approval")?;
@@ -3758,6 +3777,7 @@ mod unix {
             }
             Command::EffectReview {
                 state_dir,
+                recovery_of,
                 proof,
                 action,
                 not_before,
@@ -3766,6 +3786,7 @@ mod unix {
             } => {
                 effect_review(
                     state_dir,
+                    recovery_of,
                     proof,
                     action,
                     not_before,
@@ -3773,6 +3794,26 @@ mod unix {
                     request_out,
                 )
                 .await
+            }
+            Command::EffectRecoveryCall {
+                state_dir,
+                source_operation,
+                recovery_operation,
+            } => {
+                private_root(&state_dir)?;
+                let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
+                    .await
+                    .map_err(|_| "gateway.effect.unavailable")??;
+                let call = engine
+                    .recovery_authorization_call(&source_operation, &recovery_operation)
+                    .await
+                    .map_err(|_| "gateway.acquisition.binding")?;
+                let bytes = Zeroizing::new(call.canonical_bytes().map_err(|_| "gateway.output")?);
+                std::io::stdout()
+                    .write_all(&bytes)
+                    .and_then(|()| std::io::stdout().flush())
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
             }
             Command::EffectApproval {
                 request,

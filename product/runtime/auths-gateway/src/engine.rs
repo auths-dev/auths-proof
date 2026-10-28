@@ -1285,6 +1285,91 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_mutation_effect(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Builds the exact private call requiring independent native recovery
+    /// authority. Source lookup reads only the protected journal. The returned
+    /// call grants no custody, acquisition, disclosure or mutation capability.
+    ///
+    /// # Errors
+    /// Refuses an unavailable, mismatched or non-observable source, invalid
+    /// operation IDs, and a recovery operation that reuses its source ID.
+    pub async fn recovery_authorization_call(
+        &self,
+        source_operation: &str,
+        recovery_operation: &str,
+    ) -> Result<auths_profile_mcp::McpToolCall, GatewaySubmitResult> {
+        let target = self.recovery_compilation_target(source_operation).await?;
+        let operation = crate::LogicalOperationId::parse(recovery_operation)
+            .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        target
+            .authorization_call(&self.recipe, &operation)
+            .map_err(|_| not_entered("gateway.acquisition.binding"))
+    }
+
+    /// Compiles independently authorized recovery through the same installed
+    /// binding and exact approval machinery as a mutation. The source writer's
+    /// authority is provenance, not current read permission. No provider I/O,
+    /// credential lease or journal update occurs here.
+    ///
+    /// # Errors
+    /// Refuses unavailable/non-observable source state, invalid independent
+    /// native read authority, changed installation, or unsupported read bounds.
+    pub async fn compile_recovery_effect(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let target = self.recovery_compilation_target(source_operation).await?;
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_recovery_acquisition(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            &target,
+            now,
+            proof,
+            action,
+        )
+    }
+
+    async fn recovery_compilation_target(
+        &self,
+        source_operation: &str,
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewaySubmitResult> {
+        let unavailable = || not_entered("gateway.reobserve.not-observable");
+        let operation =
+            crate::LogicalOperationId::parse(source_operation).map_err(|_| unavailable())?;
+        self.attempts
+            .resume_observable_operation(self.recipe.namespace(), &operation, *self.recipe.digest())
+            .await
+            .map_err(|_| unavailable())?
+            .ok_or_else(unavailable)?
+            .recovery_target()
+            .map_err(|_| unavailable())
+    }
+
+    async fn effect_compilation_inputs(
+        &self,
+    ) -> Result<(LoadedConnection, u64), GatewaySubmitResult> {
         self.check_effect_configuration()
             .await
             .map_err(not_entered)?;
@@ -1302,25 +1387,14 @@ impl GatewayEngine {
             .qualification
             .effect_time()
             .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        crate::effect::compile_mutation_effect(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
-            now,
-            proof,
-            action,
-        )
+        Ok((loaded, now))
     }
 
     /// Verifies and attempts one exactly approved action. Proof, action and
     /// exact approval are accepted from the application; trust, recipe, connection, and credential
     /// come from the operator's installation. The admission-order step machine
-    /// directs every step: a replay never writes again, and for a linked
-    /// recipe it may perform one more read-only observation.
+    /// directs every step: replay returns stored facts without credential
+    /// custody or provider I/O. Recovery requires its own explicit operation.
     pub async fn submit(
         &self,
         proof_cbor: &[u8],
@@ -1627,7 +1701,11 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(unix)]
         if let Some(session) = self.commissioning {
             let action = session
-                .bind_verified(approved.command())
+                .bind_verified(
+                    approved
+                        .command()
+                        .ok_or_else(|| not_entered("gateway.effect.protocol"))?,
+                )
                 .map_err(not_entered)?;
             self.commissioned_action
                 .set(action)
@@ -1910,14 +1988,15 @@ pub(crate) struct VerifiedCommand {
     pub(crate) observer_refusal: Option<&'static str>,
 }
 
-/// [`verify_command`] that also reports what admission and an auditor need.
-pub(crate) fn verify_detailed(
-    recipe: &CompiledRecipe,
+/// The shared native authority boundary. This runs full core verification and
+/// preserves the exact sealed action and branch/evidence selection. Protocol
+/// compilers must still check their own service, tool, fields and accounting.
+pub(crate) fn verify_native(
     context: &TrustedContext,
     now: u64,
     proof_cbor: &[u8],
     action_cbor: &[u8],
-) -> Result<VerifiedCommand, GatewaySubmitResult> {
+) -> Result<auths_verifier::SealedVerificationResult, GatewaySubmitResult> {
     if proof_cbor.is_empty()
         || proof_cbor.len() > MAX_PROOF_BYTES
         || action_cbor.is_empty()
@@ -1945,7 +2024,7 @@ pub(crate) fn verify_detailed(
     .map_err(|_| GatewaySubmitResult::Indeterminate {
         code: "gateway.verify.invalid-input".to_owned(),
     })?;
-    let Some(action) = sealed.action() else {
+    if sealed.action().is_none() {
         let code = sealed.portable().code().code().to_owned();
         return Err(match sealed.portable().decision() {
             VerificationDecision::Denied => GatewaySubmitResult::Denied { code },
@@ -1953,7 +2032,22 @@ pub(crate) fn verify_detailed(
                 GatewaySubmitResult::Indeterminate { code }
             }
         });
-    };
+    }
+    Ok(sealed)
+}
+
+/// [`verify_command`] that also reports what admission and an auditor need.
+pub(crate) fn verify_detailed(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
+    let sealed = verify_native(context, now, proof_cbor, action_cbor)?;
+    let action = sealed
+        .action()
+        .ok_or_else(|| not_entered("gateway.action.projection"))?;
     let bound = admit_bounds(proof_cbor, action, recipe, now)?;
     let command = McpProfile
         .decode_verified(action)

@@ -370,6 +370,7 @@ pub(crate) fn context_with_roots(
         depth,
         composition,
         &[RAW_KEY_V1],
+        &call(&Map::new())?,
     )
 }
 
@@ -390,9 +391,33 @@ pub(crate) fn context_accepting(
         1,
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         methods,
+        &call(&Map::new())?,
     )
 }
 
+#[cfg(test)]
+pub(crate) fn context_for_tool(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    tool: &McpToolCall,
+) -> Result<TrustedContext, HarnessError> {
+    context_for(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        tool,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust fixture keeps each explicit bound visible"
+)]
 fn context_for(
     roots: &[&Signer],
     observer: &PrincipalId,
@@ -401,13 +426,13 @@ fn context_for(
     depth: u16,
     composition: CompositionRequirement,
     methods: &[&str],
+    unbound: &McpToolCall,
 ) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
     };
     let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
-    let unbound = call(&Map::new())?;
     let mut anchors = Vec::with_capacity(roots.len());
     for (index, root) in roots.iter().enumerate() {
         let id = if roots.len() == 1 {
@@ -525,6 +550,16 @@ pub(crate) fn grant_within(
     requirement: Option<ObservationRequirement>,
     validity: ValidityWindow,
 ) -> Result<SignedGrant, HarnessError> {
+    grant_for_tool(root, subject, requirement, validity, &call(&Map::new())?)
+}
+
+pub(crate) fn grant_for_tool(
+    root: &Signer,
+    subject: &PrincipalId,
+    requirement: Option<ObservationRequirement>,
+    validity: ValidityWindow,
+    unbound: &McpToolCall,
+) -> Result<SignedGrant, HarnessError> {
     let extensions = match requirement {
         None => CriticalExtensions::empty(),
         Some(requirement) => {
@@ -550,7 +585,6 @@ pub(crate) fn grant_within(
             )?
         }
     };
-    let unbound = call(&Map::new())?;
     let statement = GrantStatement::new(
         root.principal.clone(),
         subject.clone(),

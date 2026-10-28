@@ -142,6 +142,15 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
+The concrete native encoding is `auths.bound-effect/3`, with effect compiler
+`auths.gateway-effect-compiler/4`. Reservations use a closed window alternative:
+fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
+count/sum reservations retain fixed windows; recovery acquisitions declare
+separate acquisition-count and response-byte charges against one source. A
+source-lifetime bound must survive operation-ID changes, replay and restart.
+An encoded bound declares an obligation; only the journal's atomic admission
+and entry transitions can discharge it. Decoding never grants authority.
+
 The replay key MUST NOT include the action/effect digest as its only differentiator: the same logical operation ID with changed binding is a conflict, not a fresh operation. Exact replays return existing state; they never mint another capability. A newly chosen operation ID cannot evade a signed approval's binding or the shared budget.
 
 ### 4.2 Compilation and approval without circular commitments
@@ -203,6 +212,17 @@ reads must also be bound, bounded ancillary acquisition operations derived from
 the approved recipe. Account for their entry and limits explicitly; they must not
 be invisible I/O outside the model. Acquiring those bytes does not authorize
 disclosing them to the agent.
+
+Independent recovery compilation uses the reserved native MCP tool
+`auths_gateway_recovery_read_v1`; a mutation recipe cannot claim that name.
+Its `auths.gateway-recovery-read/1` contract binds the retained source effect
+and operation, exact GET and response limit, observation projection/expected
+value and echo, count/time/freshness limits, and the absence of content
+release. The read requires its own current native proof and exact approval;
+the source writer's proof and historical approval are provenance only. The
+same native binding, review renderer and approval machinery serve both types.
+This compilation contract does not itself implement read admission, an entry
+permit, observation evidence or disclosure.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

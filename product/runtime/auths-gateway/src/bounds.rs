@@ -694,6 +694,21 @@ pub(crate) fn link_policy(
     }
 }
 
+/// Until acquisition counters consume bounded-policy commitments, reject them
+/// explicitly. Native authorization must never silently drop a managed charge.
+pub(crate) fn refuse_unaccounted_acquisition_bounds(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+) -> Result<(), &'static str> {
+    if authorized_chains(proof_cbor, verified)?
+        .iter()
+        .any(|branch| branch.chain.iter().any(carries_bound))
+    {
+        return Err("gateway.acquisition.unsupported-bounds");
+    }
+    Ok(())
+}
+
 /// Admits the verified action under every link of its bounded branch and
 /// derives the counters to reserve, or refuses it before any claim. An
 /// empty chain is unbounded, which a recipe that declares `bounds.sum`

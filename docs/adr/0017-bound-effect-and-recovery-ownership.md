@@ -323,3 +323,36 @@ The old explicit operator observation mechanics remain temporarily reachable
 only on the operator surface. They are not the final AP074 recovery contract:
 that direct path, automatic post-write observations and all ancillary reads must
 be replaced by independently authorized bounded acquisitions before completion.
+
+
+## Independently authorized recovery compilation
+
+Bound-effect `/3` and compiler `/4` retain one shared identity and exact approval
+owner, with sealed mutation/acquisition compiler alternatives. The source
+journal supplies protected request/locator provenance; the new native read proof
+supplies current authority. The read contract pins the exact GET, source binding,
+observation projection, echo and finite bounds. Mutation recipes cannot use the
+reserved read tool name, and mutation admission refuses a sealed acquisition.
+Neither decoded source data nor compilation can mint a transport permit.
+
+Source-lifetime reservations bind acquisition count and maximum response bytes
+separately. Their keys include the immutable source effect and unit, excluding
+the new read operation so new IDs cannot reset the declared capacity. The native
+contract allows at most 16 attempts, at most 65,536 response bytes per attempt,
+15 seconds per transport, and 30 seconds of evidence age. Entry accounting and
+evidence freshness enforcement remain pending; a declaration is not evidence
+that those boundaries have been executed.
+
+The first compiler requires the same source connection commitment and credential
+generation. Rotation or a narrower replacement credential currently refuses
+compilation; safe replacement recovery still needs its own reviewed contract.
+Managed bounded-policy extensions also fail closed until acquisition accounting
+can enforce them. These are incomplete implementation boundaries, not permission
+to drop the full acquisition/recovery requirements of AP074.
+
+The installed operator can author the private native read call and compile it
+for review using the same deployment clock, current configuration, and connection
+checks as mutation compilation. The literal renderer and signing-request path
+remain shared. No new provider endpoint or read execution is introduced by this
+checkpoint; direct operator re-observation and ancillary reads still require
+the acquisition admission/entry cutover before completion.

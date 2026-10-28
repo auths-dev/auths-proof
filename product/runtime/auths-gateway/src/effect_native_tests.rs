@@ -9,6 +9,272 @@ use auths_connections::{
 };
 use ed25519_dalek::{Signer as _, SigningKey};
 
+/// Native read authority is independent of an expired source writer. File
+/// provenance is real; the source entry is a test grant with no provider send.
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native compilation corpus and its negative cases"
+)]
+async fn native_recovery_acquisition_fixture_is_current() {
+    use crate::effect::compile_recovery_acquisition;
+    use std::sync::Arc;
+    // A recipe with the native read name could otherwise turn a read proof
+    // into a mutation. Both source and profile lock must be refused together.
+    let mut reserved_source: Value = serde_json::from_slice(include_bytes!(
+        "../../../../bindings/fixtures/gateway/airtable/recipe.json"
+    ))
+    .expect("recipe source");
+    let mut reserved_lock: Value = serde_json::from_slice(include_bytes!(
+        "../../../../bindings/fixtures/gateway/airtable/profile.lock.json"
+    ))
+    .expect("profile lock");
+    reserved_source["tool"] = json!(crate::effect::RECOVERY_READ_TOOL);
+    reserved_lock["tool"] = json!(crate::effect::RECOVERY_READ_TOOL);
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&reserved_source).expect("recipe"),
+            &serde_json::to_vec(&reserved_lock).expect("lock"),
+        )
+        .expect_err("reserved acquisition tool")
+        .code(),
+        "gateway.recipe.invalid-source",
+    );
+    let root = signer(h::ROOT_SEED);
+    let writer = signer(0x22);
+    let reader = signer(0x33);
+    let observer = signer(h::OBSERVER_SEED);
+    let recipe = recipe(&json!({}), &Value::Null);
+    let writer_context = context(&root, &observer.principal, None);
+    let connection = connection(&recipe);
+    let key = SigningKey::from_bytes(&[29; 32]);
+    let public = key.verifying_key().to_bytes();
+    let policy = EffectPolicy::new("recovery-fixture".to_owned(), 1, public).expect("policy");
+    let installed = policy.installation(
+        &recipe,
+        &writer_context,
+        &connection,
+        crate::QualificationPolicy::Optional,
+        [12; 32],
+    );
+    let args = json!({"operation_id": "source-1", "operator_namespace": NAMESPACE,
+        "recipe_digest": recipe.digest_hex(), "record_id": RECORD, "replacement": "Approved"});
+    let writer_grant =
+        h::grant_within(&root, &writer.principal, None, window(NOW - 10, NOW + 1)).expect("grant");
+    let original = submission_for_call_during(
+        &root,
+        &writer,
+        &writer_grant,
+        &call(args.as_object().expect("args")),
+        &[],
+        window(NOW, NOW + 1),
+    );
+    let source = compile_mutation_effect(&installed, NOW, &original.proof, &original.action)
+        .expect("source");
+    let request = source.approval_request(NOW, NOW + 30).expect("approval");
+    let signature = key
+        .sign(&request.signing_message().expect("message"))
+        .to_bytes();
+    let original_approval = request.with_signature(signature);
+    let source = Arc::new(
+        source
+            .approve(original_approval.clone(), &public, NOW)
+            .expect("approved source"),
+    );
+    let directory = tempfile::tempdir().expect("directory");
+    let root_path = std::fs::canonicalize(directory.path())
+        .expect("canonical")
+        .join("journal");
+    let store = Arc::new(crate::FileGatewayAttemptStore::open(&root_path).expect("file journal"));
+    let attempts = crate::GatewayAttempts::new(store, policy.clone()).expect("attempts");
+    let crate::store::BoundedClaim::Claimed(claim) =
+        attempts.claim_bounded(&source, NOW).await.expect("claim")
+    else {
+        panic!("expected source claim");
+    };
+    let (_, permit) = claim
+        .grant_entry(
+            source.clone(),
+            crate::entry::EntryValidation::Oracle { now: NOW },
+            NOW,
+            &crate::GatewayPreEntry::default(),
+        )
+        .await
+        .expect("source grant fixture");
+    drop(permit);
+    let operation = LogicalOperationId::parse("source-1").expect("operation");
+    let target = attempts
+        .resume_observable_operation(recipe.namespace(), &operation, *recipe.digest())
+        .await
+        .expect("lookup")
+        .expect("source")
+        .recovery_target()
+        .expect("native target");
+    let before = attempts
+        .read(recipe.namespace(), &operation)
+        .await
+        .expect("read")
+        .expect("source");
+    let read_call = target
+        .authorization_call(
+            &recipe,
+            &LogicalOperationId::parse("read-1").expect("read operation"),
+        )
+        .expect("read authorization call");
+    let read_context =
+        h::context_for_tool(&root, &observer.principal, NOW, &read_call).expect("read trust");
+    let read_grant = h::grant_for_tool(
+        &root,
+        &reader.principal,
+        None,
+        window(NOW - 3_600, NOW + 3_600),
+        &read_call,
+    )
+    .expect("read grant");
+    let read = submission_for_call(&root, &reader, &read_grant, &read_call, &[]);
+    let read_installation = policy.installation(
+        &recipe,
+        &read_context,
+        &connection,
+        crate::QualificationPolicy::Optional,
+        [12; 32],
+    );
+    assert!(
+        compile_mutation_effect(&installed, NOW + 2, &original.proof, &original.action).is_err(),
+        "the original writer is expired"
+    );
+    assert!(
+        compile_recovery_acquisition(&installed, &target, NOW, &original.proof, &original.action)
+            .is_err(),
+        "a valid mutation is not a recovery read"
+    );
+    let effect = compile_recovery_acquisition(
+        &read_installation,
+        &target,
+        NOW + 2,
+        &read.proof,
+        &read.action,
+    )
+    .expect("separate native read authority");
+    assert!(
+        effect.private_request().is_none(),
+        "acquisition has no mutation request"
+    );
+    let binding = effect
+        .binding()
+        .to_private_bytes()
+        .expect("canonical binding");
+    assert_eq!(
+        &EffectBinding::from_private_bytes(&binding).expect("binding"),
+        effect.binding()
+    );
+    let review = effect.private_review().expect("review");
+    let literal = review
+        .render_literal(crate::effect::LITERAL_REVIEW_RENDERER)
+        .expect("literal");
+    let review_json: Value = serde_json::from_str(&literal).expect("review JSON");
+    assert_eq!(
+        review_json["native"]["actors"],
+        json!([reader.principal.as_str()])
+    );
+    assert_eq!(
+        review_json["native"]["recovery"]["source_effect"],
+        hex::encode(source.effect().binding().id().as_bytes())
+    );
+    assert_eq!(review_json["native"]["method"], "GET");
+    let request = effect
+        .approval_request(NOW + 2, NOW + 100)
+        .expect("read approval request");
+    let signature = key
+        .sign(&request.signing_message().expect("read message"))
+        .to_bytes();
+    let approved = effect
+        .approve(request.with_signature(signature), &public, NOW + 2)
+        .expect("read approval");
+    approved
+        .validate_for_entry(&read_installation, NOW + 3)
+        .expect("fresh read validation");
+    assert!(
+        approved
+            .validate_for_entry(&read_installation, NOW + 101)
+            .is_err(),
+        "approval is not refreshed"
+    );
+    assert!(
+        matches!(
+            attempts.claim_bounded(&approved, NOW + 3).await,
+            Err(crate::GatewayAttemptError::InvalidTransition)
+        ),
+        "mutation admission rejects acquisition"
+    );
+    let other = compile_recovery_acquisition(
+        &read_installation,
+        &target,
+        NOW + 2,
+        &read.proof,
+        &read.action,
+    )
+    .expect("same read");
+    assert!(
+        other.approve(original_approval, &public, NOW + 2).is_err(),
+        "write approval cannot authorize the read"
+    );
+    let mut refused = Vec::new();
+    for (field, value) in [
+        ("source_effect", json!("00".repeat(32))),
+        ("source_operation", json!("other-source")),
+        ("read_contract", json!("00".repeat(32))),
+        ("maximum_response_bytes", json!(65_536)),
+        ("recipe_digest", json!("00".repeat(32))),
+        ("operator_namespace", json!("other-namespace")),
+        ("operation_id", json!("source-1")),
+        ("recipient", json!("unsupported-agent")),
+    ] {
+        let mut changed = read_call.arguments().clone();
+        changed.insert(field.to_owned(), value);
+        let call =
+            McpToolCall::new(read_call.service(), read_call.name(), changed).expect("changed call");
+        let proof = submission_for_call(&root, &reader, &read_grant, &call, &[]);
+        assert!(
+            compile_recovery_acquisition(
+                &read_installation,
+                &target,
+                NOW + 2,
+                &proof.proof,
+                &proof.action
+            )
+            .is_err(),
+            "{field}"
+        );
+        refused.push(field);
+    }
+    assert_eq!(
+        attempts
+            .read(recipe.namespace(), &operation)
+            .await
+            .expect("read"),
+        Some(before)
+    );
+    let fixture = json!({
+        "schema": "auths.gateway-recovery-compilation-fixture/1",
+        "scope": "native signed read proof and file-derived target; test-only source grant; no acquisition entry or provider claim",
+        "binding_canonical": std::str::from_utf8(&binding).expect("UTF-8"),
+        "effect_id": hex::encode(approved.effect().binding().id().as_bytes()),
+        "authorization_call": serde_json::from_slice::<Value>(&read_call.canonical_bytes().expect("call")).expect("call JSON"),
+        "literal_review": literal.as_str(), "refused_changed_fields": refused,
+        "original_writer_expired": true, "separate_reader": true,
+        "mutation_admission_refused": true, "source_journal_unchanged": true,
+        "reserved_mutation_recipe_refused": {"source": reserved_source, "profile_lock": reserved_lock},
+    });
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/recovery-compilation.json");
+    let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &bytes).expect("write fixture");
+    }
+    assert_eq!(std::fs::read(path).expect("fixture"), bytes);
+}
+
 fn connection(recipe: &CompiledRecipe) -> ConnectionRecord {
     ConnectionRecord::new(
         ProviderKind::parse("airtable").expect("provider"),
@@ -87,9 +353,21 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     let expected = recipe
         .closed_request_from_arguments(&arguments, submission.commitment)
         .expect("compiler output");
-    assert_eq!(effect.private_request().body(), expected.body());
-    assert_eq!(effect.private_request().url(), expected.url());
-    assert_eq!(effect.private_request().headers(), expected.headers());
+    assert_eq!(
+        effect.private_request().expect("mutation request").body(),
+        expected.body()
+    );
+    assert_eq!(
+        effect.private_request().expect("mutation request").url(),
+        expected.url()
+    );
+    assert_eq!(
+        effect
+            .private_request()
+            .expect("mutation request")
+            .headers(),
+        expected.headers()
+    );
     let bytes = effect.binding().to_private_bytes().expect("binding bytes");
     let private_review = effect.private_review().expect("native private review");
     let review_bytes = private_review.to_private_bytes().expect("review JSON");
@@ -198,7 +476,14 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     let approved = effect
         .approve(approval.clone(), &public, NOW)
         .expect("exact approval");
-    assert_eq!(approved.effect().private_request().body(), expected.body());
+    assert_eq!(
+        approved
+            .effect()
+            .private_request()
+            .expect("mutation request")
+            .body(),
+        expected.body()
+    );
     assert!(approved.validate_approval(&public, NOW + 29).is_ok());
     assert!(approved.validate_approval(&public, NOW + 30).is_err());
     assert!(approved.validate_for_entry(&installed, NOW + 29).is_ok());

@@ -105,6 +105,22 @@
       }
     },
     {
+      "code": "gateway.acquisition.binding",
+      "owner": "effect",
+      "stage": "compile",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.acquisition.unsupported-bounds",
+      "owner": "effect",
+      "stage": "compile",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.admin.credential-account",
       "owner": "admin",
       "stage": "admin",
@@ -304,6 +320,14 @@
       "stage": "echo-verify",
       "status": "new",
       "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.effect.protocol",
+      "owner": "effect",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 74,
       "case": null
     },
     {

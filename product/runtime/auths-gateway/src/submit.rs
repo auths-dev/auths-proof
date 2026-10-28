@@ -355,7 +355,7 @@ impl<I: SubmitIo> Run<'_, I> {
             SubmitAction::Verify => SubmitEvent::Verification(self.verify()),
             SubmitAction::Admit => SubmitEvent::Admission(self.admit()),
             SubmitAction::BindScope => {
-                let bound = match self.verified.as_deref().map(ApprovedEffect::command) {
+                let bound = match self.verified.as_deref().and_then(ApprovedEffect::command) {
                     Some(verified) => self.io.bind_scope(verified),
                     None => Err("gateway.attempt.unavailable"),
                 };
@@ -470,7 +470,10 @@ impl<I: SubmitIo> Run<'_, I> {
                 return Verification::Refused;
             }
         };
-        let verified = approved.command();
+        let Some(verified) = approved.command() else {
+            self.refuse_before_claim(not_entered("gateway.effect.protocol"));
+            return Verification::Refused;
+        };
         let argument = match &self.ceiling {
             None => 0,
             Some(ceiling) => {
@@ -489,7 +492,7 @@ impl<I: SubmitIo> Run<'_, I> {
     /// observer check; nothing is stored. The first failing check's code is
     /// the one reported.
     fn admit(&mut self) -> bool {
-        let Some(verified) = self.verified.as_deref().map(ApprovedEffect::command) else {
+        let Some(verified) = self.verified.as_deref().and_then(ApprovedEffect::command) else {
             return false;
         };
         if let Some(retention) = self.cx.recipe.idempotency_retention()
@@ -632,7 +635,7 @@ impl<I: SubmitIo> Run<'_, I> {
     async fn pre_entry_read(&mut self) -> PreEntryResult {
         let (Some(lease), Some(verified), Some(observer), Some(pointers)) = (
             &self.lease,
-            self.verified.as_deref().map(ApprovedEffect::command),
+            self.verified.as_deref().and_then(ApprovedEffect::command),
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
         ) else {
@@ -678,7 +681,7 @@ impl<I: SubmitIo> Run<'_, I> {
     async fn ceiling_read(&mut self) -> CeilingRead {
         let (Some(lease), Some(verified), Some(ceiling)) = (
             &self.lease,
-            self.verified.as_deref().map(ApprovedEffect::command),
+            self.verified.as_deref().and_then(ApprovedEffect::command),
             &self.ceiling,
         ) else {
             return CeilingRead::Unavailable;
@@ -770,7 +773,7 @@ impl<I: SubmitIo> Run<'_, I> {
         let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) = (
             self.claim.take(),
             self.written.take(),
-            self.verified.as_deref().map(ApprovedEffect::command),
+            self.verified.as_deref().and_then(ApprovedEffect::command),
         ) else {
             return ResponseRecord::Failed;
         };

@@ -534,7 +534,8 @@ impl CompiledRecipe {
             serde_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
         let lock: ProfileLockFile = serde_json::from_slice(lock_bytes)
             .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
-        if source.schema != RECIPE_SOURCE_SCHEMA {
+        if source.schema != RECIPE_SOURCE_SCHEMA || source.tool == crate::effect::RECOVERY_READ_TOOL
+        {
             return Err(GatewayRecipeError::InvalidSource);
         }
         validate_lock(&lock)?;
@@ -573,6 +574,10 @@ impl CompiledRecipe {
         arguments: &serde_json::Map<String, Value>,
     ) -> Result<Value, GatewayRecipeError> {
         self.source.review.project(arguments)
+    }
+
+    pub(crate) fn service(&self) -> &str {
+        &self.source.service
     }
 
     /// Returns the domain-separated compiled-recipe digest.

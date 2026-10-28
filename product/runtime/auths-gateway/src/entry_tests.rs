@@ -164,7 +164,7 @@ async fn reservation_restart(backend: Backend) -> serde_json::Value {
     let restarted = store.reopen();
     let renewed = Arc::new(
         crate::effect::approve_driver_fixture(
-            approved.command().clone(),
+            approved.command().expect("mutation command").clone(),
             recipe_digest,
             RESUMED_AT,
             None,
@@ -358,7 +358,10 @@ async fn native_entry_fixture_is_current() {
         granted.attempt.record.stage,
         GatewayAttemptStage::EntryGranted
     );
-    assert_eq!(permit.request().body(), approved.command().request.body());
+    assert_eq!(
+        permit.request().body(),
+        approved.command().expect("mutation command").request.body()
+    );
     let audit = serde_json::to_value(granted.attempt.record.entry.as_ref().expect("audit"))
         .expect("audit JSON");
     drop(permit); // A crash before send still consumes the one grant.
@@ -376,8 +379,16 @@ async fn native_entry_fixture_is_current() {
     let read = store
         .reopen()
         .read(
-            approved.command().request.namespace(),
-            approved.command().request.operation_id(),
+            approved
+                .command()
+                .expect("mutation command")
+                .request
+                .namespace(),
+            approved
+                .command()
+                .expect("mutation command")
+                .request
+                .operation_id(),
         )
         .await
         .expect("read")
@@ -499,8 +510,16 @@ async fn grant_conformance(backend: Backend) {
     let snapshot = store
         .reopen()
         .read(
-            approved.command().request.namespace(),
-            approved.command().request.operation_id(),
+            approved
+                .command()
+                .expect("mutation command")
+                .request
+                .namespace(),
+            approved
+                .command()
+                .expect("mutation command")
+                .request
+                .operation_id(),
         )
         .await
         .expect("reopen")

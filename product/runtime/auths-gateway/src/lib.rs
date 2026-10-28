@@ -20,13 +20,13 @@ pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
     GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
 };
-mod connection;
 mod configuration;
+mod connection;
 mod credential_journal;
 mod echo_verify;
 pub mod effect;
-mod entry;
 mod engine;
+mod entry;
 mod execution_witness;
 pub use execution_witness::GatewayExecutionWitness;
 #[cfg(feature = "fuzzing")]

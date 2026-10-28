@@ -56,11 +56,26 @@ Keep review/request/approval files on the authorized private channel. The
 checks the installed signer, effect binding and validity interval. Missing,
 obsolete or invalid approvals are refused before credential leasing.
 
-AP074 remains under implementation: versioned semantic review completeness,
-transactional entry fencing, durable full-binding comparison and controlled
-recovery are not established by these commands. The existing example journeys
-still need the complete operator review round trip and updated integration
-evidence before they demonstrate the revised contract.
+For an independently authorized recovery read, first obtain the native private
+call from an observable retained source, then authorize that exact call through
+the native MCP authoring flow. Use a new logical operation ID for the read:
+
+```text
+auths-gateway effect-recovery-call --state-dir <private-state> \
+  --source-operation <retained-operation> --recovery-operation <new-read-operation>
+auths-gateway effect-review --state-dir <private-state> --recovery-of <retained-operation> \
+  --proof read-proof.cbor --action read-action.cbor --not-before <unix-seconds> \
+  --expires-at <unix-seconds> --request-out <absolute-new-request-file>
+```
+
+These are private authoring/review operations. They perform no credential lease,
+provider call or admission. The writer's proof or exact approval cannot serve as
+the read's authority. Source and current connection/generation must match in this
+compiler; changed credentials and managed read-policy bounds currently refuse.
+A compiled read cannot be sent through mutation `submit`. Recovery execution and
+accounting remain under implementation, so these commands are not a completed
+recovery journey. Installed authenticated review, frontend, and full concurrency/
+fault evidence also remain open AP074 requirements.
 
 A production installation names its operator only through a signed
 `auths.gateway-operator-attestation/2` statement. `operator-request` prints

@@ -18,13 +18,17 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroizing;
 
+mod acquisition;
+pub(crate) use acquisition::RECOVERY_READ_TOOL;
+pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
+
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/2";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/3";
+const COMPILER: &str = "auths.gateway-effect-compiler/4";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -219,7 +223,7 @@ pub(crate) fn approve_driver_fixture(
     let effect = BoundEffect {
         review: serde_json::json!({"scope": "synthetic post-verification oracle; no human review claim"}),
         binding,
-        command,
+        command: CompiledEffect::Mutation(Box::new(command)),
         connection,
         proof: Zeroizing::new(Vec::new()),
         action: Zeroizing::new(Vec::new()),
@@ -358,8 +362,14 @@ struct Reservation {
     unit: Unit,
     amount: u64,
     ceiling: u64,
-    window_index: u64,
-    window_seconds: u64,
+    window: ReservationWindow,
+}
+
+#[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum ReservationWindow {
+    Fixed { index: u64, seconds: u64 },
+    SourceLifetime,
 }
 
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
@@ -541,8 +551,14 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
             || reservation.ceiling == 0
             || reservation.amount > reservation.ceiling
             || reservation.ceiling > MAX_SAFE_INTEGER
-            || reservation.window_index > MAX_SAFE_INTEGER
-            || !(1..=crate::MAX_WINDOW_SECONDS).contains(&reservation.window_seconds)
+            || match reservation.window {
+                ReservationWindow::Fixed { index, seconds } => {
+                    index > MAX_SAFE_INTEGER || !(1..=crate::MAX_WINDOW_SECONDS).contains(&seconds)
+                }
+                ReservationWindow::SourceLifetime => {
+                    matches!(wire.protocol, Protocol::Mutation { .. })
+                }
+            }
         {
             return Err(EffectBindingError::Invalid);
         }
@@ -589,13 +605,20 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     Ok(())
 }
 
+/// Closed protocol-specific compiler output. Neither alternative is transport
+/// authority, and a mutation-only admission path must refuse an acquisition.
+enum CompiledEffect {
+    Mutation(Box<VerifiedCommand>),
+    Acquisition(Box<acquisition::VerifiedAcquisition>),
+}
+
 /// Sealed native compilation result. It owns both the private binding and the
 /// exact immutable compiler output. There is no public constructor, clone or
 /// deserializer. Compiling this value does not approve it or grant entry.
 pub struct BoundEffect {
     review: serde_json::Value,
     binding: EffectBinding,
-    command: VerifiedCommand,
+    command: CompiledEffect,
     connection: ConnectionRecord,
     proof: Zeroizing<Vec<u8>>,
     action: Zeroizing<Vec<u8>>,
@@ -612,7 +635,7 @@ pub struct PrivateEffectReview {
     binding_canonical: String,
     binding: BindingWire,
     installation: serde_json::Value,
-    native: crate::GatewaySubmissionReview,
+    native: serde_json::Value,
     semantic: serde_json::Value,
     renderer: &'static str,
 }
@@ -687,11 +710,15 @@ impl BoundEffect {
         &self.binding
     }
 
-    /// Returns the exact noncredential request for an authorized private
-    /// review. This can contain private content and must not be logged.
+    /// Returns the exact noncredential mutation request for private review,
+    /// or `None` for acquisition. This may contain private content; do not log it.
+    /// Use the shared private review to render either protocol completely.
     #[must_use]
-    pub const fn private_request(&self) -> &ClosedProviderRequest {
-        &self.command.request
+    pub fn private_request(&self) -> Option<&ClosedProviderRequest> {
+        match &self.command {
+            CompiledEffect::Mutation(command) => Some(&command.request),
+            CompiledEffect::Acquisition(_) => None,
+        }
     }
 
     /// Renders the exact immutable effect reviewed before human approval.
@@ -722,7 +749,13 @@ impl BoundEffect {
             semantic: self.review.clone(),
             effect_id_hex: hex::encode(self.binding.id().as_bytes()),
             binding_canonical,
-            native: crate::engine::review_command(&self.command)?,
+            native: match &self.command {
+                CompiledEffect::Mutation(command) => {
+                    serde_json::to_value(crate::engine::review_command(command)?)
+                        .map_err(|_| not_entered("gateway.effect.invalid-binding"))?
+                }
+                CompiledEffect::Acquisition(command) => command.private_review(),
+            },
         })
     }
 
@@ -948,8 +981,11 @@ impl ApprovedEffect {
     pub(crate) fn approval(&self) -> &ExactEffectApproval {
         &self.approval
     }
-    pub(crate) fn command(&self) -> &VerifiedCommand {
-        &self.effect.command
+    pub(crate) fn command(&self) -> Option<&VerifiedCommand> {
+        match &self.effect.command {
+            CompiledEffect::Mutation(command) => Some(command),
+            CompiledEffect::Acquisition(_) => None,
+        }
     }
 
     pub(crate) fn connection(&self) -> &ConnectionRecord {
@@ -991,8 +1027,18 @@ impl ApprovedEffect {
     ) -> Result<(), GatewaySubmitResult> {
         self.validate_approval(&installed.approver, now)
             .map_err(|_| not_entered("gateway.effect.approval"))?;
-        let fresh =
-            compile_mutation_effect(installed, now, &self.effect.proof, &self.effect.action)?;
+        let fresh = match &self.effect.command {
+            CompiledEffect::Mutation(_) => {
+                compile_mutation_effect(installed, now, &self.effect.proof, &self.effect.action)?
+            }
+            CompiledEffect::Acquisition(command) => compile_recovery_acquisition(
+                installed,
+                &command.target,
+                now,
+                &self.effect.proof,
+                &self.effect.action,
+            )?,
+        };
         if fresh.binding != self.effect.binding {
             return Err(not_entered("gateway.effect.binding-changed"));
         }
@@ -1056,8 +1102,10 @@ fn bind_mutation(
                 unit: Unit::MutationCount,
                 amount: 1,
                 ceiling: count.capacity,
-                window_index: bound.window_index,
-                window_seconds: bound.window_seconds,
+                window: ReservationWindow::Fixed {
+                    index: bound.window_index,
+                    seconds: bound.window_seconds,
+                },
             });
         }
         for sum in &bound.sums {
@@ -1066,8 +1114,10 @@ fn bind_mutation(
                 unit: Unit::MutationSum,
                 amount: bound.argument,
                 ceiling: sum.capacity,
-                window_index: bound.window_index,
-                window_seconds: bound.window_seconds,
+                window: ReservationWindow::Fixed {
+                    index: bound.window_index,
+                    seconds: bound.window_seconds,
+                },
             });
         }
     }
@@ -1109,7 +1159,7 @@ fn bind_mutation(
     let effect = BoundEffect {
         review,
         binding,
-        command,
+        command: CompiledEffect::Mutation(Box::new(command)),
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
@@ -1283,8 +1333,10 @@ mod tests {
                 unit: Unit::MutationCount,
                 amount: 1,
                 ceiling: 2,
-                window_index: 0,
-                window_seconds: 60,
+                window: ReservationWindow::Fixed {
+                    index: 0,
+                    seconds: 60,
+                },
             }],
             protocol: Protocol::Mutation { request: [6; 32] },
         }
@@ -1356,8 +1408,18 @@ mod tests {
                 6 => changed.qualification_policy = "optional".to_owned(),
                 7 => changed.reservations[0].key[0] ^= 1,
                 8 => changed.reservations[0].ceiling += 1,
-                9 => changed.reservations[0].window_index += 1,
-                10 => changed.reservations[0].window_seconds += 1,
+                9 => {
+                    changed.reservations[0].window = ReservationWindow::Fixed {
+                        index: 1,
+                        seconds: 60,
+                    }
+                }
+                10 => {
+                    changed.reservations[0].window = ReservationWindow::Fixed {
+                        index: 0,
+                        seconds: 61,
+                    }
+                }
                 11 => changed.protocol = Protocol::Mutation { request: [8; 32] },
                 12 => changed.configuration[0] ^= 1,
                 _ => {

@@ -665,7 +665,7 @@ mod tests {
                 )
                 .await
                 .expect("durable grant");
-            let request = &approved.command().request;
+            let request = &approved.command().expect("mutation command").request;
             let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
                 .await
                 .expect("bind");

@@ -199,6 +199,26 @@ fn envelope(
     proof_ref: ProofRef,
     descriptors: Vec<AttachmentDescriptor>,
 ) -> ActionEnvelope {
+    envelope_during(
+        agent,
+        canonical,
+        grant,
+        plan,
+        proof_ref,
+        descriptors,
+        window(NOW - 3_600, NOW + 3_600),
+    )
+}
+
+fn envelope_during(
+    agent: &Signer,
+    canonical: &CanonicalAction,
+    grant: &SignedGrant,
+    plan: &AuthorizationPlan,
+    proof_ref: ProofRef,
+    descriptors: Vec<AttachmentDescriptor>,
+    validity: ValidityWindow,
+) -> ActionEnvelope {
     ActionEnvelope::new(
         canonical.profile().clone(),
         canonical.media_type().clone(),
@@ -207,7 +227,7 @@ fn envelope(
         None,
         audience(),
         Challenge::new([0; 32]),
-        window(NOW - 3_600, NOW + 3_600),
+        validity,
         agent.principal.clone(),
         Some(grant_id(grant.statement()).expect("grant ID")),
         plan_id(plan).expect("plan ID"),
@@ -225,7 +245,35 @@ pub(crate) fn submission(
     arguments: &Map<String, Value>,
     observations: &[Vec<u8>],
 ) -> Submission {
-    let bytes = call(arguments).canonical_bytes().expect("canonical call");
+    submission_for_call(root, agent, grant, &call(arguments), observations)
+}
+
+fn submission_for_call(
+    root: &Signer,
+    agent: &Signer,
+    grant: &SignedGrant,
+    call: &McpToolCall,
+    observations: &[Vec<u8>],
+) -> Submission {
+    submission_for_call_during(
+        root,
+        agent,
+        grant,
+        call,
+        observations,
+        window(NOW - 3_600, NOW + 3_600),
+    )
+}
+
+fn submission_for_call_during(
+    root: &Signer,
+    agent: &Signer,
+    grant: &SignedGrant,
+    call: &McpToolCall,
+    observations: &[Vec<u8>],
+    validity: ValidityWindow,
+) -> Submission {
+    let bytes = call.canonical_bytes().expect("canonical call");
     let (descriptors, detached) = attachments(observations);
     let canonical: CanonicalAction = McpProfile
         .canonicalize(&bytes)
@@ -236,13 +284,14 @@ pub(crate) fn submission(
     let plan = AuthorizationPlan::proof(proof_ref);
     let action = sign_action(
         agent,
-        envelope(
+        envelope_during(
             agent,
             &canonical,
             grant,
             &plan,
             proof_ref,
             descriptors.clone(),
+            validity,
         ),
     );
     let bindings = vec![
