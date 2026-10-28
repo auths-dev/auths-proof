@@ -465,5 +465,11 @@
       "exact_ack_validates": true,
       "scope": "compilation and evidence only; no delivery grant or transport"
     }
-  ]
+  ],
+  "disclosure_journal": {
+    "fixture": "disclosure-journal.json",
+    "admissions": 16,
+    "refusals": 2,
+    "delivered_bytes": 0
+  }
 }

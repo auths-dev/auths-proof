@@ -143,12 +143,22 @@ impl DisclosureTarget {
     }
 
     fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
-        let source = self.content.source.id();
-        Ok(SourceCapacity {
-            count_key: commitment("auths.disclosure-source-count/1", source.as_bytes())?,
-            bytes_key: commitment("auths.disclosure-source-bytes/1", source.as_bytes())?,
-            maximum_bytes: self.content.bytes,
-            attempts: MAX_DELIVERIES,
+        self.journal_plan()?.capacity()
+    }
+
+    pub(super) fn journal_plan(&self) -> Result<DisclosurePlan, EffectBindingError> {
+        Ok(DisclosurePlan {
+            source_binding: String::from_utf8(self.content.source.to_private_bytes()?.to_vec())
+                .map_err(|_| EffectBindingError::Invalid)?,
+            source_contract: String::from_utf8(canonical(&self.content.review)?.to_vec())
+                .map_err(|_| EffectBindingError::Invalid)?,
+            protected_content: self.content.commitment,
+            projection: self.content.projection,
+            bytes: self.content.bytes,
+            recipient_key: self.recipient_key,
+            recipient: self.recipient.clone(),
+            channel: self.channel,
+            instance: self.instance,
         })
     }
 
@@ -161,6 +171,7 @@ impl DisclosureTarget {
 
 pub(super) struct VerifiedDisclosure {
     pub(super) target: DisclosureTarget,
+    pub(super) bound: Option<crate::bounds::BoundAdmission>,
     pub(super) prerequisites: Prerequisites,
     #[cfg(unix)]
     actors: Vec<auths_model::PrincipalId>,
@@ -246,6 +257,7 @@ pub fn compile_disclosure(
         binding,
         command: CompiledEffect::Disclosure(Box::new(VerifiedDisclosure {
             target: target.clone(),
+            bound,
             prerequisites: Prerequisites::disclosure(),
             #[cfg(unix)]
             actors: branches.actors,
@@ -264,4 +276,108 @@ pub fn compile_disclosure(
         .to_private_bytes()
         .map_err(|_| invalid())?;
     Ok(effect)
+}
+
+/// Private data-only witness, never a deserializable retained source or permit.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DisclosurePlan {
+    source_binding: String,
+    source_contract: String,
+    protected_content: [u8; 32],
+    projection: [u8; 32],
+    bytes: u64,
+    recipient_key: [u8; 32],
+    recipient: String,
+    channel: [u8; 32],
+    instance: [u8; 32],
+}
+
+impl DisclosurePlan {
+    pub(crate) fn source(&self) -> Result<EffectBinding, EffectBindingError> {
+        EffectBinding::from_private_bytes(self.source_binding.as_bytes())
+    }
+
+    pub(crate) fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
+        if self.bytes > 65_536 {
+            return Err(EffectBindingError::Invalid);
+        }
+        let source = self.source()?.id();
+        Ok(SourceCapacity {
+            count_key: commitment("auths.disclosure-source-count/1", source.as_bytes())?,
+            bytes_key: commitment("auths.disclosure-source-bytes/1", source.as_bytes())?,
+            maximum_bytes: self.bytes,
+            attempts: MAX_DELIVERIES,
+        })
+    }
+
+    pub(crate) fn matches_source(
+        &self,
+        source: &crate::RetainedContent,
+    ) -> Result<bool, EffectBindingError> {
+        Ok(self.source()? == source.source
+            && self.protected_content == source.commitment
+            && self.projection == source.projection
+            && self.bytes == source.bytes
+            && self.source_contract.as_bytes() == canonical(&source.review)?.as_slice())
+    }
+
+    pub(crate) fn validate(
+        &self,
+        effect: &EffectBinding,
+    ) -> Result<SourceCapacity, EffectBindingError> {
+        let source = self.source()?;
+        let capacity = self.capacity()?;
+        if self.source_contract.len() > MAX_EFFECT_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        let contract: Value =
+            serde_json::from_str(&self.source_contract).map_err(|_| EffectBindingError::Invalid)?;
+        if canonical(&contract)?.as_slice() != self.source_contract.as_bytes()
+            || commitment(
+                "auths.gateway-content-acquisition/1",
+                self.source_contract.as_bytes(),
+            )? != self.projection
+            || !matches!(source.wire.protocol, Protocol::Acquisition { projection, .. } if projection == self.projection)
+            || source.wire.namespace != effect.wire.namespace
+            || source.wire.partition != effect.wire.partition
+            || source.wire.epoch != effect.wire.epoch
+            || source.wire.recipe != effect.wire.recipe
+            || source.wire.credential_generation != effect.wire.credential_generation
+            || source.wire.scope != Scope::Unscoped
+            || effect.wire.scope != Scope::Unscoped
+            || source.wire.connection != effect.wire.connection
+            || source.wire.operation == effect.wire.operation
+            || effect.wire.protocol
+                != (Protocol::Disclosure {
+                    source_effect: *source.id().as_bytes(),
+                    protected_content: self.protected_content,
+                    recipient: self.recipient.clone(),
+                    channel: self.channel,
+                    delivery_instance: self.instance,
+                    projection: self.projection,
+                    maximum_bytes: self.bytes,
+                })
+            || effect
+                .wire
+                .reservations
+                .iter()
+                .filter(|r| r.window == ReservationWindow::SourceLifetime)
+                .cloned()
+                .collect::<Vec<_>>()
+                != capacity.reservations(Unit::DisclosureCount, Unit::DisclosureBytes)
+            || effect.wire.reservations.iter().any(|r| {
+                matches!(r.window, ReservationWindow::Fixed { .. })
+                    && match r.unit {
+                        Unit::DisclosureCount => r.amount != 1,
+                        Unit::DisclosureBytes => r.amount != self.bytes,
+                        _ => true,
+                    }
+            })
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        DisclosureAcknowledgementRequest::for_delivery(effect, self.bytes, self.recipient_key)?;
+        Ok(capacity)
+    }
 }

@@ -923,3 +923,32 @@ No schema, journal authority, admission decision or refund rule changes. The
 empty-disclosure ceiling convention does not alter nonempty acquisition bytes.
 This extracts the identical bounded record mechanism rather than copying the
 acquisition allocator into a second disclosure ledger.
+
+## Disclosure admission and historical ACK journal
+
+Attempt `/14` adds the closed disclosure state to the existing `JournalProtocol`
+projection. The existing kernel reducer remains the sole transition decision;
+file/PostgreSQL adapters retain their existing fenced insert/replace/CAS contract.
+The plan is data only and validates source scope, installation, projection, exact
+length, recipient key and typed reservations against the bound effect. Admission
+loads and validates the retained acquisition under the same writer fence as native
+configuration/authority. It atomically inserts one permanent source allocation
+and the existing count/sum policy slots. No disclosure ledger, callback, provider
+request or second capacity authority is introduced. Obsolete `/13` is rejected.
+
+The protocol's immutable ACK field is verified on every decode. Historical ACK
+recording needs an existing grant and the common reducer, not fresh execution
+authority. A concurrent identical ACK can be recognized after one bounded reload;
+revision and charges remain unchanged. Public snapshots and support listings keep
+provider/acquisition/recipient facts distinct and contain no private correlations.
+Engine proposal/compile/admit operations have no delivery capability or custody.
+The final recipient-authenticated grant and one-use transport remain unwired.
+
+`disclosure-journal.json` constructs real HTTP source content then executes native
+installed file admission, duplicate claim concurrency, changed source/connection/
+approval refusal, policy/source exhaustion and reopened replay. Corrupt plan fields,
+cross-protocol records and obsolete schemas refuse. ACK cases use explicitly
+synthetic retained grants, exercise the real durable CAS/decoder/reducer, and assert
+pre-grant/foreign refusal, concurrent exact replay and late evidence after disabling
+the connection. They do not establish recipient authentication, actual send,
+independent-process isolation or PostgreSQL qualification.

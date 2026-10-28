@@ -323,7 +323,7 @@ read proof/approval. Custody is checked for the exact staged reference before
 publication; independently stored custody and connection state are not claimed
 to be one atomic transaction.
 
-The concrete journal encoding is `auths.gateway-attempt/13`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/14`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded
@@ -411,9 +411,9 @@ encoding facts. Each header is missing, one value of at most 128 bytes, or inval
 by decoding a content record as ordinary prerequisite/recovery evidence.
 
 The typed `content-response-recorded` phase projects to the existing acquisition
-response stage under the sole reducer. Attempt schema `/13` atomically retains
+response stage under the sole reducer. Attempt schema `/14` atomically retains
 one additional closed result: protected content or a typed projection refusal.
-Obsolete `/12` records are rejected; no compatibility decoder or migration exists.
+Obsolete `/13` records are rejected; no compatibility decoder or migration exists.
 Required-version agreement, identity encoding, one valid media type and the exact
 compiled projection must all hold before protected content is constructed.
 Encoding may be absent or a single case-insensitive `identity` value; compressed
@@ -474,9 +474,38 @@ that length (one is used only for the nonzero ceiling representation of empty
 content). Empty delivery charges zero bytes and one count. Selected native policy
 bounds use `maximum_disclosure_bytes`, disjoint disclosure count/byte counter
 domains and the existing bounded tightening/window arithmetic. The thirty-four
-reservation bound is unchanged. These are compiler obligations, not a claim that
-disclosure admission or delivery is already wired. The journal must enforce them
-atomically before issuing any one-use delivery capability.
+reservation bound is unchanged. These obligations are enforced by journal admission below; no admission
+reservation itself authorizes a delivery. The separate final grant must recheck
+the reservations before issuing any one-use delivery capability.
+
+Disclosure admission now uses a third closed journal protocol under attempt
+schema `/14`. Its immutable plan retains source-binding/projection provenance and
+recipient/channel/instance data; it cannot reconstruct an executable capability.
+The existing writer fence validates the source response/MAC, full current native
+authority and configuration, exact approval and fixed-window predecessors before
+atomically inserting the disclosure record, permanent source slot and selected
+policy slots. Lifetime and policy exhaustion create a retained not-entered record
+without a new allocation. Concurrent same-operation claims return one reservation;
+changed binding conflicts. Admission itself authenticates no recipient and emits
+no plaintext or delivery permit.
+
+Public disclosure snapshots distinguish reserved, not-entered, unknown and
+acknowledged, with explicit retained count/byte allocations and policy-counter
+counts. No content, recipient/channel correlation or protected commitment is
+public. The shared operation listing and support projection retain the disclosure
+protocol distinction. Existing acquisition and mutation decoders refuse disclosure
+state rather than interpreting its facts as provider evidence.
+
+The journal ACK recorder authenticates against its retained binding and exact
+content length, requires the sole reducer's original grant, and persists immutable
+canonical ACK bytes. It accepts historical evidence after authority changes;
+current permission is not required to record past facts. Exact replay returns the
+same revision. A concurrent CAS loser reloads at most once to recognize identical
+stored evidence, never to redeliver. The native engine exposes separate proposal,
+compile and admission operations, all without credential lease or byte delivery.
+Production authenticated recipient entry and the one-use delivery transport remain
+required. Current file ACK fixtures explicitly inject test-only retained grants;
+they establish journal behavior, not an authenticated send or a completed A08.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

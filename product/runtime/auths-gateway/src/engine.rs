@@ -1279,6 +1279,135 @@ impl GatewayEngine {
             .map_err(|_| not_entered("gateway.acquisition.binding"))
     }
 
+    /// Loads only validated retained provenance and proposes a private recipient
+    /// binding. This authenticates neither a live peer nor release authority.
+    ///
+    /// # Errors
+    /// Refuses absent, corrupt, rejected or unknown source content and invalid keys.
+    pub async fn disclosure_target(
+        &self,
+        source_operation: &str,
+        recipient_key: [u8; 32],
+        channel: [u8; 32],
+        delivery_instance: [u8; 32],
+    ) -> Result<crate::effect::DisclosureTarget, GatewaySubmitResult> {
+        let operation = crate::LogicalOperationId::parse(source_operation)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        let source = self
+            .attempts
+            .retained_content(self.recipe.namespace(), &operation)
+            .await
+            .map_err(|_| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })?;
+        crate::effect::DisclosureTarget::new(source, recipient_key, channel, delivery_instance)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))
+    }
+
+    /// Compiles fresh native disclosure authority under current installation.
+    /// Returns private review/approval data; performs no delivery or custody.
+    ///
+    /// # Errors
+    /// Refuses changed source/installation or invalid independent release proof.
+    pub async fn compile_disclosure_effect(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_disclosure(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            target,
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Reserves an exactly approved disclosure in the shared journal, without
+    /// releasing content or granting delivery. Exact replay returns retained facts.
+    /// Current authority/configuration and source provenance are fenced together.
+    ///
+    /// # Errors
+    /// Refuses invalid authority/approval, changed installation or source, conflicts
+    /// and unavailable state. No error or reservation grants delivery permission.
+    pub async fn admit_disclosure(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let effect = self
+            .compile_disclosure_effect(target, proof, action)
+            .await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        if let Some(snapshot) = self
+            .attempts
+            .read_disclosure(&approved)
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })?
+        {
+            return Ok(snapshot);
+        }
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await.map_err(not_entered)?;
+        let validation = io.entry_validation().map_err(not_entered)?;
+        match self
+            .attempts
+            .claim_disclosure(&approved, now, validation)
+            .await
+        {
+            Ok(snapshot) => Ok(snapshot),
+            Err(crate::GatewayAttemptError::BindingConflict) => {
+                Err(not_entered("gateway.effect.operation-conflict"))
+            }
+            Err(_) => self
+                .attempts
+                .read_disclosure(&approved)
+                .await
+                .ok()
+                .flatten()
+                .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                }),
+        }
+    }
+
     /// Compiles a declared content GET from exact resource arguments using
     /// fresh independent native read authority. Performs no custody or provider
     /// I/O and returns private review/approval data only.

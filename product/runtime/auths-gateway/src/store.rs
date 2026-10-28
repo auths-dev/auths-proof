@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/13`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/14`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/13";
+const SCHEMA: &str = "auths.gateway-attempt/14";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -179,6 +179,8 @@ pub enum GatewayOperationStage {
     Mutation(GatewayAttemptStage),
     /// Provider acquisition facts; never mutation success or recipient delivery.
     Acquisition(AcquisitionStage),
+    /// Recipient disclosure facts, never provider observations.
+    Disclosure(DisclosureStage),
 }
 
 impl GatewayOperationStage {
@@ -186,6 +188,7 @@ impl GatewayOperationStage {
         match self {
             Self::Mutation(_) => "mutation",
             Self::Acquisition(_) => "acquisition",
+            Self::Disclosure(_) => "disclosure",
         }
     }
 }
@@ -704,16 +707,19 @@ impl<S> Record<S> {
 enum ProtocolState {
     Mutation(MutationState),
     Acquisition(acquisition::AcquisitionState),
+    Disclosure(disclosure::DisclosureState),
 }
 
 mod acquisition;
 mod capacity;
+mod disclosure;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
     ContentProjectionStatus, GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot,
     RecoverySourceFacts, ReservedAcquisition, RetainedContent,
 };
 pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
+pub use disclosure::{DisclosureSnapshot, DisclosureStage};
 
 trait JournalProtocol: Clone + Sized {
     fn wrap(self) -> ProtocolState;
@@ -729,7 +735,9 @@ impl JournalProtocol for MutationState {
     fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError> {
         match state {
             ProtocolState::Mutation(state) => Ok(state),
-            ProtocolState::Acquisition(_) => Err(GatewayAttemptError::BindingConflict),
+            ProtocolState::Acquisition(_) | ProtocolState::Disclosure(_) => {
+                Err(GatewayAttemptError::BindingConflict)
+            }
         }
     }
     fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError> {
@@ -2273,6 +2281,12 @@ impl GatewayAttempts {
                                 return Ok(None);
                             }
                             let stage = match &record.state {
+                                ProtocolState::Disclosure(_) => GatewayOperationStage::Disclosure(
+                                    record
+                                        .map_state(disclosure::DisclosureState::extract)?
+                                        .disclosure_snapshot()?
+                                        .stage,
+                                ),
                                 ProtocolState::Mutation(_) => GatewayOperationStage::Mutation(
                                     record
                                         .map_state(MutationState::extract)?
@@ -2859,6 +2873,12 @@ fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttempt
         serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
     record.validate_header()?;
     match &record.state {
+        ProtocolState::Disclosure(_) => {
+            let typed = record
+                .clone()
+                .map_state(disclosure::DisclosureState::extract)?;
+            disclosure::DisclosureState::validate(&typed)?;
+        }
         ProtocolState::Mutation(_) => {
             let typed = record.clone().map_state(MutationState::extract)?;
             MutationState::validate(&typed)?;

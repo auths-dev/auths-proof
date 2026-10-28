@@ -136,15 +136,15 @@ pub use separation::{
 };
 pub use store::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
-    ClaimedGatewayAttempt, ContentProjectionStatus, FileGatewayAttemptStore, GatewayAttemptError,
-    GatewayAttemptKey, GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore,
-    GatewayAttempts, GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel,
-    GatewayFenceDecision, GatewayInsert, GatewayObservationFact, GatewayOperationStage,
-    GatewayPreEntry, GatewayProviderEvidence, GatewayRecordEntry, GatewayRecordKind,
-    GatewayRecoveryReport, GatewayRelativeBasis, ObservableGatewayAttempt,
-    PostgresGatewayAttemptStore, PrivateDirectoryError, RecoveryDisposition, RecoverySnapshot,
-    RecoverySourceFacts, ReservedAcquisition, RetainedContent, check_private_directory,
-    check_private_directory_owned_by, pre_entry_digest,
+    ClaimedGatewayAttempt, ContentProjectionStatus, DisclosureSnapshot, DisclosureStage,
+    FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey, GatewayAttemptSnapshot,
+    GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts, GatewayCounterEntry,
+    GatewayCounterKind, GatewayEvidenceChannel, GatewayFenceDecision, GatewayInsert,
+    GatewayObservationFact, GatewayOperationStage, GatewayPreEntry, GatewayProviderEvidence,
+    GatewayRecordEntry, GatewayRecordKind, GatewayRecoveryReport, GatewayRelativeBasis,
+    ObservableGatewayAttempt, PostgresGatewayAttemptStore, PrivateDirectoryError,
+    RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
+    RetainedContent, check_private_directory, check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{
     MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,

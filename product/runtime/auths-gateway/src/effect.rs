@@ -26,6 +26,7 @@ mod content;
 pub(crate) use content::ContentPlan;
 pub use content::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
 mod release;
+pub(crate) use release::DisclosurePlan;
 pub use release::{DISCLOSURE_TOOL, DisclosureTarget, compile_disclosure};
 mod disclosure;
 pub use disclosure::{
@@ -530,6 +531,30 @@ impl EffectBinding {
         if !matches!(self.wire.protocol, Protocol::Acquisition { .. }) {
             return false;
         }
+        self.matches_information_counters(counts, sums, Unit::AcquisitionCount, Unit::ResponseBytes)
+    }
+
+    pub(crate) fn matches_disclosure_counters(
+        &self,
+        counts: &[[u8; 32]],
+        sums: &[[u8; 32]],
+    ) -> bool {
+        matches!(self.wire.protocol, Protocol::Disclosure { .. })
+            && self.matches_information_counters(
+                counts,
+                sums,
+                Unit::DisclosureCount,
+                Unit::DisclosureBytes,
+            )
+    }
+
+    fn matches_information_counters(
+        &self,
+        counts: &[[u8; 32]],
+        sums: &[[u8; 32]],
+        count: Unit,
+        bytes: Unit,
+    ) -> bool {
         let fixed: Vec<_> = self
             .wire
             .reservations
@@ -539,8 +564,8 @@ impl EffectBinding {
         fixed.len() == counts.len() + sums.len()
             && fixed.iter().all(|entry| {
                 let keys = match entry.unit {
-                    Unit::AcquisitionCount => counts,
-                    Unit::ResponseBytes => sums,
+                    unit if unit == count => counts,
+                    unit if unit == bytes => sums,
                     _ => return false,
                 };
                 keys.iter().filter(|key| **key == entry.key).count() == 1
@@ -1108,6 +1133,20 @@ impl ApprovedEffect {
         match &self.effect.command {
             CompiledEffect::Mutation(mutation) => Some(&mutation.command),
             CompiledEffect::Acquisition(_) | CompiledEffect::Disclosure(_) => None,
+        }
+    }
+
+    pub(crate) fn disclosure_plan(&self) -> Result<DisclosurePlan, EffectBindingError> {
+        match &self.effect.command {
+            CompiledEffect::Disclosure(command) => command.target.journal_plan(),
+            _ => Err(EffectBindingError::Invalid),
+        }
+    }
+
+    pub(crate) fn disclosure_bound(&self) -> Option<&crate::bounds::BoundAdmission> {
+        match &self.effect.command {
+            CompiledEffect::Disclosure(command) => command.bound.as_ref(),
+            _ => None,
         }
     }
 

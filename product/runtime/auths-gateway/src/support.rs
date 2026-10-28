@@ -80,6 +80,12 @@ const fn stage_token(stage: GatewayOperationStage) -> &'static str {
             GatewayAttemptStage::Observed => "observed",
             GatewayAttemptStage::ObservedByProvider => "observed-by-provider",
         },
+        GatewayOperationStage::Disclosure(stage) => match stage {
+            crate::DisclosureStage::Reserved => "reserved",
+            crate::DisclosureStage::NotEntered => "not-entered",
+            crate::DisclosureStage::Unknown => "unknown",
+            crate::DisclosureStage::Acknowledged => "acknowledged",
+        },
         GatewayOperationStage::Acquisition(stage) => match stage {
             AcquisitionStage::Reserved => "reserved",
             AcquisitionStage::EntryGranted => "entry-granted",

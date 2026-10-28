@@ -629,3 +629,19 @@ append-only row encoding/key and occupied-row equality check. No policy or
 source-eligibility callback is introduced. Required content/recovery native
 artifacts regenerate byte-for-byte unchanged after this extraction; disclosure
 compilation uses the same bounded reservation arithmetic with disjoint units.
+
+### Disclosure journal instance
+
+Disclosure now supplies typed state/plan projections to the same journal protocol
+and kernel reducer as acquisition and mutation. Source provenance is checked under
+the existing writer fence, alongside selected native dependencies and permanent
+source/fixed-window slots. The count/sum arithmetic, immutable allocation encoding,
+replay-key comparison and CAS transition owner remain shared. Provider evidence and
+recipient ACK bytes remain divergent typed fields; no generic success outcome is
+introduced. The native engine can reserve a disclosure but cannot deliver it yet.
+
+The file corpus adds real-source admission/exhaustion/replay and decoder mutations.
+A synthetic retained-grant assumption enables real ACK persistence/concurrency and
+late-history comparisons; it is explicitly not live recipient authentication or
+transport evidence. The production grant/transport and complete differential and
+performance gates remain outstanding.

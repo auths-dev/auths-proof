@@ -1256,6 +1256,38 @@ closure regeneration passed after that correction (one artifact-generation test)
 - This reduces duplication needed by disclosure admission; it does not yet
   implement that admission or a delivery grant. P3/P4 and A01–A22 remain open.
 
+## Disclosure journal checkpoint
+
+- Based on `15d0bb8d`, added a closed disclosure protocol to the shared journal,
+  reducer projection and support listing. Journal `/14` rejects obsolete `/13`;
+  related source, qualification claims and generated schema/fuzz fixtures move
+  together with no migration reader.
+- Native engine proposal/compile/admit APIs now use sealed retained provenance,
+  exact approval and the existing installed authority/configuration fence. Atomic
+  admission reserves the shared permanent source allocation and selected native
+  count/byte slots. It emits no content, credential lease or delivery permit.
+- Durable ACK recording validates exact retained binding/length and the original
+  grant via the common reducer. Exact replay is revision-preserving; concurrent
+  CAS conflicts have one bounded reload. Late history after connection disable
+  remains recordable. The production authenticated grant is still unwired.
+- Required artifact construction passed five exact generators in 9.69 seconds:
+  content journal (including new disclosure journal), code inventory, attempt
+  scenarios, prerequisite compilation and native entry/fuzz corpus. The fixture
+  executes installed file admission, duplicate concurrency, source/connection/
+  approval refusal, sixteen source allocations and independent policy exhaustion,
+  conflicting binding, reopening and no disclosure/public private correlations.
+- ACK persistence tests use explicitly synthetic retained grants, never real
+  recipient authentication or sends. They cover pre-grant/foreign ACK refusal,
+  concurrent identical ACKs, late unknown refinement, immutable revision/charges
+  and reopened replay. No process/PostgreSQL/isolation/complete A08 claim.
+- Final content/disclosure journal and semantic-closure generators passed
+  together (two tests, 4.91 seconds), including ten record mutations and the
+  immediate obsolete schema. The byte-policy case exhausts its sum while count
+  capacity remains; public refusals distinguish it from source exhaustion.
+- Production recipient authentication and final grant/transport, AP070 owner and
+  binding/UI cutovers, complete P4 evidence and hosted CI remain outstanding.
+  No A01–A22 case is closed by this checkpoint; no broad local or hosted gate ran.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1263,7 +1295,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery/prerequisite/content acquisition runtime and ACK compilation wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Acquisition runtime, disclosure admission and historical ACK persistence wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), authenticated disclosure grant/transport; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -1281,8 +1313,8 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / native ACK/reducer corpus / pure histories executed | Persistent disclosure grant, actual send/ACK loss and restart pending |
-| A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Wire recipient/channel and journal integration pending |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / native ACK/reducer and file journal corpus / ACK persistence/replay under synthetic grants executed | Authenticated disclosure grant, actual send/ACK loss and process restart pending |
+| A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Authenticated live recipient/channel and complete delivery integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |

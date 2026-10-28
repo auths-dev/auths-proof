@@ -623,6 +623,7 @@ async fn native_content_journal_fixture_is_current() {
     let mut histories = vec![];
     let mut first_protected = Value::Null;
     let mut disclosures = Vec::new();
+    let mut disclosure_journal = Value::Null;
     for index in 0..17 {
         let approved = approve(&format!("content-journal-{index}"));
         let claim = attempts
@@ -820,6 +821,17 @@ async fn native_content_journal_fixture_is_current() {
         if matches!(index, 0 | 8 | 9 | 10 | 13) {
             let retained_source = retained_source.expect("validated source");
             assert_eq!(retained_source.bytes, expected_body.len() as u64);
+            if index == 0 {
+                disclosure_journal = super::disclosure_journal_tests::corpus(
+                    retained_source.clone(),
+                    &recipe,
+                    &record,
+                    &policy,
+                    &store,
+                    &path,
+                )
+                .await;
+            }
             if matches!(index, 0 | 9) {
                 disclosures.push(disclosure_compilation_cases(
                     retained_source,
@@ -847,7 +859,7 @@ async fn native_content_journal_fixture_is_current() {
                 let mut changed = value.clone();
                 let cell = changed.pointer_mut(pointer).expect("field");
                 *cell = match pointer {
-                    "/schema" => json!("auths.gateway-attempt/12"),
+                    "/schema" => json!("auths.gateway-attempt/13"),
                     "/state/facts/phase/content/value/schema" => {
                         json!("auths.gateway-protected-content/0")
                     }
@@ -940,7 +952,7 @@ async fn native_content_journal_fixture_is_current() {
         "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
         "permanent_source_attempts": 16, "real_http_requests": 15,
         "protected_content_mutations_refused": true, "same_content_foreign_source_refused": true,
-        "history": histories, "disclosure_compilation": disclosures});
+        "history": histories, "disclosure_compilation": disclosures, "disclosure_journal": disclosure_journal});
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/content-journal.json");
     let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");

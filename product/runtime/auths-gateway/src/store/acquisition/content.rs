@@ -55,25 +55,37 @@ impl GatewayAttempts {
             .await?
             .ok_or(GatewayAttemptError::Unavailable)?;
         let bytes = Zeroizing::new(bytes);
-        let record: Record<AcquisitionState> = decode_as(&bytes)?;
-        let source = record.validate_header()?;
-        if !self.policy.contains(&source)
-            || source.journal_identity().0 != namespace.as_str()
-            || source.journal_identity().1 != operation.as_str()
+        let (content, _) = retained(&bytes)?;
+        if !self.policy.contains(&content.source)
+            || content.source.journal_identity().0 != namespace.as_str()
+            || content.source.journal_identity().1 != operation.as_str()
         {
             return Err(GatewayAttemptError::BindingConflict);
         }
-        let AcquisitionPlan::Content(plan) = &record.state.plan else {
-            return Err(GatewayAttemptError::InvalidTransition);
-        };
-        let AcquisitionPhase::ContentResponseRecorded {
-            content: ContentResult::Ready(content),
-            ..
-        } = &record.state.phase
-        else {
-            return Err(GatewayAttemptError::InvalidTransition);
-        };
-        Ok(RetainedContent {
+        Ok(content)
+    }
+}
+
+/// The same bounded source validation runs on snapshots held by the journal
+/// writer fence. It has no I/O and does not turn stored facts into a permit.
+pub(in crate::store) fn retained(
+    bytes: &[u8],
+) -> Result<(RetainedContent, u64), GatewayAttemptError> {
+    let record: Record<AcquisitionState> = decode_as(bytes)?;
+    let source = record.validate_header()?;
+    let AcquisitionPlan::Content(plan) = &record.state.plan else {
+        return Err(GatewayAttemptError::InvalidTransition);
+    };
+    let AcquisitionPhase::ContentResponseRecorded {
+        content: ContentResult::Ready(content),
+        response,
+        ..
+    } = &record.state.phase
+    else {
+        return Err(GatewayAttemptError::InvalidTransition);
+    };
+    Ok((
+        RetainedContent {
             source,
             commitment: content.commitment,
             projection: plan
@@ -83,8 +95,9 @@ impl GatewayAttempts {
             review: plan
                 .private_review()
                 .map_err(|_| GatewayAttemptError::Corrupt)?,
-        })
-    }
+        },
+        response.received_at,
+    ))
 }
 
 #[derive(Clone, Deserialize, Serialize)]

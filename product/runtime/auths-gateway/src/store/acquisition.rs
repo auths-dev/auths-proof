@@ -7,6 +7,7 @@ use crate::effect::{AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind, S
 
 mod content;
 use content::ContentResult;
+pub(super) use content::retained;
 pub use content::{ContentProjectionStatus, RetainedContent};
 mod candidate;
 pub use candidate::CandidatePublication;
@@ -119,7 +120,9 @@ impl JournalProtocol for AcquisitionState {
     fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError> {
         match state {
             ProtocolState::Acquisition(state) => Ok(state),
-            ProtocolState::Mutation(_) => Err(GatewayAttemptError::BindingConflict),
+            ProtocolState::Mutation(_) | ProtocolState::Disclosure(_) => {
+                Err(GatewayAttemptError::BindingConflict)
+            }
         }
     }
 
@@ -1240,7 +1243,7 @@ fn insert_acquisition(
 
 /// A source connection can also be a native dependency. Read it once under the
 /// fence and retain each consumer's index; never drop either validation.
-fn append_dependencies(
+pub(super) fn append_dependencies(
     keys: &mut Vec<(GatewayRecordKind, GatewayAttemptKey)>,
     dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
 ) -> Vec<usize> {
@@ -1258,7 +1261,7 @@ fn append_dependencies(
         .collect()
 }
 
-fn select_snapshots(
+pub(super) fn select_snapshots(
     snapshots: &[Option<Vec<u8>>],
     indices: &[usize],
 ) -> Result<Vec<Option<Vec<u8>>>, GatewayAttemptError> {
