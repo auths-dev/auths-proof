@@ -536,7 +536,11 @@ impl CompiledRecipe {
             serde_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
         let lock: ProfileLockFile = serde_json::from_slice(lock_bytes)
             .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
-        if source.schema != RECIPE_SOURCE_SCHEMA || source.tool == crate::effect::RECOVERY_READ_TOOL
+        if source.schema != RECIPE_SOURCE_SCHEMA
+            || matches!(
+                source.tool.as_str(),
+                crate::effect::RECOVERY_READ_TOOL | crate::effect::CANDIDATE_CHECK_TOOL
+            )
         {
             return Err(GatewayRecipeError::InvalidSource);
         }

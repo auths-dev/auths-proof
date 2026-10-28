@@ -1,0 +1,4540 @@
+{
+  "schema": "auths.candidate-compilation-fixture/1",
+  "scope": "native signed compilation, exact approval and existing-route refusal; no candidate transport, custody, publication, installed UI or PostgreSQL claim",
+  "cases": [
+    {
+      "case": "first-install",
+      "review": {
+        "binding": {
+          "action": [
+            254,
+            188,
+            237,
+            184,
+            63,
+            106,
+            229,
+            37,
+            201,
+            72,
+            61,
+            250,
+            48,
+            129,
+            35,
+            237,
+            54,
+            135,
+            206,
+            83,
+            37,
+            94,
+            2,
+            4,
+            234,
+            32,
+            100,
+            160,
+            120,
+            144,
+            222,
+            200
+          ],
+          "approval_policy": {
+            "approver": [
+              232,
+              218,
+              99,
+              164,
+              12,
+              166,
+              135,
+              200,
+              124,
+              252,
+              224,
+              92,
+              178,
+              74,
+              120,
+              108,
+              126,
+              117,
+              204,
+              73,
+              199,
+              13,
+              181,
+              87,
+              63,
+              2,
+              111,
+              28,
+              106,
+              134,
+              206,
+              170
+            ],
+            "kind": "exact"
+          },
+          "compiler": "auths.gateway-effect-compiler/8",
+          "configuration": [
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12
+          ],
+          "connection": [
+            24,
+            192,
+            78,
+            114,
+            138,
+            21,
+            255,
+            36,
+            152,
+            102,
+            240,
+            210,
+            54,
+            47,
+            70,
+            168,
+            240,
+            15,
+            104,
+            94,
+            90,
+            13,
+            135,
+            251,
+            31,
+            210,
+            85,
+            253,
+            150,
+            118,
+            213,
+            255
+          ],
+          "credential_generation": 1,
+          "epoch": 1,
+          "namespace": "stripe-refunds",
+          "native_authority": [
+            208,
+            38,
+            165,
+            192,
+            10,
+            42,
+            38,
+            233,
+            209,
+            20,
+            238,
+            107,
+            255,
+            90,
+            14,
+            183,
+            169,
+            73,
+            131,
+            188,
+            221,
+            241,
+            38,
+            133,
+            233,
+            99,
+            194,
+            253,
+            224,
+            246,
+            24,
+            8
+          ],
+          "operation": "candidate-1",
+          "partition": "synthetic-candidate",
+          "protocol": {
+            "kind": "acquisition",
+            "maximum_response_bytes": 16384,
+            "projection": [
+              214,
+              208,
+              227,
+              7,
+              36,
+              143,
+              190,
+              187,
+              157,
+              223,
+              172,
+              71,
+              99,
+              249,
+              237,
+              14,
+              248,
+              25,
+              155,
+              46,
+              113,
+              192,
+              39,
+              141,
+              78,
+              53,
+              116,
+              127,
+              192,
+              238,
+              78,
+              57
+            ],
+            "request": [
+              159,
+              147,
+              67,
+              87,
+              30,
+              216,
+              102,
+              239,
+              216,
+              20,
+              110,
+              96,
+              112,
+              204,
+              21,
+              84,
+              208,
+              97,
+              239,
+              113,
+              222,
+              166,
+              162,
+              211,
+              181,
+              178,
+              26,
+              249,
+              70,
+              116,
+              147,
+              146
+            ]
+          },
+          "qualification_policy": "optional",
+          "recipe": [
+            91,
+            120,
+            213,
+            86,
+            70,
+            158,
+            69,
+            206,
+            156,
+            244,
+            156,
+            168,
+            238,
+            186,
+            56,
+            135,
+            185,
+            248,
+            95,
+            174,
+            1,
+            203,
+            18,
+            0,
+            27,
+            106,
+            82,
+            248,
+            224,
+            67,
+            30,
+            169
+          ],
+          "reservations": [
+            {
+              "amount": 1,
+              "ceiling": 16,
+              "key": [
+                13,
+                153,
+                126,
+                38,
+                186,
+                172,
+                2,
+                4,
+                168,
+                81,
+                26,
+                183,
+                190,
+                101,
+                43,
+                123,
+                14,
+                96,
+                69,
+                1,
+                199,
+                90,
+                50,
+                54,
+                95,
+                91,
+                16,
+                80,
+                73,
+                32,
+                29,
+                103
+              ],
+              "unit": "acquisition-count",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            },
+            {
+              "amount": 16384,
+              "ceiling": 262144,
+              "key": [
+                246,
+                115,
+                101,
+                184,
+                224,
+                103,
+                148,
+                224,
+                6,
+                91,
+                104,
+                216,
+                1,
+                145,
+                23,
+                221,
+                209,
+                137,
+                178,
+                11,
+                80,
+                26,
+                249,
+                206,
+                239,
+                254,
+                33,
+                158,
+                195,
+                240,
+                12,
+                138
+              ],
+              "unit": "response-bytes",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            }
+          ],
+          "schema": "auths.bound-effect/3",
+          "scope": {
+            "kind": "unscoped"
+          }
+        },
+        "binding_canonical": "{\"action\":[254,188,237,184,63,106,229,37,201,72,61,250,48,129,35,237,54,135,206,83,37,94,2,4,234,32,100,160,120,144,222,200],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[24,192,78,114,138,21,255,36,152,102,240,210,54,47,70,168,240,15,104,94,90,13,135,251,31,210,85,253,150,118,213,255],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[208,38,165,192,10,42,38,233,209,20,238,107,255,90,14,183,169,73,131,188,221,241,38,133,233,99,194,253,224,246,24,8],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[214,208,227,7,36,143,190,187,157,223,172,71,99,249,237,14,248,25,155,46,113,192,39,141,78,53,116,127,192,238,78,57],\"request\":[159,147,67,87,30,216,102,239,216,20,110,96,112,204,21,84,208,97,239,113,222,166,162,211,181,178,26,249,70,116,147,146]},\"qualification_policy\":\"optional\",\"recipe\":[91,120,213,86,70,158,69,206,156,244,156,168,238,186,56,135,185,248,95,174,1,203,18,0,27,106,82,248,224,67,30,169],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[13,153,126,38,186,172,2,4,168,81,26,183,190,101,43,123,14,96,69,1,199,90,50,54,95,91,16,80,73,32,29,103],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[246,115,101,184,224,103,148,224,6,91,104,216,1,145,23,221,209,137,178,11,80,26,249,206,239,254,33,158,195,240,12,138],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+        "effect_id_hex": "aa960fe7f2c140d13c50650ee14ba7584c6ee9f701d4eaf8627b65729eb03681",
+        "installation": {
+          "alias": "synthetic",
+          "connection_contract": "auths.gateway-operation/1",
+          "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+          "credential_generation": 1,
+          "provider": "airtable"
+        },
+        "native": {
+          "action_commitment": "febcedb83f6ae525c9483dfa308123ed3687ce53255e0204ea2064a07890dec8",
+          "actors": [
+            "key:sha256:tKI26y6V4MRuq3tGZoxJePcW5yzy3YZbqXUvX3MKnZg"
+          ],
+          "arguments": {
+            "candidate_connection": "18c04e728a15ff249866f0d2362f46a8f00f685e5a0d87fb1fd255fd9676d5ff",
+            "expected_previous": null,
+            "maximum_response_bytes": 16384,
+            "operation_id": "candidate-1",
+            "operator_namespace": "stripe-refunds",
+            "read_contract": "d6d0e307248fbebb9ddfac4763f9ed0ef8199b2e71c0278d4e35747fc0ee4e39",
+            "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9"
+          },
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "disclosure": "none",
+            "expected_previous": null,
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "method": "GET",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ],
+          "protocol": "acquisition"
+        },
+        "renderer": "auths.literal-complete-review/1",
+        "schema": "auths.private-effect-review/2",
+        "semantic": {
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "disclosure": "none",
+            "expected_previous": null,
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure.",
+          "contract": "auths.gateway-candidate-check/1",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ]
+        }
+      },
+      "binding_canonical": "{\"action\":[254,188,237,184,63,106,229,37,201,72,61,250,48,129,35,237,54,135,206,83,37,94,2,4,234,32,100,160,120,144,222,200],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[24,192,78,114,138,21,255,36,152,102,240,210,54,47,70,168,240,15,104,94,90,13,135,251,31,210,85,253,150,118,213,255],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[208,38,165,192,10,42,38,233,209,20,238,107,255,90,14,183,169,73,131,188,221,241,38,133,233,99,194,253,224,246,24,8],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[214,208,227,7,36,143,190,187,157,223,172,71,99,249,237,14,248,25,155,46,113,192,39,141,78,53,116,127,192,238,78,57],\"request\":[159,147,67,87,30,216,102,239,216,20,110,96,112,204,21,84,208,97,239,113,222,166,162,211,181,178,26,249,70,116,147,146]},\"qualification_policy\":\"optional\",\"recipe\":[91,120,213,86,70,158,69,206,156,244,156,168,238,186,56,135,185,248,95,174,1,203,18,0,27,106,82,248,224,67,30,169],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[13,153,126,38,186,172,2,4,168,81,26,183,190,101,43,123,14,96,69,1,199,90,50,54,95,91,16,80,73,32,29,103],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[246,115,101,184,224,103,148,224,6,91,104,216,1,145,23,221,209,137,178,11,80,26,249,206,239,254,33,158,195,240,12,138],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+      "substitutions_refused": [
+        "candidate_connection",
+        "expected_previous",
+        "read_contract",
+        "recipe_digest",
+        "maximum_response_bytes",
+        "extra"
+      ],
+      "native_reverification": "same effect; altered connection and expired approval refused",
+      "admission": "mutation, recovery and orphan child refused; candidate runtime not implemented",
+      "same_credential_new_operation_retains_lifetime_reservations": true,
+      "probe_predicate": "exact value accepted; wrong value and duplicate member refused"
+    },
+    {
+      "case": "rotation",
+      "review": {
+        "binding": {
+          "action": [
+            124,
+            153,
+            84,
+            88,
+            80,
+            248,
+            196,
+            146,
+            58,
+            220,
+            89,
+            1,
+            172,
+            113,
+            131,
+            82,
+            108,
+            206,
+            210,
+            178,
+            177,
+            219,
+            175,
+            87,
+            115,
+            115,
+            29,
+            90,
+            16,
+            251,
+            245,
+            157
+          ],
+          "approval_policy": {
+            "approver": [
+              232,
+              218,
+              99,
+              164,
+              12,
+              166,
+              135,
+              200,
+              124,
+              252,
+              224,
+              92,
+              178,
+              74,
+              120,
+              108,
+              126,
+              117,
+              204,
+              73,
+              199,
+              13,
+              181,
+              87,
+              63,
+              2,
+              111,
+              28,
+              106,
+              134,
+              206,
+              170
+            ],
+            "kind": "exact"
+          },
+          "compiler": "auths.gateway-effect-compiler/8",
+          "configuration": [
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12
+          ],
+          "connection": [
+            142,
+            56,
+            126,
+            236,
+            9,
+            217,
+            7,
+            98,
+            193,
+            162,
+            213,
+            162,
+            202,
+            138,
+            108,
+            82,
+            236,
+            109,
+            128,
+            65,
+            75,
+            38,
+            104,
+            128,
+            131,
+            186,
+            240,
+            209,
+            0,
+            217,
+            170,
+            180
+          ],
+          "credential_generation": 2,
+          "epoch": 1,
+          "namespace": "stripe-refunds",
+          "native_authority": [
+            20,
+            112,
+            47,
+            231,
+            171,
+            55,
+            86,
+            99,
+            134,
+            148,
+            142,
+            70,
+            205,
+            192,
+            14,
+            222,
+            179,
+            148,
+            167,
+            180,
+            95,
+            4,
+            144,
+            198,
+            9,
+            165,
+            232,
+            10,
+            59,
+            26,
+            192,
+            22
+          ],
+          "operation": "candidate-1",
+          "partition": "synthetic-candidate",
+          "protocol": {
+            "kind": "acquisition",
+            "maximum_response_bytes": 16384,
+            "projection": [
+              115,
+              128,
+              130,
+              155,
+              163,
+              133,
+              102,
+              177,
+              239,
+              101,
+              240,
+              99,
+              31,
+              178,
+              149,
+              69,
+              239,
+              222,
+              1,
+              88,
+              76,
+              94,
+              144,
+              14,
+              37,
+              22,
+              48,
+              218,
+              196,
+              173,
+              53,
+              164
+            ],
+            "request": [
+              159,
+              147,
+              67,
+              87,
+              30,
+              216,
+              102,
+              239,
+              216,
+              20,
+              110,
+              96,
+              112,
+              204,
+              21,
+              84,
+              208,
+              97,
+              239,
+              113,
+              222,
+              166,
+              162,
+              211,
+              181,
+              178,
+              26,
+              249,
+              70,
+              116,
+              147,
+              146
+            ]
+          },
+          "qualification_policy": "optional",
+          "recipe": [
+            91,
+            120,
+            213,
+            86,
+            70,
+            158,
+            69,
+            206,
+            156,
+            244,
+            156,
+            168,
+            238,
+            186,
+            56,
+            135,
+            185,
+            248,
+            95,
+            174,
+            1,
+            203,
+            18,
+            0,
+            27,
+            106,
+            82,
+            248,
+            224,
+            67,
+            30,
+            169
+          ],
+          "reservations": [
+            {
+              "amount": 1,
+              "ceiling": 16,
+              "key": [
+                51,
+                79,
+                158,
+                237,
+                106,
+                159,
+                68,
+                168,
+                239,
+                94,
+                173,
+                143,
+                40,
+                103,
+                59,
+                192,
+                154,
+                61,
+                167,
+                187,
+                167,
+                87,
+                200,
+                166,
+                67,
+                172,
+                80,
+                127,
+                127,
+                248,
+                175,
+                232
+              ],
+              "unit": "acquisition-count",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            },
+            {
+              "amount": 16384,
+              "ceiling": 262144,
+              "key": [
+                133,
+                104,
+                54,
+                45,
+                137,
+                113,
+                5,
+                251,
+                109,
+                122,
+                163,
+                68,
+                250,
+                208,
+                82,
+                131,
+                31,
+                100,
+                15,
+                154,
+                70,
+                8,
+                158,
+                225,
+                154,
+                17,
+                158,
+                106,
+                205,
+                115,
+                144,
+                162
+              ],
+              "unit": "response-bytes",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            }
+          ],
+          "schema": "auths.bound-effect/3",
+          "scope": {
+            "kind": "unscoped"
+          }
+        },
+        "binding_canonical": "{\"action\":[124,153,84,88,80,248,196,146,58,220,89,1,172,113,131,82,108,206,210,178,177,219,175,87,115,115,29,90,16,251,245,157],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[142,56,126,236,9,217,7,98,193,162,213,162,202,138,108,82,236,109,128,65,75,38,104,128,131,186,240,209,0,217,170,180],\"credential_generation\":2,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[20,112,47,231,171,55,86,99,134,148,142,70,205,192,14,222,179,148,167,180,95,4,144,198,9,165,232,10,59,26,192,22],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[115,128,130,155,163,133,102,177,239,101,240,99,31,178,149,69,239,222,1,88,76,94,144,14,37,22,48,218,196,173,53,164],\"request\":[159,147,67,87,30,216,102,239,216,20,110,96,112,204,21,84,208,97,239,113,222,166,162,211,181,178,26,249,70,116,147,146]},\"qualification_policy\":\"optional\",\"recipe\":[91,120,213,86,70,158,69,206,156,244,156,168,238,186,56,135,185,248,95,174,1,203,18,0,27,106,82,248,224,67,30,169],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[51,79,158,237,106,159,68,168,239,94,173,143,40,103,59,192,154,61,167,187,167,87,200,166,67,172,80,127,127,248,175,232],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[133,104,54,45,137,113,5,251,109,122,163,68,250,208,82,131,31,100,15,154,70,8,158,225,154,17,158,106,205,115,144,162],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+        "effect_id_hex": "ca164a1d4ab6b0985aff34953d53e462c4f571895ebcd0a5550e4e30544c94d5",
+        "installation": {
+          "alias": "synthetic",
+          "connection_contract": "auths.gateway-operation/1",
+          "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+          "credential_generation": 2,
+          "provider": "airtable"
+        },
+        "native": {
+          "action_commitment": "7c99545850f8c4923adc5901ac7183526cced2b2b1dbaf5773731d5a10fbf59d",
+          "actors": [
+            "key:sha256:tKI26y6V4MRuq3tGZoxJePcW5yzy3YZbqXUvX3MKnZg"
+          ],
+          "arguments": {
+            "candidate_connection": "8e387eec09d90762c1a2d5a2ca8a6c52ec6d80414b26688083baf0d100d9aab4",
+            "expected_previous": "18c04e728a15ff249866f0d2362f46a8f00f685e5a0d87fb1fd255fd9676d5ff",
+            "maximum_response_bytes": 16384,
+            "operation_id": "candidate-1",
+            "operator_namespace": "stripe-refunds",
+            "read_contract": "7380829ba38566b1ef65f0631fb29545efde01584c5e900e251630dac4ad35a4",
+            "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9"
+          },
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 2,
+              "credential_reference_commitment": "0606060606060606060606060606060606060606060606060606060606060606",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 2,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999990
+            },
+            "disclosure": "none",
+            "expected_previous": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "method": "GET",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ],
+          "protocol": "acquisition"
+        },
+        "renderer": "auths.literal-complete-review/1",
+        "schema": "auths.private-effect-review/2",
+        "semantic": {
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 2,
+              "credential_reference_commitment": "0606060606060606060606060606060606060606060606060606060606060606",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 2,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999990
+            },
+            "disclosure": "none",
+            "expected_previous": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure.",
+          "contract": "auths.gateway-candidate-check/1",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ]
+        }
+      },
+      "binding_canonical": "{\"action\":[124,153,84,88,80,248,196,146,58,220,89,1,172,113,131,82,108,206,210,178,177,219,175,87,115,115,29,90,16,251,245,157],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[142,56,126,236,9,217,7,98,193,162,213,162,202,138,108,82,236,109,128,65,75,38,104,128,131,186,240,209,0,217,170,180],\"credential_generation\":2,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[20,112,47,231,171,55,86,99,134,148,142,70,205,192,14,222,179,148,167,180,95,4,144,198,9,165,232,10,59,26,192,22],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[115,128,130,155,163,133,102,177,239,101,240,99,31,178,149,69,239,222,1,88,76,94,144,14,37,22,48,218,196,173,53,164],\"request\":[159,147,67,87,30,216,102,239,216,20,110,96,112,204,21,84,208,97,239,113,222,166,162,211,181,178,26,249,70,116,147,146]},\"qualification_policy\":\"optional\",\"recipe\":[91,120,213,86,70,158,69,206,156,244,156,168,238,186,56,135,185,248,95,174,1,203,18,0,27,106,82,248,224,67,30,169],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[51,79,158,237,106,159,68,168,239,94,173,143,40,103,59,192,154,61,167,187,167,87,200,166,67,172,80,127,127,248,175,232],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[133,104,54,45,137,113,5,251,109,122,163,68,250,208,82,131,31,100,15,154,70,8,158,225,154,17,158,106,205,115,144,162],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+      "substitutions_refused": [
+        "candidate_connection",
+        "expected_previous",
+        "read_contract",
+        "recipe_digest",
+        "maximum_response_bytes",
+        "extra"
+      ],
+      "native_reverification": "same effect; altered connection and expired approval refused",
+      "admission": "mutation, recovery and orphan child refused; candidate runtime not implemented",
+      "same_credential_new_operation_retains_lifetime_reservations": true,
+      "probe_predicate": "exact value accepted; wrong value and duplicate member refused"
+    },
+    {
+      "case": "disabled-rotation",
+      "review": {
+        "binding": {
+          "action": [
+            135,
+            76,
+            176,
+            192,
+            90,
+            100,
+            194,
+            57,
+            103,
+            74,
+            64,
+            156,
+            55,
+            239,
+            68,
+            55,
+            185,
+            200,
+            134,
+            82,
+            66,
+            236,
+            248,
+            231,
+            123,
+            63,
+            17,
+            190,
+            132,
+            61,
+            2,
+            61
+          ],
+          "approval_policy": {
+            "approver": [
+              232,
+              218,
+              99,
+              164,
+              12,
+              166,
+              135,
+              200,
+              124,
+              252,
+              224,
+              92,
+              178,
+              74,
+              120,
+              108,
+              126,
+              117,
+              204,
+              73,
+              199,
+              13,
+              181,
+              87,
+              63,
+              2,
+              111,
+              28,
+              106,
+              134,
+              206,
+              170
+            ],
+            "kind": "exact"
+          },
+          "compiler": "auths.gateway-effect-compiler/8",
+          "configuration": [
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12
+          ],
+          "connection": [
+            24,
+            53,
+            101,
+            123,
+            228,
+            84,
+            67,
+            146,
+            12,
+            21,
+            194,
+            232,
+            128,
+            171,
+            142,
+            130,
+            201,
+            180,
+            66,
+            9,
+            177,
+            239,
+            146,
+            175,
+            76,
+            203,
+            217,
+            115,
+            118,
+            252,
+            150,
+            36
+          ],
+          "credential_generation": 3,
+          "epoch": 1,
+          "namespace": "stripe-refunds",
+          "native_authority": [
+            189,
+            8,
+            239,
+            231,
+            198,
+            100,
+            77,
+            232,
+            190,
+            74,
+            108,
+            205,
+            187,
+            236,
+            170,
+            175,
+            242,
+            154,
+            124,
+            105,
+            134,
+            160,
+            172,
+            63,
+            141,
+            189,
+            45,
+            89,
+            10,
+            209,
+            144,
+            38
+          ],
+          "operation": "candidate-1",
+          "partition": "synthetic-candidate",
+          "protocol": {
+            "kind": "acquisition",
+            "maximum_response_bytes": 16384,
+            "projection": [
+              149,
+              185,
+              79,
+              98,
+              221,
+              201,
+              40,
+              105,
+              70,
+              190,
+              99,
+              98,
+              217,
+              33,
+              85,
+              239,
+              9,
+              251,
+              175,
+              46,
+              132,
+              166,
+              192,
+              182,
+              190,
+              13,
+              80,
+              110,
+              246,
+              191,
+              228,
+              111
+            ],
+            "request": [
+              159,
+              147,
+              67,
+              87,
+              30,
+              216,
+              102,
+              239,
+              216,
+              20,
+              110,
+              96,
+              112,
+              204,
+              21,
+              84,
+              208,
+              97,
+              239,
+              113,
+              222,
+              166,
+              162,
+              211,
+              181,
+              178,
+              26,
+              249,
+              70,
+              116,
+              147,
+              146
+            ]
+          },
+          "qualification_policy": "optional",
+          "recipe": [
+            91,
+            120,
+            213,
+            86,
+            70,
+            158,
+            69,
+            206,
+            156,
+            244,
+            156,
+            168,
+            238,
+            186,
+            56,
+            135,
+            185,
+            248,
+            95,
+            174,
+            1,
+            203,
+            18,
+            0,
+            27,
+            106,
+            82,
+            248,
+            224,
+            67,
+            30,
+            169
+          ],
+          "reservations": [
+            {
+              "amount": 16384,
+              "ceiling": 262144,
+              "key": [
+                40,
+                112,
+                119,
+                69,
+                113,
+                57,
+                227,
+                171,
+                226,
+                123,
+                141,
+                64,
+                11,
+                202,
+                248,
+                248,
+                203,
+                231,
+                70,
+                1,
+                49,
+                224,
+                175,
+                42,
+                115,
+                6,
+                30,
+                32,
+                83,
+                239,
+                28,
+                78
+              ],
+              "unit": "response-bytes",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            },
+            {
+              "amount": 1,
+              "ceiling": 16,
+              "key": [
+                239,
+                187,
+                178,
+                157,
+                136,
+                234,
+                188,
+                74,
+                82,
+                178,
+                49,
+                215,
+                71,
+                183,
+                101,
+                241,
+                106,
+                67,
+                176,
+                80,
+                216,
+                59,
+                9,
+                102,
+                184,
+                242,
+                218,
+                89,
+                187,
+                210,
+                185,
+                17
+              ],
+              "unit": "acquisition-count",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            }
+          ],
+          "schema": "auths.bound-effect/3",
+          "scope": {
+            "kind": "unscoped"
+          }
+        },
+        "binding_canonical": "{\"action\":[135,76,176,192,90,100,194,57,103,74,64,156,55,239,68,55,185,200,134,82,66,236,248,231,123,63,17,190,132,61,2,61],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[24,53,101,123,228,84,67,146,12,21,194,232,128,171,142,130,201,180,66,9,177,239,146,175,76,203,217,115,118,252,150,36],\"credential_generation\":3,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[189,8,239,231,198,100,77,232,190,74,108,205,187,236,170,175,242,154,124,105,134,160,172,63,141,189,45,89,10,209,144,38],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[149,185,79,98,221,201,40,105,70,190,99,98,217,33,85,239,9,251,175,46,132,166,192,182,190,13,80,110,246,191,228,111],\"request\":[159,147,67,87,30,216,102,239,216,20,110,96,112,204,21,84,208,97,239,113,222,166,162,211,181,178,26,249,70,116,147,146]},\"qualification_policy\":\"optional\",\"recipe\":[91,120,213,86,70,158,69,206,156,244,156,168,238,186,56,135,185,248,95,174,1,203,18,0,27,106,82,248,224,67,30,169],\"reservations\":[{\"amount\":16384,\"ceiling\":262144,\"key\":[40,112,119,69,113,57,227,171,226,123,141,64,11,202,248,248,203,231,70,1,49,224,175,42,115,6,30,32,83,239,28,78],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":1,\"ceiling\":16,\"key\":[239,187,178,157,136,234,188,74,82,178,49,215,71,183,101,241,106,67,176,80,216,59,9,102,184,242,218,89,187,210,185,17],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+        "effect_id_hex": "874a488e2331930983ebfdf323202e3f7ed8f5b7be0e7fc0fc7d557af4e8014b",
+        "installation": {
+          "alias": "synthetic",
+          "connection_contract": "auths.gateway-operation/1",
+          "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+          "credential_generation": 3,
+          "provider": "airtable"
+        },
+        "native": {
+          "action_commitment": "874cb0c05a64c239674a409c37ef4437b9c8865242ecf8e77b3f11be843d023d",
+          "actors": [
+            "key:sha256:tKI26y6V4MRuq3tGZoxJePcW5yzy3YZbqXUvX3MKnZg"
+          ],
+          "arguments": {
+            "candidate_connection": "1835657be45443920c15c2e880ab8e82c9b44209b1ef92af4ccbd97376fc9624",
+            "expected_previous": "0d429c2195fb29efbb8882b0dd52ef4f2488d44e752a1f0558f67035035c05af",
+            "maximum_response_bytes": 16384,
+            "operation_id": "candidate-1",
+            "operator_namespace": "stripe-refunds",
+            "read_contract": "95b94f62ddc9286946be6362d92155ef09fbaf2e84a6c0b6be0d506ef6bfe46f",
+            "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9"
+          },
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 3,
+              "credential_reference_commitment": "0606060606060606060606060606060606060606060606060606060606060606",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 3,
+              "provider": "airtable",
+              "state": "disabled",
+              "updated_at_unix_seconds": 1789999990
+            },
+            "disclosure": "none",
+            "expected_previous": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 2,
+              "provider": "airtable",
+              "state": "disabled",
+              "updated_at_unix_seconds": 1789999950
+            },
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "method": "GET",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ],
+          "protocol": "acquisition"
+        },
+        "renderer": "auths.literal-complete-review/1",
+        "schema": "auths.private-effect-review/2",
+        "semantic": {
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 3,
+              "credential_reference_commitment": "0606060606060606060606060606060606060606060606060606060606060606",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 3,
+              "provider": "airtable",
+              "state": "disabled",
+              "updated_at_unix_seconds": 1789999990
+            },
+            "disclosure": "none",
+            "expected_previous": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 2,
+              "provider": "airtable",
+              "state": "disabled",
+              "updated_at_unix_seconds": 1789999950
+            },
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure.",
+          "contract": "auths.gateway-candidate-check/1",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ]
+        }
+      },
+      "binding_canonical": "{\"action\":[135,76,176,192,90,100,194,57,103,74,64,156,55,239,68,55,185,200,134,82,66,236,248,231,123,63,17,190,132,61,2,61],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[24,53,101,123,228,84,67,146,12,21,194,232,128,171,142,130,201,180,66,9,177,239,146,175,76,203,217,115,118,252,150,36],\"credential_generation\":3,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[189,8,239,231,198,100,77,232,190,74,108,205,187,236,170,175,242,154,124,105,134,160,172,63,141,189,45,89,10,209,144,38],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[149,185,79,98,221,201,40,105,70,190,99,98,217,33,85,239,9,251,175,46,132,166,192,182,190,13,80,110,246,191,228,111],\"request\":[159,147,67,87,30,216,102,239,216,20,110,96,112,204,21,84,208,97,239,113,222,166,162,211,181,178,26,249,70,116,147,146]},\"qualification_policy\":\"optional\",\"recipe\":[91,120,213,86,70,158,69,206,156,244,156,168,238,186,56,135,185,248,95,174,1,203,18,0,27,106,82,248,224,67,30,169],\"reservations\":[{\"amount\":16384,\"ceiling\":262144,\"key\":[40,112,119,69,113,57,227,171,226,123,141,64,11,202,248,248,203,231,70,1,49,224,175,42,115,6,30,32,83,239,28,78],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":1,\"ceiling\":16,\"key\":[239,187,178,157,136,234,188,74,82,178,49,215,71,183,101,241,106,67,176,80,216,59,9,102,184,242,218,89,187,210,185,17],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+      "substitutions_refused": [
+        "candidate_connection",
+        "expected_previous",
+        "read_contract",
+        "recipe_digest",
+        "maximum_response_bytes",
+        "extra"
+      ],
+      "native_reverification": "same effect; altered connection and expired approval refused",
+      "admission": "mutation, recovery and orphan child refused; candidate runtime not implemented",
+      "same_credential_new_operation_retains_lifetime_reservations": true,
+      "probe_predicate": "exact value accepted; wrong value and duplicate member refused"
+    },
+    {
+      "case": "head-final",
+      "review": {
+        "binding": {
+          "action": [
+            95,
+            139,
+            64,
+            176,
+            169,
+            84,
+            133,
+            27,
+            235,
+            166,
+            176,
+            40,
+            158,
+            1,
+            196,
+            30,
+            111,
+            181,
+            251,
+            21,
+            96,
+            158,
+            57,
+            39,
+            84,
+            36,
+            159,
+            19,
+            182,
+            62,
+            191,
+            222
+          ],
+          "approval_policy": {
+            "approver": [
+              232,
+              218,
+              99,
+              164,
+              12,
+              166,
+              135,
+              200,
+              124,
+              252,
+              224,
+              92,
+              178,
+              74,
+              120,
+              108,
+              126,
+              117,
+              204,
+              73,
+              199,
+              13,
+              181,
+              87,
+              63,
+              2,
+              111,
+              28,
+              106,
+              134,
+              206,
+              170
+            ],
+            "kind": "exact"
+          },
+          "compiler": "auths.gateway-effect-compiler/8",
+          "configuration": [
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12
+          ],
+          "connection": [
+            68,
+            137,
+            40,
+            169,
+            48,
+            182,
+            26,
+            229,
+            22,
+            22,
+            199,
+            171,
+            27,
+            249,
+            153,
+            70,
+            13,
+            173,
+            61,
+            214,
+            174,
+            178,
+            37,
+            64,
+            96,
+            111,
+            28,
+            41,
+            222,
+            77,
+            137,
+            226
+          ],
+          "credential_generation": 1,
+          "epoch": 1,
+          "namespace": "stripe-refunds",
+          "native_authority": [
+            188,
+            236,
+            232,
+            4,
+            135,
+            50,
+            61,
+            56,
+            161,
+            5,
+            123,
+            148,
+            8,
+            217,
+            87,
+            15,
+            39,
+            29,
+            126,
+            63,
+            139,
+            160,
+            132,
+            69,
+            10,
+            105,
+            40,
+            52,
+            17,
+            98,
+            228,
+            169
+          ],
+          "operation": "candidate-1",
+          "partition": "synthetic-candidate",
+          "protocol": {
+            "kind": "acquisition",
+            "maximum_response_bytes": 16384,
+            "projection": [
+              9,
+              38,
+              150,
+              106,
+              189,
+              178,
+              5,
+              254,
+              158,
+              107,
+              31,
+              100,
+              42,
+              7,
+              27,
+              106,
+              66,
+              2,
+              183,
+              225,
+              183,
+              137,
+              59,
+              243,
+              138,
+              8,
+              255,
+              202,
+              63,
+              71,
+              209,
+              179
+            ],
+            "request": [
+              127,
+              144,
+              120,
+              26,
+              221,
+              235,
+              119,
+              212,
+              48,
+              47,
+              88,
+              54,
+              204,
+              33,
+              12,
+              195,
+              141,
+              74,
+              202,
+              125,
+              170,
+              32,
+              97,
+              176,
+              232,
+              181,
+              226,
+              102,
+              188,
+              26,
+              157,
+              244
+            ]
+          },
+          "qualification_policy": "optional",
+          "recipe": [
+            180,
+            198,
+            112,
+            158,
+            11,
+            120,
+            239,
+            19,
+            180,
+            66,
+            79,
+            44,
+            4,
+            19,
+            130,
+            40,
+            80,
+            156,
+            236,
+            36,
+            65,
+            70,
+            235,
+            55,
+            230,
+            19,
+            73,
+            214,
+            242,
+            68,
+            231,
+            28
+          ],
+          "reservations": [
+            {
+              "amount": 1,
+              "ceiling": 16,
+              "key": [
+                13,
+                153,
+                126,
+                38,
+                186,
+                172,
+                2,
+                4,
+                168,
+                81,
+                26,
+                183,
+                190,
+                101,
+                43,
+                123,
+                14,
+                96,
+                69,
+                1,
+                199,
+                90,
+                50,
+                54,
+                95,
+                91,
+                16,
+                80,
+                73,
+                32,
+                29,
+                103
+              ],
+              "unit": "acquisition-count",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            },
+            {
+              "amount": 16384,
+              "ceiling": 262144,
+              "key": [
+                246,
+                115,
+                101,
+                184,
+                224,
+                103,
+                148,
+                224,
+                6,
+                91,
+                104,
+                216,
+                1,
+                145,
+                23,
+                221,
+                209,
+                137,
+                178,
+                11,
+                80,
+                26,
+                249,
+                206,
+                239,
+                254,
+                33,
+                158,
+                195,
+                240,
+                12,
+                138
+              ],
+              "unit": "response-bytes",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            }
+          ],
+          "schema": "auths.bound-effect/3",
+          "scope": {
+            "kind": "unscoped"
+          }
+        },
+        "binding_canonical": "{\"action\":[95,139,64,176,169,84,133,27,235,166,176,40,158,1,196,30,111,181,251,21,96,158,57,39,84,36,159,19,182,62,191,222],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[68,137,40,169,48,182,26,229,22,22,199,171,27,249,153,70,13,173,61,214,174,178,37,64,96,111,28,41,222,77,137,226],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[188,236,232,4,135,50,61,56,161,5,123,148,8,217,87,15,39,29,126,63,139,160,132,69,10,105,40,52,17,98,228,169],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[9,38,150,106,189,178,5,254,158,107,31,100,42,7,27,106,66,2,183,225,183,137,59,243,138,8,255,202,63,71,209,179],\"request\":[127,144,120,26,221,235,119,212,48,47,88,54,204,33,12,195,141,74,202,125,170,32,97,176,232,181,226,102,188,26,157,244]},\"qualification_policy\":\"optional\",\"recipe\":[180,198,112,158,11,120,239,19,180,66,79,44,4,19,130,40,80,156,236,36,65,70,235,55,230,19,73,214,242,68,231,28],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[13,153,126,38,186,172,2,4,168,81,26,183,190,101,43,123,14,96,69,1,199,90,50,54,95,91,16,80,73,32,29,103],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[246,115,101,184,224,103,148,224,6,91,104,216,1,145,23,221,209,137,178,11,80,26,249,206,239,254,33,158,195,240,12,138],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+        "effect_id_hex": "f5e5ca393f760e157ba3a02d4f3089cb66d08399348bf5c3a92011b4be6d9102",
+        "installation": {
+          "alias": "synthetic",
+          "connection_contract": "auths.gateway-operation/1",
+          "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+          "credential_generation": 1,
+          "provider": "airtable"
+        },
+        "native": {
+          "action_commitment": "5f8b40b0a954851beba6b0289e01c41e6fb5fb15609e392754249f13b63ebfde",
+          "actors": [
+            "key:sha256:tKI26y6V4MRuq3tGZoxJePcW5yzy3YZbqXUvX3MKnZg"
+          ],
+          "arguments": {
+            "candidate_connection": "448928a930b61ae51616c7ab1bf999460dad3dd6aeb22540606f1c29de4d89e2",
+            "expected_previous": null,
+            "maximum_response_bytes": 16384,
+            "operation_id": "candidate-1",
+            "operator_namespace": "stripe-refunds",
+            "read_contract": "0926966abdb205fe9e6b1f642a071b6a4202b7e1b7893bf38a08ffca3f47d1b3",
+            "recipe_digest": "b4c6709e0b78ef13b4424f2c04138228509cec244146eb37e61349d6f244e71c"
+          },
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "b4c6709e0b78ef13b4424f2c04138228509cec244146eb37e61349d6f244e71c",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "disclosure": "none",
+            "expected_previous": null,
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "HEAD",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "method": "HEAD",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ],
+          "protocol": "acquisition"
+        },
+        "renderer": "auths.literal-complete-review/1",
+        "schema": "auths.private-effect-review/2",
+        "semantic": {
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "b4c6709e0b78ef13b4424f2c04138228509cec244146eb37e61349d6f244e71c",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "disclosure": "none",
+            "expected_previous": null,
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 1,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "HEAD",
+                "url": "https://api.stripe.com/v1/payouts"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "equals": false,
+                  "json_pointer": "/livemode",
+                  "kind": "probe"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/balance"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "commitment_domain": "auths.gateway-account/1",
+                  "expected_account_commitment": [
+                    211,
+                    137,
+                    141,
+                    250,
+                    238,
+                    251,
+                    144,
+                    251,
+                    244,
+                    138,
+                    249,
+                    139,
+                    90,
+                    91,
+                    110,
+                    174,
+                    184,
+                    145,
+                    125,
+                    218,
+                    248,
+                    246,
+                    26,
+                    88,
+                    244,
+                    34,
+                    169,
+                    159,
+                    47,
+                    19,
+                    232,
+                    36
+                  ],
+                  "json_pointer": "/id",
+                  "kind": "account"
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 65536,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/account"
+                }
+              },
+              {
+                "disclosure": "none",
+                "maximum_calls": 1,
+                "maximum_evidence_age_seconds": 30,
+                "maximum_transport_seconds": 15,
+                "purpose": {
+                  "index": 0,
+                  "kind": "denied-capability",
+                  "refused_statuses": [
+                    403
+                  ]
+                },
+                "request": {
+                  "headers": [
+                    [
+                      "Stripe-Version",
+                      "2025-03-31.basil"
+                    ]
+                  ],
+                  "maximum_response_bytes": 16384,
+                  "method": "GET",
+                  "url": "https://api.stripe.com/v1/customers"
+                }
+              }
+            ],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure.",
+          "contract": "auths.gateway-candidate-check/1",
+          "prerequisite_acquisitions": [
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "commitment_domain": "auths.gateway-account/1",
+                "expected_account_commitment": [
+                  211,
+                  137,
+                  141,
+                  250,
+                  238,
+                  251,
+                  144,
+                  251,
+                  244,
+                  138,
+                  249,
+                  139,
+                  90,
+                  91,
+                  110,
+                  174,
+                  184,
+                  145,
+                  125,
+                  218,
+                  248,
+                  246,
+                  26,
+                  88,
+                  244,
+                  34,
+                  169,
+                  159,
+                  47,
+                  19,
+                  232,
+                  36
+                ],
+                "json_pointer": "/id",
+                "kind": "account"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 65536,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/account"
+              }
+            },
+            {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "index": 0,
+                "kind": "denied-capability",
+                "refused_statuses": [
+                  403
+                ]
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/customers"
+              }
+            }
+          ]
+        }
+      },
+      "binding_canonical": "{\"action\":[95,139,64,176,169,84,133,27,235,166,176,40,158,1,196,30,111,181,251,21,96,158,57,39,84,36,159,19,182,62,191,222],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[68,137,40,169,48,182,26,229,22,22,199,171,27,249,153,70,13,173,61,214,174,178,37,64,96,111,28,41,222,77,137,226],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[188,236,232,4,135,50,61,56,161,5,123,148,8,217,87,15,39,29,126,63,139,160,132,69,10,105,40,52,17,98,228,169],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[9,38,150,106,189,178,5,254,158,107,31,100,42,7,27,106,66,2,183,225,183,137,59,243,138,8,255,202,63,71,209,179],\"request\":[127,144,120,26,221,235,119,212,48,47,88,54,204,33,12,195,141,74,202,125,170,32,97,176,232,181,226,102,188,26,157,244]},\"qualification_policy\":\"optional\",\"recipe\":[180,198,112,158,11,120,239,19,180,66,79,44,4,19,130,40,80,156,236,36,65,70,235,55,230,19,73,214,242,68,231,28],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[13,153,126,38,186,172,2,4,168,81,26,183,190,101,43,123,14,96,69,1,199,90,50,54,95,91,16,80,73,32,29,103],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[246,115,101,184,224,103,148,224,6,91,104,216,1,145,23,221,209,137,178,11,80,26,249,206,239,254,33,158,195,240,12,138],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+      "substitutions_refused": [
+        "candidate_connection",
+        "expected_previous",
+        "read_contract",
+        "recipe_digest",
+        "maximum_response_bytes",
+        "extra"
+      ],
+      "native_reverification": "same effect; altered connection and expired approval refused",
+      "admission": "mutation, recovery and orphan child refused; candidate runtime not implemented",
+      "same_credential_new_operation_retains_lifetime_reservations": true,
+      "probe_predicate": "exact value accepted; wrong value and duplicate member refused"
+    },
+    {
+      "case": "probe-only",
+      "review": {
+        "binding": {
+          "action": [
+            203,
+            199,
+            42,
+            92,
+            163,
+            123,
+            16,
+            133,
+            254,
+            127,
+            137,
+            126,
+            113,
+            127,
+            241,
+            137,
+            107,
+            16,
+            155,
+            114,
+            109,
+            245,
+            219,
+            48,
+            221,
+            200,
+            255,
+            195,
+            71,
+            160,
+            42,
+            193
+          ],
+          "approval_policy": {
+            "approver": [
+              232,
+              218,
+              99,
+              164,
+              12,
+              166,
+              135,
+              200,
+              124,
+              252,
+              224,
+              92,
+              178,
+              74,
+              120,
+              108,
+              126,
+              117,
+              204,
+              73,
+              199,
+              13,
+              181,
+              87,
+              63,
+              2,
+              111,
+              28,
+              106,
+              134,
+              206,
+              170
+            ],
+            "kind": "exact"
+          },
+          "compiler": "auths.gateway-effect-compiler/8",
+          "configuration": [
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12,
+            12
+          ],
+          "connection": [
+            248,
+            80,
+            32,
+            215,
+            188,
+            17,
+            142,
+            105,
+            204,
+            80,
+            225,
+            73,
+            139,
+            177,
+            127,
+            16,
+            242,
+            65,
+            181,
+            27,
+            87,
+            123,
+            125,
+            2,
+            229,
+            210,
+            91,
+            132,
+            193,
+            137,
+            116,
+            30
+          ],
+          "credential_generation": 1,
+          "epoch": 1,
+          "namespace": "stripe-refunds",
+          "native_authority": [
+            125,
+            70,
+            6,
+            21,
+            215,
+            50,
+            106,
+            141,
+            238,
+            94,
+            232,
+            162,
+            163,
+            182,
+            216,
+            178,
+            100,
+            246,
+            17,
+            46,
+            94,
+            55,
+            66,
+            217,
+            120,
+            231,
+            163,
+            191,
+            225,
+            139,
+            107,
+            134
+          ],
+          "operation": "candidate-1",
+          "partition": "synthetic-candidate",
+          "protocol": {
+            "kind": "acquisition",
+            "maximum_response_bytes": 16384,
+            "projection": [
+              165,
+              34,
+              65,
+              132,
+              42,
+              233,
+              126,
+              82,
+              190,
+              0,
+              147,
+              158,
+              208,
+              50,
+              92,
+              10,
+              27,
+              234,
+              60,
+              180,
+              44,
+              165,
+              137,
+              152,
+              154,
+              224,
+              237,
+              255,
+              172,
+              113,
+              127,
+              90
+            ],
+            "request": [
+              241,
+              182,
+              47,
+              99,
+              123,
+              228,
+              160,
+              59,
+              120,
+              136,
+              148,
+              142,
+              105,
+              198,
+              9,
+              105,
+              38,
+              136,
+              173,
+              50,
+              179,
+              137,
+              247,
+              255,
+              100,
+              202,
+              46,
+              8,
+              201,
+              97,
+              14,
+              37
+            ]
+          },
+          "qualification_policy": "optional",
+          "recipe": [
+            11,
+            94,
+            7,
+            167,
+            129,
+            255,
+            110,
+            72,
+            214,
+            230,
+            115,
+            168,
+            217,
+            64,
+            223,
+            184,
+            144,
+            39,
+            88,
+            250,
+            180,
+            93,
+            255,
+            155,
+            10,
+            11,
+            235,
+            180,
+            5,
+            89,
+            143,
+            224
+          ],
+          "reservations": [
+            {
+              "amount": 1,
+              "ceiling": 16,
+              "key": [
+                13,
+                153,
+                126,
+                38,
+                186,
+                172,
+                2,
+                4,
+                168,
+                81,
+                26,
+                183,
+                190,
+                101,
+                43,
+                123,
+                14,
+                96,
+                69,
+                1,
+                199,
+                90,
+                50,
+                54,
+                95,
+                91,
+                16,
+                80,
+                73,
+                32,
+                29,
+                103
+              ],
+              "unit": "acquisition-count",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            },
+            {
+              "amount": 16384,
+              "ceiling": 262144,
+              "key": [
+                246,
+                115,
+                101,
+                184,
+                224,
+                103,
+                148,
+                224,
+                6,
+                91,
+                104,
+                216,
+                1,
+                145,
+                23,
+                221,
+                209,
+                137,
+                178,
+                11,
+                80,
+                26,
+                249,
+                206,
+                239,
+                254,
+                33,
+                158,
+                195,
+                240,
+                12,
+                138
+              ],
+              "unit": "response-bytes",
+              "window": {
+                "kind": "source-lifetime"
+              }
+            }
+          ],
+          "schema": "auths.bound-effect/3",
+          "scope": {
+            "kind": "unscoped"
+          }
+        },
+        "binding_canonical": "{\"action\":[203,199,42,92,163,123,16,133,254,127,137,126,113,127,241,137,107,16,155,114,109,245,219,48,221,200,255,195,71,160,42,193],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[248,80,32,215,188,17,142,105,204,80,225,73,139,177,127,16,242,65,181,27,87,123,125,2,229,210,91,132,193,137,116,30],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[125,70,6,21,215,50,106,141,238,94,232,162,163,182,216,178,100,246,17,46,94,55,66,217,120,231,163,191,225,139,107,134],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[165,34,65,132,42,233,126,82,190,0,147,158,208,50,92,10,27,234,60,180,44,165,137,152,154,224,237,255,172,113,127,90],\"request\":[241,182,47,99,123,228,160,59,120,136,148,142,105,198,9,105,38,136,173,50,179,137,247,255,100,202,46,8,201,97,14,37]},\"qualification_policy\":\"optional\",\"recipe\":[11,94,7,167,129,255,110,72,214,230,115,168,217,64,223,184,144,39,88,250,180,93,255,155,10,11,235,180,5,89,143,224],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[13,153,126,38,186,172,2,4,168,81,26,183,190,101,43,123,14,96,69,1,199,90,50,54,95,91,16,80,73,32,29,103],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[246,115,101,184,224,103,148,224,6,91,104,216,1,145,23,221,209,137,178,11,80,26,249,206,239,254,33,158,195,240,12,138],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+        "effect_id_hex": "84f7dabed2310a480eb2f0503ea5b9a1f77bc941c686b26bffcdcb91b07988eb",
+        "installation": {
+          "alias": "synthetic",
+          "connection_contract": "auths.gateway-operation/1",
+          "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+          "credential_generation": 1,
+          "provider": "airtable"
+        },
+        "native": {
+          "action_commitment": "cbc72a5ca37b1085fe7f897e717ff1896b109b726df5db30ddc8ffc347a02ac1",
+          "actors": [
+            "key:sha256:tKI26y6V4MRuq3tGZoxJePcW5yzy3YZbqXUvX3MKnZg"
+          ],
+          "arguments": {
+            "candidate_connection": "f85020d7bc118e69cc50e1498bb17f10f241b51b577b7d02e5d25b84c189741e",
+            "expected_previous": null,
+            "maximum_response_bytes": 16384,
+            "operation_id": "candidate-1",
+            "operator_namespace": "stripe-refunds",
+            "read_contract": "a52241842ae97e52be00939ed0325c0a1bea3cb42ca589989ae0edffac717f5a",
+            "recipe_digest": "0b5e07a781ff6e48d6e673a8d940dfb8902758fab45dff9b0a0bebb405598fe0"
+          },
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "0b5e07a781ff6e48d6e673a8d940dfb8902758fab45dff9b0a0bebb405598fe0",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "disclosure": "none",
+            "expected_previous": null,
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "method": "GET",
+          "prerequisite_acquisitions": [],
+          "protocol": "acquisition"
+        },
+        "renderer": "auths.literal-complete-review/1",
+        "schema": "auths.private-effect-review/2",
+        "semantic": {
+          "candidate": {
+            "candidate": {
+              "account_commitment": "d3898dfaeefb90fbf48af98b5a5b6eaeb8917ddaf8f61a58f422a99f2f13e824",
+              "alias": "synthetic",
+              "allowed_profiles": [
+                {
+                  "id": "auths.mcp",
+                  "version": 2
+                }
+              ],
+              "allowed_workloads": [
+                "gateway"
+              ],
+              "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+              "contract": "auths.gateway-operation/1",
+              "created_at_unix_seconds": 1789999900,
+              "credential_generation": 1,
+              "credential_reference_commitment": "0505050505050505050505050505050505050505050505050505050505050505",
+              "descriptor": {
+                "credential": {
+                  "kind": "bearer"
+                },
+                "operator_namespace": "stripe-refunds",
+                "recipe_digest": "0b5e07a781ff6e48d6e673a8d940dfb8902758fab45dff9b0a0bebb405598fe0",
+                "schema": "auths.gateway-connection-descriptor/1"
+              },
+              "descriptor_schema": "auths.gateway-connection-descriptor/1",
+              "generation": 1,
+              "provider": "airtable",
+              "state": "active",
+              "updated_at_unix_seconds": 1789999900
+            },
+            "disclosure": "none",
+            "expected_previous": null,
+            "final_check": {
+              "disclosure": "none",
+              "maximum_calls": 1,
+              "maximum_evidence_age_seconds": 30,
+              "maximum_transport_seconds": 15,
+              "purpose": {
+                "equals": false,
+                "json_pointer": "/livemode",
+                "kind": "probe"
+              },
+              "request": {
+                "headers": [
+                  [
+                    "Stripe-Version",
+                    "2025-03-31.basil"
+                  ]
+                ],
+                "maximum_response_bytes": 16384,
+                "method": "GET",
+                "url": "https://api.stripe.com/v1/balance"
+              }
+            },
+            "maximum_attempts": 16,
+            "ordered_prerequisites": [],
+            "schema": "auths.gateway-candidate-check/1"
+          },
+          "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure.",
+          "contract": "auths.gateway-candidate-check/1",
+          "prerequisite_acquisitions": []
+        }
+      },
+      "binding_canonical": "{\"action\":[203,199,42,92,163,123,16,133,254,127,137,126,113,127,241,137,107,16,155,114,109,245,219,48,221,200,255,195,71,160,42,193],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[248,80,32,215,188,17,142,105,204,80,225,73,139,177,127,16,242,65,181,27,87,123,125,2,229,210,91,132,193,137,116,30],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"stripe-refunds\",\"native_authority\":[125,70,6,21,215,50,106,141,238,94,232,162,163,182,216,178,100,246,17,46,94,55,66,217,120,231,163,191,225,139,107,134],\"operation\":\"candidate-1\",\"partition\":\"synthetic-candidate\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[165,34,65,132,42,233,126,82,190,0,147,158,208,50,92,10,27,234,60,180,44,165,137,152,154,224,237,255,172,113,127,90],\"request\":[241,182,47,99,123,228,160,59,120,136,148,142,105,198,9,105,38,136,173,50,179,137,247,255,100,202,46,8,201,97,14,37]},\"qualification_policy\":\"optional\",\"recipe\":[11,94,7,167,129,255,110,72,214,230,115,168,217,64,223,184,144,39,88,250,180,93,255,155,10,11,235,180,5,89,143,224],\"reservations\":[{\"amount\":1,\"ceiling\":16,\"key\":[13,153,126,38,186,172,2,4,168,81,26,183,190,101,43,123,14,96,69,1,199,90,50,54,95,91,16,80,73,32,29,103],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":16384,\"ceiling\":262144,\"key\":[246,115,101,184,224,103,148,224,6,91,104,216,1,145,23,221,209,137,178,11,80,26,249,206,239,254,33,158,195,240,12,138],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+      "substitutions_refused": [
+        "candidate_connection",
+        "expected_previous",
+        "read_contract",
+        "recipe_digest",
+        "maximum_response_bytes",
+        "extra"
+      ],
+      "native_reverification": "same effect; altered connection and expired approval refused",
+      "admission": "mutation, recovery and orphan child refused; candidate runtime not implemented",
+      "same_credential_new_operation_retains_lifetime_reservations": true,
+      "probe_predicate": "exact value accepted; wrong value and duplicate member refused"
+    }
+  ]
+}

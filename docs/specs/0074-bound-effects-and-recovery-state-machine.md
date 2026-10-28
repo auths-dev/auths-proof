@@ -152,7 +152,7 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
 The concrete native encoding is `auths.bound-effect/3`, with effect compiler
-`auths.gateway-effect-compiler/7`. Reservations use a closed window alternative:
+`auths.gateway-effect-compiler/8`. Reservations use a closed window alternative:
 fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
@@ -232,7 +232,7 @@ the approved recipe. Account for their entry and limits explicitly; they must no
 be invisible I/O outside the model. Acquiring those bytes does not authorize
 disclosing them to the agent.
 
-Mutation compiler `/7` retains an ordered prerequisite acquisition plan beside
+Mutation compiler `/8` retains an ordered prerequisite acquisition plan beside
 its verified command and commits the complete plan in the transport identity.
 The plan names at most seven requests: one account check, up to four denied
 capability checks, one pre-entry read and one relative-ceiling read. Each pins
@@ -244,6 +244,24 @@ operations and cannot borrow this allowance. Private approval review renders
 these declarations. The declaration alone is neither a capacity reservation nor
 an entry permit; runtime must durably account and grant every constituent read
 through the shared journal before contacting the provider.
+
+Candidate onboarding/rotation compilation uses the reserved native tool
+`auths_gateway_candidate_check_v1` and private contract
+`auths.gateway-candidate-check/1`. It pins the complete proposed connection and
+exact predecessor or first-install absence. Rotation preserves descriptor,
+account, authorization and administrative state; changing those is not a
+credential-only rotation. Native read authority and exact approval are required
+separately from the operator installation attestation. Checks run in recipe order:
+probe, account, then denied capabilities. The final declared read is the main
+acquisition and earlier reads are its prerequisites; no synthetic aggregate
+provider response is invented. A recipe without checks has no candidate network
+operation. Each credential identity (connection ID, credential generation and
+reference commitment) has a 16-attempt lifetime ceiling independent of operation
+IDs and timestamps, with the full primary response ceiling and explicit child
+allowances. Selected native managed limits also apply. This compilation alone
+cannot establish predecessor freshness, enter transport or publish a credential;
+the runtime must fence predecessor/absence and retain the checks through safe
+publication in the same authoritative journal contract.
 
 The concrete journal encoding is `auths.gateway-attempt/11`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and

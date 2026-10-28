@@ -16,13 +16,13 @@ pub(crate) const MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS: u64 = 30;
 
 /// The complete ordered set for one mutation or independent recovery read. Construction is private to the
 /// native compiler; an application cannot append a request or select a purpose.
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub(super) struct Prerequisites(Vec<Prerequisite>);
 
-#[derive(Serialize)]
-struct Prerequisite {
-    purpose: Purpose,
-    request: ClosedPrerequisiteRead,
+#[derive(Clone, Serialize)]
+pub(super) struct Prerequisite {
+    pub(super) purpose: Purpose,
+    pub(super) request: ClosedPrerequisiteRead,
     maximum_calls: u64,
     maximum_transport_seconds: u64,
     maximum_evidence_age_seconds: u64,
@@ -37,7 +37,11 @@ enum Disclosure {
 
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum Purpose {
+pub(super) enum Purpose {
+    Probe {
+        json_pointer: String,
+        equals: Value,
+    },
     Account {
         json_pointer: String,
         expected_account_commitment: [u8; 32],
@@ -174,6 +178,32 @@ impl Prerequisites {
         Ok(plan)
     }
 
+    pub(super) fn candidate(
+        recipe: &CompiledRecipe,
+        account: [u8; 32],
+    ) -> Result<(Self, Prerequisite), EffectBindingError> {
+        let mut plan = Self(Vec::new());
+        let reads = recipe
+            .credential_reads()
+            .map_err(|_| EffectBindingError::Invalid)?;
+        let guard = recipe.guard_checks().ok_or(EffectBindingError::Invalid)?;
+        match (reads.probe(), guard.probe) {
+            (Some(read), Some((json_pointer, equals))) => plan.push(
+                Purpose::Probe {
+                    json_pointer,
+                    equals,
+                },
+                ClosedPrerequisiteRead::Credential(read.clone()),
+            )?,
+            (None, None) => {}
+            _ => return Err(EffectBindingError::Invalid),
+        }
+        plan.0.extend(Self::credentials(recipe, account)?.0);
+        let last = plan.0.pop().ok_or(EffectBindingError::Invalid)?;
+        canonical(&plan)?;
+        Ok((plan, last))
+    }
+
     pub(super) fn compile(
         recipe: &CompiledRecipe,
         command: &VerifiedCommand,
@@ -259,6 +289,7 @@ impl Prerequisites {
 /// Closed selectors address compiler-owned declarations, never caller URLs.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum PrerequisiteKind {
+    Probe,
     Account,
     DeniedCapability(u8),
     PreEntry,
@@ -268,6 +299,7 @@ pub(crate) enum PrerequisiteKind {
 impl Purpose {
     const fn kind(&self) -> PrerequisiteKind {
         match self {
+            Self::Probe { .. } => PrerequisiteKind::Probe,
             Self::Account { .. } => PrerequisiteKind::Account,
             Self::DeniedCapability { index, .. } => PrerequisiteKind::DeniedCapability(*index),
             Self::PreEntry { .. } => PrerequisiteKind::PreEntry,

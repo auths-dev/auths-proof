@@ -212,7 +212,9 @@ pub(crate) fn validate_prerequisite_evidence(
             return Err(invalid);
         }
         match evidence.kind {
-            PrerequisiteKind::Account | PrerequisiteKind::DeniedCapability(_) => {
+            PrerequisiteKind::Probe
+            | PrerequisiteKind::Account
+            | PrerequisiteKind::DeniedCapability(_) => {
                 validate_credential_evidence(
                     installed.recipe,
                     *installed.connection.account_commitment(),
@@ -299,6 +301,10 @@ pub(crate) fn validate_credential_evidence(
     let invalid = "gateway.entry.prerequisite-evidence";
     let guard = recipe.guard_checks().ok_or(invalid)?;
     let valid = match evidence.kind {
+        PrerequisiteKind::Probe => {
+            let (pointer, equals) = guard.probe.as_ref().ok_or(invalid)?;
+            crate::onboarding::probe_passes(Some(&evidence.response), pointer, equals)
+        }
         PrerequisiteKind::Account => {
             let pointer = guard.account_pointer.as_deref().ok_or(invalid)?;
             crate::submit::account_result(Some(&evidence.response), pointer, Some(account))

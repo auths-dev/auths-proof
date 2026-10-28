@@ -52,6 +52,11 @@ fn native_application_recovery_cli_fixture_is_current() {
                 Err(error) => panic!("CLI did not connect: {error}"),
             }
         };
+        // Darwin can inherit O_NONBLOCK from the listener. The bounded
+        // read_exact protocol below needs blocking I/O with its own deadline.
+        stream
+            .set_nonblocking(false)
+            .expect("blocking accepted stream");
         stream
             .set_read_timeout(Some(std::time::Duration::from_secs(5)))
             .expect("deadline");

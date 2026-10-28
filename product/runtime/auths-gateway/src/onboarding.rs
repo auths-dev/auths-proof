@@ -183,10 +183,14 @@ async fn check_with_transport(
 
 /// A complete 2xx JSON response with no version mismatch whose pointer
 /// holds exactly the declared value.
-fn probe_passes(response: Option<&ProviderResponse>, pointer: &str, equals: &Value) -> bool {
+pub(crate) fn probe_passes(
+    response: Option<&ProviderResponse>,
+    pointer: &str,
+    equals: &Value,
+) -> bool {
     response
         .and_then(ProviderResponse::usable_body)
-        .and_then(|body| serde_json::from_slice::<Value>(body).ok())
+        .and_then(crate::recipe::parse_provider_response)
         .is_some_and(|document| document.pointer(pointer) == Some(equals))
 }
 

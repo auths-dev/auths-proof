@@ -104,6 +104,13 @@ content, locators, echo and private commitments. Installed transport/fault
 coverage, the authenticated approval frontend, ancillary acquisition cutovers
 and full acceptance evidence remain open AP074 requirements.
 
+Compiler `/8` additionally exposes a native candidate-check compilation API for
+an exact staged first-install or rotation descriptor. Its private review binds
+the predecessor (or absence), probe/account/capability order and read limits.
+This API does not publish credentials or grant provider entry. The onboarding
+and rotation CLI execution cutover is still pending; do not treat compilation
+or an operator attestation as proof that candidate reads passed.
+
 A production installation names its operator only through a signed
 `auths.gateway-operator-attestation/2` statement. `operator-request` prints
 the statement for the installation and the preimage the operator's own

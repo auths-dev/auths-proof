@@ -19,6 +19,10 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 mod acquisition;
+mod candidate;
+pub use candidate::{
+    CANDIDATE_CHECK_TOOL, CandidateCredentialTarget, compile_candidate_credential,
+};
 mod prerequisite;
 pub(crate) use acquisition::{
     AcquisitionCapacity, AcquisitionPlan, MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL,
@@ -37,7 +41,7 @@ pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/7";
+const COMPILER: &str = "auths.gateway-effect-compiler/8";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -1088,7 +1092,10 @@ impl ApprovedEffect {
     pub(crate) fn recovery_target(&self) -> Option<&RecoveryReadTarget> {
         match &self.effect.command {
             CompiledEffect::Mutation(_) => None,
-            CompiledEffect::Acquisition(command) => Some(&command.target),
+            CompiledEffect::Acquisition(command) => match &command.target {
+                acquisition::AcquisitionTarget::Recovery(target) => Some(target),
+                acquisition::AcquisitionTarget::Candidate(_) => None,
+            },
         }
     }
 
@@ -1178,13 +1185,22 @@ impl ApprovedEffect {
             CompiledEffect::Mutation(_) => {
                 compile_mutation_effect(installed, now, &self.effect.proof, &self.effect.action)?
             }
-            CompiledEffect::Acquisition(command) => compile_recovery_acquisition(
-                installed,
-                &command.target,
-                now,
-                &self.effect.proof,
-                &self.effect.action,
-            )?,
+            CompiledEffect::Acquisition(command) => match &command.target {
+                acquisition::AcquisitionTarget::Recovery(target) => compile_recovery_acquisition(
+                    installed,
+                    target,
+                    now,
+                    &self.effect.proof,
+                    &self.effect.action,
+                )?,
+                acquisition::AcquisitionTarget::Candidate(target) => compile_candidate_credential(
+                    installed,
+                    target,
+                    now,
+                    &self.effect.proof,
+                    &self.effect.action,
+                )?,
+            },
         };
         if fresh.binding != self.effect.binding {
             return Err(not_entered("gateway.effect.binding-changed"));

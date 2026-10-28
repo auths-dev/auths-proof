@@ -9,6 +9,9 @@ use auths_connections::{
 };
 use ed25519_dalek::{Signer as _, SigningKey};
 
+#[path = "effect_candidate_tests.rs"]
+mod candidate_tests;
+
 #[path = "effect_prerequisite_tests.rs"]
 mod prerequisite_tests;
 

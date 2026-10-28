@@ -781,6 +781,39 @@ closure regeneration passed after that correction (one artifact-generation test)
   decision removal, authenticated UI/bindings and full installed/process/adapter/
   formal/performance/CI acceptance. No A01–A22 criterion is fully closed.
 
+## Candidate credential compilation checkpoint
+
+- Compiler `/8` adds the reserved native candidate-check tool and sealed target.
+  The full proposed connection and exact predecessor/absence are pinned; a
+  rotation preserves descriptor, account, authorizations and administrative
+  state. Native verification, selected authority, managed read bounds, binding
+  construction and exact approval share the existing recovery compilation path.
+- Candidate plans retain recipe order (probe/account/denied), with the final
+  declared read as the primary acquisition and prior reads as declared children.
+  No-read recipes cannot invent a network operation. Private review includes
+  the actual GET/HEAD and full descriptor/previous state. Source-lifetime keys
+  use connection ID, credential generation and reference commitment; changing
+  the operation or timestamp cannot reset the 16-attempt allowance.
+- The native candidate corpus covers first install, active and disabled
+  rotations, HEAD final reads and probe-only checks; it rejects substituted
+  candidate/predecessor/recipe/contract/limits/extra arguments, changed connection,
+  expired or reused approval, revoked predecessors and changed rotation accounts.
+  Existing mutation/recovery admission and orphan-child routes refuse candidates.
+  Probe predicates accept the exact value and reject wrong/duplicate JSON values.
+- This is compilation and explicit refusal evidence, not candidate execution.
+  Staged custody, current-or-absence fencing, candidate admission, ordered reads,
+  safe publication and onboarding/rotation CLI cutover remain required. The
+  runtime still uses the previous onboarding checks until that direct cutover.
+  Journal `/11` is unchanged; no candidate journal decoder is introduced here.
+- Required native artifact construction passed for candidate compilation and
+  the changed compiler identity's binding, approval, recovery, prerequisites,
+  admission/entry, replay, attempt and code fixtures. Application framing passed.
+  The CLI generator exposed macOS inheritance of the listener's nonblocking flag;
+  the accepted test stream now explicitly uses blocking I/O with its existing
+  five-second deadline. CLI regeneration and final source closure then passed
+  on `15b3cad1` plus this source. No broad local gate or hosted CI was run; no
+  A01–A22 acceptance criterion closes.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -788,7 +821,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation reads, general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Onboarding/rotation execution (candidate compilation authored), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

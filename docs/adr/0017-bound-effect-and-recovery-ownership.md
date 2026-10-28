@@ -630,3 +630,28 @@ entry records including 32 managed slots and three native dependencies. The
 existing seven-prerequisite and 64-record bounds remain unchanged. No operator
 attestation is silently promoted into native effect authority: first-install
 and candidate-rotation authorization remain separate unfinished cutovers.
+
+## Candidate credential check compilation
+
+Candidate checks are a distinct acquisition target. They do not borrow the
+current writer's proof or turn an operator attestation into native authority.
+The target pins the candidate connection descriptor, expected previous record
+(or absence on first install), and exact recipe-declared checks. The native
+reserved tool `auths_gateway_candidate_check_v1` requires its own proof and exact
+human approval. Compilation performs no custody or provider I/O.
+
+The ordered provider sequence remains probe, account, denied-capability reads.
+The final declared read is the main acquisition; preceding reads are the same
+bounded prerequisite declarations used elsewhere. This keeps every child before
+parent entry without inventing an aggregate provider response. Each purpose
+retains its concrete predicate, and a complete main response will still need
+its purpose evaluated before credential publication. Recipes with no network
+checks remain an offline operator path; compilation cannot invent a read.
+
+Lifetime capacity is keyed by candidate credential identity (connection ID,
+credential generation and reference commitment), not operation ID or timestamps.
+The maximum is sixteen explicitly approved attempts, each with one main-response
+ceiling and declared one-call child allowances. Current native count/byte policies
+also apply. This checkpoint adds compilation and review only. Candidate staging,
+fresh absent/current-record fencing, shared journal admission, actual checks and
+publication are required before production onboarding can use this target.

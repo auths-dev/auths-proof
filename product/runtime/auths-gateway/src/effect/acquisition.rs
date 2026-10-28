@@ -147,32 +147,18 @@ impl RecoveryReadTarget {
             Unit::ResponseBytes,
         ));
         reservations.sort_by_key(|entry| (entry.key, entry.unit));
-        EffectBinding::new(BindingWire {
-            schema: EFFECT_BINDING_SCHEMA.to_owned(),
-            namespace: installed.recipe.namespace().as_str().to_owned(),
-            partition: installed.partition.to_owned(),
-            epoch: installed.epoch,
-            operation: operation.as_str().to_owned(),
-            action: action_commitment,
+        build_binding(
+            installed,
+            operation,
+            action_commitment,
             native_authority,
-            scope: Scope::Unscoped,
-            recipe: *installed.recipe.digest(),
-            compiler: COMPILER.to_owned(),
-            connection: connection_commitment,
-            credential_generation: installed.connection.credential_generation().get(),
-            qualification_policy: installed.qualification.as_str().to_owned(),
-            configuration: installed.configuration,
-            approval_policy: ApprovalPolicy::Exact {
-                approver: installed.approver,
-            },
-            reservations,
-            protocol: Protocol::Acquisition {
+            Protocol::Acquisition {
                 request: plan.request,
                 projection: plan.contract,
                 maximum_response_bytes: plan.maximum_response_bytes,
             },
-        })
-        .map_err(|_| invalid())
+            reservations,
+        )
     }
 
     /// Exact private MCP call for separate read authority. It binds the source,
@@ -211,6 +197,46 @@ impl RecoveryReadTarget {
         McpToolCall::new(recipe.service(), RECOVERY_READ_TOOL, arguments)
             .map_err(|_| EffectBindingError::Invalid)
     }
+}
+
+pub(super) fn build_binding(
+    installed: &EffectInstallation<'_>,
+    operation: &LogicalOperationId,
+    action_commitment: [u8; 32],
+    native_authority: [u8; 32],
+    protocol: Protocol,
+    reservations: Vec<Reservation>,
+) -> Result<EffectBinding, GatewaySubmitResult> {
+    let invalid = || not_entered("gateway.acquisition.binding");
+    let connection = Zeroizing::new(
+        installed
+            .connection
+            .to_canonical_cbor()
+            .map_err(|_| invalid())?,
+    );
+    EffectBinding::new(BindingWire {
+        schema: EFFECT_BINDING_SCHEMA.to_owned(),
+        namespace: installed.recipe.namespace().as_str().to_owned(),
+        partition: installed.partition.to_owned(),
+        epoch: installed.epoch,
+        operation: operation.as_str().to_owned(),
+        action: action_commitment,
+        native_authority,
+        scope: Scope::Unscoped,
+        recipe: *installed.recipe.digest(),
+        compiler: COMPILER.to_owned(),
+        connection: commitment("auths.effect-installation/1", &connection)
+            .map_err(|_| invalid())?,
+        credential_generation: installed.connection.credential_generation().get(),
+        qualification_policy: installed.qualification.as_str().to_owned(),
+        configuration: installed.configuration,
+        approval_policy: ApprovalPolicy::Exact {
+            approver: installed.approver,
+        },
+        reservations,
+        protocol,
+    })
+    .map_err(|_| invalid())
 }
 
 /// Private immutable journal projection of the native recovery compiler. It
@@ -368,7 +394,7 @@ impl RecoveryPlan {
 }
 
 impl AcquisitionCapacity {
-    fn reservations(&self) -> Vec<Reservation> {
+    pub(super) fn reservations(&self) -> Vec<Reservation> {
         let mut reservations = vec![
             Reservation {
                 key: self.count_key,
@@ -390,8 +416,14 @@ impl AcquisitionCapacity {
     }
 }
 
+#[derive(Clone)]
+pub(super) enum AcquisitionTarget {
+    Recovery(Box<RecoveryReadTarget>),
+    Candidate(Box<super::candidate::CandidateCredentialTarget>),
+}
+
 pub(super) struct VerifiedAcquisition {
-    pub(super) target: RecoveryReadTarget,
+    pub(super) target: AcquisitionTarget,
     pub(super) bound: Option<crate::bounds::BoundAdmission>,
     pub(super) prerequisites: Prerequisites,
     #[cfg(unix)]
@@ -404,24 +436,37 @@ pub(super) struct VerifiedAcquisition {
 
 impl VerifiedAcquisition {
     pub(super) fn journal_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
-        self.target.journal_plan(&self.prerequisites)
+        match &self.target {
+            AcquisitionTarget::Recovery(target) => target.journal_plan(&self.prerequisites),
+            AcquisitionTarget::Candidate(_) => Err(EffectBindingError::Invalid),
+        }
     }
 
     pub(super) fn request_bytes(&self) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
-        self.target.request_bytes(&self.prerequisites)
+        match &self.target {
+            AcquisitionTarget::Recovery(target) => target.request_bytes(&self.prerequisites),
+            AcquisitionTarget::Candidate(target) => target.request_bytes(),
+        }
     }
 
     #[cfg(unix)]
     pub(super) fn private_review(&self) -> Value {
-        json!({
+        let mut review = json!({
             "protocol": "acquisition",
             "actors": self.actors.iter().map(auths_model::PrincipalId::as_str).collect::<Vec<_>>(),
             "action_commitment": hex::encode(self.action_commitment),
             "arguments": self.arguments,
-            "method": "GET",
-            "recovery": self.target.contract(),
+            "method": match &self.target {
+                AcquisitionTarget::Recovery(_) => "GET",
+                AcquisitionTarget::Candidate(target) => target.method(),
+            },
             "prerequisite_acquisitions": self.prerequisites,
-        })
+        });
+        match &self.target {
+            AcquisitionTarget::Recovery(target) => review["recovery"] = target.contract(),
+            AcquisitionTarget::Candidate(target) => review["candidate"] = target.contract(),
+        }
+        review
     }
 }
 
@@ -441,13 +486,36 @@ pub fn compile_recovery_acquisition(
     proof: &[u8],
     action: &[u8],
 ) -> Result<BoundEffect, GatewaySubmitResult> {
+    compile_acquisition(
+        installed,
+        AcquisitionTarget::Recovery(Box::new(target.clone())),
+        now,
+        proof,
+        action,
+    )
+}
+
+pub(super) fn compile_acquisition(
+    installed: &EffectInstallation<'_>,
+    target: AcquisitionTarget,
+    now: u64,
+    proof: &[u8],
+    action: &[u8],
+) -> Result<BoundEffect, GatewaySubmitResult> {
     let invalid = || not_entered("gateway.acquisition.binding");
     GatewayConnectionDescriptor::from_record(installed.connection, installed.recipe)
         .map_err(|_| invalid())?;
-    if target.source.wire.partition != installed.partition
-        || target.source.wire.epoch != installed.epoch
-    {
-        return Err(invalid());
+    match &target {
+        AcquisitionTarget::Recovery(target) => {
+            if target.source.wire.partition != installed.partition
+                || target.source.wire.epoch != installed.epoch
+            {
+                return Err(invalid());
+            }
+        }
+        AcquisitionTarget::Candidate(target) => target
+            .validate_installation(installed)
+            .map_err(|_| invalid())?,
     }
     let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
     let verified = sealed.action().ok_or_else(invalid)?;
@@ -460,9 +528,15 @@ pub fn compile_recovery_acquisition(
         .and_then(Value::as_str)
         .and_then(|value| LogicalOperationId::parse(value).ok())
         .ok_or_else(invalid)?;
-    let expected = target
-        .authorization_call(installed.recipe, &operation)
-        .map_err(|_| invalid())?;
+    let expected = match &target {
+        AcquisitionTarget::Recovery(target) => {
+            target.authorization_call(installed.recipe, &operation)
+        }
+        AcquisitionTarget::Candidate(target) => {
+            target.authorization_call(installed.recipe, &operation)
+        }
+    }
+    .map_err(|_| invalid())?;
     // Comparing the canonical call also rejects extra fields and channel-binding
     // representations this unscoped protocol does not yet support.
     if command.call() != &expected {
@@ -481,24 +555,45 @@ pub fn compile_recovery_acquisition(
         auths_codec::encode_canonical_action(verified.canonical_action()).map_err(|_| invalid())?;
     let action_commitment =
         commitment("auths.canonical-action.v1", &canonical_action).map_err(|_| invalid())?;
-    let prerequisites =
-        Prerequisites::credentials(installed.recipe, *installed.connection.account_commitment())
-            .map_err(|_| invalid())?;
-    let binding = target.binding(
-        installed,
-        &operation,
-        action_commitment,
-        native_authority_commitment(sealed.portable(), installed.context).map_err(|_| invalid())?,
-        bound.as_ref(),
-        &prerequisites,
-    )?;
-    let contract = target.contract();
+    let prerequisites = match &target {
+        AcquisitionTarget::Recovery(_) => {
+            Prerequisites::credentials(installed.recipe, *installed.connection.account_commitment())
+                .map_err(|_| invalid())?
+        }
+        AcquisitionTarget::Candidate(target) => target.prerequisites().clone(),
+    };
+    let authority =
+        native_authority_commitment(sealed.portable(), installed.context).map_err(|_| invalid())?;
+    let (binding, review) = match &target {
+        AcquisitionTarget::Recovery(target) => (
+            target.binding(
+                installed,
+                &operation,
+                action_commitment,
+                authority,
+                bound.as_ref(),
+                &prerequisites,
+            )?,
+            json!({"contract": "auths.gateway-recovery-read/1", "recovery": target.contract(),
+                "consequences": "Acquire bounded provider evidence only. This does not repeat the mutation, disclose content, prove exclusive causation, refund capacity or change the original actor."}),
+        ),
+        AcquisitionTarget::Candidate(target) => (
+            target.binding(
+                installed,
+                &operation,
+                action_commitment,
+                authority,
+                bound.as_ref(),
+            )?,
+            json!({"contract": "auths.gateway-candidate-check/1", "candidate": target.contract(),
+                "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure."}),
+        ),
+    };
     let effect = BoundEffect {
-        review: json!({"contract": "auths.gateway-recovery-read/1", "recovery": contract,
-            "consequences": "Acquire bounded provider evidence only. This does not repeat the mutation, disclose content, prove exclusive causation, refund capacity or change the original actor."}),
+        review,
         binding,
         command: CompiledEffect::Acquisition(Box::new(VerifiedAcquisition {
-            target: target.clone(),
+            target,
             bound,
             prerequisites,
             #[cfg(unix)]

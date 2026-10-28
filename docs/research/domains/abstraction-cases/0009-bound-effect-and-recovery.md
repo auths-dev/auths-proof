@@ -384,3 +384,25 @@ The six-case recovery prerequisite corpus records the native predicate result
 separately from oracle journal grants, so synthetic wrong-account/capability
 histories cannot masquerade as installed entry-denial evidence. Installed
 transport, PostgreSQL and final formal/performance gates remain open.
+
+
+## Candidate credential compilation checkpoint
+
+Candidate first-install and rotation checks now reuse recovery's native MCP
+verification, branch/observer separation, managed read-bound admission and
+bound-effect construction. The target comparison stays distinct: recovery pins
+a retained mutation, while candidate compilation pins a staged descriptor and
+exact predecessor/absence. The existing recipe owns probe/account/capability
+meaning. Ordered child plans reuse the closed prerequisite declarations; the
+last actual request is the primary acquisition. No callback or aggregate
+provider response is introduced. Probe parsing now uses the same bounded,
+duplicate-rejecting decoder as the other native evidence predicates.
+
+`candidate-compilation.json` compares first install, active/disabled rotation,
+HEAD-final and probe-only plans using signed native actions. It records full
+review and substitution refusals, exact approval/reverification, stable lifetime
+keys under operation/time changes, and refusal through the existing mutation,
+recovery and orphan-child routes. It is compiler/predicate and route-refusal
+evidence only. The candidate journal admission, staged custody, ordered current
+or absence validation, transport and publication cutover remain required; this
+checkpoint does not promote an operator attestation into native read authority.
