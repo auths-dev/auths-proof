@@ -788,6 +788,8 @@ async fn response_and_observation_are_distinct_durable_stages() {
         .grant_entry(
             approved,
             crate::entry::EntryValidation::Oracle { now: 1_790_000_000 },
+            1_790_000_000,
+            &crate::GatewayPreEntry::default(),
         )
         .await
         .expect("grant");

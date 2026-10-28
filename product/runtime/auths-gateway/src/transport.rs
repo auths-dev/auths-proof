@@ -660,6 +660,8 @@ mod tests {
                 .grant_entry(
                     std::sync::Arc::clone(&approved),
                     crate::entry::EntryValidation::Oracle { now: 1000 },
+                    1000,
+                    &crate::GatewayPreEntry::default(),
                 )
                 .await
                 .expect("durable grant");

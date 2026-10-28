@@ -1,5 +1,32 @@
 {
-  "schema": "auths.effect-entry-fixture/1",
+  "schema": "auths.effect-entry-fixture/2",
+  "reservation_restart": {
+    "initial_revision": 1,
+    "checkpoint_revision": 2,
+    "grant_revision": 3,
+    "reservation_slots_retained": 2,
+    "additional_slots": 0,
+    "old_deadline_refused": true,
+    "expired_approval_refused": true,
+    "stale_grant_refused": true,
+    "initial_evidence_retained": true,
+    "grant_audit": {
+      "revision": 3,
+      "authorization_started_at": 1790000061,
+      "approval_canonical": "{\"request\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"effect\":[14,37,23,217,26,34,199,14,199,18,19,17,88,100,209,190,194,226,162,253,36,175,178,129,180,51,83,114,24,48,54,217],\"expires_at\":1790003661,\"not_before\":1790000061,\"schema\":\"auths.exact-effect-approval/1\"},\"signature_b64\":\"g-bxBML0YxjfGnvQlVDvMQGUFxWsq-D2pzNQb0bT2fD8bkZ7v6POjxdhaqIbLzZSF-jGOM-Bgfi7MS6MjtcZAg\"}",
+      "pre_entry": {
+        "basis": {
+          "value": 1002,
+          "response_digest": "0202020202020202020202020202020202020202020202020202020202020202",
+          "read_at": 1790000061
+        }
+      },
+      "schema": "auths.effect-entry/2",
+      "granted_at": 1790000061,
+      "effect_id": "0e2517d91a22c70ec71213115864d1bec2e2a2fd24afb281b4335372183036d9",
+      "dependencies": []
+    }
+  },
   "scope": "native synthetic post-verification grant; no provider entry or installed authority claim",
   "reserved_stage": "reserved",
   "granted_stage": "entry-granted",
@@ -7,7 +34,11 @@
   "second_grant_refused": true,
   "post_grant_nonentry_refused": true,
   "entry_audit": {
-    "schema": "auths.effect-entry/1",
+    "revision": 2,
+    "authorization_started_at": 1790000000,
+    "approval_canonical": "{\"request\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"effect\":[234,2,200,210,54,41,12,57,125,41,77,136,159,131,119,65,31,167,146,113,197,85,33,114,81,178,193,155,105,213,254,243],\"expires_at\":1790003600,\"not_before\":1790000000,\"schema\":\"auths.exact-effect-approval/1\"},\"signature_b64\":\"HOm3PFLRsj0lhSuVGqlNk6h2A6FJd5_QERQylR3nCF1hj6PW81wyvE-JQBA1-cRHrnpOzZsIltwHg4r-wWi2Aw\"}",
+    "pre_entry": null,
+    "schema": "auths.effect-entry/2",
     "granted_at": 1790000000,
     "effect_id": "ea02c8d236290c397d294d889f8377411fa79271c555217251b2c19b69d5fef3",
     "dependencies": []

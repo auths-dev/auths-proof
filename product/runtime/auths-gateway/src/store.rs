@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/5`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/6`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/5";
+const SCHEMA: &str = "auths.gateway-attempt/6";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -248,6 +248,7 @@ pub fn pre_entry_digest(observations: &[Vec<u8>]) -> Option<[u8; 32]> {
 /// Secret-free persisted evidence for one logical operation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GatewayAttemptSnapshot {
+    revision: u64,
     namespace: OperatorNamespace,
     operation_id: LogicalOperationId,
     action_commitment: [u8; 32],
@@ -266,6 +267,12 @@ pub struct GatewayAttemptSnapshot {
 }
 
 impl GatewayAttemptSnapshot {
+    /// Returns the durable journal revision.
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
+
     /// Returns the operator namespace.
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {
@@ -478,6 +485,7 @@ impl PreEntryWire {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Record {
+    revision: u64,
     schema: String,
     binding_canonical: String,
     approval_canonical: String,
@@ -516,6 +524,10 @@ struct Record {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct EntryAudit {
+    revision: u64,
+    authorization_started_at: u64,
+    approval_canonical: String,
+    pre_entry: Option<PreEntryWire>,
     schema: String,
     granted_at: u64,
     effect_id: String,
@@ -576,6 +588,7 @@ impl Record {
             _ => return Err(GatewayAttemptError::Corrupt),
         };
         Ok(AttemptView {
+            revision: self.revision,
             entry: self
                 .entry
                 .as_ref()
@@ -774,7 +787,11 @@ impl Record {
             return Err(GatewayAttemptError::Corrupt);
         }
         if self.entry.as_ref().is_some_and(|entry| {
-            entry.schema != "auths.effect-entry/1"
+            entry.schema != "auths.effect-entry/2"
+                || entry.revision < 2
+                || entry.revision > self.revision
+                || entry.authorization_started_at < self.evaluated_at
+                || entry.granted_at < entry.authorization_started_at
                 || entry.granted_at < self.evaluated_at
                 || entry.granted_at > MAX_JSON_INTEGER
                 || entry.effect_id != hex::encode(binding.id().as_bytes())
@@ -785,6 +802,17 @@ impl Record {
                     .any(|value| digest_bytes(value).is_err())
         }) {
             return Err(GatewayAttemptError::Corrupt);
+        }
+        if let Some(entry) = &self.entry {
+            let approval =
+                ExactEffectApproval::from_private_bytes(entry.approval_canonical.as_bytes())
+                    .map_err(|_| GatewayAttemptError::Corrupt)?;
+            binding
+                .validate_recorded_approval(&approval, entry.granted_at)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            if let Some(pre_entry) = &entry.pre_entry {
+                pre_entry.decode()?;
+            }
         }
         if self.schema != SCHEMA
             || self.nonce.len() != 32
@@ -829,11 +857,13 @@ impl Record {
             None => None,
         };
         let pre_entry = self
-            .pre_entry
+            .entry
             .as_ref()
+            .map_or(self.pre_entry.as_ref(), |entry| entry.pre_entry.as_ref())
             .map(PreEntryWire::decode)
             .transpose()?;
         Ok(GatewayAttemptSnapshot {
+            revision: self.revision,
             namespace,
             operation_id,
             action_commitment,
@@ -1837,6 +1867,7 @@ fn claim_record(
     let mut nonce = [0_u8; 16];
     getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
     let record = Record {
+        revision: 1,
         schema: SCHEMA.to_owned(),
         binding_canonical: String::from_utf8(
             binding
@@ -2165,7 +2196,12 @@ struct Attempt {
 impl Attempt {
     /// Persists `next` only as a valid stage change from the exact stored
     /// record; a concurrent change by another process is a conflict.
-    async fn advance(mut self, next: Record) -> Result<Self, GatewayAttemptError> {
+    async fn advance(mut self, mut next: Record) -> Result<Self, GatewayAttemptError> {
+        next.revision = self
+            .record
+            .revision
+            .checked_add(1)
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
         if !valid_transition(&self.record, &next)? {
             return Err(GatewayAttemptError::InvalidTransition);
         }
@@ -2196,7 +2232,10 @@ impl ClaimedGatewayAttempt {
         self,
         approved: Arc<ApprovedEffect>,
         validation: crate::entry::EntryValidation,
+        authorization_started_at: u64,
+        pre_entry: &GatewayPreEntry,
     ) -> Result<(Self, ProviderEntryPermit), GatewayAttemptError> {
+        let pre_entry = PreEntryWire::encode(pre_entry)?;
         blocking(move || {
             let mut attempt = self.attempt;
             let dependencies = validation.dependencies();
@@ -2244,7 +2283,7 @@ impl ClaimedGatewayAttempt {
                     .validate(
                         &approved,
                         &snapshots[1..dependency_end],
-                        current.evaluated_at,
+                        authorization_started_at,
                     )
                     .map_err(|_| GatewayAttemptError::InvalidTransition)?;
                 current.validate_reservations(
@@ -2253,10 +2292,28 @@ impl ClaimedGatewayAttempt {
                     &snapshots[dependency_end..],
                     now,
                 )?;
+                if authorization_started_at < current.evaluated_at {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
                 let mut next = current.clone();
+                next.revision = current
+                    .revision
+                    .checked_add(1)
+                    .ok_or(GatewayAttemptError::InvalidTransition)?;
                 next.stage = GatewayAttemptStage::EntryGranted;
                 next.entry = Some(EntryAudit {
-                    schema: "auths.effect-entry/1".to_owned(),
+                    revision: next.revision,
+                    authorization_started_at,
+                    pre_entry: pre_entry.clone(),
+                    approval_canonical: String::from_utf8(
+                        approved
+                            .approval()
+                            .to_private_bytes()
+                            .map_err(|_| GatewayAttemptError::Corrupt)?
+                            .to_vec(),
+                    )
+                    .map_err(|_| GatewayAttemptError::Corrupt)?,
+                    schema: "auths.effect-entry/2".to_owned(),
                     granted_at: now,
                     effect_id: hex::encode(approved.effect().binding().id().as_bytes()),
                     dependencies: snapshots[1..dependency_end]
@@ -2290,13 +2347,22 @@ impl ClaimedGatewayAttempt {
     /// lease: the pre-entry observations and the relative-ceiling basis.
     ///
     /// # Errors
-    /// Rejects an empty or repeated checkpoint and persistence failure.
+    /// Rejects an empty first checkpoint, post-grant calls and persistence failure.
+    /// A resumed reservation retains its first checkpoint; its fresh reads are
+    /// separately bound in the immutable entry audit.
     pub async fn record_checkpoint(
         self,
         pre_entry: &GatewayPreEntry,
     ) -> Result<Self, GatewayAttemptError> {
+        if self.attempt.record.stage != GatewayAttemptStage::Reserved {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let fresh = PreEntryWire::encode(pre_entry)?;
+        if self.attempt.record.pre_entry.is_some() {
+            return Ok(self);
+        }
         let mut next = self.attempt.record.clone();
-        next.pre_entry = PreEntryWire::encode(pre_entry)?;
+        next.pre_entry = fresh;
         Ok(Self {
             attempt: self.attempt.advance(next).await?,
         })
@@ -2863,9 +2929,50 @@ impl GatewayAttempts {
     /// Slots are never released, and a replay consumes none.
     ///
     /// # Errors
-    /// An identical binding is `Replay`; a different binding for the same
-    /// operation is `BindingConflict`. Store errors never authorize entry.
+    /// An identical reserved binding reopens without another charge. An existing
+    /// grant or terminal operation is `Replay`; a changed binding is
+    /// `BindingConflict`. Reopening itself never authorizes provider entry.
     pub(crate) async fn claim_bounded(
+        &self,
+        approved: &ApprovedEffect,
+        evaluated_at: u64,
+    ) -> Result<BoundedClaim, GatewayAttemptError> {
+        match self.claim_new_bounded(approved, evaluated_at).await {
+            Err(GatewayAttemptError::Replay) => {
+                let request = &approved.command().request;
+                let (stored, record) = self
+                    .load(request.namespace(), request.operation_id())
+                    .await?
+                    .ok_or(GatewayAttemptError::Unavailable)?;
+                if record.binding_canonical.as_bytes()
+                    != approved
+                        .effect()
+                        .binding()
+                        .to_private_bytes()
+                        .map_err(|_| GatewayAttemptError::Corrupt)?
+                        .as_slice()
+                {
+                    return Err(GatewayAttemptError::BindingConflict);
+                }
+                if record.stage != GatewayAttemptStage::Reserved {
+                    return Err(GatewayAttemptError::Replay);
+                }
+                // This handle grants no entry. A fresh fenced CAS still checks
+                // native authority, approval and every retained slot.
+                Ok(BoundedClaim::Claimed(Box::new(ClaimedGatewayAttempt {
+                    attempt: Attempt {
+                        store: Arc::clone(&self.store),
+                        key: self.key(request.namespace(), request.operation_id())?,
+                        stored,
+                        record,
+                    },
+                })))
+            }
+            result => result,
+        }
+    }
+
+    async fn claim_new_bounded(
         &self,
         approved: &ApprovedEffect,
         evaluated_at: u64,

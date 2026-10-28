@@ -4,6 +4,7 @@ use super::*;
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 
 const NOW: u64 = 1_790_000_000;
+const RESUMED_AT: u64 = NOW + crate::recipe::ENTRY_DEADLINE_SECONDS + 1;
 
 fn approved() -> Arc<ApprovedEffect> {
     let recipe = crate::CompiledRecipe::compile(
@@ -31,6 +32,285 @@ fn approved() -> Arc<ApprovedEffect> {
     )
 }
 
+fn bounded_approval() -> Arc<ApprovedEffect> {
+    use ed25519_dalek::Signer as _;
+    let recipes: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../../bindings/fixtures/gateway/hostile-recipes-v2.json"
+    ))
+    .expect("recipes");
+    let scenarios: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../../bindings/fixtures/gateway/attempt-scenarios-v3.json"
+    ))
+    .expect("scenarios");
+    let recipe = crate::CompiledRecipe::compile(
+        &serde_json::to_vec(&recipes["bases"]["stripe"]["recipe"]).expect("recipe"),
+        &serde_json::to_vec(&recipes["bases"]["stripe"]["lock"]).expect("lock"),
+    )
+    .expect("compile");
+    let mut setup = scenarios["defaults"]["stripe"].clone();
+    setup["grant_policy"]["max_count"] = serde_json::json!(1);
+    setup["grant_policy"]["sum_limit"] = serde_json::json!(500);
+    let mut arguments = setup["arguments"].as_object().expect("arguments").clone();
+    arguments.insert(
+        "operator_namespace".to_owned(),
+        serde_json::json!(recipe.namespace().as_str()),
+    );
+    arguments.insert(
+        "recipe_digest".to_owned(),
+        serde_json::json!(recipe.digest_hex()),
+    );
+    let command = crate::scenario_tests::admitted(
+        &recipe,
+        &arguments,
+        [11; 32],
+        Vec::new(),
+        3600,
+        vec![crate::bounds::BoundLink {
+            subject: crate::harness::Signer::new(0x44).principal,
+            policy: crate::scenario_tests::policy_from_members(&setup["grant_policy"]),
+        }],
+        NOW,
+    )
+    .expect("bounded command");
+    let approved =
+        crate::effect::approve_driver_fixture(command.clone(), *recipe.digest(), NOW, None)
+            .expect("approval");
+    let request = approved
+        .effect()
+        .approval_request(NOW, NOW + 5)
+        .expect("short approval");
+    let signature = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+        .sign(&request.signing_message().expect("signing message"))
+        .to_bytes();
+    Arc::new(
+        crate::effect::approve_driver_fixture(
+            command,
+            *recipe.digest(),
+            NOW,
+            Some(request.with_signature(signature)),
+        )
+        .expect("short approved effect"),
+    )
+}
+
+async fn slot_bytes(
+    store: &TestAttempts,
+    kind: GatewayRecordKind,
+    key: [u8; 32],
+) -> Option<Vec<u8>> {
+    let raw = store.raw();
+    tokio::task::spawn_blocking(move || raw.load(kind, &GatewayAttemptKey(key)))
+        .await
+        .expect("slot read task")
+        .expect("slot read")
+}
+
+/// Reopening a reservation retains its one count/sum allocation and initial
+/// evidence. Only fresh approval and a new acknowledged revision grant entry.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one ordered crash/reopen history retains its audit assertions together"
+)]
+async fn reservation_restart(backend: Backend) -> serde_json::Value {
+    let store = TestAttempts::open(backend);
+    let approved = bounded_approval();
+    let initial = crate::GatewayPreEntry {
+        observations: Vec::new(),
+        basis: Some(crate::GatewayRelativeBasis {
+            value: 1001,
+            response_digest: [1; 32],
+            read_at: NOW,
+        }),
+    };
+    let fresh = crate::GatewayPreEntry {
+        observations: Vec::new(),
+        basis: Some(crate::GatewayRelativeBasis {
+            value: 1002,
+            response_digest: [2; 32],
+            read_at: RESUMED_AT,
+        }),
+    };
+    let claim = reserved(store.attempts(), &approved)
+        .await
+        .record_checkpoint(&initial)
+        .await
+        .expect("first checkpoint");
+    assert_eq!(claim.attempt.record.revision, 2);
+    let original_bytes = claim.attempt.stored.clone();
+    let original_approval = claim.attempt.record.approval_canonical.clone();
+    let recipe_digest = digest_bytes(&claim.attempt.record.recipe_digest).expect("recipe digest");
+    let counters = claim.attempt.record.counters().expect("counters");
+    assert!(counters.iter().any(|c| c.kind == GatewayCounterKind::Count));
+    assert!(counters.iter().any(|c| c.kind == GatewayCounterKind::Sum));
+    let slot_keys = counters
+        .iter()
+        .map(|counter| match counter.kind {
+            GatewayCounterKind::Count => (
+                GatewayRecordKind::CountSlot,
+                crate::bounds::count_slot_key(&counter.counter, counter.slot),
+            ),
+            GatewayCounterKind::Sum => (
+                GatewayRecordKind::SumSlot,
+                crate::bounds::sum_slot_key(&counter.counter, counter.slot),
+            ),
+        })
+        .collect::<Vec<_>>();
+    let mut slots_before = Vec::new();
+    for (kind, key) in &slot_keys {
+        slots_before.push(slot_bytes(&store, *kind, *key).await.expect("allocated"));
+    }
+    let stale = stale_copy(&claim);
+    drop(claim);
+    let restarted = store.reopen();
+    let renewed = Arc::new(
+        crate::effect::approve_driver_fixture(
+            approved.command().clone(),
+            recipe_digest,
+            RESUMED_AT,
+            None,
+        )
+        .expect("renewed approval"),
+    );
+    assert_eq!(approved.effect().binding(), renewed.effect().binding());
+    let BoundedClaim::Claimed(claim) = restarted
+        .claim_bounded(&renewed, RESUMED_AT)
+        .await
+        .expect("reopen")
+    else {
+        panic!("existing reservation must not exhaust again")
+    };
+    assert_eq!(claim.attempt.stored, original_bytes);
+    assert!(
+        stale_copy(&claim)
+            .grant_entry(
+                Arc::clone(&renewed),
+                crate::entry::EntryValidation::Oracle { now: RESUMED_AT },
+                NOW,
+                &fresh,
+            )
+            .await
+            .is_err(),
+        "original submission deadline cannot authorize a resumed grant"
+    );
+    assert!(
+        stale_copy(&claim)
+            .grant_entry(
+                Arc::clone(&approved),
+                crate::entry::EntryValidation::Oracle { now: RESUMED_AT },
+                RESUMED_AT,
+                &fresh,
+            )
+            .await
+            .is_err(),
+        "expired approval cannot authorize a resumed grant"
+    );
+    let claim = claim
+        .record_checkpoint(&fresh)
+        .await
+        .expect("fresh checkpoint is retained at grant");
+    assert_eq!(
+        claim.attempt.stored, original_bytes,
+        "first checkpoint remains immutable"
+    );
+    let (granted, permit) = claim
+        .grant_entry(
+            Arc::clone(&renewed),
+            crate::entry::EntryValidation::Oracle { now: RESUMED_AT },
+            RESUMED_AT,
+            &fresh,
+        )
+        .await
+        .expect("resumed grant");
+    drop(permit);
+    assert_eq!(granted.attempt.record.revision, 3);
+    assert_eq!(granted.attempt.record.approval_canonical, original_approval);
+    assert_eq!(
+        granted
+            .attempt
+            .record
+            .pre_entry
+            .as_ref()
+            .expect("initial evidence")
+            .decode()
+            .expect("decode"),
+        initial
+    );
+    let audit = granted.attempt.record.entry.as_ref().expect("grant audit");
+    assert_eq!(audit.revision, 3);
+    assert_eq!(audit.authorization_started_at, RESUMED_AT);
+    assert_ne!(audit.approval_canonical, original_approval);
+    assert_eq!(
+        audit.approval_canonical.as_bytes(),
+        renewed
+            .approval()
+            .to_private_bytes()
+            .expect("new approval")
+            .as_slice()
+    );
+    assert_eq!(
+        audit
+            .pre_entry
+            .as_ref()
+            .expect("fresh evidence")
+            .decode()
+            .expect("decode"),
+        fresh
+    );
+    let snapshot = granted.attempt.record.snapshot(true).expect("snapshot");
+    assert_eq!(snapshot.revision(), 3);
+    assert_eq!(snapshot.pre_entry(), Some(&fresh));
+    assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
+    assert!(
+        stale
+            .grant_entry(
+                Arc::clone(&renewed),
+                crate::entry::EntryValidation::Oracle { now: RESUMED_AT },
+                RESUMED_AT,
+                &fresh,
+            )
+            .await
+            .is_err(),
+        "stale reservation cannot grant again"
+    );
+    assert!(matches!(
+        restarted.claim_bounded(&renewed, RESUMED_AT).await,
+        Err(GatewayAttemptError::Replay)
+    ));
+    for ((kind, key), before) in slot_keys.iter().zip(&slots_before) {
+        assert_eq!(
+            &slot_bytes(&store, *kind, *key).await.expect("retained"),
+            before
+        );
+    }
+    for counter in &counters {
+        let (kind, key) = match counter.kind {
+            GatewayCounterKind::Count => (
+                GatewayRecordKind::CountSlot,
+                crate::bounds::count_slot_key(&counter.counter, counter.slot + 1),
+            ),
+            GatewayCounterKind::Sum => (
+                GatewayRecordKind::SumSlot,
+                crate::bounds::sum_slot_key(&counter.counter, counter.slot + 1),
+            ),
+        };
+        assert!(slot_bytes(&store, kind, key).await.is_none());
+    }
+    serde_json::json!({
+        "initial_revision": 1, "checkpoint_revision": 2, "grant_revision": 3,
+        "reservation_slots_retained": counters.len(), "additional_slots": 0,
+        "old_deadline_refused": true, "expired_approval_refused": true,
+        "stale_grant_refused": true, "initial_evidence_retained": true,
+        "grant_audit": serde_json::to_value(audit).expect("audit"),
+    })
+}
+
+#[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
+async fn postgres_reservation_restart_retains_capacity_and_requires_fresh_approval() {
+    assert!(postgres_configured());
+    reservation_restart(Backend::Postgres).await;
+}
+
 async fn reserved(
     attempts: &GatewayAttempts,
     approved: &Arc<ApprovedEffect>,
@@ -54,6 +334,10 @@ fn stale_copy(claim: &ClaimedGatewayAttempt) -> ClaimedGatewayAttempt {
 }
 
 #[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "canonical records and transitions are emitted from the same native grant"
+)]
 async fn native_entry_fixture_is_current() {
     let store = TestAttempts::open(Backend::File);
     let approved = approved();
@@ -65,6 +349,8 @@ async fn native_entry_fixture_is_current() {
         .grant_entry(
             Arc::clone(&approved),
             crate::entry::EntryValidation::Oracle { now: NOW },
+            NOW,
+            &crate::GatewayPreEntry::default(),
         )
         .await
         .expect("grant");
@@ -80,7 +366,9 @@ async fn native_entry_fixture_is_current() {
         stale
             .grant_entry(
                 Arc::clone(&approved),
-                crate::entry::EntryValidation::Oracle { now: NOW }
+                crate::entry::EntryValidation::Oracle { now: NOW },
+                NOW,
+                &crate::GatewayPreEntry::default(),
             )
             .await
             .is_err()
@@ -96,6 +384,7 @@ async fn native_entry_fixture_is_current() {
         .expect("retained");
     assert_eq!(read.stage(), GatewayAttemptStage::Unknown);
     let mut next = granted.attempt.record.clone();
+    next.revision += 1;
     next.stage = GatewayAttemptStage::NotEntered;
     next.refusal = Some("test.no-send".to_owned());
     assert!(!valid_transition(&granted.attempt.record, &next).expect("transition"));
@@ -105,14 +394,18 @@ async fn native_entry_fixture_is_current() {
     let mut entry = granted.attempt.record.clone();
     entry.nonce = "00112233445566778899aabbccddeeff".to_owned();
     let mut reserved = entry.clone();
+    reserved.revision = 1;
     reserved.stage = GatewayAttemptStage::Reserved;
     reserved.entry = None;
     let mut refused = reserved.clone();
+    refused.revision = 2;
     refused.stage = GatewayAttemptStage::NotEntered;
     refused.refusal = Some("test.before-grant".to_owned());
     let mut unknown = entry.clone();
+    unknown.revision = entry.revision + 1;
     unknown.stage = GatewayAttemptStage::Unknown;
     let mut response = entry.clone();
+    response.revision = entry.revision + 1;
     response.stage = GatewayAttemptStage::ResponseRecorded;
     response.response_status = Some(200);
     response.response_digest = Some(hex::encode([9; 32]));
@@ -155,7 +448,8 @@ async fn native_entry_fixture_is_current() {
         write_seed(&format!("transition-{name}-synthetic-entry"), &bytes);
     }
     let fixture = serde_json::to_vec_pretty(&serde_json::json!({
-        "schema": "auths.effect-entry-fixture/1",
+        "schema": "auths.effect-entry-fixture/2",
+        "reservation_restart": reservation_restart(Backend::File).await,
         "scope": "native synthetic post-verification grant; no provider entry or installed authority claim",
         "reserved_stage": "reserved", "granted_stage": "entry-granted", "restart_projection": "unknown",
         "second_grant_refused": true, "post_grant_nonentry_refused": true, "entry_audit": audit,
@@ -173,14 +467,19 @@ async fn grant_conformance(backend: Backend) {
     let approved = approved();
     let claim = reserved(store.attempts(), &approved).await;
     let stale = stale_copy(&claim);
+    let pre_entry = crate::GatewayPreEntry::default();
     let (left, right) = tokio::join!(
         claim.grant_entry(
             Arc::clone(&approved),
-            crate::entry::EntryValidation::Oracle { now: NOW }
+            crate::entry::EntryValidation::Oracle { now: NOW },
+            NOW,
+            &pre_entry,
         ),
         stale.grant_entry(
             Arc::clone(&approved),
-            crate::entry::EntryValidation::Oracle { now: NOW }
+            crate::entry::EntryValidation::Oracle { now: NOW },
+            NOW,
+            &pre_entry,
         ),
     );
     assert_eq!(

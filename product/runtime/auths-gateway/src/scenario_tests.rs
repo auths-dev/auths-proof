@@ -1359,7 +1359,7 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
 async fn attempt_scenarios(backend: Backend) {
     let corpus = corpus(SCENARIOS);
     assert_eq!(corpus["schema"], "auths.gateway-attempt-scenarios/3");
-    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/5");
+    assert_eq!(corpus["attempt_schema"], "auths.gateway-attempt/6");
     let recipes = self::corpus(corpus["recipes"].as_str().expect("recipes"));
     let mut ran = 0;
     for case in corpus["cases"].as_array().expect("cases") {
@@ -1488,7 +1488,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             "gateway_semantic_closure_sha256": crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
             "target": {"os": "linux", "arch": "x86_64", "gateway_package": "auths-gateway",
                 "gateway_version": "1.0.0-rc.1", "gateway_build_sha256": "55".repeat(32),
-                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/5",
+                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/6",
                 "credential_store_kind": "local-file-v1"}
         }))
         .expect("tuple");
@@ -1704,9 +1704,9 @@ async fn conformance_complete_binding_and_scope(backend: Backend) {
     assert!(
         matches!(
             attempts.claim_bounded(&renewed, NOW + 1).await,
-            Err(GatewayAttemptError::Replay)
+            Ok(crate::store::BoundedClaim::Claimed(_))
         ),
-        "renewing approval cannot mint another claim"
+        "renewing approval reopens the reservation without replacing its bytes"
     );
     let mut changed_authority = command.clone();
     changed_authority.native_authority = [42; 32];

@@ -140,3 +140,13 @@ fenced replacement acknowledges. The same retained command supplies the request.
 Slot membership is checked without reallocation. The native synthetic grant
 corpus proves its narrow file-store sequence; it does not establish installed
 multi-process fencing, all fault boundaries or the still-open recovery cutover.
+
+
+Reservation resumption now remains in that same owner: equal reserved bindings
+reopen unchanged, and grant audit `/2` appends the fresh approval/read facts while
+preserving admission history. Attempt `/6` advances exactly one revision per
+replacement. The synthetic file corpus exercises restart after the initial
+approval/deadline, retained count/sum slots at exhausted capacity and one fresh
+grant. PostgreSQL equivalent source is authored, not executed. These mechanics
+do not establish acquisition, disclosure, independent observation authority or
+installed end-to-end guarantees.

@@ -317,7 +317,7 @@ proptest! {
                     let stage = if kind == 0 {
                         runtime.block_on(claim.record_not_entered("test.before-grant", None)).map(|snapshot| snapshot.stage())
                     } else {
-                        let (claim, permit) = runtime.block_on(claim.grant_entry(approved, crate::entry::EntryValidation::Oracle { now: 1_790_000_000 })).expect("grant");
+                        let (claim, permit) = runtime.block_on(claim.grant_entry(approved, crate::entry::EntryValidation::Oracle { now: 1_790_000_000 }, 1_790_000_000, &crate::GatewayPreEntry::default(),)).expect("grant");
                         *writes.entry(operation).or_default() += 1;
                         drop(permit);
                         if kind == 1 { runtime.block_on(claim.record_unknown()).map(|snapshot| snapshot.stage()) }

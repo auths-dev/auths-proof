@@ -252,3 +252,28 @@ This is not yet full P2 evidence. Reopening a reservation with fresh approval,
 explicit journal revisions, installed after-lock expiry/revocation races,
 ambiguous-commit fault injection and translated/refinement regeneration remain
 open. Acquisition/disclosure and independent recovery are later cutovers.
+
+
+## Reservation restart and immutable approval history
+
+Attempt `/6` requires monotonic exact-JSON-integer revisions. Every update uses
+both the complete predecessor bytes and one revision increment; saturation
+refuses progress. An identical reserved operation may reopen with its existing
+allocation. It does not acquire entry authority and cannot reopen a granted or
+terminal operation. Full-binding differences still conflict.
+
+A renewed exact approval does not rewrite the admission approval or first
+pre-entry checkpoint. Grant audit `/2` separately freezes the actual approval,
+fresh authorization start time, revision and fresh reads used at final entry.
+The original proof is revalidated under the fence, using the new submission's
+bounded deadline. The public snapshot uses the grant's pre-entry evidence after
+entry. Stale handles lose the same atomic replacement; stored grants still
+cannot recreate transport permits. Count/sum slots are checked and retained,
+never charged a second time by resumption.
+
+The synthetic native file corpus now covers restart beyond the first approval
+and submission deadline, fresh approval, unchanged exhausted-capacity slots,
+immutable initial evidence and refusal of a second grant. PostgreSQL parity
+source is authored; installed authority, process faults and full recovery
+remain separate evidence gates. A revision in the same store cannot detect
+whole-store rollback.

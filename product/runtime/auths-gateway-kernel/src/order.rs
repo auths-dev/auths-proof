@@ -146,8 +146,8 @@ pub enum Verification {
 /// The result of the claim.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClaimResult {
-    /// This submission stored the claim with every slot.
-    Inserted,
+    /// This submission holds a new or reopened reservation with every slot.
+    Reserved,
     /// The claim step stored the claim as `not-entered`.
     Refused,
     /// The logical operation was already claimed.
@@ -535,7 +535,7 @@ pub const fn pre_claim(state: SubmitState, passed: bool, next: SubmitDecision) -
 #[must_use]
 pub const fn after_claim(state: SubmitState, result: ClaimResult) -> SubmitDecision {
     match result {
-        ClaimResult::Inserted => go(
+        ClaimResult::Reserved => go(
             state,
             Phase::Reload(Mode::Entry),
             SubmitAction::Reload(Mode::Entry),
@@ -915,7 +915,7 @@ mod tests {
             SubmitEvent::Verification(Verification::Authorized { argument: 500 }),
             SubmitEvent::Admission(true),
             SubmitEvent::Preparation(true),
-            SubmitEvent::Claim(ClaimResult::Inserted),
+            SubmitEvent::Claim(ClaimResult::Reserved),
             SubmitEvent::Reload(true),
             SubmitEvent::Lease(true),
             SubmitEvent::Prefix(true),

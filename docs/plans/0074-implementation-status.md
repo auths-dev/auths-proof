@@ -281,13 +281,43 @@ closure regeneration passed after that correction (one artifact-generation test)
   be regenerated against the changed shipping predicates. P3/P4 and all complete
   acceptance gates remain open. No AP073 or delegation work was performed.
 
+## Reservation restart and revision checkpoint
+
+- Attempt `/6` adds a required revision bounded to exact JSON integers. The
+  shipping transition predicate requires exactly one increment for every update,
+  rejects stale/skipped revisions and fails closed at saturation. CAS still
+  compares the complete previous bytes; the revision is not a rollback anchor.
+- An equal binding in `Reserved` can reopen without replacing its initial
+  approval, claim, first checkpoint or count/sum slots. Existing grants and
+  terminal records remain replay; changed full bindings remain conflicts.
+  Reopening produces no transport capability.
+- Grant audit `/2` freezes the approval actually used, its fresh authorization
+  start time, grant revision and fresh pre-entry evidence. The grant rechecks
+  current native authority under the fence using the resumed submission's
+  deadline. Historical admission approval remains immutable, and post-grant
+  snapshots expose the reads used for that grant.
+- Required native `effect-entry.json` generation passed on `fd8803c0` plus this
+  source: `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact
+  store::entry_tests::native_entry_fixture_is_current` (one generator test).
+  The expanded synthetic file-backed sequence exhausts its count/sum capacity,
+  checkpoints, reopens after the initial approval and submission deadline expire,
+  refuses stale deadline/approval, grants once with fresh evidence, retains the
+  original slots and audit, and refuses another grant. Canonical stage/transition
+  fuzz seeds were regenerated. This is not installed proof or provider evidence.
+- Attempt-scenario and semantic-closure artifact generation also passed (one
+  generator test each). Remote artifact commit `8201545d` was preserved before
+  final closure generation. No broad suite or hosted workflow was observed.
+- Equivalent PostgreSQL restart source is authored, not executed. Public pending
+  projections, independent recovery authorization, installed fault/race evidence,
+  acquisition/disclosure/ACK and translated formal artifacts remain open.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
-| P1 | In progress | Finish installed first mutation cutover and native fixtures |
-| P2 | Mutation grant wired | Reservation restart/revisions, full installed fault/race evidence and formal links |
+| P1 | Core binding and approval wired | Versioned semantic review completeness and installed approval journey |
+| P2 | Mutation grant and reservation restart wired | Public projections, independent recovery, installed fault/race evidence and formal links |
 | P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
@@ -299,10 +329,10 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 
 | Case | Required evidence | Implementation / authored / executed | Limitation or next work |
 | --- | --- | --- | --- |
-| A01 | Same bound identity and exact request across review/approval/send | Partial / partial / compilation-only | Execution cutover pending |
+| A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter cases / no | Execute concurrent binding conflicts and recovery cutover |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Pending / no / no | Atomic journal admission |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file fixture | Full adapter concurrency and all units pending |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |

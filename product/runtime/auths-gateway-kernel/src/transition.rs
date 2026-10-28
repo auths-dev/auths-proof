@@ -60,6 +60,8 @@ pub enum Link {
 /// The fields of one stored attempt record the transition rule inspects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttemptView {
+    /// Monotonic journal revision, bounded to exact JSON integers.
+    pub revision: u64,
     /// Canonical bytes of the fields no transition may change.
     pub fixed: Vec<u8>,
     /// Immutable canonical grant/audit bytes; empty before entry.
@@ -227,7 +229,9 @@ pub const fn has_reading(reading: Reading) -> bool {
 #[must_use]
 pub fn consistent(view: &AttemptView) -> bool {
     let has_response = !absent(&view.response);
-    requires_entry(view.stage) == !absent(&view.entry)
+    view.revision > 0
+        && view.revision <= 9_007_199_254_740_991
+        && requires_entry(view.stage) == !absent(&view.entry)
         && refusal_stage(view.stage) == view.refusal
         && (!requires_response(view.stage) || has_response)
         && (!has_response || permits_response(view.stage))
@@ -359,7 +363,9 @@ pub const fn link_equal(left: Link, right: Link) -> bool {
 /// consistent with its stage.
 #[must_use]
 pub fn valid_transition(old: &AttemptView, new: &AttemptView) -> bool {
-    consistent(old)
+    old.revision < 9_007_199_254_740_991
+        && new.revision == old.revision + 1
+        && consistent(old)
         && entry_kept(old, new)
         && same_bytes(&old.fixed, &new.fixed)
         && plan_kept(old, new)
@@ -392,6 +398,7 @@ mod tests {
             Vec::new()
         };
         AttemptView {
+            revision: 1,
             entry: if requires_entry(stage) {
                 alloc::vec![7]
             } else {
@@ -414,6 +421,27 @@ mod tests {
         }
     }
 
+    fn transition(old: &AttemptView, new: &AttemptView) -> bool {
+        let mut next = new.clone();
+        next.revision = old.revision + 1;
+        valid_transition(old, &next)
+    }
+
+    #[test]
+    fn revisions_advance_once_and_never_wrap() {
+        let old = view(Stage::Reserved, Link::None);
+        let mut new = view(Stage::EntryGranted, Link::None);
+        assert!(!valid_transition(&old, &new));
+        new.revision = 2;
+        assert!(valid_transition(&old, &new));
+        new.revision = 3;
+        assert!(!valid_transition(&old, &new));
+        let mut saturated = old.clone();
+        saturated.revision = 9_007_199_254_740_991;
+        new.revision = 9_007_199_254_740_992;
+        assert!(!valid_transition(&saturated, &new));
+    }
+
     #[test]
     fn terminal_stages_have_no_outgoing_transition() {
         for link in [Link::None, Link::Verified, Link::AfterResponse] {
@@ -421,7 +449,7 @@ mod tests {
                 for to in STAGES {
                     if terminal_stage(from) {
                         assert!(!stage_transition_allowed(from, to, link));
-                        assert!(!valid_transition(&view(from, link), &view(to, link)));
+                        assert!(!transition(&view(from, link), &view(to, link)));
                     }
                 }
             }
@@ -432,7 +460,7 @@ mod tests {
     fn unknown_resolves_only_for_a_verified_link_with_evidence() {
         for link in [Link::None, Link::Verified, Link::AfterResponse] {
             for to in STAGES {
-                let allowed = valid_transition(&view(Stage::Unknown, link), &view(to, link));
+                let allowed = transition(&view(Stage::Unknown, link), &view(to, link));
                 assert_eq!(
                     allowed,
                     to == Stage::ResponseRecorded
@@ -448,34 +476,28 @@ mod tests {
         let old = view(Stage::Reserved, Link::Verified);
         let mut checkpoint = old.clone();
         checkpoint.pre_entry = vec![9];
-        assert!(valid_transition(&old, &checkpoint));
-        assert!(!valid_transition(&checkpoint, &checkpoint));
-        assert!(
-            !valid_transition(&old, &old),
-            "a checkpoint must add evidence"
-        );
+        assert!(transition(&old, &checkpoint));
+        assert!(!transition(&checkpoint, &checkpoint));
+        assert!(!transition(&old, &old), "a checkpoint must add evidence");
         let mut refused = view(Stage::NotEntered, Link::Verified);
         refused.pre_entry = vec![9];
-        assert!(valid_transition(&old, &refused));
-        assert!(valid_transition(&checkpoint, &refused));
+        assert!(transition(&old, &refused));
+        assert!(transition(&checkpoint, &refused));
         refused.pre_entry = vec![8];
-        assert!(!valid_transition(&checkpoint, &refused), "kept once set");
+        assert!(!transition(&checkpoint, &refused), "kept once set");
         let mut responded = view(Stage::ResponseRecorded, Link::Verified);
         responded.pre_entry = vec![9];
-        assert!(
-            !valid_transition(&old, &responded),
-            "added only before entry"
-        );
-        assert!(!valid_transition(&checkpoint, &responded));
+        assert!(!transition(&old, &responded), "added only before entry");
+        assert!(!transition(&checkpoint, &responded));
         let mut grant = view(Stage::EntryGranted, Link::Verified);
         grant.pre_entry = checkpoint.pre_entry.clone();
-        assert!(valid_transition(&checkpoint, &grant));
-        assert!(valid_transition(&grant, &responded));
-        assert!(!valid_transition(&grant, &refused));
-        assert!(!valid_transition(&grant, &grant), "no second grant");
+        assert!(transition(&checkpoint, &grant));
+        assert!(transition(&grant, &responded));
+        assert!(!transition(&grant, &refused));
+        assert!(!transition(&grant, &grant), "no second grant");
         let mut changed = responded.clone();
         changed.entry = vec![8];
-        assert!(!valid_transition(&grant, &changed), "grant is immutable");
+        assert!(!transition(&grant, &changed), "grant is immutable");
     }
 
     #[test]
@@ -483,20 +505,20 @@ mod tests {
         let old = view(Stage::ResponseRecorded, Link::AfterResponse);
         let mut moved = view(Stage::ObservedByProvider, Link::AfterResponse);
         moved.response = vec![1];
-        assert!(valid_transition(&old, &moved));
+        assert!(transition(&old, &moved));
         moved.fixed = vec![7; 5];
-        assert!(!valid_transition(&old, &moved));
+        assert!(!transition(&old, &moved));
         let mut changed = view(Stage::Observed, Link::AfterResponse);
         changed.response = vec![2];
-        assert!(!valid_transition(&old, &changed));
+        assert!(!transition(&old, &changed));
         let attempting = view(Stage::EntryGranted, Link::AfterResponse);
-        assert!(!valid_transition(
+        assert!(!transition(
             &attempting,
             &view(Stage::ObservedByProvider, Link::AfterResponse)
         ));
         let mut located = view(Stage::ResponseRecorded, Link::AfterResponse);
         located.locator = vec![3];
-        assert!(valid_transition(&attempting, &located));
+        assert!(transition(&attempting, &located));
     }
 }
 
@@ -546,6 +568,7 @@ mod proofs {
 
     fn any_view() -> AttemptView {
         AttemptView {
+            revision: kani::any(),
             entry: any_bytes(),
             fixed: any_bytes(),
             stage: any_stage(),
@@ -606,6 +629,8 @@ mod proofs {
             }
         };
         shape
+            && view.revision > 0
+            && view.revision <= 9_007_199_254_740_991
             && (view.locator.is_empty() || response)
             && (matches!(view.stage, Stage::Reserved | Stage::NotEntered) == view.entry.is_empty())
     }
@@ -659,7 +684,9 @@ mod proofs {
         } else {
             old.entry == new.entry
         };
-        let expected = old.fixed == new.fixed
+        let expected = old.revision < 9_007_199_254_740_991
+            && new.revision == old.revision + 1
+            && old.fixed == new.fixed
             && entry
             && fields_match_stage(&old)
             && old.observation == new.observation

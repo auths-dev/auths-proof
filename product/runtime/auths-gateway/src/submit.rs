@@ -555,7 +555,7 @@ impl<I: SubmitIo> Run<'_, I> {
         {
             Ok(BoundedClaim::Claimed(claim)) => {
                 self.claim = Some(*claim);
-                ClaimResult::Inserted
+                ClaimResult::Reserved
             }
             Ok(BoundedClaim::Exhausted(code)) => {
                 self.result = Some(not_entered(code));
@@ -730,7 +730,12 @@ impl<I: SubmitIo> Run<'_, I> {
             return false;
         };
         let (claim, permit) = match claim
-            .grant_entry(std::sync::Arc::clone(approved), validation)
+            .grant_entry(
+                std::sync::Arc::clone(approved),
+                validation,
+                self.evaluated_at,
+                &self.pre_entry,
+            )
             .await
         {
             Ok(granted) => granted,

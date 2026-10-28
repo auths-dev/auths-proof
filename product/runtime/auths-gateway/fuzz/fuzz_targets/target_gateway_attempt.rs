@@ -71,6 +71,9 @@ fuzz_target!(|data: &[u8]| {
     ) else {
         panic!("valid records are JSON");
     };
+    let revision = old["revision"].as_u64().expect("old revision");
+    assert!(revision < 9_007_199_254_740_991);
+    assert_eq!(new["revision"].as_u64(), Some(revision + 1));
     if from != Stage::Reserved || to != Stage::EntryGranted {
         assert_eq!(old.get("entry"), new.get("entry"), "entry grant changed");
     }
