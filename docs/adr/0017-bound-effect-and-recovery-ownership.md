@@ -177,3 +177,40 @@ manifest comparison and process-local revocation caches are insufficient.
 The primitive described here is only preparation: until the shared record,
 writer participation and grant reducer are connected, the current engine does
 not claim this final-entry guarantee.
+
+## Shared installed configuration and permanent qualification memory
+
+The sixth closed gateway record kind, `effect-configuration`, is non-expiring.
+Its key commits to namespace, partition and epoch independently of the candidate
+configuration. The installed pin commits to recipe, native verifier trust,
+operator effect policy, connection identity, workload, profile, qualification
+contract and gateway semantic closure. Bound-effect `/2` includes that pin;
+compiler identity `/2` rejects approvals over the earlier binding format.
+PostgreSQL schema `/7` directly replaces `/6`; no old-schema reader is retained.
+
+Only trusted install/join initializes a missing record. Joining an existing
+record must match its pin. Changing the pin requires explicit operator review
+of both the candidate and a commitment to the entire previous record, followed
+by activation under the writer fence. A concurrent publication invalidates that
+review token. Application frames expose neither initialization nor activation.
+
+Qualification import/reload publishes the authenticated bundle identity and
+permanent revocation memory through that same fence before reporting success.
+Accepted sequence/issue-time floors take maxima; signer and qualification
+revocations take unions. The record bounds these sets to the native release
+limits (64 signers and 1024 qualifications). Saturation persists a terminal
+blocked marker; neither an empty local cache nor configuration activation can
+reset it. Each record is canonical and bounded to 128 KiB. Revision saturation
+also blocks authorization. This preserves bounded work without forgetting a
+revocation and then authorizing from a truncated set.
+
+A host adopts shared memory and must hold the published bundle identity before
+ordinary qualification or separate commissioning-permit verification. Shared
+memory itself grants neither. Publishing an unloaded bundle can disable other
+hosts until their inputs are synchronized; this is a deliberate fail-closed
+availability tradeoff. Earlier local verifier-state files remain rollback
+witnesses, not an alternate shared admission authority.
+
+Compilation and entry preparation now perform early checks. The final grant
+must still repeat these checks over the configuration snapshot under its own
+attempt fence. No final-entry guarantee is claimed by these early checks.

@@ -2,7 +2,7 @@
 //!
 //! This is a mechanism only: all-or-none insert-once batches, a
 //! compare-and-swap replacement, and a bounded sweep of expired slots, over
-//! bounded bytes tagged with one of five closed record kinds. The gateway
+//! bounded bytes tagged with one of six closed record kinds. The gateway
 //! owns every record format, its stages, and which replacements are valid.
 
 use crate::lifecycle::{PostgresLifecycleStore, map_postgres_error};
@@ -95,6 +95,8 @@ pub enum GatewayRecordKind {
     Connection,
     /// A commissioning run's immutable binding and consumed leases; never swept.
     CommissioningBudget,
+    /// Installed effect policy/configuration and shared qualification memory.
+    EffectConfiguration,
 }
 
 impl GatewayRecordKind {
@@ -107,6 +109,7 @@ impl GatewayRecordKind {
             Self::SumSlot => "sum-slot",
             Self::Connection => "connection",
             Self::CommissioningBudget => "commissioning-budget",
+            Self::EffectConfiguration => "effect-configuration",
         }
     }
 
@@ -119,6 +122,7 @@ impl GatewayRecordKind {
             "sum-slot" => Some(Self::SumSlot),
             "connection" => Some(Self::Connection),
             "commissioning-budget" => Some(Self::CommissioningBudget),
+            "effect-configuration" => Some(Self::EffectConfiguration),
             _ => None,
         }
     }
@@ -504,7 +508,7 @@ mod tests {
             bounded(&vec![0; MAX_GATEWAY_RECORD_BYTES + 1]),
             Err(StoreError::LimitExceeded)
         );
-        let schema = include_str!("../migrations/postgres_lifecycle_v6.sql");
+        let schema = include_str!("../migrations/postgres_lifecycle_v7.sql");
         assert!(
             schema.contains("octet_length(record_bytes) BETWEEN 1 AND 262144"),
             "the schema bound and the Rust bound are the same"
@@ -515,6 +519,7 @@ mod tests {
             "sum-slot",
             "connection",
             "commissioning-budget",
+            "effect-configuration",
         ] {
             assert_eq!(
                 GatewayRecordKind::parse(kind).map(GatewayRecordKind::as_str),

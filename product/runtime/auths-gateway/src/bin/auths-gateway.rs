@@ -167,6 +167,21 @@ mod unix {
             #[arg(long)]
             approver_public_key: String,
         },
+        /// Review the current shared revision and this validated candidate installation.
+        EffectConfigurationReview {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Activate the reviewed candidate using the exact previous revision.
+        /// This operator-only command preserves permanent revocation memory.
+        EffectConfigurationActivate {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            expected_revision: String,
+            #[arg(long)]
+            expected_candidate: String,
+        },
         /// Private native review of the installed exact effect, with a bounded
         /// signing request. Does not lease credentials or enter provider transport.
         EffectReview {
@@ -1474,6 +1489,14 @@ mod unix {
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
+        let initializing = state_dir.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), Failure> {
+            load_engine(&initializing)?
+                .initialize_effect_configuration()
+                .map_err(Failure::from)
+        })
+        .await
+        .map_err(|_| "gateway.configuration.unavailable")??;
         println!(
             "{} recipe {} with separate gateway credential custody",
             if join { "joined" } else { "installed" },
@@ -1792,7 +1815,11 @@ mod unix {
         let bundle =
             qualification_bundle(from).map_err(|code| Failure::at(code, from, "unreadable"))?;
         let candidate = QualificationGate::new(
-            QualificationPolicy::Required,
+            qualification_policy(
+                Some(&manifest.qualification.policy),
+                production_qualification(manifest.deployment),
+            )
+            .map_err(|_| "gateway.serve.invalid-installation")?,
             qualification_root(state_dir, &manifest)?,
             qualification_deployment(state_dir, &manifest),
             Box::new(DevelopmentClock),
@@ -1810,6 +1837,7 @@ mod unix {
         // What the new inputs establish is recorded before they replace the
         // old ones. If the replacement then fails, the old inputs meet a
         // floor they are below and nothing qualifies.
+        load_engine(state_dir)?.publish_effect_qualification(&candidate)?;
         write_verifier_state(state_dir, &candidate.verifier_state())?;
         let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
         let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
@@ -2266,7 +2294,9 @@ mod unix {
                     let reloading = Arc::clone(&engine);
                     let directory = Arc::clone(&state_dir);
                     let reloaded = tokio::task::spawn_blocking(move || {
-                        qualification_reload(&directory, reloading.qualification())
+                        let local = qualification_reload(&directory, reloading.qualification());
+                        reloading.publish_effect_qualification(reloading.qualification())?;
+                        local
                     })
                     .await;
                     match reloaded {
@@ -3679,6 +3709,48 @@ mod unix {
     )]
     pub async fn run() -> Result<(), Failure> {
         match Cli::parse().command {
+            Command::EffectConfigurationReview { state_dir } => {
+                private_root(&state_dir)?;
+                tokio::task::spawn_blocking(move || -> Result<(), Failure> {
+                    let engine = load_engine(&state_dir)?;
+                    let review = serde_json::json!({
+                        "schema": "auths.effect-configuration-review/1",
+                        "previous_revision_hex": hex::encode(engine.effect_configuration_revision()?),
+                        "candidate_hex": hex::encode(engine.effect_configuration_candidate()?),
+                        "installation": installation(&state_dir)?,
+                    });
+                    let bytes = serde_json_canonicalizer::to_vec(&review).map_err(|_| "gateway.configuration.unavailable")?;
+                    std::io::stdout().write_all(&bytes).map_err(|_| "gateway.configuration.unavailable")?;
+                    Ok(())
+                }).await.map_err(|_| "gateway.configuration.unavailable")??;
+                Ok(())
+            }
+            Command::EffectConfigurationActivate {
+                state_dir,
+                expected_revision,
+                expected_candidate,
+            } => {
+                private_root(&state_dir)?;
+                tokio::task::spawn_blocking(move || -> Result<(), Failure> {
+                    let parse = |text: &str| -> Result<[u8; 32], Failure> {
+                        let mut value = [0; 32];
+                        hex::decode_to_slice(text, &mut value)
+                            .map_err(|_| "gateway.configuration.invalid-review")?;
+                        Ok(value)
+                    };
+                    let revision = parse(&expected_revision)?;
+                    let candidate = parse(&expected_candidate)?;
+                    let engine = load_engine(&state_dir)?;
+                    if engine.effect_configuration_candidate()? != candidate {
+                        return Err("gateway.configuration.changed".into());
+                    }
+                    engine.activate_effect_configuration(revision)?;
+                    Ok(())
+                })
+                .await
+                .map_err(|_| "gateway.configuration.unavailable")??;
+                Ok(())
+            }
             Command::EffectReview {
                 state_dir,
                 proof,

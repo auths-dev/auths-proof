@@ -1,0 +1,7 @@
+{
+  "schema": "auths.effect-configuration-fixture/1",
+  "scope": "native configuration encoding and revision identity; no entry claim",
+  "key_hex": "0a3bda35987386948830389c2d1906d6e256d391582a910aa5c31928bcb3af16",
+  "record_canonical": "{\"installation\":[11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11],\"qualification\":{\"bundle\":null,\"memory\":{\"accepted_index_issued_at\":0,\"accepted_revocation_sequence\":0,\"blocked\":false,\"revoked_qualifications\":[],\"revoked_signers\":[]}},\"revision\":1,\"schema\":\"auths.effect-configuration/1\"}",
+  "revision_token_hex": "a2585b2ebe8247f93e4dacb179e0c1e6bbf69b3301c98e4115b0b5827ee09fe1"
+}

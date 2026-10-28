@@ -144,6 +144,16 @@ impl Setup {
             Box::new(clock.clone()),
             VerifierState::default(),
         ));
+        let configuration = engine.shared_configuration().expect("configuration");
+        let activation_gate = Arc::clone(&engine.qualification);
+        tokio::task::spawn_blocking(move || {
+            let revision = configuration.current_revision().expect("current revision");
+            configuration
+                .activate(revision, &activation_gate)
+                .expect("operator activation");
+        })
+        .await
+        .expect("activation task");
         let operator = Signer::new(0x44);
         let statement = OperatorStatement {
             schema: crate::OPERATOR_ATTESTATION_SCHEMA.to_owned(),

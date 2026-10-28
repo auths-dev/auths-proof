@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub const QUALIFICATION_POLICY_REFUSED: &str = "gateway.install.qualification-policy";
 
 /// The schema identifier of the production lifecycle store.
-pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/6";
+pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/7";
 /// The schema identifier of the development file store.
 pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/4";
 
@@ -381,6 +381,59 @@ impl QualificationGate {
             loaded: RwLock::new(None),
             state: Mutex::new(state),
         }
+    }
+
+    pub(crate) fn contract_digest(&self) -> Result<[u8; 32], &'static str> {
+        crate::configuration::digest(
+            "auths.effect-qualification-contract/1",
+            &(
+                self.policy.as_str(),
+                self.root.as_ref().map(|root| root.digest().to_hex()),
+                &self.deployment,
+            ),
+        )
+    }
+
+    pub(crate) fn shared_snapshot(
+        &self,
+        previous: &crate::configuration::QualificationMemory,
+    ) -> crate::configuration::QualificationSnapshot {
+        let mut memory = previous.clone();
+        memory.merge(&self.verifier_state());
+        let held = self.held();
+        if let Some(held) = &held {
+            let mut remembered = memory.state();
+            held.verified.remember(&mut remembered);
+            memory.merge(&remembered);
+        }
+        crate::configuration::QualificationSnapshot {
+            bundle: held.map(|held| held.digest),
+            memory,
+        }
+    }
+
+    /// Adopts shared monotonic memory, but grants no qualification. Ordinary
+    /// entry must still call the native qualification check; commissioning
+    /// must verify its separate exact permit against this same memory.
+    pub(crate) fn accept_shared(
+        &self,
+        shared: &crate::configuration::QualificationSnapshot,
+    ) -> Result<(), &'static str> {
+        if shared.memory.blocked {
+            return Err("gateway.configuration.qualification-unavailable");
+        }
+        let held = self.held();
+        if shared.bundle != held.as_ref().map(|held| held.digest) {
+            return Err("gateway.configuration.qualification-changed");
+        }
+        let mut local = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut merged = shared.memory.clone();
+        merged.merge(&local);
+        if merged.blocked {
+            return Err("gateway.configuration.qualification-unavailable");
+        }
+        *local = merged.state();
+        Ok(())
     }
 
     /// The installation's policy.

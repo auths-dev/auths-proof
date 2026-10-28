@@ -92,7 +92,31 @@ async fn host_with(gate: &Arc<QualificationGate>) -> (Installation, ()) {
         .first
         .engine
         .set_qualification(Arc::clone(gate));
+    let configuration = installation
+        .first
+        .engine
+        .shared_configuration()
+        .expect("configuration");
+    let gate = Arc::clone(gate);
+    tokio::task::spawn_blocking(move || {
+        let revision = configuration.current_revision().expect("current revision");
+        configuration
+            .activate(revision, &gate)
+            .expect("operator activation");
+    })
+    .await
+    .expect("activation task");
     (installation, ())
+}
+
+// Operator import/reload publishes its authenticated snapshot before entry.
+async fn publish(host: &Host, gate: &Arc<QualificationGate>) {
+    let configuration = host.engine.shared_configuration().expect("configuration");
+    let gate = Arc::clone(gate);
+    tokio::task::spawn_blocking(move || configuration.publish(&gate))
+        .await
+        .expect("publication task")
+        .expect("operator publication");
 }
 
 async fn refusal(host: &Host) -> Option<String> {
@@ -240,6 +264,7 @@ async fn operator_bootstrap_qualification_simulation() {
         let mut unsigned = attested_bundle.clone();
         unsigned.attestations.clear();
         assert!(gate.load(&unsigned));
+        publish(host, &gate).await;
         assert_eq!(
             refusal(host).await.as_deref(),
             Some("gateway.qualification.missing")
@@ -247,6 +272,7 @@ async fn operator_bootstrap_qualification_simulation() {
         assert_eq!(host.leases.load(Ordering::SeqCst), 0);
         let before_signature_leases = host.leases.load(Ordering::SeqCst);
         assert!(gate.load(&attested_bundle));
+        publish(host, &gate).await;
         assert_eq!(refusal(host).await, None);
         assert_eq!(host.leases.load(Ordering::SeqCst), 1);
         let after_verified_import_leases = host.leases.load(Ordering::SeqCst);
@@ -254,6 +280,7 @@ async fn operator_bootstrap_qualification_simulation() {
         let position = forged.attestations[0].len() / 2;
         forged.attestations[0][position] ^= 1;
         assert!(gate.load(&forged));
+        publish(host, &gate).await;
         // The untouched second record may remain qualified. A corrupt member
         // cannot enable the record whose attestation was changed.
         if deployment.recipe_family == proposals[0].record().body().tuple.recipe_family {
@@ -261,6 +288,7 @@ async fn operator_bootstrap_qualification_simulation() {
             assert_eq!(host.leases.load(Ordering::SeqCst), 1);
         }
         assert!(gate.load(&attested_bundle));
+        publish(host, &gate).await;
         clock.set(NOW + 13 * HOUR);
         assert_eq!(
             refusal(host).await.as_deref(),
@@ -345,6 +373,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
         Some("gateway.qualification.unavailable")
     );
     assert!(gate.load(&bundle));
+    publish(host, &gate).await;
     assert_eq!(refusal(host).await, None, "a qualified deployment leases");
     assert!(!gate.load(&bundle), "equal inputs are not verified again");
     assert_eq!(gate.status().state, RecipeQualificationState::Qualified);
@@ -383,6 +412,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     let mut expired = bundle.clone();
     expired.revocation_list = release.list(2, after, &[]);
     assert!(gate.load(&expired));
+    publish(host, &gate).await;
     clock.set(after);
     assert_eq!(
         refusal(host).await.as_deref(),
@@ -397,6 +427,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     let last = forged.release_index.len() - 3;
     forged.release_index[last] ^= 1;
     assert!(gate.load(&forged));
+    publish(host, &gate).await;
     assert_eq!(
         refusal(host).await.as_deref(),
         Some("gateway.qualification.unavailable")
@@ -405,6 +436,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     unsigned.release_index.clear();
     unsigned.attestations.clear();
     assert!(gate.load(&unsigned));
+    publish(host, &gate).await;
     assert_eq!(
         refusal(host).await.as_deref(),
         Some("gateway.qualification.unavailable"),
@@ -415,6 +447,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     let mut revoking = bundle.clone();
     revoking.revocation_list = release.list(3, NOW, &[&qualification_id]);
     assert!(gate.load(&revoking));
+    publish(host, &gate).await;
     assert_eq!(
         refusal(host).await.as_deref(),
         Some("gateway.qualification.revoked")
@@ -422,6 +455,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     let mut omitting = bundle.clone();
     omitting.revocation_list = release.list(4, NOW, &[]);
     assert!(gate.load(&omitting));
+    publish(host, &gate).await;
     assert_eq!(
         refusal(host).await.as_deref(),
         Some("gateway.qualification.revoked"),
@@ -434,6 +468,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     );
     assert_eq!(gate.verifier_state().accepted_revocation_sequence, 4);
     assert!(gate.load(&bundle));
+    publish(host, &gate).await;
     assert_eq!(
         refusal(host).await.as_deref(),
         Some("gateway.qualification.revoked"),
@@ -441,8 +476,10 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     );
     assert!(!gate.inputs_usable(), "an older list is not importable");
     assert!(gate.load(&omitting));
+    publish(host, &gate).await;
     assert!(gate.inputs_usable());
     assert!(gate.load(&unsigned));
+    publish(host, &gate).await;
     assert!(
         !gate.inputs_usable(),
         "an unsigned record is not importable"

@@ -73,6 +73,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         &context,
         &connection,
         crate::QualificationPolicy::Optional,
+        [12; 32],
     );
     let effect = compile_mutation_effect(&installed, NOW, &submission.proof, &submission.action)
         .expect("native effect");

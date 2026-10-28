@@ -19,12 +19,12 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/1";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/2";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/1";
+const COMPILER: &str = "auths.gateway-effect-compiler/2";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -69,6 +69,17 @@ impl EffectPolicy {
                 self.epoch,
                 operation.as_str(),
             ))?,
+        )
+    }
+
+    pub(crate) fn configuration_key(
+        &self,
+        namespace: &OperatorNamespace,
+    ) -> Result<[u8; 32], EffectBindingError> {
+        self.validate()?;
+        commitment(
+            "auths.effect-configuration-key/1",
+            &canonical(&(namespace.as_str(), &self.partition, self.epoch))?,
         )
     }
 
@@ -143,6 +154,7 @@ impl EffectPolicy {
         context: &'a TrustedContext,
         connection: &'a ConnectionRecord,
         qualification: QualificationPolicy,
+        configuration: [u8; 32],
     ) -> EffectInstallation<'a> {
         EffectInstallation {
             recipe,
@@ -151,6 +163,7 @@ impl EffectPolicy {
             partition: &self.partition,
             epoch: self.epoch,
             qualification,
+            configuration,
             approver: self.approver,
         }
     }
@@ -257,6 +270,7 @@ pub(crate) fn store_binding_fixture(
         connection: [0; 32],
         credential_generation: 1,
         qualification_policy: "optional".to_owned(),
+        configuration: [0; 32],
         approval_policy: ApprovalPolicy::Exact {
             approver: policy.approver,
         },
@@ -389,6 +403,7 @@ struct BindingWire {
     connection: [u8; 32],
     credential_generation: u64,
     qualification_policy: String,
+    configuration: [u8; 32],
     approval_policy: ApprovalPolicy,
     reservations: Vec<Reservation>,
     protocol: Protocol,
@@ -951,6 +966,8 @@ pub struct EffectInstallation<'a> {
     pub epoch: u64,
     /// Installed recipe qualification requirement.
     pub qualification: QualificationPolicy,
+    /// Exact native commitment to the operator's shared installed configuration.
+    pub configuration: [u8; 32],
     /// Exact human approver key pinned independently by installation policy.
     pub approver: [u8; 32],
 }
@@ -1025,6 +1042,7 @@ fn bind_mutation(
         connection: commitment("auths.effect-installation/1", &connection)?,
         credential_generation: installed.connection.credential_generation().get(),
         qualification_policy: installed.qualification.as_str().to_owned(),
+        configuration: installed.configuration,
         approval_policy: ApprovalPolicy::Exact {
             approver: installed.approver,
         },
@@ -1194,6 +1212,7 @@ mod tests {
             connection: [4; 32],
             credential_generation: 1,
             qualification_policy: "required".to_owned(),
+            configuration: [12; 32],
             approval_policy: ApprovalPolicy::Exact {
                 approver: SigningKey::from_bytes(&[19; 32]).verifying_key().to_bytes(),
             },
@@ -1259,7 +1278,7 @@ mod tests {
     #[test]
     fn every_binding_dimension_changes_identity_without_evading_replay_key() {
         let original = EffectBinding::new(wire()).expect("binding");
-        for dimension in 0..13 {
+        for dimension in 0..14 {
             let mut changed = wire();
             match dimension {
                 0 => changed.action[0] ^= 1,
@@ -1278,6 +1297,7 @@ mod tests {
                 9 => changed.reservations[0].window_index += 1,
                 10 => changed.reservations[0].window_seconds += 1,
                 11 => changed.protocol = Protocol::Mutation { request: [8; 32] },
+                12 => changed.configuration[0] ^= 1,
                 _ => {
                     changed.approval_policy = ApprovalPolicy::Exact {
                         approver: SigningKey::from_bytes(&[20; 32]).verifying_key().to_bytes(),

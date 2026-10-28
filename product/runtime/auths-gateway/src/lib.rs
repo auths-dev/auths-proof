@@ -21,6 +21,7 @@ pub use engine::{
     GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
 };
 mod connection;
+mod configuration;
 mod credential_journal;
 mod echo_verify;
 pub mod effect;

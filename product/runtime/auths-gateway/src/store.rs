@@ -7,7 +7,7 @@
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
 //! insert-once, compare-and-swap, and sweep mechanism over opaque bounded
-//! bytes of five closed kinds: [`FileGatewayAttemptStore`] for one host, and
+//! bytes of six closed kinds: [`FileGatewayAttemptStore`] for one host, and
 //! the multi-host `PostgresLifecycleStore`, whose production qualification is
 //! still open.
 
@@ -970,7 +970,7 @@ fn fence_keys(
     Ok(keys)
 }
 
-/// Durable storage of opaque gateway records of five closed kinds.
+/// Durable storage of opaque gateway records of six closed kinds.
 /// Implementations never interpret the bytes.
 ///
 /// Every implementation must pass the same conformance suite: one winner per
@@ -1141,6 +1141,7 @@ impl FileGatewayAttemptStore {
             GatewayRecordKind::SumSlot => "sum-",
             GatewayRecordKind::Connection => "conn-",
             GatewayRecordKind::CommissioningBudget => "commission-",
+            GatewayRecordKind::EffectConfiguration => "config-",
         };
         format!("{prefix}{}.json", hex::encode(key.as_bytes()))
     }
@@ -1391,7 +1392,7 @@ impl FileGatewayAttemptStore {
 
 /// A record or batch file name this store writes.
 fn valid_file_name(name: &str) -> bool {
-    let Some(rest) = ["claim-", "slot-", "sum-", "conn-", "commission-"]
+    let Some(rest) = ["claim-", "slot-", "sum-", "conn-", "commission-", "config-"]
         .iter()
         .find_map(|prefix| name.strip_prefix(prefix))
     else {

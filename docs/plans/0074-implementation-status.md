@@ -217,13 +217,42 @@ all reservation membership and final native authority under the fence, and
 issuing/consuming a permit only from a new acknowledged transition. The old
 Attempting send path is not represented as compliant final entry.
 
+## Shared configuration checkpoint
+
+- Added the non-expiring shared configuration record and PostgreSQL schema `/7`.
+  Its installed pin covers recipe, trust, effect policy, connection/workload,
+  profile, qualification contract and compiled semantic closure. Bound-effect
+  `/2` and compiler `/2` bind that pin; obsolete binding formats are refused.
+- Trusted installation initializes the record. Explicit native operator review
+  and activation require both candidate identity and the exact prior revision.
+  Activation and qualification publication share the adapter writer fence.
+- Shared qualification memory monotonically retains sequence/time floors and
+  revoked signers/qualifications across restarts and configuration changes.
+  Bounded-set or revision saturation persists denial, never authorization with
+  forgotten entries. Hosts with a different bundle or installation fail closed.
+- Compilation and entry preparation use early shared checks. These are not the
+  final grant transaction. Reserved/EntryGranted, audit facts, reservation
+  membership checks and consumed transport permits remain outstanding.
+- File/PostgreSQL source conformance covers missing state, stale hosts, competing
+  revision tokens, restart, permanent revocation and saturation. These behavioral
+  tests are authored, not executed. Qualification test callers now publish
+  operator reloads explicitly instead of mutating only their process cache.
+- Required artifact generation passed on `4e0f435d` plus this configuration
+  source: `configuration::tests::native_configuration_fixture_is_current`,
+  `vectors::schemas::schema_vectors_are_current` and
+  `vectors::verification::verification_vectors_are_current` (one test each).
+  The native CLI regenerated `effect-approval.json` byte-identically to the
+  binding corpus and compiled the updated binary. Final source-closure generation
+  `semantic_closure::tests::semantic_closure_is_current` passed (one test).
+  These are artifact construction, not adapter race, formal or hosted CI evidence.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | In progress | Finish installed first mutation cutover and native fixtures |
-| P2 | Adapter preparation | Shared configuration, reservation/grant reducer and fenced permit wiring |
+| P2 | Adapter and shared configuration implemented | Reservation/grant reducer and fenced permit wiring |
 | P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 

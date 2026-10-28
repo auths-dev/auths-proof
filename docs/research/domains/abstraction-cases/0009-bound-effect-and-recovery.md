@@ -127,6 +127,7 @@ decision ceilings; tighter installed PostgreSQL deadlines are preserved.
 The source conformance suite orders replacement, insertion and sweep writers
 against a held decision and checks failure atomicity. This source has not yet
 been exercised in hosted CI. The mechanism does not itself interpret effect
-identity, grant entry or establish multi-host revocation freshness. Connecting
-the shared configuration record and one-use grant owner remains P2 work, as
-specified in ADR 0017.
+identity, grant entry or establish multi-host revocation freshness. The shared configuration record now participates in the fence, retains bounded
+permanent qualification memory and requires explicit operator CAS activation.
+Connecting its snapshot to the one-use grant owner remains P2 work, as specified
+in ADR 0017. Early host checks are not final-entry evidence.

@@ -444,6 +444,101 @@ impl GatewayEngine {
         })
     }
 
+    pub(crate) fn shared_configuration(
+        &self,
+    ) -> Result<crate::configuration::SharedConfiguration, &'static str> {
+        let trust = auths_codec::encode_verifier_context(&self.trusted_context)
+            .map_err(|_| "gateway.configuration.unavailable")?;
+        let trust = auths_codec::domain_commitment("auths.gateway-installed-trust/1", &trust)
+            .map_err(|_| "gateway.configuration.unavailable")?;
+        let pin = crate::configuration::digest(
+            "auths.effect-installed-configuration/1",
+            &(
+                self.recipe.digest(),
+                trust.as_bytes(),
+                &self.effect_policy,
+                self.connection.provider().as_str(),
+                self.connection.alias().as_str(),
+                &self.workload_id,
+                self.profile.id().as_str(),
+                self.profile.version(),
+                self.qualification.contract_digest()?,
+                crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
+            ),
+        )?;
+        let key = self
+            .effect_policy
+            .configuration_key(self.recipe.namespace())
+            .map_err(|_| "gateway.configuration.unavailable")?;
+        Ok(crate::configuration::SharedConfiguration::new(
+            self.attempts.store(),
+            key,
+            pin,
+        ))
+    }
+
+    /// Pins operator-validated installation inputs in the shared attempt store.
+    /// Only trusted install/join callers may initialize a missing record. This
+    /// blocks on the store and must run off the async executor.
+    ///
+    /// # Errors
+    /// Refuses unavailable storage or a different already-installed policy.
+    pub fn initialize_effect_configuration(&self) -> Result<(), &'static str> {
+        self.shared_configuration()?.initialize(&self.qualification)
+    }
+
+    /// Returns the private native commitment to this candidate installation.
+    /// This is review data, never permission to replace shared configuration.
+    ///
+    /// # Errors
+    /// Refuses an invalid configuration encoding.
+    pub fn effect_configuration_candidate(&self) -> Result<[u8; 32], &'static str> {
+        Ok(self.shared_configuration()?.candidate())
+    }
+
+    /// Returns a private CAS token for explicit operator configuration review.
+    /// It grants no application or entry authority. This call blocks on storage.
+    ///
+    /// # Errors
+    /// Refuses missing or malformed shared configuration.
+    pub fn effect_configuration_revision(&self) -> Result<[u8; 32], &'static str> {
+        self.shared_configuration()?.current_revision()
+    }
+
+    /// Activates this independently validated installation after an operator
+    /// reviews the exact previous revision. Retains permanent revocation memory.
+    /// This trusted operator API blocks on storage and is absent from app frames.
+    ///
+    /// # Errors
+    /// Refuses a stale review token, corrupt state or persistence failure.
+    pub fn activate_effect_configuration(&self, expected: [u8; 32]) -> Result<(), &'static str> {
+        self.shared_configuration()?
+            .activate(expected, &self.qualification)
+    }
+
+    /// Publishes authenticated qualification changes before reporting an
+    /// operator import/reload successful. This blocks on the shared store.
+    ///
+    /// # Errors
+    /// Refuses a different trust/deployment contract or unavailable persistence.
+    pub fn publish_effect_qualification(
+        &self,
+        gate: &crate::QualificationGate,
+    ) -> Result<(), &'static str> {
+        if gate.contract_digest()? != self.qualification.contract_digest()? {
+            return Err("gateway.configuration.changed");
+        }
+        self.shared_configuration()?.publish(gate)
+    }
+
+    async fn check_effect_configuration(&self) -> Result<(), &'static str> {
+        let configuration = self.shared_configuration()?;
+        let gate = Arc::clone(&self.qualification);
+        tokio::task::spawn_blocking(move || configuration.check(&gate))
+            .await
+            .map_err(|_| "gateway.configuration.unavailable")?
+    }
+
     /// Development builds only: sends provider requests to a plain-HTTP
     /// provider double on `127.0.0.1:port` instead of the approved origin.
     #[cfg(feature = "loopback-provider")]
@@ -1174,6 +1269,9 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        self.check_effect_configuration()
+            .await
+            .map_err(not_entered)?;
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
             Err(SharedConnectionError::Rollback) => {
@@ -1194,6 +1292,7 @@ impl GatewayEngine {
                 &self.trusted_context,
                 loaded.record(),
                 self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
             ),
             now,
             proof,
@@ -1273,6 +1372,7 @@ impl GatewayEngine {
         &self,
         check_authority: impl FnOnce() -> Result<(), &'static str>,
     ) -> Result<PreparedEntry, &'static str> {
+        self.check_effect_configuration().await?;
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
             Err(SharedConnectionError::Rollback) => {
@@ -1466,6 +1566,9 @@ impl SubmitIo for EngineIo<'_> {
                 &self.engine.trusted_context,
                 approved.connection(),
                 self.engine.qualification.policy(),
+                self.engine
+                    .effect_configuration_candidate()
+                    .map_err(not_entered)?,
             ),
             now,
         )?;
@@ -1492,6 +1595,9 @@ impl SubmitIo for EngineIo<'_> {
                 &self.engine.trusted_context,
                 prepared.loaded.record(),
                 self.engine.qualification.policy(),
+                self.engine
+                    .effect_configuration_candidate()
+                    .map_err(not_entered)?,
             ),
             now,
         )
@@ -2188,6 +2294,12 @@ pub(crate) mod tests {
             )
             .await
             .expect("install");
+            let configuration = first.engine.shared_configuration().expect("configuration");
+            let gate = Arc::clone(&first.engine.qualification);
+            tokio::task::spawn_blocking(move || configuration.initialize(&gate))
+                .await
+                .expect("initialize task")
+                .expect("initialize configuration");
             Installation {
                 attempts,
                 connection_id,
