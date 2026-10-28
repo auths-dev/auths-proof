@@ -1125,3 +1125,39 @@ For this source revision, source-closure construction passed with 405 behavioral
 tests filtered out. Semantic inventory 413 advances identity 155/public SDK 152;
 formatting and diff checks passed. This generation step compiled the added tests
 but did not execute them. Hosted validation remains required.
+
+## 32. Installed SDK CI repairs
+
+Separate PR package workflows exposed two failures outside the manually
+triggered aggregate CI. The TypeScript run 40609446491 (on `25f11876`) passed
+contract, unit, native integration and package checks before its public-API
+snapshot comparison failed. The generated declaration digest is
+`511633c7349f202227fd74811351976ca6a4598b03d799c9cf9663cc8fbe8286`, matching the
+local maintained generator. Review against the last snapshot source shows the
+intended optional explicit-audience inputs in self-hosted authoring and the
+corresponding native engine signature; exported names are unchanged. The snapshot
+was regenerated and targeted `npm run test:api` passed, including structural API
+checks. No API check was removed or relaxed.
+
+Python SDK run 40610258030 (on `e4aac48d`) passed source behavior/contracts and
+consumer generation, but setup-python could not supply CPython 3.9 on the moving
+Ubuntu 26.04 runner. The official actions/python-versions manifest has Linux x64
+3.9.25 for Ubuntu 24.04 and all supported 3.9–3.14 minors for that image. The wheel
+build, installed version matrix, typing/API job and installed gateway journey
+now pin Ubuntu 24.04 with matching wheel artifact names. The 3.9 ABI/support floor
+and all supported consumer versions are retained. Source-only 3.12 jobs remain
+on their existing runner. Hosted wheel validation is pending; no local machine
+can qualify a GitHub-hosted image change.
+
+The unfinished provider-read entry changes are preserved separately while these
+repairs are committed. Aggregate CI 40610522194 also failed preflight on a missing test-arm
+semicolon at `task_enrollment/tests.rs`; the statement is corrected without
+changing its assertion. Semantic inventory 414 advances identity 156, public SDK
+153 and evolution 81 for the declaration and gateway source snapshots. Full goal acceptance remains
+open; future evidence checks must inspect the separate PR package workflows as
+well as aggregate CI, with each result attributed to its exact revision.
+
+Targeted gateway library/test Clippy also passed after the observed semicolon
+failure. Source-closure construction passed with 405 other tests filtered out,
+and the semantic inventory regenerated successfully. These narrow repair checks
+are not substitutes for rerun installed-package and full hosted CI results.

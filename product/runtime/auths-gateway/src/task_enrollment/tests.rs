@@ -2103,7 +2103,7 @@ fn concurrent_revocation_and_write_entry_have_one_durable_order() {
     match result {
         Ok(()) => assert_eq!(state["writes"]["entry-write"]["entry"]["stage"], "granted"),
         Err(ReleaseStateError::Inactive) => {
-            assert_eq!(state["writes"]["entry-write"]["entry"]["stage"], "reserved")
+            assert_eq!(state["writes"]["entry-write"]["entry"]["stage"], "reserved");
         }
         other => panic!("entry must have one lock order relative to revocation: {other:?}"),
     }
