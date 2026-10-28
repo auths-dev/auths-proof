@@ -227,7 +227,7 @@ pub(crate) fn approve_driver_fixture(
     )
 }
 
-#[cfg(any(test, feature = "testkit-harness"))]
+#[cfg(test)]
 pub(crate) fn approve_recipe_fixture(
     command: VerifiedCommand,
     recipe: &CompiledRecipe,
@@ -240,7 +240,7 @@ pub(crate) fn approve_recipe_fixture(
     approve_driver_with_plan(command, *recipe.digest(), now, approval, prerequisites)
 }
 
-#[cfg(any(test, feature = "testkit-harness"))]
+#[cfg(test)]
 fn approve_driver_with_plan(
     command: VerifiedCommand,
     recipe_digest: [u8; 32],
@@ -326,7 +326,7 @@ pub(crate) fn fixture_policy() -> Result<EffectPolicy, EffectBindingError> {
 }
 
 /// Store/driver reference data only; never an installed authorization path.
-#[cfg(any(test, feature = "testkit-harness"))]
+#[cfg(test)]
 pub(crate) fn store_binding_fixture(
     request: &ClosedProviderRequest,
     recipe_digest: [u8; 32],

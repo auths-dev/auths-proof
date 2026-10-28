@@ -496,17 +496,14 @@ async fn fresh_matching_read_back_authorizes_the_replacement_write(backend: Back
     assert!(
         matches!(
             result,
-            GatewaySubmitResult::ObservedByProvider {
-                status: Some(200),
-                ..
-            }
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
         ),
         "{result:?}"
     );
     assert_eq!(
         harness.provider.counts(),
-        (1, 2, 3),
-        "one write; the pre-read and the post-write read-back, each under its own lease"
+        (1, 1, 2),
+        "one explicit pre-read and one write; submission performs no implicit read-back"
     );
 }
 
@@ -584,14 +581,37 @@ async fn replaced_in_between_is_authorized_inside_the_documented_window(backend:
     let signed = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
     let result = harness.submit(&signed, NOW + 5).await;
     assert!(
-        matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+        matches!(
+            result,
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
+        ),
         "the fact held at observed_at, not at execution: {result:?}"
     );
     assert_eq!(harness.provider.counts().0, 1);
 }
 
 async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backend: Backend) {
-    let harness = Harness::open(chained_recipe(), backend);
+    let root = signer(h::ROOT_SEED);
+    let observer = GatewayObserver::from_test_seed(h::OBSERVER_SEED);
+    // Both exact tool permissions are installed before the source enters. No
+    // trust rewrite or inherited write authority is used to authorize recovery.
+    let recovery_tool = McpToolCall::new(h::SERVICE, crate::effect::RECOVERY_READ_TOOL, Map::new())
+        .expect("recovery tool");
+    let trust = h::context_for_tools(
+        &root,
+        observer.principal(),
+        NOW,
+        &[call(&Map::new()), recovery_tool],
+    )
+    .expect("write and recovery trust");
+    let harness = Harness::with(
+        chained_recipe(),
+        trust,
+        observer,
+        root,
+        signer(0x22),
+        backend,
+    );
     let first = harness.sign(
         None,
         &harness.arguments(
@@ -644,10 +664,22 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backe
         "step 2 has not entered the provider"
     );
     harness.provider.set_delivery(Delivery::Respond);
-    assert!(matches!(
+    let counts = harness.provider.counts();
+    assert_eq!(
         harness.submit(&first, NOW + 30).await,
-        GatewaySubmitResult::ObservedByProvider { status: None, .. }
-    ));
+        GatewaySubmitResult::Unknown
+    );
+    assert_eq!(
+        harness.provider.counts(),
+        counts,
+        "replay performs no recovery read"
+    );
+    recover_chain_source(&harness, "step-1", "recover-step-1", NOW + 31).await;
+    assert_eq!(
+        harness.provider.counts(),
+        (1, 1, 2),
+        "independently admitted recovery reads once"
+    );
     let bound = signed_bytes(harness.outcome("step-1", NOW + 40).await);
     assert_eq!(stage_of(&bound), "observed-by-provider");
     assert_eq!(
@@ -664,12 +696,145 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backe
         harness
             .submit(&second(&[bound], &commitment), NOW + 50)
             .await,
-        GatewaySubmitResult::ObservedByProvider {
-            status: Some(200),
-            ..
-        }
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
     ));
     assert_eq!(harness.provider.counts().0, 2, "one entry per step");
+}
+
+fn approve_chain_recovery(
+    harness: &Harness,
+    target: &crate::effect::RecoveryReadTarget,
+    operation: &LogicalOperationId,
+    now: u64,
+) -> std::sync::Arc<crate::effect::ApprovedEffect> {
+    use crate::effect::{compile_recovery_acquisition, fixture_policy};
+    use ed25519_dalek::{Signer as _, SigningKey};
+    use std::sync::Arc;
+    let call = target
+        .authorization_call(&harness.recipe, operation)
+        .expect("exact recovery call");
+    let reader = signer(0x44);
+    let grant = h::grant_for_tool(
+        &harness.root,
+        &reader.principal,
+        None,
+        window(now - 1, now + 100),
+        &call,
+    )
+    .expect("independent recovery grant");
+    let signed = submission_for_call_during(
+        &harness.root,
+        &reader,
+        &grant,
+        &call,
+        &[],
+        window(now, now + 60),
+    );
+    let connection = h::fixture_connection(&harness.recipe).expect("connection");
+    let policy = fixture_policy().expect("policy");
+    let installed = policy.installation(
+        &harness.recipe,
+        &harness.context,
+        &connection,
+        crate::QualificationPolicy::Optional,
+        [12; 32],
+    );
+    let effect =
+        compile_recovery_acquisition(&installed, target, now, &signed.proof, &signed.action)
+            .expect("native recovery authority");
+    let key = SigningKey::from_bytes(&[29; 32]);
+    let request = effect
+        .approval_request(now, now + 60)
+        .expect("exact recovery approval request");
+    let signature = key
+        .sign(&request.signing_message().expect("message"))
+        .to_bytes();
+    let approved = Arc::new(
+        effect
+            .approve(
+                request.with_signature(signature),
+                &key.verifying_key().to_bytes(),
+                now,
+            )
+            .expect("native recovery approval"),
+    );
+    approved
+        .validate_for_entry(&installed, now)
+        .expect("fresh native recovery revalidation");
+    approved
+}
+
+/// Native signed recovery, exact approval and the real acquisition journal.
+/// Only the final-entry clock/configuration fence uses the existing test oracle;
+/// provider I/O consumes a real permit and refinement retains source attribution.
+async fn recover_chain_source(harness: &Harness, source: &str, operation: &str, now: u64) {
+    use crate::entry::EntryValidation::Oracle;
+    use std::sync::Arc;
+    let source = LogicalOperationId::parse(source).expect("source");
+    let operation = LogicalOperationId::parse(operation).expect("recovery");
+    let target = harness
+        .store
+        .retained_recovery_target(
+            harness.recipe.namespace(),
+            &source,
+            *harness.recipe.digest(),
+        )
+        .await
+        .expect("retained native source");
+    let approved = approve_chain_recovery(harness, &target, &operation, now);
+    let crate::AcquisitionClaim::Reserved(reserved) = harness
+        .store
+        .claim_recovery(&approved, now, Oracle { now })
+        .await
+        .expect("durable recovery reservation")
+    else {
+        panic!("expected new recovery reservation");
+    };
+    let (granted, permit) = reserved
+        .grant_entry(approved.clone(), Oracle { now }, now)
+        .await
+        .expect("durable recovery entry");
+    let response = harness
+        .provider
+        .acquire_leased(permit)
+        .await
+        .expect("provider read");
+    granted
+        .record_response(response.status, response.version_ok, &response.body, now)
+        .await
+        .expect("recorded provider evidence");
+    let gate = Arc::new(crate::QualificationGate::new(
+        crate::QualificationPolicy::Optional,
+        None,
+        None,
+        Box::new(Arc::new(crate::FixedClock::at(now))),
+        auths_recipe_qualification::VerifierState::default(),
+    ));
+    let report = harness
+        .store
+        .refine_recovery(
+            harness.recipe.namespace(),
+            &source,
+            &operation,
+            *harness.recipe.digest(),
+            gate,
+        )
+        .await
+        .expect("native recovery refinement");
+    assert_eq!(report.disposition, crate::RecoveryDisposition::Recorded);
+    let counts = harness.provider.counts();
+    assert!(
+        matches!(
+            harness
+                .store
+                .claim_recovery(&approved, now, Oracle { now })
+                .await
+                .expect("read replay"),
+            crate::AcquisitionClaim::Existing(_)
+        ),
+        "recovery replay cannot issue another read permit"
+    );
+    assert_eq!(harness.provider.counts(), counts);
 }
 
 async fn self_signed_or_forged_observations_never_satisfy(backend: Backend) {
@@ -917,13 +1082,7 @@ async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_returns_histo
     );
     let first = harness.submit(&within, NOW + 5).await;
     assert!(
-        matches!(
-            first,
-            GatewaySubmitResult::ObservedByProvider {
-                status: Some(200),
-                ..
-            }
-        ),
+        matches!(first, GatewaySubmitResult::ResponseRecorded { status: 200 }),
         "the default window covers a gateway clock 5 s later"
     );
     assert_eq!(harness.provider.counts().0, 1);
@@ -989,7 +1148,7 @@ async fn sdk_action_window_is_cut_to_the_grant_expiry(backend: Backend) {
     assert!(
         matches!(
             harness.submit(&near, NOW + 5).await,
-            GatewaySubmitResult::ObservedByProvider { .. }
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
         ),
         "a grant expiring 10 s later still authorizes the cut [t, t+10] window"
     );
@@ -1176,7 +1335,10 @@ async fn two_of_three_root_authorizes_only_with_two_distinct_roots(backend: Back
             .submit(&submit(operation, &roots, &signing), NOW)
             .await;
         assert!(
-            matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+            matches!(
+                result,
+                GatewaySubmitResult::ResponseRecorded { status: 200 }
+            ),
             "{operation}: {result:?}"
         );
     }
@@ -1418,7 +1580,10 @@ async fn custody_held_observers_satisfy_requirements(backend: Backend) {
         let signed = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
         let result = harness.submit(&signed, NOW + 1).await;
         assert!(
-            matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+            matches!(
+                result,
+                GatewaySubmitResult::ResponseRecorded { status: 200 }
+            ),
             "{custody}: {result:?}"
         );
         assert_eq!(harness.provider.counts().0, 1, "{custody}");
@@ -1471,7 +1636,7 @@ async fn custody_observer_passes_custody_conformance() {
                 assert!(
                     matches!(
                         harness.submit(&signed, NOW + 1).await,
-                        GatewaySubmitResult::ObservedByProvider { .. }
+                        GatewaySubmitResult::ResponseRecorded { status: 200 }
                     ),
                     "{case:?}"
                 );

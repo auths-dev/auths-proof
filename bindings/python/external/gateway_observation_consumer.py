@@ -48,7 +48,7 @@ from auths.gateway import (
     GatewayDenied,
     GatewayEndpoint,
     GatewayIndeterminate,
-    GatewayObservedByProvider,
+    GatewayResponseRecorded,
     GatewayResult,
     GatewaySignedObservation,
 )
@@ -142,6 +142,7 @@ async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
 
 class Journey:
     def __init__(self, setup: dict[str, object], signer: AgentSigner) -> None:
+        self.approval = b""
         self.setup = setup
         self.signer = signer
         self.control = Path(cast(str, setup["control_socket"]))
@@ -232,7 +233,7 @@ class Journey:
             raise AssertionError("the SDK authored a refused replacement")
         before = await self.counts()
         proof, action = self.author_unchecked(command, observation, now)
-        result = await self.client.submit(proof=proof, action=action)
+        result = await self.client.submit(proof=proof, action=action, approval=self.approval)
         assert result == expected, result
         assert await self.counts() == before, "no write and no credential lease"
 
@@ -257,11 +258,18 @@ async def journey(harness: Path, state: Path) -> None:
         proof, action = await run.author(
             run.command("journey-1", "Pending", "Approved"), observed, NOW,
         )
-        written = await run.client.submit(proof=proof, action=action)
-        assert isinstance(written, GatewayObservedByProvider), written
+        # Only the private test control plane issues this fixed-key native oracle approval.
+        response = await _control_response(run.control, {
+            "command": "reference-approval",
+            "proof_b64": base64.urlsafe_b64encode(proof).decode().rstrip("="),
+            "action_b64": base64.urlsafe_b64encode(action).decode().rstrip("="),
+        })
+        run.approval = _bytes(cast(str, response["approval_b64"]))
+        written = await run.client.submit(proof=proof, action=action, approval=run.approval)
+        assert isinstance(written, GatewayResponseRecorded), written
         assert written.status == 200
-        assert await run.counts() == (1, 3), (
-            "one write; the observation, the write, and its read-back each lease"
+        assert await run.counts() == (1, 2), (
+            "one explicit pre-read and one write; no implicit post-write read-back"
         )
 
         await _control(run.control, {
@@ -279,7 +287,7 @@ async def journey(harness: Path, state: Path) -> None:
             run.command("journey-3", "Pending", "Approved"), changed, aged,
             GatewayIndeterminate("observation-missing"),
         )
-        assert await run.counts() == (1, 4), "only the second read-back leased again"
+        assert await run.counts() == (1, 3), "only the second read-back leased again"
     finally:
         process.kill()
         process.wait()

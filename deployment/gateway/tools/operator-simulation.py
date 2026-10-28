@@ -231,8 +231,11 @@ class Operator:
                 and one["credential_held"] and two["credential_held"], "simulation.rotation-diverged")
         self.json("redacted-support", ["support-bundle", "--state-dir", first],
                   env={"AUTHS_SIMULATION_CANARY": self.secret.decode()})
-        self.admin(first, "reobserve", extra=["--operation-id", "simulation-no-such-operation"],
-                   success=False, code="gateway.reobserve.not-observable")
+        # AP074 removed raw re-observation. An operator must author and approve
+        # an independent recovery effect; the obsolete command stays unavailable.
+        self.run("refuse-obsolete-reobserve", ["reobserve", "--state-dir", first,
+                 "--operation-id", "simulation-no-such-operation"], success=False,
+                 code="unrecognized subcommand 'reobserve'")
         tuple_bytes = self.run("deployment-tuple", ["qualification-status", "--state-dir", first, "--tuple"])
         tuple_path = self.work / "tuple.json"
         tuple_path.write_bytes(tuple_bytes)

@@ -134,7 +134,7 @@ impl Prerequisites {
 
     /// Synthetic store/driver oracles have no installed recipe/connection and
     /// make no claim that they bind or authorize actual prerequisite reads.
-    #[cfg(any(test, feature = "testkit-harness"))]
+    #[cfg(test)]
     pub(super) const fn oracle_empty() -> Self {
         Self(Vec::new())
     }

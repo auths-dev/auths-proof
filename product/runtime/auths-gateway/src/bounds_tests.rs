@@ -400,7 +400,7 @@ async fn delegates_share_their_parent_counter() {
     let (writes, _reads, leases) = principals.harness.provider.counts();
     assert_eq!(
         (writes, leases),
-        (2, 4),
+        (2, 2),
         "the exhausted action never leases"
     );
 }
@@ -423,9 +423,8 @@ async fn bounded_hostile_suite(backend: Backend) {
             case.id
         );
         assert_eq!(
-            leases,
-            2 * case.provider_entries,
-            "{}: leases only for an entered write and its read-back",
+            leases, case.provider_entries,
+            "{}: leases only for an entered write; no implicit read-back",
             case.id
         );
     }
@@ -797,8 +796,8 @@ async fn bounded_agent_needs_two_managers_and_stays_inside_its_bound() {
     let (writes, _reads, leases) = quorum.harness.provider.counts();
     assert_eq!(
         (writes, leases),
-        (1, 2),
-        "refused refunds never lease; the entered one leases for its write and read-back"
+        (1, 1),
+        "refused refunds never lease; the entered one leases only for its write"
     );
 }
 
@@ -817,7 +816,7 @@ async fn an_unbounded_actor_is_admitted_without_a_count() {
         assert_eq!(verdict(&result), ("entered", None), "{operation}");
     }
     let (writes, _reads, leases) = quorum.harness.provider.counts();
-    assert_eq!((writes, leases), (2, 4), "no bound, no ceiling, no count");
+    assert_eq!((writes, leases), (2, 2), "no bound, no ceiling, no count");
 }
 
 #[tokio::test]
@@ -856,7 +855,7 @@ async fn one_bounded_branch_is_admitted_and_counted_against_its_actor() {
         "another agent's count is separate"
     );
     let (writes, _reads, leases) = quorum.harness.provider.counts();
-    assert_eq!((writes, leases), (2, 4));
+    assert_eq!((writes, leases), (2, 2));
 }
 
 #[tokio::test]
@@ -1040,7 +1039,7 @@ async fn offline_audit_reproduces_every_gateway_decision() {
         .provider_result
         .as_ref()
         .expect("provider result");
-    assert_eq!(result.stage, "observed-by-provider");
+    assert_eq!(result.stage, "response-recorded");
     assert_eq!(result.http_status, Some(200));
     assert_eq!(
         report.entries[3]

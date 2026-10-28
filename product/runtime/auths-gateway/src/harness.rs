@@ -14,7 +14,6 @@ pub mod authoring;
 use crate::engine::{
     GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, VerifiedCommand,
     gateway_verifier_configuration, observe_outcome, observe_pre_entry, observe_read_back,
-    verify_detailed,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
 use crate::recipe::GuardChecks;
@@ -697,6 +696,16 @@ impl CountingProvider {
         url.rsplit('/').next().unwrap_or_default().to_owned()
     }
 
+    /// Test recovery still needs a journal-issued one-use read permit.
+    #[cfg(test)]
+    pub(crate) async fn acquire_leased(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse> {
+        self.leases.fetch_add(1, Ordering::SeqCst);
+        self.acquire(permit).await
+    }
+
     pub(crate) fn counts(&self) -> (usize, usize, usize) {
         (
             self.writes.load(Ordering::SeqCst),
@@ -763,6 +772,50 @@ impl ProviderPort for CountingProvider {
     }
 }
 
+/// Native connection descriptor shared by the fixed-key submission and recovery
+/// tests. This is not an installed operator credential or production authority.
+pub(crate) fn fixture_connection(
+    recipe: &CompiledRecipe,
+) -> Result<auths_connections::ConnectionRecord, HarnessError> {
+    use auths_connections::{
+        ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionRecord, ConnectionState,
+        ProviderKind, SemanticId,
+    };
+    let descriptor = fixture(
+        crate::GatewayConnectionDescriptor::approve(recipe, "Authorization"),
+        "descriptor",
+    )?;
+    fixture(
+        ConnectionRecord::new(
+            fixture(ProviderKind::parse("airtable"), "provider")?,
+            fixture(ConnectionAlias::parse("synthetic"), "alias")?,
+            fixture(
+                ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA"),
+                "connection",
+            )?,
+            fixture(SemanticId::parse("auths.gateway-operation/1"), "contract")?,
+            fixture(
+                SemanticId::parse("auths.gateway-connection-descriptor/1"),
+                "schema",
+            )?,
+            fixture(descriptor.to_bytes(), "descriptor bytes")?,
+            crate::submit::account_commitment("acct_TESTHARNESS01"),
+            [5; 32],
+            std::num::NonZeroU64::MIN,
+            ConnectionState::Active,
+            vec!["gateway".to_owned()],
+            vec![fixture(
+                ConnectionProfile::new(fixture(SemanticId::parse("auths.mcp"), "profile")?, 2),
+                "profile",
+            )?],
+            0,
+            0,
+            None,
+        ),
+        "connection",
+    )
+}
+
 /// The harness's submission I/O: verification at the harness clock and the
 /// counting provider under a counted lease.
 struct HarnessIo<'a> {
@@ -791,21 +844,37 @@ impl SubmitIo for HarnessIo<'_> {
         now: u64,
         recipe: &CompiledRecipe,
     ) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
-        let command = verify_detailed(
-            &self.harness.recipe,
-            &self.harness.context,
-            now,
-            self.proof,
-            self.action,
-        )?;
-        crate::effect::approve_recipe_fixture(
-            command,
+        let invalid = || crate::engine::not_entered("test.effect.fixture-invalid");
+        let connection = fixture_connection(recipe).map_err(|_| invalid())?;
+        let policy = crate::effect::fixture_policy().map_err(|_| invalid())?;
+        let installed = policy.installation(
             recipe,
-            self.account_commitment()
-                .ok_or_else(|| crate::engine::not_entered("test.account"))?,
-            now,
-            self.approval.clone(),
-        )
+            &self.harness.context,
+            &connection,
+            crate::QualificationPolicy::Optional,
+            [12; 32],
+        );
+        let effect =
+            crate::effect::compile_mutation_effect(&installed, now, self.proof, self.action)?;
+        let key = SigningKey::from_bytes(&[29; 32]);
+        let approval = match &self.approval {
+            Some(approval) => approval.clone(),
+            None => {
+                let request = effect
+                    .approval_request(
+                        now,
+                        now.saturating_add(crate::effect::MAX_EFFECT_APPROVAL_SECONDS),
+                    )
+                    .map_err(|_| invalid())?;
+                let signature = key
+                    .sign(&request.signing_message().map_err(|_| invalid())?)
+                    .to_bytes();
+                request.with_signature(signature)
+            }
+        };
+        effect
+            .approve(approval, &key.verifying_key().to_bytes(), now)
+            .map_err(|_| invalid())
     }
 
     fn revalidate(
@@ -813,12 +882,21 @@ impl SubmitIo for HarnessIo<'_> {
         effect: &crate::effect::ApprovedEffect,
         now: u64,
     ) -> Result<(), GatewaySubmitResult> {
-        let public = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
-            .verifying_key()
-            .to_bytes();
+        let invalid = || crate::engine::not_entered("test.effect.approval");
+        let connection = fixture_connection(&self.harness.recipe).map_err(|_| invalid())?;
+        let policy = crate::effect::fixture_policy().map_err(|_| invalid())?;
         effect
-            .validate_approval(&public, now)
-            .map_err(|_| crate::engine::not_entered("test.effect.approval"))
+            .validate_for_entry(
+                &policy.installation(
+                    &self.harness.recipe,
+                    &self.harness.context,
+                    &connection,
+                    crate::QualificationPolicy::Optional,
+                    [12; 32],
+                ),
+                now,
+            )
+            .map_err(|_| invalid())
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
@@ -851,7 +929,7 @@ impl SubmitIo for HarnessIo<'_> {
     }
 
     fn account_commitment(&self) -> Option<[u8; 32]> {
-        None
+        Some(crate::submit::account_commitment("acct_TESTHARNESS01"))
     }
 
     fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
@@ -1081,6 +1159,11 @@ mod process {
             seconds: u64,
         },
         Counts,
+        /// Fixed-key native approval for this synthetic reference, never a human approval.
+        ReferenceApproval {
+            proof_b64: String,
+            action_b64: String,
+        },
         /// Synthetic reference only, isolated from the application protocol.
         ReferenceReadBack {
             record_id: String,
@@ -1096,6 +1179,8 @@ mod process {
         leases: usize,
         #[serde(skip_serializing_if = "Option::is_none")]
         observation: Option<GatewayObserveResult>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        approval_b64: Option<String>,
     }
 
     struct Application {
@@ -1155,6 +1240,7 @@ mod process {
 
         async fn control(&self, bytes: &[u8]) -> ControlResponse {
             let mut observation = None;
+            let mut approval_b64 = None;
             let ok = match serde_json::from_slice::<Control>(bytes) {
                 Ok(Control::SetRecord { record_id, status }) => {
                     matches!(status.as_str(), "Approved" | "Pending")
@@ -1170,6 +1256,30 @@ mod process {
                             .is_ok()
                 }
                 Ok(Control::Counts) => true,
+                Ok(Control::ReferenceApproval {
+                    proof_b64,
+                    action_b64,
+                }) => {
+                    // The private harness control plane uses the same native
+                    // verifier, compiler and fixed-key approval as Rust tests.
+                    // It cannot turn this oracle into production authority.
+                    approval_b64 = (|| {
+                        let proof = Base64UrlUnpadded::decode_vec(&proof_b64).ok()?;
+                        let action = Base64UrlUnpadded::decode_vec(&action_b64).ok()?;
+                        let now = self.clock.load(Ordering::SeqCst);
+                        let io = super::HarnessIo {
+                            harness: &self.harness,
+                            proof: &proof,
+                            action: &action,
+                            now,
+                            approval: None,
+                        };
+                        let effect =
+                            crate::submit::SubmitIo::verify(&io, now, &self.harness.recipe).ok()?;
+                        Some(encode(&effect.approval().to_private_bytes().ok()?))
+                    })();
+                    approval_b64.is_some()
+                }
                 Ok(Control::ReferenceReadBack { record_id }) => {
                     let arguments = serde_json::Map::from_iter([(
                         "record_id".to_owned(),
@@ -1192,6 +1302,7 @@ mod process {
                 reads: counts.reads,
                 leases: counts.leases,
                 observation,
+                approval_b64,
             }
         }
     }
