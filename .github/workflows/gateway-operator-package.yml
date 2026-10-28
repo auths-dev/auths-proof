@@ -77,8 +77,9 @@ jobs:
           cp bindings/fixtures/gateway/airtable/profile.lock.json target/operator-simulation-kit/
           cp core/fixtures/v1/denied/untrusted-root.context.cbor target/operator-simulation-kit/trusted.context.cbor
           cp bindings/fixtures/gateway/custody-hostile.json target/operator-simulation-kit/
+          cp bindings/fixtures/gateway/effect-policy.json target/operator-simulation-kit/
           cd target/operator-simulation-kit
-          sha256sum operator-simulation.py recipe.json profile.lock.json trusted.context.cbor custody-hostile.json > SHA256SUMS
+          sha256sum operator-simulation.py recipe.json profile.lock.json trusted.context.cbor custody-hostile.json effect-policy.json > SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gateway-operator-simulation-kit

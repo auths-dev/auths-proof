@@ -77,7 +77,7 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/5";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/6";
     /// The directory of the state directory that holds the signed
     /// qualification inputs the operator imported.
     const QUALIFICATION_DIRECTORY: &str = "qualification";
@@ -157,6 +157,16 @@ mod unix {
         reason = "one command is parsed per process"
     )]
     enum Command {
+        /// Emit canonical operator configuration for exact effect approval.
+        /// Supply only the human approver's public key, never a signing key.
+        EffectPolicy {
+            #[arg(long)]
+            partition: String,
+            #[arg(long)]
+            epoch: u64,
+            #[arg(long)]
+            approver_public_key: String,
+        },
         /// Operator-only install; credential bytes enter through stdin. The
         /// first host inserts the shared connection record; each further host
         /// joins it with `--join` and the same secret.
@@ -169,6 +179,9 @@ mod unix {
             profile_lock: PathBuf,
             #[arg(long)]
             trusted_context: PathBuf,
+            /// Canonical operator-selected effect policy (partition, epoch, approver).
+            #[arg(long)]
+            effect_policy: PathBuf,
             #[arg(long)]
             approve_digest: String,
             #[arg(long)]
@@ -459,6 +472,9 @@ mod unix {
             profile_lock: PathBuf,
             #[arg(long)]
             trusted_context: PathBuf,
+            /// Canonical operator-selected effect policy (partition, epoch, approver).
+            #[arg(long)]
+            effect_policy: PathBuf,
             #[arg(long)]
             provider: String,
             #[arg(long)]
@@ -701,6 +717,7 @@ mod unix {
         recipe_digest: String,
         profile_lock_sha256: String,
         trusted_context_sha256: String,
+        effect_policy: auths_gateway::effect::EffectPolicy,
         provider: String,
         alias: String,
         deployment: Deployment,
@@ -926,6 +943,7 @@ mod unix {
                 recipe_digest: self.recipe_digest.clone(),
                 profile_lock_sha256: self.profile_lock_sha256.clone(),
                 trusted_context_sha256: self.trusted_context_sha256.clone(),
+                effect_policy: self.effect_policy.clone(),
                 provider: self.provider.clone(),
                 alias: self.alias.clone(),
                 deployment: self.deployment.label().to_owned(),
@@ -1228,6 +1246,7 @@ mod unix {
         recipe_path: PathBuf,
         lock_path: PathBuf,
         context_path: PathBuf,
+        effect_policy_path: PathBuf,
         approved: String,
         provider_text: String,
         alias_text: String,
@@ -1255,6 +1274,7 @@ mod unix {
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
         let trust = read_bounded(&context_path, 4 * 1024 * 1024)?;
+        let effect_policy = read_effect_policy(&effect_policy_path)?;
         let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.install.invalid-trusted-context")?;
         check_anchor_aliasing(&context).map_err(PrincipalSeparationError::code)?;
@@ -1282,6 +1302,7 @@ mod unix {
             recipe_digest: approved,
             profile_lock_sha256: digest(&lock),
             trusted_context_sha256: digest(&trust),
+            effect_policy,
             provider: provider_text,
             alias: alias_text,
             deployment,
@@ -1840,11 +1861,20 @@ mod unix {
         }
     }
 
+    fn read_effect_policy(
+        path: &Path,
+    ) -> Result<auths_gateway::effect::EffectPolicy, &'static str> {
+        let bytes = read_bounded(path, auths_gateway::effect::MAX_EFFECT_POLICY_BYTES)?;
+        auths_gateway::effect::EffectPolicy::from_private_bytes(&bytes)
+            .map_err(|_| "gateway.install.invalid-effect-policy")
+    }
+
     fn installation(state_dir: &Path) -> Result<Installation, &'static str> {
         let manifest_bytes = read_bounded(&state_dir.join("installation.json"), 4_096)?;
         let manifest: Installation = serde_json::from_slice(&manifest_bytes)
             .map_err(|_| "gateway.serve.invalid-installation")?;
-        if manifest.schema != MANIFEST_SCHEMA
+        if manifest.effect_policy.to_private_bytes().is_err()
+            || manifest.schema != MANIFEST_SCHEMA
             || serde_json_canonicalizer::to_vec(&manifest)
                 .map_err(|_| "gateway.serve.invalid-installation")?
                 != manifest_bytes
@@ -1967,6 +1997,7 @@ mod unix {
             recipe,
             approved,
             &trust,
+            manifest.effect_policy.clone(),
             ProviderKind::parse(manifest.provider.clone())
                 .map_err(|_| "gateway.serve.invalid-provider")?,
             ConnectionAlias::parse(manifest.alias.clone())
@@ -3208,6 +3239,7 @@ mod unix {
         recipe_path: &Path,
         lock_path: &Path,
         context_path: &Path,
+        effect_policy_path: &Path,
         provider: String,
         alias: String,
         deployment: Deployment,
@@ -3231,6 +3263,7 @@ mod unix {
                 recipe_digest: recipe.digest_hex(),
                 profile_lock_sha256: digest(&lock),
                 trusted_context_sha256: digest(&trust),
+                effect_policy: read_effect_policy(effect_policy_path)?,
                 provider,
                 alias,
                 deployment: deployment.label().to_owned(),
@@ -3530,11 +3563,30 @@ mod unix {
     )]
     pub async fn run() -> Result<(), Failure> {
         match Cli::parse().command {
+            Command::EffectPolicy {
+                partition,
+                epoch,
+                approver_public_key,
+            } => {
+                let mut approver = [0_u8; 32];
+                hex::decode_to_slice(&approver_public_key, &mut approver)
+                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                let policy = auths_gateway::effect::EffectPolicy::new(partition, epoch, approver)
+                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                let bytes = policy
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                std::io::stdout()
+                    .write_all(&bytes)
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
             Command::Install {
                 state_dir,
                 recipe,
                 profile_lock,
                 trusted_context,
+                effect_policy,
                 approve_digest,
                 provider,
                 alias,
@@ -3568,6 +3620,7 @@ mod unix {
                     recipe,
                     profile_lock,
                     trusted_context,
+                    effect_policy,
                     approve_digest,
                     provider,
                     alias,
@@ -3798,6 +3851,7 @@ mod unix {
                 recipe,
                 profile_lock,
                 trusted_context,
+                effect_policy,
                 provider,
                 alias,
                 deployment,
@@ -3809,6 +3863,7 @@ mod unix {
                 &recipe,
                 &profile_lock,
                 &trusted_context,
+                &effect_policy,
                 provider,
                 alias,
                 deployment,

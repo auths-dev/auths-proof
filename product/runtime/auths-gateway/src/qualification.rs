@@ -389,6 +389,18 @@ impl QualificationGate {
         self.policy
     }
 
+    /// Samples the existing deployment clock for native effect evaluation.
+    /// Required-policy deployments refuse an untrusted clock. This sample is
+    /// not an entry fence; admission must sample again under its transaction.
+    pub(crate) fn effect_time(&self) -> Option<u64> {
+        if self.policy == QualificationPolicy::Required
+            && self.clock.trust() != ClockTrustState::Trusted
+        {
+            return None;
+        }
+        self.clock.now()
+    }
+
     /// Verifies `bundle` under the pinned root and replaces the verified
     /// result in one step. A bundle equal to the one already held is not
     /// verified again. Returns whether the held result was replaced.

@@ -2,7 +2,7 @@
 //! compilation/approval behavior only; journal and transport evidence is separate.
 
 use super::*;
-use crate::effect::{EffectBinding, EffectInstallation, compile_mutation_effect};
+use crate::effect::{EffectBinding, EffectInstallation, EffectPolicy, compile_mutation_effect};
 use auths_connections::{
     ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionRecord, ConnectionState,
     ProviderKind, SemanticId,
@@ -61,15 +61,19 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     let submission = submission(&root, &agent, &grant, &arguments, &[]);
     let key = SigningKey::from_bytes(&[29; 32]);
     let public = key.verifying_key().to_bytes();
-    let installed = EffectInstallation {
-        recipe: &recipe,
-        context: &context,
-        connection: &connection,
-        partition: "synthetic-partition",
-        epoch: 1,
-        qualification: crate::QualificationPolicy::Optional,
-        approver: public,
-    };
+    let policy = EffectPolicy::new("synthetic-partition".to_owned(), 1, public)
+        .expect("installed effect policy");
+    let policy_bytes = policy.to_private_bytes().expect("policy bytes");
+    assert_eq!(
+        EffectPolicy::from_private_bytes(&policy_bytes).expect("policy"),
+        policy
+    );
+    let installed = policy.installation(
+        &recipe,
+        &context,
+        &connection,
+        crate::QualificationPolicy::Optional,
+    );
     let effect = compile_mutation_effect(&installed, NOW, &submission.proof, &submission.action)
         .expect("native effect");
     let later = compile_mutation_effect(&installed, NOW + 1, &submission.proof, &submission.action)
@@ -131,9 +135,15 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     })).expect("fixture JSON");
     let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/effect-binding.json");
+    let policy_path = fixture_path.with_file_name("effect-policy.json");
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").as_deref() == Some(std::ffi::OsStr::new("1")) {
         std::fs::write(&fixture_path, &fixture).expect("write native fixture");
+        std::fs::write(&policy_path, &policy_bytes).expect("write native policy fixture");
     }
+    assert_eq!(
+        std::fs::read(&policy_path).expect("policy fixture"),
+        *policy_bytes
+    );
     assert_eq!(
         std::fs::read(&fixture_path).expect("native fixture"),
         fixture

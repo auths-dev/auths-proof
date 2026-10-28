@@ -18,8 +18,24 @@ A production deployment keeps three principals apart.
 | Operator | The gateway host, its admin socket, and the provider credentials | A signed operator attestation at install |
 | Observer | The key that signs what the gateway saw, in qualified custody | Observer anchors of the trusted context |
 
+AP074 installations require an explicit effect policy. Generate its canonical
+bytes with native code and the human approver's public Ed25519 key:
+
+```text
+auths-gateway effect-policy --partition <partition> --epoch 1 \
+  --approver-public-key <64-hex-public-key> > effect-policy.json
+```
+
+The policy contains no signing key. Protect it as operator configuration. Never
+choose a new epoch merely because a journal is missing. The same policy must be
+passed to `operator-request` and `install`; the operator signature binds its
+partition, epoch and approver. Installation schema `/6` and operator attestation
+schema `/2` reject the obsolete formats; reinstall disposable prelaunch state.
+This configuration is a foundation for exact-effect approval, not evidence that
+transactional entry fencing has been completed.
+
 A production installation names its operator only through a signed
-`auths.gateway-operator-attestation/1` statement. `operator-request` prints
+`auths.gateway-operator-attestation/2` statement. `operator-request` prints
 the statement for the installation and the preimage the operator's own
 signer signs; the operator assembles the statement, the base64url signature,
 and at most four control-evidence objects into a file of at most 16 KiB,
@@ -27,10 +43,10 @@ readable only by its owner:
 
 ```text
 auths-gateway operator-request --recipe recipe.json --profile-lock profile.lock.json \
-  --trusted-context trusted.context.cbor --provider <provider> --alias <alias> \
+  --trusted-context trusted.context.cbor --effect-policy effect-policy.json --provider <provider> --alias <alias> \
   --deployment production --operator-principal <principal> \
   --principal-method did-key-v1 --verification-method <method> --signature-suite ed25519-v1
-auths-gateway install --deployment production --operator-attestation operator-attestation.json ...
+auths-gateway install --deployment production --effect-policy effect-policy.json --operator-attestation operator-attestation.json ...
 ```
 
 `install` and every `serve` start verify the attestation as the kernel

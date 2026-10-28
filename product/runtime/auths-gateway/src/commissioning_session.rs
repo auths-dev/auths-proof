@@ -91,6 +91,7 @@ impl GatewayEngine {
             recipe_digest: self.recipe.digest_hex(),
             profile_lock_sha256: tuple.profile_lock_sha256.to_hex(),
             trusted_context_sha256: self.trusted_context_sha256.to_hex(),
+            effect_policy: self.effect_policy.clone(),
             provider: self.connection.provider().as_str().to_owned(),
             alias: self.connection.alias().as_str().to_owned(),
             deployment: "production".to_owned(),

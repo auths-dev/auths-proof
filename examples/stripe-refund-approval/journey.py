@@ -463,6 +463,7 @@ def revoke_installed_connection(gateway: str, journey: "Journey", loopback: List
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gateway", required=True, help="auths-gateway binary")
+    parser.add_argument("--effect-policy", type=Path, required=True, help="Operator-installed human approval policy")
     parser.add_argument("--summary", type=Path, help="write the timing and result summary here")
     parser.add_argument("--stripe-test-mode", action="store_true")
     parser.add_argument("--payment-intent", default="pi_mock_journey")
@@ -577,6 +578,8 @@ def main() -> int:
             return journey.run(
                 args.gateway,
                 "install",
+                "--effect-policy",
+                str(args.effect_policy.resolve()),
                 "--state-dir",
                 str(state_dir),
                 "--recipe",

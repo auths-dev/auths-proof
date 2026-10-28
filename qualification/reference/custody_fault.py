@@ -178,7 +178,7 @@ class Faults:
     def kind(self):
         state = self.deployment.gateway / 'refused-plaintext-install'
         require(not state.exists(), 'qualification.custody.directory')
-        arguments = ['install', '--state-dir', state,
+        arguments = ['install', '--effect-policy', self.deployment.gateway / 'effect-policy.json', '--state-dir', state,
             '--recipe', self.deployment.gateway / 'recipe.json',
             '--profile-lock', self.deployment.gateway / 'profile.lock.json',
             '--trusted-context', self.deployment.gateway / 'context-0.cbor',

@@ -67,6 +67,26 @@ No stage is complete merely because types, documentation or a happy path exist.
   projection as offline recipe review. It carries the exact effect identity and
   canonical binding; no binding/UI request reconstruction is needed. Review
   data explicitly contains private content and has a separate 128 KiB limit.
+- Spec hardening committed and pushed as `c75e16ba`: deployment containment,
+  review completeness, concrete fencing requirements, compositional properties,
+  operational recovery and the future delegation boundary.
+- Required operator `EffectPolicy` now pins partition, epoch and approver. The
+  engine constructor validates it; installation `/6` and operator attestation
+  `/2` require and authenticate it. Native `effect-policy` emits canonical
+  configuration; `install` and `operator-request` require `--effect-policy`.
+  `GatewayEngine::compile_effect` reads the installed connection and deployment
+  clock without provider I/O, custody or reservation. Entry fencing and replacing
+  the baseline submission path remain pending.
+- Native fixture generation passed again while producing `effect-policy.json`,
+  including the private-review assertions previously authored but unexecuted.
+  Policy refusal and operator-attestation substitution cases are authored, not
+  yet executed. No hosted workflows have been observed.
+- Maintained install callers now pass explicit policy input. Synthetic operator
+  rehearsal uses the native synthetic fixture; live rehearsal and example
+  journeys require operator-selected policy files. The production reference
+  journey requires `AUTHS_QUALIFICATION_EFFECT_POLICY` before infrastructure or
+  provider work. Live approval-channel integration remains pending; no synthetic
+  approver is installed implicitly into a live journey.
 
 ## Immediate implementation continuation
 
@@ -97,10 +117,11 @@ mechanism remains an explicit open decision in ADR 0017 before P2 cutover.
    source stabilizes. Required hosted workflows have deliberately not been
    observed yet. The draft's current CI is not completion evidence.
 
-The native artifact-generation run last passed for the source subsequently
-committed in `464f0b2a`. The private-review projection changes have source tests
-authored but have not been executed locally. All unfulfilled AP074 gates remain
-open, and the goal remains active.
+The native artifact-generation run last passed for `c75e16ba` plus the installed
+policy source/fixture changes recorded above. It covers native compilation,
+canonical policy/binding, private review and exact approval/revalidation, not
+installed transport or transactional admission. All unfulfilled AP074 gates
+remain open, and the goal remains active.
 
 ## Phase gates
 

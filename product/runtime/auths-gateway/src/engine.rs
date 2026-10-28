@@ -67,6 +67,9 @@ pub enum GatewayEngineConfigurationError {
     /// Independently installed trust is missing or unbounded.
     #[error("gateway trusted context is missing or unbounded")]
     InvalidTrust,
+    /// The independently installed effect policy is malformed or obsolete.
+    #[error("gateway effect policy is invalid")]
+    InvalidEffectPolicy,
     /// The installed recipe differs from the operator-approved digest.
     #[error("gateway recipe approval digest mismatch")]
     UnapprovedRecipe,
@@ -329,6 +332,7 @@ pub struct GatewayAdminStatus {
 /// compare-and-swap without waiting for any submission or provider call.
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
+    effect_policy: crate::effect::EffectPolicy,
     trusted_context: TrustedContext,
     #[cfg(unix)]
     trusted_context_sha256: auths_recipe_qualification::Sha256Digest,
@@ -384,6 +388,7 @@ impl GatewayEngine {
         recipe: CompiledRecipe,
         approved_digest: [u8; 32],
         trusted_context_cbor: &[u8],
+        effect_policy: crate::effect::EffectPolicy,
         provider: ProviderKind,
         alias: ConnectionAlias,
         workload_id: String,
@@ -391,6 +396,9 @@ impl GatewayEngine {
         credentials: Arc<dyn ConnectionCredentialStore>,
         attempts: GatewayAttempts,
     ) -> Result<Self, GatewayEngineConfigurationError> {
+        effect_policy
+            .validate()
+            .map_err(|_| GatewayEngineConfigurationError::InvalidEffectPolicy)?;
         if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
@@ -401,6 +409,7 @@ impl GatewayEngine {
         }
         Ok(Self {
             recipe,
+            effect_policy,
             trusted_context,
             #[cfg(unix)]
             trusted_context_sha256: {
@@ -1147,6 +1156,46 @@ impl GatewayEngine {
             .map_err(|_| "gateway.sweep.unavailable")?;
         self.last_sweep.store(now, Ordering::SeqCst);
         Ok(deleted)
+    }
+
+    /// Compiles an effect against operator-installed trust, approval policy and
+    /// the current shared connection. It reads configuration but performs no
+    /// provider I/O, credential custody or reservation. The resulting review
+    /// remains subject to full fresh admission and entry validation.
+    ///
+    /// # Errors
+    /// Refuses unavailable/rolled-back connection state, an ineligible workload,
+    /// unavailable deployment time, or native compilation failure.
+    pub async fn compile_effect(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let loaded = match self.connection.load().await {
+            Ok(Some(loaded)) => loaded,
+            Err(SharedConnectionError::Rollback) => {
+                return Err(not_entered("gateway.connection.restore-rollback"));
+            }
+            Ok(None) | Err(_) => return Err(not_entered("gateway.connection.unavailable")),
+        };
+        if !authorizes_entry(loaded.record(), &self.workload_id, &self.profile) {
+            return Err(not_entered("gateway.connection.unavailable"));
+        }
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        crate::effect::compile_mutation_effect(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+            ),
+            now,
+            proof,
+            action,
+        )
     }
 
     /// Verifies and attempts one exact action. Only proof and action bytes are
@@ -2008,6 +2057,14 @@ pub(crate) mod tests {
                 recipe,
                 digest,
                 &trust,
+                crate::effect::EffectPolicy::new(
+                    "test-partition".to_owned(),
+                    1,
+                    ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+                        .verifying_key()
+                        .to_bytes(),
+                )
+                .expect("effect policy"),
                 provider(),
                 alias(),
                 "gateway".to_owned(),

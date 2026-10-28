@@ -84,7 +84,7 @@ class Operator:
         return json.loads(self.run(label, args, **kwargs))
 
     def install(self, state, store=None, join=False, secret=None, extra=(), label="install"):
-        args = ["install", "--state-dir", state, "--recipe", self.inputs / "recipe.json",
+        args = ["install", "--effect-policy", self.inputs / "effect-policy.json", "--state-dir", state, "--recipe", self.inputs / "recipe.json",
                 "--profile-lock", self.inputs / "profile.lock.json",
                 "--trusted-context", self.inputs / "trusted.context.cbor",
                 "--approve-digest", self.digest, "--provider", "airtable",
@@ -174,7 +174,7 @@ class Operator:
         private_tree(first, self.uid, self.gid)
         self.json("offline-support", ["support-bundle", "--state-dir", first])
         # These are shipped builds: neither test transport nor plaintext production is allowed.
-        args = ["install", "--state-dir", self.work / "production", "--recipe",
+        args = ["install", "--effect-policy", self.inputs / "effect-policy.json", "--state-dir", self.work / "production", "--recipe",
                 self.inputs / "recipe.json", "--profile-lock", self.inputs / "profile.lock.json",
                 "--trusted-context", self.inputs / "trusted.context.cbor", "--approve-digest",
                 self.digest, "--provider", "airtable", "--alias", "simulation",

@@ -238,7 +238,7 @@ class Operator:
         os.chown(self.app / 'plan.json', self.app_uid, self.gid)
         sdk = json.loads(self.run('installed-consumer-author', self.child('author'), uid=self.app_uid))
         require(sdk['sdk_location'].startswith('/opt/consumer/lib/'), 'live.repository-import')
-        self.run('install', [self.binary, 'install', '--state-dir', self.work / 'state', '--recipe', self.work / 'recipe.json',
+        self.run('install', [self.binary, 'install', '--effect-policy', self.args.effect_policy, '--state-dir', self.work / 'state', '--recipe', self.work / 'recipe.json',
             '--profile-lock', self.work / 'profile.lock.json', '--trusted-context', self.app / 'context.cbor',
             '--approve-digest', review['recipe_digest'], '--provider', 'stripe', '--alias', 'platform-rehearsal',
             '--account-label', platform, '--credential-stdin'], stdin=(self.keys['STRIPE_TEST_RESTRICTED_KEY'] + '\n').encode())
@@ -308,10 +308,12 @@ def main():
         parser.add_argument('--' + name, type=Path)
     parser.add_argument('--commit')
     parser.add_argument('--credential-stdin', action='store_true')
+    parser.add_argument('--effect-policy', type=Path, help='Operator-installed human approval policy')
     args = parser.parse_args()
     try:
         if args.consumer:
             consumer(args); return
+        require(args.effect_policy is not None and args.effect_policy.is_file(), 'live.effect-policy-required')
         operator = Operator(args)
         def interrupted(_signal, _frame):
             raise Refusal('live.interrupted')

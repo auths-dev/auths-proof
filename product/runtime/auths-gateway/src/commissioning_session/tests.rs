@@ -161,6 +161,7 @@ impl Setup {
                     .profile_lock_sha256
                     .to_hex(),
                 trusted_context_sha256: engine.trusted_context_sha256.to_hex(),
+                effect_policy: engine.effect_policy.clone(),
                 provider: engine.connection.provider().as_str().to_owned(),
                 alias: engine.connection.alias().as_str().to_owned(),
                 deployment: "production".to_owned(),

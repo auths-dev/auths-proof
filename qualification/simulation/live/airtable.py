@@ -169,7 +169,7 @@ class Operator:
             raise Refusal('live.airtable-http-' + str(error.code)) from None
 
     def install(self, state, digest, join=False):
-        argv = [self.binary, 'install', '--state-dir', state, '--recipe', self.work / 'recipe.json',
+        argv = [self.binary, 'install', '--effect-policy', self.args.effect_policy, '--state-dir', state, '--recipe', self.work / 'recipe.json',
                 '--profile-lock', self.work / 'profile.lock.json', '--trusted-context', self.app / 'context.cbor',
                 '--approve-digest', digest, '--provider', 'airtable', '--alias', 'live-rehearsal',
                 '--attempt-store', self.work / 'store', '--credential-stdin']
@@ -323,6 +323,7 @@ def main():
     parser.add_argument('--inputs', type=Path)
     parser.add_argument('--wheel', type=Path)
     parser.add_argument('--credential-stdin', action='store_true')
+    parser.add_argument('--effect-policy', type=Path, help='Operator-installed human approval policy')
     parser.add_argument('--base')
     parser.add_argument('--table')
     parser.add_argument('--commit')
@@ -332,6 +333,7 @@ def main():
         if args.consumer:
             consumer(args.consumer, args.consumer_work, args.consumer_socket)
             return
+        require(args.effect_policy is not None and args.effect_policy.is_file(), 'live.effect-policy-required')
         operator = Operator(args)
         def interrupted(_signal, _frame):
             raise Refusal('live.interrupted')

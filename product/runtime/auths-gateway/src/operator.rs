@@ -2,7 +2,7 @@
 //! operator principal.
 //!
 //! A production installation names its operator only through a signed
-//! `auths.gateway-operator-attestation/1` statement, canonical under
+//! `auths.gateway-operator-attestation/2` statement, canonical under
 //! RFC 8785. The signing preimage is the schema, a NUL byte, and the
 //! canonical statement. It starts with lowercase `auths.`, and every core
 //! signing preimage starts with `AUTHS`, so the two can never be equal.
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// The statement's schema and the preimage's domain.
-pub const OPERATOR_ATTESTATION_SCHEMA: &str = "auths.gateway-operator-attestation/1";
+pub const OPERATOR_ATTESTATION_SCHEMA: &str = "auths.gateway-operator-attestation/2";
 /// The largest attestation file accepted.
 pub const MAX_OPERATOR_ATTESTATION_BYTES: usize = 16 * 1024;
 /// The most control-evidence objects an attestation carries.
@@ -73,6 +73,8 @@ pub struct OperatorInstallation {
     pub profile_lock_sha256: String,
     /// SHA-256 of the installed trusted context, lowercase hex.
     pub trusted_context_sha256: String,
+    /// Exact installed replay partition, epoch and human approver policy.
+    pub effect_policy: crate::effect::EffectPolicy,
     /// The provider kind.
     pub provider: String,
     /// The connection alias.
@@ -163,6 +165,7 @@ pub fn verify_operator_attestation(
         serde_json::from_slice(bytes).map_err(|_| OperatorAttestationError::Malformed)?;
     let statement = &file.statement;
     if statement.schema != OPERATOR_ATTESTATION_SCHEMA
+        || statement.installation.effect_policy.validate().is_err()
         || file.evidence.is_empty()
         || file.evidence.len() > MAX_OPERATOR_EVIDENCE
     {
@@ -283,6 +286,14 @@ mod tests {
             recipe_digest: "a".repeat(64),
             profile_lock_sha256: "b".repeat(64),
             trusted_context_sha256: "c".repeat(64),
+            effect_policy: crate::effect::EffectPolicy::new(
+                "operator-test".to_owned(),
+                1,
+                ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+                    .verifying_key()
+                    .to_bytes(),
+            )
+            .expect("effect policy"),
             provider: "stripe".to_owned(),
             alias: "refunds".to_owned(),
             deployment: "production".to_owned(),
@@ -328,7 +339,7 @@ mod tests {
             Ok(operator.principal.clone())
         );
         let preimage = signed.statement.preimage().expect("preimage");
-        assert!(preimage.starts_with(b"auths.gateway-operator-attestation/1\0{"));
+        assert!(preimage.starts_with(b"auths.gateway-operator-attestation/2\0{"));
     }
 
     #[test]
@@ -338,6 +349,27 @@ mod tests {
         let check = |attestation: &OperatorAttestation| {
             verify_operator_attestation(&bytes(attestation), &installation(), NOW)
         };
+
+        let public = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+            .verifying_key()
+            .to_bytes();
+        let other_public = ed25519_dalek::SigningKey::from_bytes(&[30; 32])
+            .verifying_key()
+            .to_bytes();
+        for (partition, epoch, approver) in [
+            ("different", 1, public),
+            ("operator-test", 2, public),
+            ("operator-test", 1, other_public),
+        ] {
+            let mut changed = statement(&operator);
+            changed.installation.effect_policy =
+                crate::effect::EffectPolicy::new(partition.to_owned(), epoch, approver)
+                    .expect("changed policy");
+            assert_eq!(
+                check(&attestation(&operator, changed)),
+                Err(OperatorAttestationError::InstallationMismatch)
+            );
+        }
 
         let mut forged = attestation(&operator, statement(&operator));
         forged.signature_b64 = attestation(&other, statement(&operator)).signature_b64;

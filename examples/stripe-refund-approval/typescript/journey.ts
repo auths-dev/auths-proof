@@ -52,7 +52,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { platform } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -384,6 +384,7 @@ async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       gateway: { type: "string" },
+      "effect-policy": { type: "string" },
       summary: { type: "string" },
       python: { type: "string", default: "python3" },
       "stripe-test-mode": { type: "boolean", default: false },
@@ -394,6 +395,8 @@ async function main(): Promise<void> {
     },
   });
   if (values.gateway === undefined) throw new Error("--gateway PATH/TO/auths-gateway is required");
+  const effectPolicy = values["effect-policy"];
+  if (effectPolicy === undefined) throw new Error("--effect-policy PATH is required");
   const live = values["stripe-test-mode"]!;
   const paymentIntent = values["payment-intent"]!;
   const rejectedPaymentIntent = values["rejected-payment-intent"]!;
@@ -462,7 +465,7 @@ async function main(): Promise<void> {
     const install = (stateDir: string, key: string): SpawnSyncReturns<string> => {
       mkdirSync(stateDir, { mode: 0o700 });
       return journey.run(journey.gateway, [
-        "install", "--state-dir", stateDir, "--recipe", "recipe.json",
+        "install", "--effect-policy", resolve(effectPolicy), "--state-dir", stateDir, "--recipe", "recipe.json",
         "--profile-lock", "profile.lock.json",
         "--trusted-context", join(journey.state, "trust", "gateway.context.cbor"),
         "--approve-digest", facts.recipe_digest, "--provider", "stripe", "--alias", "refunds",

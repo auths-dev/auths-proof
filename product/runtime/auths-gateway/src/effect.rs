@@ -34,6 +34,104 @@ pub const MAX_EFFECT_APPROVAL_SECONDS: u64 = 3_600;
 /// Private human review can contain the exact body and full binding. Public
 /// activity/receipt projections have a different, smaller disclosure contract.
 pub const MAX_PRIVATE_EFFECT_REVIEW_BYTES: usize = 131_072;
+/// Maximum canonical operator effect policy, checked before decoding.
+pub const MAX_EFFECT_POLICY_BYTES: usize = 4_096;
+
+/// Operator-installed replay partition and human approval authority. This is
+/// configuration, never authority supplied by an application submission.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EffectPolicy {
+    schema: String,
+    partition: String,
+    epoch: u64,
+    approver: [u8; 32],
+}
+
+impl fmt::Debug for EffectPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("EffectPolicy { private: [redacted] }")
+    }
+}
+
+impl EffectPolicy {
+    /// Constructs the operator's policy. Epoch changes require deliberate
+    /// operator action; they must never be inferred from a missing journal.
+    ///
+    /// # Errors
+    /// Refuses invalid partitions, epochs and weak or malformed approver keys.
+    pub fn new(
+        partition: String,
+        epoch: u64,
+        approver: [u8; 32],
+    ) -> Result<Self, EffectBindingError> {
+        let policy = Self {
+            schema: "auths.effect-policy/1".to_owned(),
+            partition,
+            epoch,
+            approver,
+        };
+        policy.validate()?;
+        Ok(policy)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), EffectBindingError> {
+        if self.schema != "auths.effect-policy/1" {
+            return Err(EffectBindingError::Unsupported);
+        }
+        if !label(&self.partition)
+            || !(1..=MAX_SAFE_INTEGER).contains(&self.epoch)
+            || VerifyingKey::from_bytes(&self.approver).map_or(true, |key| key.is_weak())
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(())
+    }
+
+    /// Reads a canonical operator policy, with a 4 KiB limit before decoding.
+    ///
+    /// # Errors
+    /// Refuses obsolete, malformed, noncanonical or oversized policy files.
+    pub fn from_private_bytes(bytes: &[u8]) -> Result<Self, EffectBindingError> {
+        if bytes.is_empty() || bytes.len() > MAX_EFFECT_POLICY_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        let policy: Self =
+            serde_json::from_slice(bytes).map_err(|_| EffectBindingError::Invalid)?;
+        policy.validate()?;
+        if policy.to_private_bytes()?.as_slice() != bytes {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(policy)
+    }
+
+    /// Canonical private operator configuration, suitable for installation.
+    ///
+    /// # Errors
+    /// Refuses invalid policy data or an encoding failure.
+    pub fn to_private_bytes(&self) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
+        self.validate()?;
+        canonical(self)
+    }
+
+    pub(crate) fn installation<'a>(
+        &'a self,
+        recipe: &'a CompiledRecipe,
+        context: &'a TrustedContext,
+        connection: &'a ConnectionRecord,
+        qualification: QualificationPolicy,
+    ) -> EffectInstallation<'a> {
+        EffectInstallation {
+            recipe,
+            context,
+            connection,
+            partition: &self.partition,
+            epoch: self.epoch,
+            qualification,
+            approver: self.approver,
+        }
+    }
+}
 
 /// Private audit identity. Do not publish it as a hiding content commitment.
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -839,6 +937,41 @@ fn request_commitment(request: &ClosedProviderRequest) -> Result<[u8; 32], Effec
 mod tests {
     use super::*;
     use ed25519_dalek::{Signer as _, SigningKey};
+
+    #[test]
+    fn installed_policy_is_canonical_bounded_and_never_defaults_authority() {
+        let public = SigningKey::from_bytes(&[29; 32]).verifying_key().to_bytes();
+        let policy = EffectPolicy::new("partition".to_owned(), 1, public).expect("policy");
+        let encoded = policy.to_private_bytes().expect("canonical policy");
+        assert_eq!(
+            EffectPolicy::from_private_bytes(&encoded).expect("policy"),
+            policy
+        );
+        assert!(EffectPolicy::new(String::new(), 1, public).is_err());
+        assert!(EffectPolicy::new("p".repeat(513), 1, public).is_err());
+        assert!(EffectPolicy::new("partition".to_owned(), 0, public).is_err());
+        assert!(EffectPolicy::new("partition".to_owned(), MAX_SAFE_INTEGER + 1, public).is_err());
+        assert!(EffectPolicy::new("partition".to_owned(), 1, [0; 32]).is_err());
+        assert!(EffectPolicy::from_private_bytes(&vec![b' '; 4_097]).is_err());
+        let mut spaced = encoded.to_vec();
+        spaced.push(b'\n');
+        assert!(EffectPolicy::from_private_bytes(&spaced).is_err());
+        let mut duplicate = encoded.to_vec();
+        duplicate.pop();
+        duplicate.extend_from_slice(b",\"epoch\":1}");
+        assert!(EffectPolicy::from_private_bytes(&duplicate).is_err());
+        for field in ["schema", "partition", "epoch", "approver"] {
+            let mut omitted = serde_json::to_value(&policy).expect("value");
+            omitted.as_object_mut().expect("object").remove(field);
+            assert!(EffectPolicy::from_private_bytes(&canonical(&omitted).expect("JSON")).is_err());
+        }
+        let mut obsolete = serde_json::to_value(&policy).expect("value");
+        obsolete["schema"] = serde_json::json!("auths.effect-policy/0");
+        assert_eq!(
+            EffectPolicy::from_private_bytes(&canonical(&obsolete).expect("JSON")),
+            Err(EffectBindingError::Unsupported)
+        );
+    }
 
     fn wire() -> BindingWire {
         BindingWire {

@@ -75,6 +75,7 @@ that lookup. Optional task-free scope has an explicit tag distinct from task sco
 | Journal record / atomic batch | Existing 262,144 bytes / 64 entries |
 | Events / ACK | 64 events per operation / 4,096 canonical bytes per ACK |
 | Exact human approval | 4,096 canonical bytes; at most 3,600 seconds, with exclusive expiry |
+| Installed effect policy | `MAX_EFFECT_POLICY_BYTES`: 4,096 canonical bytes before decoding; partition at most 512 bytes; explicit nonzero safe-integer epoch; valid nonweak Ed25519 approver |
 | Private human review | 131,072 bytes including exact request and binding; never a public receipt |
 | Observation attempts | At most 16 explicitly admitted linked operations |
 | Transaction lock deadline | 5 seconds; sample time after lock; refuse on deadline |
