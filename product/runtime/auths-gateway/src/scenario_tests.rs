@@ -14,7 +14,7 @@
 use crate::engine::{GatewaySubmitResult, VerifiedCommand};
 use crate::harness::{OBSERVER_SEED, ROOT_SEED, Signer, context};
 use crate::pending_vectors::attempts::FILE as SCENARIOS;
-use crate::recipe::GuardChecks;
+use crate::recipe::{GuardChecks, ReadBack};
 use crate::store::BatchCrash;
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::submit::{self, SubmitContext, SubmitIo, account_commitment};
@@ -461,13 +461,13 @@ async fn run<P: ProviderPort>(
     .await
 }
 
-/// Explicit operator mechanics retained as a test oracle while independently
-/// authorized recovery is implemented. This is never an application replay and
-/// establishes no AP074 recovery-authority or bounded-acquisition claim.
+/// Frozen observation mechanics for store/reference conformance only. Shipping
+/// submission cannot call this oracle. It supplies neither native read authority
+/// nor acquisition charges and is not AP074 recovery evidence.
 async fn reobserve_operator<P: ProviderPort>(
     attempts: &GatewayAttempts,
     recipe: &CompiledRecipe,
-    observer: &GatewayObserver,
+    _observer: &GatewayObserver,
     io: &TestIo<'_, P>,
 ) -> Option<GatewaySubmitResult> {
     let request = &io.verified.as_ref().expect("command").request;
@@ -479,18 +479,53 @@ async fn reobserve_operator<P: ProviderPort>(
         )
         .await
         .expect("operator lookup")?;
-    let context = test_context(observer);
-    submit::reobserve(
-        &SubmitContext {
-            recipe,
-            attempts,
-            context: &context,
-            observer: Some(observer),
-        },
-        io,
-        attempt,
-    )
-    .await
+    if !io.reload().await {
+        return None;
+    }
+    let lease = io.lease().await?;
+    let prefix = recipe
+        .guard_checks()
+        .is_none_or(|guard| io.secret_admitted(&lease, &guard));
+    if !submit::lease_checks(recipe, io.provider, prefix, io.account_commitment()).await {
+        return None;
+    }
+    let observation = attempt.observation_request()?;
+    let response = io
+        .action_read(
+            &lease,
+            observation.url(),
+            observation.headers(),
+            observation.maximum_response_bytes(),
+        )
+        .await?;
+    let bytes = response.usable_body()?;
+    let reading = observation.read_back(attempt.echo_token().as_deref(), bytes)?;
+    let status = attempt.snapshot().ok()?.response_status();
+    match reading {
+        ReadBack::EchoMatched => {
+            let snapshot = attempt
+                .record_provider_evidence(bytes, io.clock()?)
+                .await
+                .ok()?;
+            Some(GatewaySubmitResult::ObservedByProvider {
+                status,
+                evidence: snapshot.provider_evidence()?.into(),
+            })
+        }
+        ReadBack::Value { matched } => {
+            let status = status?;
+            attempt.record_observation(matched).await.ok()?;
+            Some(GatewaySubmitResult::Observed { status, matched })
+        }
+        ReadBack::EchoMismatch => {
+            let status = status?;
+            attempt.record_echo_mismatch().await.ok()?;
+            Some(GatewaySubmitResult::Observed {
+                status,
+                matched: false,
+            })
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -788,6 +823,16 @@ async fn run_first_attempt_case(id: &str, backend: Backend) -> (String, usize) {
     } else {
         "response-recorded"
     };
+    if record.recipe.review().has_observation() {
+        let io = TestIo::new(&provider, command.clone());
+        let _ = reobserve_operator(
+            record.store.attempts(),
+            &record.recipe,
+            &record.observer,
+            &io,
+        )
+        .await;
+    }
     (
         format!("{from}->{}", record.describe(&command).await),
         provider.writes(),
@@ -804,7 +849,18 @@ async fn run_resolution_case(id: &str, backend: Backend) -> (String, usize) {
     let mut record = Record::open("airtable", backend);
     let provider = RecordProvider::new(delivery, reading);
     let original = record.airtable(ORIGINAL, "Approved");
-    let first = record.submit(&original, &provider).await;
+    let mut first = record.submit(&original, &provider).await;
+    if id == "fresh-challenge-after-observed-by-provider" {
+        let io = TestIo::new(&provider, original.clone());
+        first = reobserve_operator(
+            record.store.attempts(),
+            &record.recipe,
+            &record.observer,
+            &io,
+        )
+        .await
+        .expect("reference observation");
+    }
     let before = record.describe(&original).await;
     if id == "restart-during-unknown" {
         record.store.restart();
@@ -905,11 +961,31 @@ async fn postgres_record_scenarios_drive_the_counting_provider() {
 }
 
 #[tokio::test]
-async fn normal_write_reaches_observed_by_provider_with_secret_free_evidence() {
+async fn response_requires_a_separate_reference_observation_for_evidence() {
     let record = Record::open("airtable", Backend::File);
     let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
     let command = record.airtable(ORIGINAL, "Approved");
-    let result = record.submit(&command, &provider).await;
+    assert_eq!(
+        record.submit(&command, &provider).await,
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
+    );
+    assert_eq!((provider.writes(), provider.reads()), (1, 0));
+    assert!(
+        record
+            .snapshot(&command)
+            .await
+            .provider_evidence()
+            .is_none()
+    );
+    let io = TestIo::new(&provider, command.clone());
+    let result = reobserve_operator(
+        record.store.attempts(),
+        &record.recipe,
+        &record.observer,
+        &io,
+    )
+    .await
+    .expect("reference observation");
     let snapshot = record.snapshot(&command).await;
     let evidence = snapshot.provider_evidence().expect("evidence");
     let bytes = provider.last_read.lock().expect("last read").clone();
@@ -965,7 +1041,7 @@ async fn a_lost_claim_resends_the_same_idempotency_key() {
     let original = intact.airtable(ORIGINAL, "Approved");
     assert!(matches!(
         intact.submit(&original, &provider).await,
-        GatewaySubmitResult::ObservedByProvider { .. }
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
     ));
     let fresh = intact.airtable(FRESH, "Approved");
     assert_eq!(
@@ -980,7 +1056,7 @@ async fn a_lost_claim_resends_the_same_idempotency_key() {
     };
     assert!(matches!(
         lost.submit(&fresh, &provider).await,
-        GatewaySubmitResult::ObservedByProvider { .. }
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
     ));
     assert_eq!(provider.writes(), 2, "a lost claim no longer stops it");
     assert_eq!(
@@ -1582,7 +1658,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
                 RunStep {
                     operation: Operation::Submit,
                     evidence_comparison: EvidenceComparison::Static {},
-                    expected: expected(RunOutcome::Observed, "observed-by-provider", 2, 1, 1),
+                    expected: expected(RunOutcome::ResponseRecorded, "response-recorded", 1, 1, 0),
                 },
                 RunStep {
                     operation: Operation::Replay,
@@ -1596,10 +1672,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
                             0,
                         )
                     } else {
-                        let mut stored =
-                            expected(RunOutcome::Observed, "observed-by-provider", 0, 0, 0);
-                        stored.verdict.evidence_sha256 = Some(evidence);
-                        stored
+                        expected(RunOutcome::ResponseRecorded, "response-recorded", 0, 0, 0)
                     },
                 },
             ]
@@ -1641,6 +1714,12 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
                     "observed-by-provider".to_owned(),
                     Some(Sha256Digest::try_from(evidence.evidence_digest).expect("evidence")),
                     u32::from(provider.reads() > reads_before),
+                ),
+                GatewaySubmitResult::ResponseRecorded { .. } => (
+                    RunOutcome::ResponseRecorded,
+                    "response-recorded".to_owned(),
+                    None,
+                    0,
                 ),
                 GatewaySubmitResult::Unknown => {
                     (RunOutcome::Unknown, "unknown".to_owned(), None, 0)
@@ -1698,7 +1777,10 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
         let (_, effects) = case
             .execute(&tuple, |index, _| Ok(observations[index].clone()))
             .expect("measured stage");
-        assert_eq!((effects.entered, effects.confirmed_by_read_back), (1, 1));
+        assert_eq!(
+            (effects.entered, effects.confirmed_by_read_back),
+            (1, u32::from(recovering))
+        );
         observations[1].observed.provider_entries += 1;
         assert!(
             case.execute(&tuple, |index, _| Ok(observations[index].clone()))
@@ -1731,7 +1813,7 @@ async fn conformance_claim_exactly_once_and_replay(backend: Backend) {
     let first = record.submit(&original, &provider).await;
     assert!(matches!(
         first,
-        GatewaySubmitResult::ObservedByProvider { .. }
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
     ));
     let before = record.snapshot(&original).await;
     for _ in 0..3 {
@@ -1746,7 +1828,7 @@ async fn conformance_claim_exactly_once_and_replay(backend: Backend) {
             .await,
         Err(GatewayAttemptError::Replay)
     ));
-    assert_eq!((provider.writes(), provider.reads()), (1, 1));
+    assert_eq!((provider.writes(), provider.reads()), (1, 0));
 }
 
 /// Full binding comparison survives restart. Namespace/partition/epoch scope
@@ -1865,7 +1947,7 @@ async fn conformance_fresh_challenge(backend: Backend) {
         .await;
     assert!(matches!(
         first,
-        GatewaySubmitResult::ObservedByProvider { .. }
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
     ));
     assert_eq!(
         record
@@ -1882,7 +1964,7 @@ async fn conformance_fresh_challenge(backend: Backend) {
             crate::engine::not_entered("gateway.effect.operation-conflict")
         );
     }
-    assert_eq!((provider.writes(), provider.reads()), (1, 1));
+    assert_eq!((provider.writes(), provider.reads()), (1, 0));
 }
 
 /// An unknown write is resolved only by a later read-only observation on
@@ -1941,6 +2023,18 @@ async fn conformance_echo_mismatch(backend: Backend) {
     let command = record.airtable(ORIGINAL, "Approved");
     assert_eq!(
         record.submit(&command, &provider).await,
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
+    );
+    let io = TestIo::new(&provider, command.clone());
+    assert_eq!(
+        reobserve_operator(
+            record.store.attempts(),
+            &record.recipe,
+            &record.observer,
+            &io
+        )
+        .await
+        .expect("reference observation"),
         GatewaySubmitResult::Observed {
             status: 200,
             matched: false
@@ -2767,10 +2861,57 @@ async fn native_replay_projection_fixture_is_current() {
     for invalid in &invalid_reserved {
         assert!(serde_json::from_value::<GatewaySubmitResult>(invalid.clone()).is_err());
     }
+    let response_record = Record::open("airtable", Backend::File);
+    let response_provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
+    let response_command = response_record.airtable(ORIGINAL, "Approved");
+    let response_io = TestIo::new(&response_provider, response_command.clone());
+    let response = run(
+        response_record.store.attempts(),
+        &response_record.recipe,
+        &response_record.observer,
+        &response_io,
+    )
+    .await;
+    assert_eq!(
+        response,
+        GatewaySubmitResult::ResponseRecorded { status: 200 }
+    );
+    assert_eq!(response_io.leases(), 1);
+    assert_eq!(
+        (response_provider.writes(), response_provider.reads()),
+        (1, 0)
+    );
+    let response_before = response_record.snapshot(&response_command).await;
+    assert_eq!(
+        response_before.stage(),
+        GatewayAttemptStage::ResponseRecorded
+    );
+    assert!(response_before.provider_evidence().is_none());
+    let response_replay_io = TestIo::new(&response_provider, response_command.clone());
+    assert_eq!(
+        run(
+            response_record.store.attempts(),
+            &response_record.recipe,
+            &response_record.observer,
+            &response_replay_io
+        )
+        .await,
+        response
+    );
+    assert_eq!(response_replay_io.leases(), 0);
+    assert_eq!(
+        (response_provider.writes(), response_provider.reads()),
+        (1, 0)
+    );
+    assert_eq!(
+        response_before,
+        response_record.snapshot(&response_command).await
+    );
     let cases = json!({
         "schema": "auths.gateway-replay-projection-fixture/1",
         "scope": "native synthetic driver and file journal; no installed authority or independent recovery claim",
         "unknown_replay": {"result": replay, "additional_leases": io.leases(), "additional_reads": 0, "additional_writes": 0, "journal_unchanged": true},
+        "response_without_observation": {"result": response, "credential_leases": response_io.leases(), "provider_writes": response_provider.writes(), "provider_reads": response_provider.reads(), "provider_evidence": false, "replay_additional_leases": response_replay_io.leases(), "replay_journal_unchanged": true},
         "unacknowledged_grants": grants,
         "concurrent_replays": {"results": [left, right], "additional_leases": 0, "additional_reads": 0, "additional_writes": 0, "journal_unchanged": true},
         "reserved_decoding": {"valid": valid_reserved, "invalid": invalid_reserved},

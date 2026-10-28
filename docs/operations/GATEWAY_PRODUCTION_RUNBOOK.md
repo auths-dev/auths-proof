@@ -151,6 +151,10 @@ and rebuild authority/connection state under owner review; do not serve old
 operations as fresh. A newly created host without a floor cannot prove that a
 database is current; recover its floors before starting it.
 
+A mutation submission stops after recording its response; it does not perform
+an automatic provider observation. A `response-recorded` result is not a
+confirmation of the intended provider state.
+
 For a response-recorded or unknown operation, author a distinct bounded read
 using `effect-recovery-call`, authorize it through the native MCP flow, review
 it with `effect-review --recovery-of`, and sign its exact approval. Then use

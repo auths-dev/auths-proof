@@ -30,6 +30,7 @@ from auths.gateway import (
     GatewaySignedObservation,
     GatewayUnknown,
     GatewayReserved,
+    GatewayResponseRecorded,
     GatewayIndeterminate,
 )
 
@@ -436,6 +437,7 @@ def test_native_replay_projection_corpus() -> None:
     )
     assert corpus["schema"] == "auths.gateway-replay-projection-fixture/1"
     assert _parse_result(json.dumps(corpus["unknown_replay"]["result"]).encode()) == GatewayUnknown()
+    assert _parse_result(json.dumps(corpus["response_without_observation"]["result"]).encode()) == GatewayResponseRecorded(200)
     expected = [GatewayReserved(1), GatewayUnknown(),
                 GatewayIndeterminate("gateway.attempt.state-unavailable")]
     assert len(corpus["unacknowledged_grants"]) == len(expected)

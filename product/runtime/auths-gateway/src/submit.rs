@@ -12,23 +12,20 @@
 use crate::effect::ApprovedEffect;
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
-use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
+use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES};
 use crate::store::BoundedClaim;
 use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
     ClaimedGatewayAttempt, ClosedCredentialRead, CompiledRecipe, GatewayAttemptError,
-    GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis,
-    ObservableGatewayAttempt, RequestHeader,
+    GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis, RequestHeader,
 };
 use auths_gateway_kernel::order::{
-    AccountResult, CeilingRead, ClaimResult, DeniedResult, Mode, PreEntryResult, Refusal,
-    ResponseRecord, Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, Verification,
-    WriteResult, next_step, start,
+    AccountResult, CeilingRead, ClaimResult, DeniedResult, PreEntryResult, Refusal, ResponseRecord,
+    Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, Verification, WriteResult,
+    next_step, start,
 };
-#[cfg(test)]
-use auths_gateway_kernel::order::{Phase, SubmitState};
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
@@ -257,7 +254,6 @@ struct Run<'a, I: SubmitIo> {
     selected: Vec<SelectedRequirement>,
     claim: Option<ClaimedGatewayAttempt>,
     permit: Option<crate::store::ProviderEntryPermit>,
-    observable: Option<ObservableGatewayAttempt>,
     lease: Option<I::Lease>,
     pre_entry: GatewayPreEntry,
     written: Option<(u16, [u8; 32], Vec<u8>, bool)>,
@@ -278,7 +274,6 @@ impl<'a, I: SubmitIo> Run<'a, I> {
             selected: Vec::new(),
             claim: None,
             permit: None,
-            observable: None,
             lease: None,
             pre_entry: GatewayPreEntry::default(),
             written: None,
@@ -310,34 +305,6 @@ pub(crate) async fn run<I: SubmitIo>(cx: &SubmitContext<'_>, io: &I) -> GatewayS
         .drive(next_step(start(plan(cx.recipe)), SubmitEvent::Start))
         .await;
     state.finish(stop)
-}
-
-/// Runs the operator's read-only re-observation of `attempt`, which
-/// [`GatewayAttempts::resume_observable_operation`] reopened, through the
-/// existing operator step machine: a reload, a fresh lease that passes
-/// every credential check, and one read-back from the stored plan. The
-/// caller has already prepared the entry. Returns the recorded result, or
-/// `None` when the read-back recorded nothing.
-#[cfg(test)]
-pub(crate) async fn reobserve<I: SubmitIo>(
-    cx: &SubmitContext<'_>,
-    io: &I,
-    attempt: ObservableGatewayAttempt,
-) -> Option<GatewaySubmitResult> {
-    let mut state = Run::new(cx, io);
-    state.observable = Some(attempt);
-    let resumed = SubmitState {
-        plan: plan(cx.recipe),
-        phase: Phase::Resume,
-        argument: 0,
-    };
-    match state
-        .drive(next_step(resumed, SubmitEvent::Resume(true)))
-        .await
-    {
-        Stop::Observed => state.result,
-        _ => None,
-    }
 }
 
 impl<I: SubmitIo> Run<'_, I> {
@@ -383,7 +350,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Preparation(valid)
             }
             SubmitAction::Claim => SubmitEvent::Claim(self.claim().await),
-            SubmitAction::Reload(_) => SubmitEvent::Reload(self.io.reload().await),
+            SubmitAction::Reload => SubmitEvent::Reload(self.io.reload().await),
             SubmitAction::ReloadBeforeEntry => {
                 // Counted before the reload, so an admin change committed
                 // after this point is seen by the reload, and one committed
@@ -391,17 +358,17 @@ impl<I: SubmitIo> Run<'_, I> {
                 self.in_flight = Some(InFlight::enter(self.io));
                 SubmitEvent::Reload(self.io.reload().await)
             }
-            SubmitAction::Lease(_) => {
+            SubmitAction::Lease => {
                 self.lease = self.io.lease().await;
                 SubmitEvent::Lease(self.lease.is_some())
             }
-            SubmitAction::CheckPrefix(_) => SubmitEvent::Prefix(match (&self.guard, &self.lease) {
+            SubmitAction::CheckPrefix => SubmitEvent::Prefix(match (&self.guard, &self.lease) {
                 (None, Some(_)) => true,
                 (Some(guard), Some(lease)) => self.io.secret_admitted(lease, guard),
                 (_, None) => false,
             }),
-            SubmitAction::ReadAccount(_) => SubmitEvent::Account(self.read_account().await),
-            SubmitAction::DeniedRead(_, index) => {
+            SubmitAction::ReadAccount => SubmitEvent::Account(self.read_account().await),
+            SubmitAction::DeniedRead(index) => {
                 SubmitEvent::Denied(self.denied_read(usize::from(index)).await)
             }
             SubmitAction::PreEntryRead => SubmitEvent::PreEntry(self.pre_entry_read().await),
@@ -439,7 +406,6 @@ impl<I: SubmitIo> Run<'_, I> {
                 self.in_flight = None;
                 SubmitEvent::Recorded(recorded)
             }
-            SubmitAction::ReadBack(mode) => SubmitEvent::Recorded(self.read_back(mode).await),
             SubmitAction::Stop(_) => SubmitEvent::Start,
         }
     }
@@ -793,13 +759,9 @@ impl<I: SubmitIo> Run<'_, I> {
             .filter(|_| version_ok && (200..300).contains(&status))
             .and_then(|template| template.extract_locator(&body));
         match claim.record_response(status, digest, locator).await {
-            Ok(observable) => {
-                let can_observe = observable.observation_request().is_some();
+            Ok(_) => {
                 self.result = Some(GatewaySubmitResult::ResponseRecorded { status });
-                self.observable = Some(observable);
-                ResponseRecord::Recorded {
-                    observable: can_observe,
-                }
+                ResponseRecord::Recorded
             }
             Err(_) => ResponseRecord::Failed,
         }
@@ -825,84 +787,6 @@ impl<I: SubmitIo> Run<'_, I> {
         recorded
     }
 
-    /// One read-only observation from the stored plan, recording only what
-    /// the stored stage admits. The token comes from the stored commitment,
-    /// never from this submission.
-    async fn read_back(&mut self, _mode: Mode) -> bool {
-        let (Some(lease), Some(attempt)) = (&self.lease, self.observable.take()) else {
-            return false;
-        };
-        let Some(observation) = attempt.observation_request() else {
-            return false;
-        };
-        let Some(bytes) = self
-            .io
-            .action_read(
-                lease,
-                observation.url(),
-                observation.headers(),
-                observation.maximum_response_bytes(),
-            )
-            .await
-            .as_ref()
-            .and_then(ProviderResponse::usable_body)
-            .map(<[u8]>::to_vec)
-        else {
-            return false;
-        };
-        let token = attempt.echo_token();
-        let Some(reading) = observation.read_back(token.as_deref(), &bytes) else {
-            return false;
-        };
-        let Ok(snapshot) = attempt.snapshot() else {
-            return false;
-        };
-        let status = snapshot.response_status();
-        let result = match reading {
-            ReadBack::EchoMatched => {
-                let Some(observed_at) = self.io.clock() else {
-                    return false;
-                };
-                attempt
-                    .record_provider_evidence(&bytes, observed_at)
-                    .await
-                    .ok()
-                    .and_then(|snapshot| {
-                        snapshot.provider_evidence().map(|evidence| {
-                            GatewaySubmitResult::ObservedByProvider {
-                                status,
-                                evidence: evidence.into(),
-                            }
-                        })
-                    })
-            }
-            ReadBack::Value { matched } => match status {
-                Some(status) => attempt
-                    .record_observation(matched)
-                    .await
-                    .ok()
-                    .map(|_| GatewaySubmitResult::Observed { status, matched }),
-                None => None,
-            },
-            ReadBack::EchoMismatch => match status {
-                Some(status) => attempt.record_echo_mismatch().await.ok().map(|_| {
-                    GatewaySubmitResult::Observed {
-                        status,
-                        matched: false,
-                    }
-                }),
-                None => None,
-            },
-        };
-        match result {
-            Some(result) => {
-                self.result = Some(result);
-                true
-            }
-            None => false,
-        }
-    }
-
     fn finish(self, stop: Stop) -> GatewaySubmitResult {
         match stop {
             Stop::Refused => self
@@ -911,14 +795,13 @@ impl<I: SubmitIo> Run<'_, I> {
             Stop::StoreUnavailable | Stop::Stored | Stop::GrantUnavailable => {
                 self.result.unwrap_or_else(unavailable_state)
             }
-            Stop::ClaimRefused | Stop::Response | Stop::Observed => {
+            Stop::ClaimRefused | Stop::Response => {
                 self.result.unwrap_or(GatewaySubmitResult::Unknown)
             }
             Stop::NotEntered => self
                 .refusal
                 .map_or(GatewaySubmitResult::Unknown, not_entered),
             Stop::Unknown | Stop::Halted => GatewaySubmitResult::Unknown,
-            Stop::ReobservationUnrecorded => unavailable_state(),
         }
     }
 }

@@ -403,7 +403,9 @@ uses `recover` with a separately signed native read and exact approval, or
 `recovery-record` with already retained read evidence and no external I/O.
 Application and operator input frames share a bounded native decoder. Redacted
 recovery report `/1` separates read facts, source facts and evidence disposition
-without private content, locators or commitments. The old operator step driver
-is test-only; automatic post-write and ancillary/application reads remain the
-next production cutovers. The native corpus is file-journal mechanism evidence
+without private content, locators or commitments. The old observation mechanics
+remain only as an explicit store-conformance test oracle. The shipping submission
+step machine has no read-back/resume mode: recording a response stops it, and
+observation requires the independent recovery acquisition. Ancillary/application
+reads remain the next production cutovers. The native corpus is file-journal mechanism evidence
 with synthetic entry/response/clock inputs, not installed transport qualification.

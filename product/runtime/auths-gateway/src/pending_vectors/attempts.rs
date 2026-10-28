@@ -8,6 +8,7 @@
 //! (empty when nothing is stored), the refusal code, and the lease, read, and
 //! write counts.
 //!
+//! A response terminates submission with no automatic observation.
 //! `record_cases` retain explicit operator observation mechanics as a reference;
 //! application replay only returns stored state. Neither oracle establishes
 //! independently authorized AP074 recovery. A grant with a lost response remains
@@ -165,13 +166,7 @@ fn plain_response(key: &str, status: u16, body: Value) -> Value {
     setup
 }
 
-const FULL: [&str; 5] = [
-    "reserved",
-    "reserved",
-    "entry-granted",
-    "response-recorded",
-    "observed-by-provider",
-];
+const FULL: [&str; 4] = ["reserved", "reserved", "entry-granted", "response-recorded"];
 const REFUSED_AFTER_BASIS: [&str; 2] = ["reserved", "not-entered"];
 
 fn relative_ceiling_cases() -> Vec<Value> {
@@ -192,7 +187,7 @@ fn relative_ceiling_cases() -> Vec<Value> {
         json!({}),
         &FULL,
         None,
-        &counts(2, 6, 2, 1),
+        &counts(1, 3, 1, 1),
     );
     boundary["basis"] = json!(1001);
     let mut mismatch = scenario(
@@ -328,7 +323,7 @@ fn account_scope_cases() -> Vec<Value> {
         json!({}),
         &FULL,
         None,
-        &counts(2, 6, 2, 1),
+        &counts(1, 3, 1, 1),
     );
     let credential_reads = |requests: &mut Vec<Value>| {
         for path in ["/v1/account", "/v1/customers", "/v1/payouts"] {
@@ -344,13 +339,6 @@ fn account_scope_cases() -> Vec<Value> {
         false,
     ));
     requests.push(stripe_request("POST", "/v1/refunds", true, true));
-    credential_reads(&mut requests);
-    requests.push(stripe_request(
-        "GET",
-        &format!("/v1/refunds/{REFUND}"),
-        true,
-        false,
-    ));
     only_action["requests"] = Value::Array(requests);
     vec![
         scenario(
@@ -399,7 +387,7 @@ fn pre_entry_cases() -> Vec<Value> {
         json!({}),
         &FULL,
         None,
-        &counts(2, 0, 2, 1),
+        &counts(1, 0, 1, 1),
     );
     matching["pre_entry_observations"] = json!(1);
     vec![
@@ -450,7 +438,7 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             json!({"validity_seconds": 86_340}),
             &FULL,
             None,
-            &counts(2, 6, 2, 1),
+            &counts(1, 3, 1, 1),
         ),
         scenario(
             "entry-deadline-exceeded",

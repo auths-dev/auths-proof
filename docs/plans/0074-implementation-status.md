@@ -500,6 +500,36 @@ closure regeneration passed after that correction (one artifact-generation test)
   UI/bindings, generated histories, final formal/release artifacts and hosted CI
   remain required.
 
+## Submission observation cutover checkpoint
+
+- Removed automatic post-write observation from the shared submission order and
+  driver. A recorded response stops with `ResponseRecorded`; unknown transport
+  stays conservative. Removed the obsolete mode enum, resume/read-back phases
+  and actions, and test-only operator entry from the shipping driver.
+- Direct `ObservableGatewayAttempt` observation-writing methods are now
+  crate-private and test-only. The shipping evidence refinement path is the
+  source/read/allocation recovery fence. Retained record/store conformance
+  mechanics request their observation explicitly from a test oracle and make no
+  AP074 read-authority claim.
+- Updated authored scenario stages, credential/read/lease counts and exact
+  request lists, plus measured qualification replay expectations. The generated
+  replay corpus now measures a successful response with one lease, one write,
+  zero provider reads and no evidence; its replay performs no additional I/O
+  and preserves the complete snapshot. Python/TypeScript parity consumers also
+  decode this native response case.
+- Required native replay, attempt-scenario and final semantic-closure artifact
+  construction passed (one exact generator each), on `9f717d39` plus this source.
+  The replay generator exercises the new response/no-read assertions; the
+  scenario generator constructs expected corpus data, not adapter conformance.
+  No broad local suite or hosted CI has been run. Existing installed/harness
+  journeys with automatic-observation expectations still require explicit
+  independent acquisition/approval cutover, so full-suite readiness is not
+  claimed. Generated/translated formal links remain pending. No acceptance
+  gate closes.
+- Next: bound/account prerequisite and application reads, ordered admission,
+  replacement credentials/read-policy limits, disclosure/ACK, maintained
+  consumer/UI cutover and complete installed/fault/formal/CI evidence.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

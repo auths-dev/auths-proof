@@ -318,7 +318,7 @@ test("operator gate refusals remain not-entered with the native code", { skip: p
 test("gateway decodes the native replay and reservation corpus", { skip: process.platform === "win32" }, async () => {
   const corpus = JSON.parse(await readFile(new URL("../../../fixtures/gateway/replay-projection.json", import.meta.url), "utf8"));
   assert.equal(corpus.schema, "auths.gateway-replay-projection-fixture/1");
-  for (const result of [corpus.unknown_replay.result, ...corpus.unacknowledged_grants.map((item) => item.result), ...corpus.reserved_decoding.valid]) {
+  for (const result of [corpus.unknown_replay.result, corpus.response_without_observation.result, ...corpus.unacknowledged_grants.map((item) => item.result), ...corpus.reserved_decoding.valid]) {
     assert.deepEqual(await replyOnce(JSON.stringify(result)), result);
   }
   for (const invalid of corpus.reserved_decoding.invalid) {

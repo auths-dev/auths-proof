@@ -10,16 +10,15 @@
 //! 1. read the clock, verify native authority and exact effect approval, admit
 //!    (with the account-scope binding when declared), and prepare the transport,
 //!    revalidating the approved effect against that installation, storing nothing;
-//! 2. claim the logical operation; a replay goes to one read-only
-//!    re-observation and never to a write;
+//! 2. claim the logical operation; a replay returns retained state without I/O;
 //! 3. reload the connection record, lease the credential, check the prefix,
 //!    the account read, and each denied read;
 //! 4. run the pre-entry re-read and the relative-ceiling read, when declared,
 //!    and record what they read in one checkpoint;
 //! 5. reload the connection record again, refuse entry after the deadline or
 //!    failed fresh authority/approval validation, and send the one write;
-//! 6. record the response or `unknown`, then at most one read-back under a
-//!    fresh lease that passes the same credential checks.
+//! 6. record the response or `unknown`, then stop. Provider observation requires
+//!    a separate approved acquisition and cannot be entered by this machine.
 //!
 //! Every refusal before the claim stores nothing; every refusal after it and
 //! before transport entry records `not-entered` with its code. An event the
@@ -29,17 +28,6 @@
 //! `match` dispatch, no loops, and no standard-library call.
 
 use crate::ratio::relative_ceiling_admits;
-
-/// Why a lease is taken.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Mode {
-    /// The lease for the one write.
-    Entry,
-    /// The lease for the read-back after a recorded response.
-    ReadBack,
-    /// The lease for an explicit operator re-observation.
-    Reobserve,
-}
 
 /// The declarations and verified values the order depends on, fixed before
 /// the machine starts.
@@ -80,18 +68,16 @@ pub enum Phase {
     Prepare,
     /// Awaiting the claim.
     Claim,
-    /// Awaiting an explicit operator re-observation start.
-    Resume,
     /// Awaiting the connection reload before a lease.
-    Reload(Mode),
+    Reload,
     /// Awaiting the credential lease.
-    Lease(Mode),
+    Lease,
     /// Awaiting the prefix guard.
-    Prefix(Mode),
+    Prefix,
     /// Awaiting the account read.
-    Account(Mode),
+    Account,
     /// Awaiting the denied read at this index.
-    Denied(Mode, u8),
+    Denied(u8),
     /// Awaiting the pre-entry re-read.
     PreEntry,
     /// Awaiting the relative-ceiling read.
@@ -112,8 +98,6 @@ pub enum Phase {
     RecordUnknown,
     /// Awaiting the store write of `not-entered`.
     RecordNotEntered,
-    /// Awaiting the read-back.
-    ReadBack(Mode),
     /// Stopped.
     Done,
 }
@@ -218,10 +202,7 @@ pub enum ResponseRecord {
     /// The store write failed.
     Failed,
     /// The response was recorded.
-    Recorded {
-        /// Whether a read-back request exists for it.
-        observable: bool,
-    },
+    Recorded,
 }
 
 /// The result of the action the previous decision named.
@@ -241,8 +222,6 @@ pub enum SubmitEvent {
     Preparation(bool),
     /// The claim result.
     Claim(ClaimResult),
-    /// An explicit operator attempt can be re-observed.
-    Resume(bool),
     /// The connection record is unchanged.
     Reload(bool),
     /// The credential was leased.
@@ -315,16 +294,12 @@ pub enum Stop {
     NotEntered,
     /// The stored record is `entry-granted` or `unknown`.
     Unknown,
-    /// The response is recorded and no read-back transition was.
+    /// The response is recorded; observation requires a separate acquisition.
     Response,
-    /// A read-back recorded its transition.
-    Observed,
     /// An identical replay returned only the matching journal state.
     Stored,
     /// A grant was not acknowledged; only a fresh journal read can report state.
     GrantUnavailable,
-    /// An explicit operator re-observation recorded nothing.
-    ReobservationUnrecorded,
     /// An event the phase does not expect.
     Halted,
 }
@@ -345,15 +320,15 @@ pub enum SubmitAction {
     /// Claim the logical operation.
     Claim,
     /// Reload the connection record before a lease.
-    Reload(Mode),
+    Reload,
     /// Lease the credential.
-    Lease(Mode),
+    Lease,
     /// Check the leased secret's prefix.
-    CheckPrefix(Mode),
+    CheckPrefix,
     /// Run the account read.
-    ReadAccount(Mode),
+    ReadAccount,
     /// Run the denied read at this index.
-    DeniedRead(Mode, u8),
+    DeniedRead(u8),
     /// Run the pre-entry re-read.
     PreEntryRead,
     /// Run the relative-ceiling read.
@@ -374,8 +349,6 @@ pub enum SubmitAction {
     RecordUnknown,
     /// Record `not-entered` with this refusal.
     RecordNotEntered(Refusal),
-    /// Perform one read-only observation and record what it shows.
-    ReadBack(Mode),
     /// Stop.
     Stop(Stop),
 }
@@ -434,17 +407,6 @@ pub const fn not_entered(state: SubmitState, refusal: Refusal) -> SubmitDecision
     )
 }
 
-/// A failed lease-time step: an entry records `not-entered`; a read-back or
-/// re-observation records nothing.
-#[must_use]
-pub const fn lease_failed(state: SubmitState, mode: Mode, refusal: Refusal) -> SubmitDecision {
-    match mode {
-        Mode::Entry => not_entered(state, refusal),
-        Mode::ReadBack => stop(state, Stop::Response),
-        Mode::Reobserve => stop(state, Stop::ReobservationUnrecorded),
-    }
-}
-
 /// After the relative ceiling, or after the pre-entry re-read when no
 /// ceiling is declared: the checkpoint when anything was read, else the
 /// reload before entry.
@@ -477,39 +439,23 @@ pub const fn pre_entry_from(state: SubmitState) -> SubmitDecision {
     }
 }
 
-/// After every credential check passed: the entry's reads, or the one
-/// read-back of a read-back or re-observation lease.
-#[must_use]
-pub const fn after_credentials(state: SubmitState, mode: Mode) -> SubmitDecision {
-    match mode {
-        Mode::Entry => pre_entry_from(state),
-        Mode::ReadBack | Mode::Reobserve => {
-            go(state, Phase::ReadBack(mode), SubmitAction::ReadBack(mode))
-        }
-    }
-}
-
 /// The denied read at `index` when one remains.
 #[must_use]
-pub const fn denied_from(state: SubmitState, mode: Mode, index: u8) -> SubmitDecision {
+pub const fn denied_from(state: SubmitState, index: u8) -> SubmitDecision {
     if index < state.plan.denied_reads {
-        go(
-            state,
-            Phase::Denied(mode, index),
-            SubmitAction::DeniedRead(mode, index),
-        )
+        go(state, Phase::Denied(index), SubmitAction::DeniedRead(index))
     } else {
-        after_credentials(state, mode)
+        pre_entry_from(state)
     }
 }
 
 /// After the prefix guard: the account read when declared.
 #[must_use]
-pub const fn after_prefix(state: SubmitState, mode: Mode) -> SubmitDecision {
+pub const fn after_prefix(state: SubmitState) -> SubmitDecision {
     if state.plan.account_read {
-        go(state, Phase::Account(mode), SubmitAction::ReadAccount(mode))
+        go(state, Phase::Account, SubmitAction::ReadAccount)
     } else {
-        denied_from(state, mode, 0)
+        denied_from(state, 0)
     }
 }
 
@@ -537,11 +483,7 @@ pub const fn pre_claim(state: SubmitState, passed: bool, next: SubmitDecision) -
 #[must_use]
 pub const fn after_claim(state: SubmitState, result: ClaimResult) -> SubmitDecision {
     match result {
-        ClaimResult::Reserved => go(
-            state,
-            Phase::Reload(Mode::Entry),
-            SubmitAction::Reload(Mode::Entry),
-        ),
+        ClaimResult::Reserved => go(state, Phase::Reload, SubmitAction::Reload),
         ClaimResult::Refused => stop(state, Stop::ClaimRefused),
         ClaimResult::Replay => stop(state, Stop::Stored),
         ClaimResult::Unavailable => stop(state, Stop::StoreUnavailable),
@@ -550,36 +492,27 @@ pub const fn after_claim(state: SubmitState, result: ClaimResult) -> SubmitDecis
 
 /// The account read result.
 #[must_use]
-pub const fn after_account(
-    state: SubmitState,
-    mode: Mode,
-    result: AccountResult,
-) -> SubmitDecision {
+pub const fn after_account(state: SubmitState, result: AccountResult) -> SubmitDecision {
     match result {
-        AccountResult::Equal => denied_from(state, mode, 0),
-        AccountResult::Mismatch => lease_failed(state, mode, Refusal::AccountMismatch),
-        AccountResult::Unavailable => lease_failed(state, mode, Refusal::AccountUnavailable),
+        AccountResult::Equal => denied_from(state, 0),
+        AccountResult::Mismatch => not_entered(state, Refusal::AccountMismatch),
+        AccountResult::Unavailable => not_entered(state, Refusal::AccountUnavailable),
     }
 }
 
 /// The result of the denied read at `index`.
 #[must_use]
-pub const fn after_denied(
-    state: SubmitState,
-    mode: Mode,
-    index: u8,
-    result: DeniedResult,
-) -> SubmitDecision {
+pub const fn after_denied(state: SubmitState, index: u8, result: DeniedResult) -> SubmitDecision {
     match result {
         DeniedResult::Refused => {
             if index < state.plan.denied_reads {
-                denied_from(state, mode, index + 1)
+                denied_from(state, index + 1)
             } else {
                 halt(state)
             }
         }
-        DeniedResult::Answered => lease_failed(state, mode, Refusal::CapabilityExcess),
-        DeniedResult::Unavailable => lease_failed(state, mode, Refusal::CapabilityUnavailable),
+        DeniedResult::Answered => not_entered(state, Refusal::CapabilityExcess),
+        DeniedResult::Unavailable => not_entered(state, Refusal::CapabilityUnavailable),
     }
 }
 
@@ -620,36 +553,12 @@ pub const fn after_write(state: SubmitState, result: WriteResult) -> SubmitDecis
     }
 }
 
-/// The response record result: at most one read-back, under a fresh lease.
+/// Recording a response stops the submission without granting observation I/O.
 #[must_use]
 pub const fn after_response(state: SubmitState, record: ResponseRecord) -> SubmitDecision {
     match record {
         ResponseRecord::Failed => stop(state, Stop::Unknown),
-        ResponseRecord::Recorded { observable } => {
-            if observable {
-                go(
-                    state,
-                    Phase::Reload(Mode::ReadBack),
-                    SubmitAction::Reload(Mode::ReadBack),
-                )
-            } else {
-                stop(state, Stop::Response)
-            }
-        }
-    }
-}
-
-/// The read-back result.
-#[must_use]
-pub const fn after_read_back(state: SubmitState, mode: Mode, recorded: bool) -> SubmitDecision {
-    if recorded {
-        stop(state, Stop::Observed)
-    } else {
-        match mode {
-            Mode::Entry => halt(state),
-            Mode::ReadBack => stop(state, Stop::Response),
-            Mode::Reobserve => stop(state, Stop::ReobservationUnrecorded),
-        }
+        ResponseRecord::Recorded => stop(state, Stop::Response),
     }
 }
 
@@ -715,56 +624,42 @@ pub const fn pre_claim_step(state: SubmitState, event: SubmitEvent) -> SubmitDec
 #[must_use]
 pub const fn lease_step(state: SubmitState, event: SubmitEvent) -> SubmitDecision {
     match state.phase {
-        Phase::Resume => match event {
-            SubmitEvent::Resume(resumable) => {
-                if resumable {
-                    go(
-                        state,
-                        Phase::Reload(Mode::Reobserve),
-                        SubmitAction::Reload(Mode::Reobserve),
-                    )
-                } else {
-                    stop(state, Stop::ReobservationUnrecorded)
-                }
-            }
-            _ => halt(state),
-        },
-        Phase::Reload(mode) => match event {
+        Phase::Reload => match event {
             SubmitEvent::Reload(unchanged) => {
                 if unchanged {
-                    go(state, Phase::Lease(mode), SubmitAction::Lease(mode))
+                    go(state, Phase::Lease, SubmitAction::Lease)
                 } else {
-                    lease_failed(state, mode, Refusal::ConnectionChanged)
+                    not_entered(state, Refusal::ConnectionChanged)
                 }
             }
             _ => halt(state),
         },
-        Phase::Lease(mode) => match event {
+        Phase::Lease => match event {
             SubmitEvent::Lease(leased) => {
                 if leased {
-                    go(state, Phase::Prefix(mode), SubmitAction::CheckPrefix(mode))
+                    go(state, Phase::Prefix, SubmitAction::CheckPrefix)
                 } else {
-                    lease_failed(state, mode, Refusal::CredentialUnavailable)
+                    not_entered(state, Refusal::CredentialUnavailable)
                 }
             }
             _ => halt(state),
         },
-        Phase::Prefix(mode) => match event {
+        Phase::Prefix => match event {
             SubmitEvent::Prefix(allowed) => {
                 if allowed {
-                    after_prefix(state, mode)
+                    after_prefix(state)
                 } else {
-                    lease_failed(state, mode, Refusal::ModeGuard)
+                    not_entered(state, Refusal::ModeGuard)
                 }
             }
             _ => halt(state),
         },
-        Phase::Account(mode) => match event {
-            SubmitEvent::Account(result) => after_account(state, mode, result),
+        Phase::Account => match event {
+            SubmitEvent::Account(result) => after_account(state, result),
             _ => halt(state),
         },
-        Phase::Denied(mode, index) => match event {
-            SubmitEvent::Denied(result) => after_denied(state, mode, index, result),
+        Phase::Denied(index) => match event {
+            SubmitEvent::Denied(result) => after_denied(state, index, result),
             _ => halt(state),
         },
         _ => halt(state),
@@ -773,7 +668,7 @@ pub const fn lease_step(state: SubmitState, event: SubmitEvent) -> SubmitDecisio
 
 /// A step between the credential checks and the stop: the entry's reads,
 /// the checkpoint, the reload and deadline before entry, the write, and the
-/// store writes and read-back after it.
+/// store writes after it.
 #[must_use]
 pub const fn entry_step(state: SubmitState, event: SubmitEvent) -> SubmitDecision {
     match state.phase {
@@ -842,10 +737,6 @@ pub const fn entry_step(state: SubmitState, event: SubmitEvent) -> SubmitDecisio
             }
             _ => halt(state),
         },
-        Phase::ReadBack(mode) => match event {
-            SubmitEvent::Recorded(recorded) => after_read_back(state, mode, recorded),
-            _ => halt(state),
-        },
         _ => halt(state),
     }
 }
@@ -863,12 +754,9 @@ pub const fn next_step(state: SubmitState, event: SubmitEvent) -> SubmitDecision
         | Phase::Scope
         | Phase::Prepare
         | Phase::Claim => pre_claim_step(state, event),
-        Phase::Resume
-        | Phase::Reload(_)
-        | Phase::Lease(_)
-        | Phase::Prefix(_)
-        | Phase::Account(_)
-        | Phase::Denied(_, _) => lease_step(state, event),
+        Phase::Reload | Phase::Lease | Phase::Prefix | Phase::Account | Phase::Denied(_) => {
+            lease_step(state, event)
+        }
         Phase::PreEntry
         | Phase::Ceiling
         | Phase::Checkpoint
@@ -878,8 +766,7 @@ pub const fn next_step(state: SubmitState, event: SubmitEvent) -> SubmitDecision
         | Phase::Send
         | Phase::RecordResponse
         | Phase::RecordUnknown
-        | Phase::RecordNotEntered
-        | Phase::ReadBack(_) => entry_step(state, event),
+        | Phase::RecordNotEntered => entry_step(state, event),
         Phase::Done => halt(state),
     }
 }
@@ -940,17 +827,8 @@ mod tests {
             SubmitEvent::Deadline(true),
             SubmitEvent::Granted(true),
             SubmitEvent::Write(WriteResult::Response),
-            SubmitEvent::Response(ResponseRecord::Recorded { observable: true }),
-            SubmitEvent::Reload(true),
-            SubmitEvent::Lease(true),
-            SubmitEvent::Prefix(true),
-            SubmitEvent::Account(AccountResult::Equal),
-            SubmitEvent::Denied(DeniedResult::Refused),
-            SubmitEvent::Denied(DeniedResult::Refused),
-            SubmitEvent::Recorded(true),
+            SubmitEvent::Response(ResponseRecord::Recorded),
         ]);
-        let entry = Mode::Entry;
-        let back = Mode::ReadBack;
         assert_eq!(
             run(STRIPE, &events),
             [
@@ -959,12 +837,12 @@ mod tests {
                 SubmitAction::Admit,
                 SubmitAction::Prepare,
                 SubmitAction::Claim,
-                SubmitAction::Reload(entry),
-                SubmitAction::Lease(entry),
-                SubmitAction::CheckPrefix(entry),
-                SubmitAction::ReadAccount(entry),
-                SubmitAction::DeniedRead(entry, 0),
-                SubmitAction::DeniedRead(entry, 1),
+                SubmitAction::Reload,
+                SubmitAction::Lease,
+                SubmitAction::CheckPrefix,
+                SubmitAction::ReadAccount,
+                SubmitAction::DeniedRead(0),
+                SubmitAction::DeniedRead(1),
                 SubmitAction::CeilingRead,
                 SubmitAction::RecordCheckpoint,
                 SubmitAction::ReloadBeforeEntry,
@@ -972,14 +850,7 @@ mod tests {
                 SubmitAction::GrantEntry,
                 SubmitAction::Send,
                 SubmitAction::RecordResponse,
-                SubmitAction::Reload(back),
-                SubmitAction::Lease(back),
-                SubmitAction::CheckPrefix(back),
-                SubmitAction::ReadAccount(back),
-                SubmitAction::DeniedRead(back, 0),
-                SubmitAction::DeniedRead(back, 1),
-                SubmitAction::ReadBack(back),
-                SubmitAction::Stop(Stop::Observed),
+                SubmitAction::Stop(Stop::Response),
             ]
         );
     }
@@ -1040,7 +911,7 @@ mod tests {
         assert!(
             !actions
                 .iter()
-                .any(|action| matches!(action, SubmitAction::Lease(_) | SubmitAction::ReadBack(_)))
+                .any(|action| matches!(action, SubmitAction::Lease))
         );
         assert_eq!(actions.last(), Some(&SubmitAction::Stop(Stop::Stored)));
         let refused = run(

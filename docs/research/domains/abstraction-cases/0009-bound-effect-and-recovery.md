@@ -234,3 +234,20 @@ recording, source attribution/charge retention and report privacy. It also freez
 the closed replacement operator-frame grammar. These are native file-journal
 results with synthetic response, clock and entry validation; independent process,
 installed transport, PostgreSQL and final differential evidence are still needed.
+
+
+## Submission and independent observation boundary
+
+Mutation submission now ends at a recorded response or conservative unknown
+outcome. The shared order leaf contains no automatic read-back, observation
+lease mode or operator resume entry. The driver cannot promote a response into
+provider evidence. Historical observation-writing helpers are crate-private and
+compiled only for tests; the shipping recovery fence owns evidence refinement.
+
+The retained record/store oracle requests observation explicitly and makes no
+AP074 acquisition-authority claim. The native replay corpus separately measures
+one response-producing write with one lease and zero provider reads, no provider
+evidence, and a replay that adds no I/O or journal revision. The scenario corpus
+removes the former second lease, repeated credential checks and post-write read.
+Installed journeys, ancillary read admission and final translated/refinement
+artifacts remain required before this boundary has complete acceptance evidence.

@@ -10,6 +10,18 @@
     "additional_writes": 0,
     "journal_unchanged": true
   },
+  "response_without_observation": {
+    "result": {
+      "outcome": "response-recorded",
+      "status": 200
+    },
+    "credential_leases": 1,
+    "provider_writes": 1,
+    "provider_reads": 0,
+    "provider_evidence": false,
+    "replay_additional_leases": 0,
+    "replay_journal_unchanged": true
+  },
   "unacknowledged_grants": [
     {
       "ambiguous_ack": false,

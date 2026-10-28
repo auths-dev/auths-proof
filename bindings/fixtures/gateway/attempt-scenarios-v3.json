@@ -192,13 +192,12 @@
         "reserved",
         "reserved",
         "entry-granted",
-        "response-recorded",
-        "observed-by-provider"
+        "response-recorded"
       ],
       "code": null,
-      "leases": 2,
+      "leases": 1,
       "credential_reads": 0,
-      "action_reads": 2,
+      "action_reads": 1,
       "provider_entries": 1,
       "pre_entry_observations": 1
     },
@@ -277,13 +276,12 @@
         "reserved",
         "reserved",
         "entry-granted",
-        "response-recorded",
-        "observed-by-provider"
+        "response-recorded"
       ],
       "code": null,
-      "leases": 2,
-      "credential_reads": 6,
-      "action_reads": 2,
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
       "provider_entries": 1,
       "basis": 1001
     },
@@ -605,13 +603,12 @@
         "reserved",
         "reserved",
         "entry-granted",
-        "response-recorded",
-        "observed-by-provider"
+        "response-recorded"
       ],
       "code": null,
-      "leases": 2,
-      "credential_reads": 6,
-      "action_reads": 2,
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
       "provider_entries": 1,
       "requests": [
         {
@@ -653,38 +650,6 @@
           "stripe_account": "acct_TESTACCOUNT01",
           "idempotency_key": true,
           "credential": true
-        },
-        {
-          "method": "GET",
-          "path": "/v1/account",
-          "stripe_version": "2025-03-31.basil",
-          "stripe_account": null,
-          "idempotency_key": false,
-          "credential": true
-        },
-        {
-          "method": "GET",
-          "path": "/v1/customers",
-          "stripe_version": "2025-03-31.basil",
-          "stripe_account": null,
-          "idempotency_key": false,
-          "credential": true
-        },
-        {
-          "method": "GET",
-          "path": "/v1/payouts",
-          "stripe_version": "2025-03-31.basil",
-          "stripe_account": null,
-          "idempotency_key": false,
-          "credential": true
-        },
-        {
-          "method": "GET",
-          "path": "/v1/refunds/re_TEST0000000001",
-          "stripe_version": "2025-03-31.basil",
-          "stripe_account": "acct_TESTACCOUNT01",
-          "idempotency_key": false,
-          "credential": true
         }
       ]
     },
@@ -711,13 +676,12 @@
         "reserved",
         "reserved",
         "entry-granted",
-        "response-recorded",
-        "observed-by-provider"
+        "response-recorded"
       ],
       "code": null,
-      "leases": 2,
-      "credential_reads": 6,
-      "action_reads": 2,
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
       "provider_entries": 1
     },
     {

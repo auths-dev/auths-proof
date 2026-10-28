@@ -2676,8 +2676,9 @@ impl ProviderEntryPermit {
     }
 }
 
-/// A stored attempt that may be advanced only by a separate read-only
-/// observation, never by another write.
+/// A protected view of a stored attempt and its observation contract.
+/// Production refinement requires independently acquired evidence through
+/// the recovery fence; this view grants no provider or journal-entry capability.
 pub struct ObservableGatewayAttempt {
     attempt: Attempt,
 }
@@ -2727,7 +2728,8 @@ impl ObservableGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure retains only the recorded response.
-    pub async fn record_observation(
+    #[cfg(test)]
+    pub(crate) async fn record_observation(
         self,
         matched: bool,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
@@ -2742,7 +2744,10 @@ impl ObservableGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure retains only the recorded response.
-    pub async fn record_echo_mismatch(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+    #[cfg(test)]
+    pub(crate) async fn record_echo_mismatch(
+        self,
+    ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
         next.state.stage = GatewayAttemptStage::Observed;
         next.state.observation_match = Some(false);
@@ -2757,7 +2762,8 @@ impl ObservableGatewayAttempt {
     /// # Errors
     /// Rejects a recipe without echo, empty or oversized evidence, and
     /// persistence failure.
-    pub async fn record_provider_evidence(
+    #[cfg(test)]
+    pub(crate) async fn record_provider_evidence(
         self,
         evidence: &[u8],
         observed_at: u64,

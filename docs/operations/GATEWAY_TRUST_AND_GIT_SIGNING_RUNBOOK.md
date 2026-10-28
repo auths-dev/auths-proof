@@ -86,6 +86,9 @@ auths-gateway recovery-record --state-dir <private-state> \
   --source-operation <retained-operation> --acquisition-operation <new-read-operation>
 ```
 
+Mutation submission records the response and stops without a provider read-back.
+It cannot report newly observed provider state from the write response alone.
+
 `recover` performs the independently authorized read and then attempts evidence
 refinement. `recovery-record` only uses an already retained acquisition response;
 it performs no credential or provider I/O. The original writer's expired proof
