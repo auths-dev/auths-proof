@@ -182,13 +182,48 @@ remain open, and the goal remains active.
   observation path must be replaced by independently authorized bounded recovery;
   the updated reference cases do not establish that future contract.
 
+## P2 fence preparation
+
+The concrete fence design is recorded in ADR 0017 before entry behavior changes.
+File and PostgreSQL adapters now expose one bounded snapshot-and-replace
+operation. All PostgreSQL gateway mutations acquire the same table-scoped
+advisory transaction lock, including connection updates and allocation sweeps.
+File locking uses the existing shared writer lock with bounded acquisition.
+The native decision runs once under that lock, before durable replacement; a
+callback failure, deadline or ambiguous commit returns no acknowledgement.
+The API cannot itself issue an entry permit.
+
+Read sets are bounded to 64 distinct records with a non-expiring first target.
+File reads use lock-held helpers to avoid recursive lock acquisition.
+PostgreSQL uses READ COMMITTED snapshots after acquiring the lock, retains
+sorted batch insertion and explicitly commits replacements and sweeps. Two-second
+lock/decision bounds preserve tighter installed SQL timeouts; sub-millisecond
+pool values are rejected instead of rounding to disabled timeouts.
+
+The shared conformance source now races each of replacement, insertion and
+sweeping against a held fence, checks the next snapshot sees the predecessor,
+and checks a refused decision preserves the target and is never retried.
+These tests are authored but not executed. Required semantic-closure artifact
+generation passed after fixing an error-type inference ambiguity introduced by
+the store error conversion; it compiles the source but does not exercise these
+adapter races. Final regeneration after the millisecond-bound correction also
+passed: `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact semantic_closure::tests::semantic_closure_is_current` (one artifact-generation
+test), on `96e47805` plus this fence source. This is compilation/artifact evidence,
+not execution of file/PostgreSQL conformance or final-entry behavior.
+
+Remaining P2 work: shared configuration/revocation record and every writer's
+participation, Reserved/EntryGranted reducer and immutable audit event, checking
+all reservation membership and final native authority under the fence, and
+issuing/consuming a permit only from a new acknowledged transition. The old
+Attempting send path is not represented as compliant final entry.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | In progress | Finish installed first mutation cutover and native fixtures |
-| P2 | Pending | Explicit reservation/grant reducer, atomic fencing, both adapters |
+| P2 | Adapter preparation | Shared configuration, reservation/grant reducer and fenced permit wiring |
 | P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 

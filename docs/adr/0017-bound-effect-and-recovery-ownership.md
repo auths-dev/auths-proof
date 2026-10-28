@@ -52,8 +52,10 @@ alone do not establish the multi-process order.
 Before the durable mutation cutover, this ADR must record the implemented file
 lock and PostgreSQL transaction scopes, lock order, versioned dependency records,
 configuration/revocation writer participation, after-lock clock sampling,
-verification deadlines and durable acknowledgement. This adapter design is
-still open. The present attempt CAS and connection reload do not satisfy it.
+verification deadlines and durable acknowledgement. The P2 design below fixes
+that mechanism; its source implementation alone does not satisfy final entry
+until the shared configuration record and grant owner are connected. The present
+attempt CAS and connection reload do not satisfy it.
 Cross-store state requires demonstrated fencing; unsupported atomicity fails
 closed. Capacity reserved earlier is checked for intact conservation at grant,
 not allocated a second time.
@@ -119,3 +121,59 @@ its new binding/scope cases have not yet been executed on hosted CI.
 This cutover does not replace `Attempting` with a durable entry grant, provide a
 configuration fence, or finish independent recovery authority. Those remain the
 explicit P2 requirements above.
+
+## P2 adapter fence design
+
+The gateway keeps lifecycle interpretation in its existing transition owner.
+The adapter adds one mechanism: read a bounded set of records under the common
+writer fence, invoke one bounded in-process decision, and durably replace the
+first record before returning. The decision receives opaque snapshots, performs
+no provider, custody or nested store I/O, and returns only the replacement bytes.
+The adapter calls it at most once and never retries a failed/ambiguous commit.
+The gateway alone interprets those bytes and may consume a newly acknowledged
+`Reserved -> EntryGranted` transition to construct one non-cloneable permit.
+Reading `EntryGranted` from disk cannot construct that permit.
+
+File scope is the existing host-wide `.replace.lock`. Every insert, batch,
+replacement, sweep and fenced decision uses it; fenced snapshots use lock-held
+read helpers instead of acquiring the lock recursively. Acquisition uses
+nonblocking flock attempts with a two-second deadline. The decision's work is
+bounded by the native input limits and a two-second elapsed deadline; the store
+checks the deadline before publication. Atomic replacement uses synced temporary
+bytes, rename and directory sync. A failure after publication returns no permit;
+the surviving grant prevents reminting after restart. OS scheduling and storage
+sync are trusted platform operations, not preemptible hard real-time guarantees.
+
+PostgreSQL scope is an advisory transaction lock keyed by the qualified gateway
+record table's OID and a fixed gateway domain. All gateway insert, replacement
+and expiry-sweep writers acquire it before row work; this includes connection
+revocation and credential rotation. Row insertion retains sorted key order.
+The fence uses READ COMMITTED: snapshots are loaded only after the advisory lock
+is acquired, so a committed predecessor is visible. Local lock, statement and
+idle-transaction timeouts bound database waits and preserve any tighter installed
+pool timeout; values below SQL's millisecond precision are rejected rather than
+silently disabling a deadline. The same two-second decision
+limit applies before UPDATE and COMMIT. COMMIT must acknowledge durability before
+the caller receives success. Pool failures, serialization errors, timeouts and
+ambiguous commits return no permit. No transaction spans credential access or a
+provider call. Shared-store throughput is deliberately serialized initially;
+partitioned locks require later evidence for shared-budget and configuration
+interactions, not an opportunistic optimization.
+
+The final decision's bounded read set must contain the attempt, its connection,
+the shared installed-configuration/revocation record and every reserved counter
+slot. The native owner samples the deployment clock after obtaining those
+snapshots, revalidates the original proof, exact approval and current policy,
+checks pinned configuration/revocation and intact reservation membership, then
+records the grant and audit event in the same attempt replacement. Reserved
+slots become consumed by the grant stage, without allocating or charging them
+twice. Unsupported split-store installations fail closed.
+
+A new shared configuration record must pin recipe/compiler, trust context,
+operator effect policy and qualification/revocation versions. Installation,
+qualification refresh and operator configuration writers must participate in
+the same fence; a host's cached configuration must match that record. Local
+manifest comparison and process-local revocation caches are insufficient.
+The primitive described here is only preparation: until the shared record,
+writer participation and grant reducer are connected, the current engine does
+not claim this final-entry guarantee.

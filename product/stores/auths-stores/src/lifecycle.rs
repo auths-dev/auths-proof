@@ -268,6 +268,9 @@ pub struct PostgresLifecycleStore {
     rules: Vec<LifecycleCapacityRuleV1>,
     maximum_records: usize,
     pub(crate) pool: Pool<PostgresConnectionManager<MakeRustlsConnect>>,
+    pub(crate) gateway_lock_timeout: Duration,
+    pub(crate) gateway_statement_timeout: Duration,
+    pub(crate) gateway_idle_timeout: Duration,
 }
 
 /// Connection material that is erased when its owner is dropped.
@@ -404,7 +407,7 @@ impl PostgresPoolConfig {
                 self.idle_timeout,
             ]
             .iter()
-            .any(|duration| duration.is_zero() || *duration > Duration::from_hours(24))
+            .any(|duration| duration.as_millis() == 0 || *duration > Duration::from_hours(24))
         {
             return Err(LifecycleStoreConfigurationError::InvalidPoolConfiguration);
         }
@@ -659,6 +662,9 @@ impl PostgresLifecycleStore {
             rules,
             maximum_records,
             pool: connections,
+            gateway_lock_timeout: pool.lock_timeout.min(crate::GATEWAY_LOCK_TIMEOUT),
+            gateway_statement_timeout: pool.statement_timeout.min(crate::GATEWAY_FENCE_DEADLINE),
+            gateway_idle_timeout: pool.idle_timeout.min(crate::GATEWAY_FENCE_DEADLINE),
         })
     }
 
@@ -1785,6 +1791,13 @@ mod tests {
 
     #[test]
     fn production_pool_and_server_identity_are_bounded() {
+        for duration in [Duration::ZERO, Duration::from_nanos(999_999)] {
+            assert_eq!(
+                PostgresPoolConfig::new(1, 1, duration, duration, duration, duration),
+                Err(LifecycleStoreConfigurationError::InvalidPoolConfiguration),
+                "sub-millisecond settings must not truncate to disabled SQL timeouts"
+            );
+        }
         assert_eq!(
             PostgresPoolConfig::new(
                 2,

@@ -1954,6 +1954,8 @@ stateful-replay-budget-component = [
   "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",
   "product/stores/auths-stores/src/gateway_attempt.rs#gateway_records_are_bounded_before_any_database_call",
   "product/stores/auths-stores/src/gateway_attempt.rs#expiry_is_present_exactly_for_slots_and_keys_are_distinct",
+  "product/stores/auths-stores/src/gateway_attempt.rs#fence_sets_are_bounded_distinct_and_target_durable_state",
+  "product/stores/auths-stores/src/lifecycle.rs#production_pool_and_server_identity_are_bounded",
 ]
 
 [packages."@auths-dev/sdk"]

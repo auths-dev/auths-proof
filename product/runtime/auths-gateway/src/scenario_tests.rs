@@ -97,6 +97,25 @@ impl RecordingStore {
 }
 
 impl GatewayAttemptStore for RecordingStore {
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut crate::GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError> {
+        let mut replacement = None;
+        self.inner.fenced_replace(keys, &mut |snapshot| {
+            let next = decide(snapshot)?;
+            replacement = Some(next.clone());
+            Ok(next)
+        })?;
+        if keys[0].0 == GatewayRecordKind::Attempt
+            && let Some(next) = replacement
+        {
+            self.record(&next);
+        }
+        Ok(())
+    }
+
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
         self.inner.attempt_keys(limit)
     }
@@ -2259,6 +2278,161 @@ async fn conformance_sweep_bounds(backend: Backend) {
     .expect("sweep checks");
 }
 
+/// The adapter calls one native decision while all gateway mutators are
+/// excluded. These are opaque mechanism records, not native grant evidence.
+async fn conformance_writer_fence(backend: Backend) {
+    for mutation in ["replace", "insert", "sweep"] {
+        let store = TestAttempts::open(backend);
+        let (fenced, writer, reader) = (store.raw(), store.raw(), store.raw());
+        tokio::task::spawn_blocking(move || {
+            use std::{sync::mpsc, time::Duration};
+            let target = GatewayAttemptKey::from_bytes([11; 32]);
+            let dependency = GatewayAttemptKey::from_bytes([12; 32]);
+            let allocation = GatewayAttemptKey::from_bytes([13; 32]);
+            let absent = GatewayAttemptKey::from_bytes([14; 32]);
+            reader
+                .insert(&attempt_entry(target, b"reserved"))
+                .expect("target");
+            reader
+                .insert(&GatewayRecordEntry {
+                    kind: GatewayRecordKind::Connection,
+                    key: dependency,
+                    record: b"active".to_vec(),
+                    expires_at: None,
+                })
+                .expect("connection");
+            reader
+                .insert(&GatewayRecordEntry {
+                    kind: GatewayRecordKind::CountSlot,
+                    key: allocation,
+                    record: b"allocation".to_vec(),
+                    expires_at: Some(NOW),
+                })
+                .expect("allocation");
+            let keys = [
+                (GatewayRecordKind::Attempt, target),
+                (GatewayRecordKind::Connection, dependency),
+                (GatewayRecordKind::CountSlot, allocation),
+                (GatewayRecordKind::CountSlot, absent),
+            ];
+            let (entered_tx, entered_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel();
+            let decision = std::thread::spawn(move || {
+                let mut calls = 0;
+                let result = fenced.fenced_replace(&keys, &mut |snapshot| {
+                    calls += 1;
+                    assert_eq!(
+                        snapshot,
+                        &[
+                            Some(b"reserved".to_vec()),
+                            Some(b"active".to_vec()),
+                            Some(b"allocation".to_vec()),
+                            None
+                        ]
+                    );
+                    entered_tx.send(()).expect("entered");
+                    release_rx
+                        .recv_timeout(Duration::from_secs(1))
+                        .expect("release");
+                    Ok(b"entry-granted".to_vec())
+                });
+                assert_eq!(calls, 1);
+                result
+            });
+            entered_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("fenced snapshot");
+            let (started_tx, started_rx) = mpsc::channel();
+            let (done_tx, done_rx) = mpsc::channel();
+            let competing = std::thread::spawn(move || {
+                started_tx.send(()).expect("writer started");
+                let result = match mutation {
+                    "replace" => writer.replace(
+                        GatewayRecordKind::Connection,
+                        &dependency,
+                        b"active",
+                        b"revoked",
+                    ),
+                    "insert" => writer.insert(&GatewayRecordEntry {
+                        kind: GatewayRecordKind::CountSlot,
+                        key: absent,
+                        record: b"new-allocation".to_vec(),
+                        expires_at: Some(NOW + 1),
+                    }),
+                    "sweep" => writer.sweep_expired(NOW, 1).map(|n| assert_eq!(n, 1)),
+                    _ => unreachable!("closed test mutation"),
+                };
+                done_tx.send(result).expect("writer result");
+            });
+            started_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("writer starts");
+            assert!(
+                matches!(
+                    done_rx.recv_timeout(Duration::from_millis(40)),
+                    Err(mpsc::RecvTimeoutError::Timeout)
+                ),
+                "{mutation} must wait for the fence"
+            );
+            release_tx.send(()).expect("release");
+            decision
+                .join()
+                .expect("decision thread")
+                .expect("durable replacement");
+            done_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("writer completes")
+                .expect("writer result");
+            competing.join().expect("writer thread");
+            assert_eq!(
+                reader
+                    .load(GatewayRecordKind::Attempt, &target)
+                    .expect("target"),
+                Some(b"entry-granted".to_vec())
+            );
+            let mut calls = 0;
+            assert_eq!(
+                reader.fenced_replace(&keys, &mut |snapshot| {
+                    calls += 1;
+                    match mutation {
+                        "replace" => assert_eq!(snapshot[1], Some(b"revoked".to_vec())),
+                        "insert" => assert_eq!(snapshot[3], Some(b"new-allocation".to_vec())),
+                        "sweep" => assert_eq!(snapshot[2], None),
+                        _ => unreachable!("closed test mutation"),
+                    }
+                    Err(GatewayAttemptError::InvalidTransition)
+                }),
+                Err(GatewayAttemptError::InvalidTransition)
+            );
+            assert_eq!(calls, 1, "decision refusal is never retried");
+            assert_eq!(
+                reader
+                    .load(GatewayRecordKind::Attempt, &target)
+                    .expect("target"),
+                Some(b"entry-granted".to_vec()),
+                "refusal preserves original bytes"
+            );
+            assert!(
+                reader
+                    .fenced_replace(&[], &mut |_| panic!("invalid set must not call decision"))
+                    .is_err()
+            );
+            assert_eq!(
+                reader.fenced_replace(
+                    &[(
+                        GatewayRecordKind::Attempt,
+                        GatewayAttemptKey::from_bytes([99; 32])
+                    )],
+                    &mut |_| panic!("missing target must not call decision")
+                ),
+                Err(GatewayAttemptError::Conflict)
+            );
+        })
+        .await
+        .expect("writer fence conformance");
+    }
+}
+
 /// A connection record committed through one store instance is what every
 /// other instance sharing the store reads next, and a stale compare-and-swap
 /// through another instance is a conflict.
@@ -2327,6 +2501,7 @@ async fn store_conformance(backend: Backend) {
     conformance_batches_from_two_processes(backend).await;
     conformance_sweep_bounds(backend).await;
     conformance_shared_connection_record(backend).await;
+    conformance_writer_fence(backend).await;
 }
 
 #[tokio::test]

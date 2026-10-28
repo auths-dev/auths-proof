@@ -111,3 +111,22 @@ cover verification, compilation, transaction/lock time, bounded memory and scans
 for both recipes and read/disclosure. No measurements have yet been executed.
 Actual results and exact revisions belong in the
 [acceptance ledger](../../../plans/0074-implementation-status.md).
+
+## Adapter fence mechanism
+
+The existing attempt adapters now have one bounded snapshot-and-replace
+operation. Its decision callback is in-process native validation over opaque
+snapshots, not a provider/profile dispatcher or an extension plugin. It runs
+once while the same lock excludes connection replacement, allocation insertion
+and expiry sweeping; it returns one record replacement. No provider or custody
+call may run under the lock, and no error is retried automatically. File
+publication and PostgreSQL COMMIT must acknowledge before returning success.
+
+Both maintained adapters share a 64-record read bound and two-second lock and
+decision ceilings; tighter installed PostgreSQL deadlines are preserved.
+The source conformance suite orders replacement, insertion and sweep writers
+against a held decision and checks failure atomicity. This source has not yet
+been exercised in hosted CI. The mechanism does not itself interpret effect
+identity, grant entry or establish multi-host revocation freshness. Connecting
+the shared configuration record and one-use grant owner remains P2 work, as
+specified in ADR 0017.

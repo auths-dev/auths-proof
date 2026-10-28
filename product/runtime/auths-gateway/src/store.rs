@@ -29,6 +29,7 @@ use std::{
     io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
     sync::Arc,
+    time::Instant,
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -617,7 +618,7 @@ impl Record {
                     slot: entry.slot,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
         if counters.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(GatewayAttemptError::Corrupt);
         }
@@ -952,6 +953,23 @@ pub enum GatewayInsert {
     },
 }
 
+/// One bounded native decision over a snapshot held behind the adapter's
+/// writer fence. It must not perform custody, provider or nested store I/O.
+/// The adapter invokes it at most once; returning bytes does not grant entry.
+pub type GatewayFenceDecision<'a> =
+    dyn FnMut(&[Option<Vec<u8>>]) -> Result<Vec<u8>, GatewayAttemptError> + 'a;
+
+fn fence_keys(
+    keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+) -> Result<Vec<(GatewayRecordKind, [u8; 32])>, GatewayAttemptError> {
+    if keys.is_empty() || keys.len() > auths_stores::MAX_GATEWAY_FENCE_RECORDS {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    let keys: Vec<_> = keys.iter().map(|(kind, key)| (*kind, key.0)).collect();
+    auths_stores::validate_gateway_fence(&keys).map_err(postgres_error)?;
+    Ok(keys)
+}
+
 /// Durable storage of opaque gateway records of five closed kinds.
 /// Implementations never interpret the bytes.
 ///
@@ -960,6 +978,19 @@ pub enum GatewayInsert {
 /// sweeps of expired slots only, and fail-closed reads that never report
 /// unreadable state as absent.
 pub trait GatewayAttemptStore: Send + Sync {
+    /// Reads the bounded set while excluding every participating writer, calls
+    /// `decide` once, and durably replaces the first record. This is a storage
+    /// mechanism; the gateway owns validation and the one-use permit.
+    ///
+    /// # Errors
+    /// Refuses invalid sets, missing target, unavailable locking, corrupt
+    /// state, decision failures and ambiguous durability. No automatic retry.
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError>;
+
     /// Inserts every entry, or none when any key already exists.
     ///
     /// # Errors
@@ -1174,6 +1205,21 @@ impl FileGatewayAttemptStore {
         Ok(pending)
     }
 
+    fn load_locked(
+        &self,
+        kind: GatewayRecordKind,
+        key: &GatewayAttemptKey,
+    ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
+        let path = self.path_for(kind, key);
+        if kind.expires() {
+            Self::read_file(&path, MAX_SLOT_FILE_BYTES)?
+                .map(|bytes| Self::decode_slot(&bytes).map(|(_, record)| record))
+                .transpose()
+        } else {
+            Self::read_file(&path, MAX_RECORD_BYTES)
+        }
+    }
+
     fn lock(&self, operation: rustix::fs::FlockOperation) -> Result<File, GatewayAttemptError> {
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true).truncate(false);
@@ -1185,8 +1231,33 @@ impl FileGatewayAttemptStore {
         let lock = options
             .open(self.root.join(LOCK_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        rustix::fs::flock(&lock, operation).map_err(|_| GatewayAttemptError::Unavailable)?;
-        Ok(lock)
+        let nonblocking = match operation {
+            rustix::fs::FlockOperation::LockExclusive => {
+                rustix::fs::FlockOperation::NonBlockingLockExclusive
+            }
+            rustix::fs::FlockOperation::LockShared => {
+                rustix::fs::FlockOperation::NonBlockingLockShared
+            }
+            _ => return Err(GatewayAttemptError::Unavailable),
+        };
+        let started = Instant::now();
+        loop {
+            match rustix::fs::flock(&lock, nonblocking) {
+                Ok(()) => return Ok(lock),
+                Err(error)
+                    if error == rustix::io::Errno::WOULDBLOCK
+                        || error == rustix::io::Errno::INTR => {}
+                Err(_) => return Err(GatewayAttemptError::Unavailable),
+            }
+            let Some(remaining) = auths_stores::GATEWAY_LOCK_TIMEOUT.checked_sub(started.elapsed())
+            else {
+                return Err(GatewayAttemptError::Unavailable);
+            };
+            if remaining.is_zero() {
+                return Err(GatewayAttemptError::Unavailable);
+            }
+            std::thread::sleep(remaining.min(std::time::Duration::from_millis(5)));
+        }
     }
 
     /// Serializes mutations across every process on this host.
@@ -1335,6 +1406,43 @@ fn valid_file_name(name: &str) -> bool {
 }
 
 impl GatewayAttemptStore for FileGatewayAttemptStore {
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError> {
+        fence_keys(keys)?;
+        let _lock = self.exclusive()?;
+        let started = Instant::now();
+        let records = keys
+            .iter()
+            .map(|(kind, key)| {
+                if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+                    return Err(GatewayAttemptError::Unavailable);
+                }
+                self.load_locked(*kind, key)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if records[0].is_none() {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        let next = decide(&records)?;
+        if next.is_empty() || next.len() > MAX_RECORD_BYTES {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let pending = self.pending(&next)?;
+        if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        pending
+            .persist(self.path_for(keys[0].0, &keys[0].1))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        sync_directory(&self.root)
+    }
+
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
         self.claimed_keys(limit)
     }
@@ -1368,14 +1476,7 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         key: &GatewayAttemptKey,
     ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
         let _lock = self.shared()?;
-        let path = self.path_for(kind, key);
-        if kind.expires() {
-            Self::read_file(&path, MAX_SLOT_FILE_BYTES)?
-                .map(|bytes| Self::decode_slot(&bytes).map(|(_, record)| record))
-                .transpose()
-        } else {
-            Self::read_file(&path, MAX_RECORD_BYTES)
-        }
+        self.load_locked(kind, key)
     }
 
     fn replace(
@@ -1496,6 +1597,15 @@ impl FileGatewayAttemptStore {
 }
 
 impl GatewayAttemptStore for PostgresGatewayAttemptStore {
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError> {
+        let keys = fence_keys(keys)?;
+        self.store()?.fenced_gateway_replace(&keys, decide)
+    }
+
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
         self.store()?
             .list_gateway_record_keys(GatewayRecordKind::Attempt, limit)
@@ -1544,6 +1654,12 @@ impl GatewayAttemptStore for PostgresGatewayAttemptStore {
         self.store()?
             .sweep_expired_gateway_records(now, limit)
             .map_err(postgres_error)
+    }
+}
+
+impl From<StoreError> for GatewayAttemptError {
+    fn from(error: StoreError) -> Self {
+        postgres_error(error)
     }
 }
 
