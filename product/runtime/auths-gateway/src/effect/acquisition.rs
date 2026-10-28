@@ -140,7 +140,7 @@ impl RecoveryReadTarget {
         }
         let plan = self.journal_plan(prerequisites).map_err(|_| invalid())?;
         let capacity = plan.capacity().map_err(|_| invalid())?;
-        let mut reservations = capacity.reservations();
+        let mut reservations = capacity.reservations(Unit::AcquisitionCount, Unit::ResponseBytes);
         reservations.extend(managed_reservations(
             bound,
             Unit::AcquisitionCount,
@@ -284,7 +284,7 @@ impl AcquisitionPlan {
             Self::Prerequisite(plan) => plan.source(),
         }
     }
-    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
+    pub(crate) fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
         match self {
             Self::Recovery(plan) => plan.capacity(),
             Self::Candidate(plan) => plan.capacity(),
@@ -295,7 +295,7 @@ impl AcquisitionPlan {
     pub(crate) fn validate(
         &self,
         binding: &EffectBinding,
-    ) -> Result<AcquisitionCapacity, EffectBindingError> {
+    ) -> Result<SourceCapacity, EffectBindingError> {
         match self {
             Self::Recovery(plan) => plan.validate(binding),
             Self::Candidate(plan) => plan.validate(binding),
@@ -303,13 +303,6 @@ impl AcquisitionPlan {
             Self::Prerequisite(plan) => plan.validate(binding),
         }
     }
-}
-
-pub(crate) struct AcquisitionCapacity {
-    pub(crate) count_key: [u8; 32],
-    pub(crate) bytes_key: [u8; 32],
-    pub(crate) maximum_bytes: u64,
-    pub(crate) attempts: u64,
 }
 
 impl RecoveryPlan {
@@ -333,7 +326,7 @@ impl RecoveryPlan {
         EffectBinding::from_private_bytes(self.source_binding.as_bytes())
     }
 
-    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
+    pub(crate) fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
         let source = self.source()?;
         if !(1..=65_536).contains(&self.maximum_response_bytes)
             || !matches!(source.wire.protocol, Protocol::Mutation { .. })
@@ -346,7 +339,7 @@ impl RecoveryPlan {
                 &canonical(&(source.id().as_bytes(), unit))?,
             )
         };
-        Ok(AcquisitionCapacity {
+        Ok(SourceCapacity {
             count_key: key(Unit::AcquisitionCount)?,
             bytes_key: key(Unit::ResponseBytes)?,
             maximum_bytes: self.maximum_response_bytes,
@@ -357,7 +350,7 @@ impl RecoveryPlan {
     pub(crate) fn validate(
         &self,
         effect: &EffectBinding,
-    ) -> Result<AcquisitionCapacity, EffectBindingError> {
+    ) -> Result<SourceCapacity, EffectBindingError> {
         let source = self.source()?;
         let capacity = self.capacity()?;
         let transport = self.transport_canonical.as_bytes();
@@ -392,7 +385,7 @@ impl RecoveryPlan {
                 .filter(|entry| entry.window == ReservationWindow::SourceLifetime)
                 .cloned()
                 .collect::<Vec<_>>()
-                != capacity.reservations()
+                != capacity.reservations(Unit::AcquisitionCount, Unit::ResponseBytes)
             || effect.wire.reservations.iter().any(|entry| {
                 matches!(entry.window, ReservationWindow::Fixed { .. })
                     && match entry.unit {
@@ -405,29 +398,6 @@ impl RecoveryPlan {
             return Err(EffectBindingError::Invalid);
         }
         Ok(capacity)
-    }
-}
-
-impl AcquisitionCapacity {
-    pub(super) fn reservations(&self) -> Vec<Reservation> {
-        let mut reservations = vec![
-            Reservation {
-                key: self.count_key,
-                unit: Unit::AcquisitionCount,
-                amount: 1,
-                ceiling: self.attempts,
-                window: ReservationWindow::SourceLifetime,
-            },
-            Reservation {
-                key: self.bytes_key,
-                unit: Unit::ResponseBytes,
-                amount: self.maximum_bytes,
-                ceiling: self.attempts * self.maximum_bytes,
-                window: ReservationWindow::SourceLifetime,
-            },
-        ];
-        reservations.sort_by_key(|entry| (entry.key, entry.unit));
-        reservations
     }
 }
 

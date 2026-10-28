@@ -622,3 +622,10 @@ The content journal corpus provides actual source transport plus separate
 release compilation/ACK comparisons for empty and nonempty content. Runtime
 entry, capacity enforcement and recipient-channel behavior remain unqualified;
 no generic workflow/callback or new ledger is introduced by this extraction.
+
+The source allocation leaf is now physically shared: protocol owners supply
+count/byte units and source commitments; the existing capacity module owns the
+append-only row encoding/key and occupied-row equality check. No policy or
+source-eligibility callback is introduced. Required content/recovery native
+artifacts regenerate byte-for-byte unchanged after this extraction; disclosure
+compilation uses the same bounded reservation arithmetic with disjoint units.

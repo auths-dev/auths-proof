@@ -80,7 +80,7 @@ impl GatewayAttempts {
                 (GatewayRecordKind::Attempt, key),
                 (
                     GatewayRecordKind::EffectAllocation,
-                    allocation_key(&capacity, slot),
+                    capacity::allocation_key(&capacity, slot),
                 ),
             ];
             let native_indices = append_dependencies(&mut keys, &validation.dependencies());
@@ -105,9 +105,7 @@ impl GatewayAttempts {
                     .map_err(|_| GatewayAttemptError::Corrupt)?
                     .0
                     || snapshots[2].as_deref()
-                        != Some(
-                            canonical(&Allocation::new(&root.state.plan, key, slot)?)?.as_slice(),
-                        )
+                        != Some(canonical(&allocation(&root.state.plan, key, slot)?)?.as_slice())
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }

@@ -3,9 +3,7 @@
 //! the same adapter fence. No stored grant can recreate a read permit.
 
 use super::*;
-use crate::effect::{
-    AcquisitionCapacity, AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind,
-};
+use crate::effect::{AcquisitionPlan, ClosedPrerequisiteRead, PrerequisiteKind, SourceCapacity};
 
 mod content;
 use content::ContentResult;
@@ -17,8 +15,6 @@ pub(super) use recovery::RecoveryEvidenceLink;
 pub use recovery::{
     GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts,
 };
-
-const ALLOCATION_SCHEMA: &str = "auths.effect-allocation/1";
 
 /// Public facts about a bounded acquisition, with no content or private digest.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -272,7 +268,7 @@ impl JournalProtocol for AcquisitionState {
 impl AcquisitionResponse {
     fn body(
         &self,
-        capacity: &AcquisitionCapacity,
+        capacity: &SourceCapacity,
     ) -> Result<zeroize::Zeroizing<Vec<u8>>, GatewayAttemptError> {
         if self.body_b64.len() > MAX_EVIDENCE_BYTES.div_ceil(3) * 4 {
             return Err(GatewayAttemptError::Corrupt);
@@ -348,48 +344,17 @@ impl Record<AcquisitionState> {
     }
 }
 
-/// One immutable slot charges both distinct units at the same atomic admission.
-/// Every read of this source has the same native maximum, so slot i holds one
-/// call and that maximum, and cumulative bytes are (i + 1) * maximum. No expiry.
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Allocation {
-    schema: String,
-    claim: String,
-    source: String,
-    count_key: String,
-    bytes_key: String,
+fn allocation(
+    plan: &AcquisitionPlan,
+    key: GatewayAttemptKey,
     slot: u64,
-    calls: u64,
-    bytes: u64,
-}
-
-impl Allocation {
-    fn new(
-        plan: &AcquisitionPlan,
-        key: GatewayAttemptKey,
-        slot: u64,
-    ) -> Result<Self, GatewayAttemptError> {
-        let source = plan.source_id().map_err(|_| GatewayAttemptError::Corrupt)?;
-        let capacity = plan.capacity().map_err(|_| GatewayAttemptError::Corrupt)?;
-        if slot >= capacity.attempts {
-            return Err(GatewayAttemptError::InvalidTransition);
-        }
-        Ok(Self {
-            schema: ALLOCATION_SCHEMA.to_owned(),
-            claim: hex::encode(key.as_bytes()),
-            source: hex::encode(source),
-            count_key: hex::encode(capacity.count_key),
-            bytes_key: hex::encode(capacity.bytes_key),
-            slot,
-            calls: 1,
-            bytes: capacity.maximum_bytes,
-        })
-    }
-}
-
-fn allocation_key(capacity: &AcquisitionCapacity, slot: u64) -> GatewayAttemptKey {
-    GatewayAttemptKey(crate::bounds::count_slot_key(&capacity.count_key, slot))
+) -> Result<capacity::SourceAllocation, GatewayAttemptError> {
+    capacity::SourceAllocation::new(
+        plan.source_id().map_err(|_| GatewayAttemptError::Corrupt)?,
+        &plan.capacity().map_err(|_| GatewayAttemptError::Corrupt)?,
+        key,
+        slot,
+    )
 }
 
 /// Admission reserves capacity but grants no provider capability.
@@ -727,8 +692,8 @@ impl GatewayAttempts {
                 if refusal.is_none() {
                     entries.push(GatewayRecordEntry {
                         kind: GatewayRecordKind::EffectAllocation,
-                        key: allocation_key(&capacity, slot),
-                        record: canonical(&Allocation::new(&record.state.plan, key, slot)?)?,
+                        key: capacity::allocation_key(&capacity, slot),
+                        record: canonical(&allocation(&record.state.plan, key, slot)?)?,
                         expires_at: None,
                     });
                     entries.extend(slots);
@@ -760,24 +725,14 @@ impl GatewayAttempts {
                         let bytes = store
                             .load(
                                 GatewayRecordKind::EffectAllocation,
-                                &allocation_key(&capacity, slot),
+                                &capacity::allocation_key(&capacity, slot),
                             )?
                             .ok_or(GatewayAttemptError::Corrupt)?;
-                        let occupied: Allocation = serde_json::from_slice(&bytes)
-                            .map_err(|_| GatewayAttemptError::Corrupt)?;
-                        let expected = Allocation::new(&record.state.plan, key, slot)?;
-                        if canonical(&occupied)? != bytes
-                            || digest_bytes(&occupied.claim).is_err()
-                            || occupied.schema != expected.schema
-                            || occupied.source != expected.source
-                            || occupied.count_key != expected.count_key
-                            || occupied.bytes_key != expected.bytes_key
-                            || occupied.slot != slot
-                            || occupied.calls != 1
-                            || occupied.bytes != expected.bytes
-                        {
-                            return Err(GatewayAttemptError::BindingConflict);
-                        }
+                        let occupied: capacity::SourceAllocation =
+                            serde_json::from_slice(&bytes)
+                                .map_err(|_| GatewayAttemptError::Corrupt)?;
+                        let expected = allocation(&record.state.plan, key, slot)?;
+                        occupied.validate_occupied(&expected, &bytes)?;
                         slot += 1;
                     }
                     GatewayInsert::Exists { index } if refusal.is_none() => {
@@ -921,7 +876,7 @@ impl ReservedAcquisition {
                 ),
                 (
                     GatewayRecordKind::EffectAllocation,
-                    allocation_key(&capacity, slot),
+                    capacity::allocation_key(&capacity, slot),
                 ),
             ];
             let native_indices = append_dependencies(&mut keys, &dependencies);
@@ -965,7 +920,7 @@ impl ReservedAcquisition {
                     eligible_source(&plan, snapshots[1].as_deref(), self.source_key, attempt.key)?;
                 if !source_matches
                     || snapshots[2].as_deref()
-                        != Some(canonical(&Allocation::new(&plan, attempt.key, slot)?)?.as_slice())
+                        != Some(canonical(&allocation(&plan, attempt.key, slot)?)?.as_slice())
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }
@@ -1156,7 +1111,7 @@ pub(super) fn prerequisite_dependencies(
         ));
         keys.push((
             GatewayRecordKind::EffectAllocation,
-            allocation_key(&capacity, 0),
+            capacity::allocation_key(&capacity, 0),
         ));
     }
     Ok(keys)
@@ -1181,8 +1136,7 @@ pub(super) fn validate_prerequisites(
         if record.validate_header()? != *binding
             || record.state.plan != expected
             || record.state.allocation != Some(0)
-            || rows[1].as_deref()
-                != Some(canonical(&Allocation::new(&expected, key, 0)?)?.as_slice())
+            || rows[1].as_deref() != Some(canonical(&allocation(&expected, key, 0)?)?.as_slice())
         {
             return Err(GatewayAttemptError::BindingConflict);
         }

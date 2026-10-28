@@ -142,27 +142,20 @@ impl DisclosureTarget {
         }
     }
 
-    fn reservations(&self) -> Result<Vec<Reservation>, EffectBindingError> {
+    fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
         let source = self.content.source.id();
-        let mut reservations = vec![
-            Reservation {
-                key: commitment("auths.disclosure-source-count/1", source.as_bytes())?,
-                unit: Unit::DisclosureCount,
-                amount: 1,
-                ceiling: MAX_DELIVERIES,
-                window: ReservationWindow::SourceLifetime,
-            },
-            Reservation {
-                key: commitment("auths.disclosure-source-bytes/1", source.as_bytes())?,
-                unit: Unit::DisclosureBytes,
-                amount: self.content.bytes,
-                // Empty delivery still spends one invocation; its byte amount is zero.
-                ceiling: MAX_DELIVERIES * self.content.bytes.max(1),
-                window: ReservationWindow::SourceLifetime,
-            },
-        ];
-        reservations.sort_by_key(|entry| (entry.key, entry.unit));
-        Ok(reservations)
+        Ok(SourceCapacity {
+            count_key: commitment("auths.disclosure-source-count/1", source.as_bytes())?,
+            bytes_key: commitment("auths.disclosure-source-bytes/1", source.as_bytes())?,
+            maximum_bytes: self.content.bytes,
+            attempts: MAX_DELIVERIES,
+        })
+    }
+
+    fn reservations(&self) -> Result<Vec<Reservation>, EffectBindingError> {
+        Ok(self
+            .capacity()?
+            .reservations(Unit::DisclosureCount, Unit::DisclosureBytes))
     }
 }
 

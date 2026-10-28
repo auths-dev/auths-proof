@@ -419,7 +419,7 @@ impl PrerequisitePlan {
         Ok(self.declaration()?.purpose.kind())
     }
 
-    pub(crate) fn capacity(&self) -> Result<super::AcquisitionCapacity, EffectBindingError> {
+    pub(crate) fn capacity(&self) -> Result<super::SourceCapacity, EffectBindingError> {
         let source = self.source()?;
         let declaration = self.declaration()?;
         let key = |unit| {
@@ -428,7 +428,7 @@ impl PrerequisitePlan {
                 &canonical(&(source.id().as_bytes(), self.index, unit))?,
             )
         };
-        Ok(super::AcquisitionCapacity {
+        Ok(super::SourceCapacity {
             count_key: key(super::Unit::AcquisitionCount)?,
             bytes_key: key(super::Unit::ResponseBytes)?,
             maximum_bytes: declaration.request.maximum_response_bytes,
@@ -439,7 +439,7 @@ impl PrerequisitePlan {
     pub(crate) fn validate(
         &self,
         effect: &super::EffectBinding,
-    ) -> Result<super::AcquisitionCapacity, EffectBindingError> {
+    ) -> Result<super::SourceCapacity, EffectBindingError> {
         if self.source()? != *effect {
             return Err(EffectBindingError::Invalid);
         }

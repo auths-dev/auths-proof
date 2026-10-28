@@ -1239,6 +1239,23 @@ closure regeneration passed after that correction (one artifact-generation test)
   cutover remain incomplete. No acceptance case is closed by compilation.
   No broad local gate, formal execution or hosted CI observation was run.
 
+## Shared source-allocation checkpoint
+
+- Based on pushed disclosure compiler commit `93f4915c`.
+- Extracted the existing source count/byte declaration leaf and canonical
+  append-only allocation row/key/occupied-slot validation into the existing
+  effect/capacity and store/capacity owners. Acquisition source eligibility,
+  lifecycle, schema and charges are unchanged; disclosure declarations now use
+  the same arithmetic with their own units and source keys.
+- Required content-journal and recovery-acquisition artifact generators both
+  passed (two tests, 3.64 seconds); their fixtures remained byte-for-byte current.
+  No new provider calls, admission authority, retry or refund rule is introduced.
+- Candidate, prerequisite and semantic-closure artifact generators also passed
+  (three tests, 37.73 seconds). Behavioral fixture bytes stayed unchanged; only
+  the native semantic closure changed with the source extraction.
+- This reduces duplication needed by disclosure admission; it does not yet
+  implement that admission or a delivery grant. P3/P4 and A01–A22 remain open.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

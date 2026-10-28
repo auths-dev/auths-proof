@@ -230,7 +230,7 @@ impl CandidateCredentialTarget {
         let invalid = || not_entered("gateway.acquisition.binding");
         let capacity = candidate_capacity(&self.candidate, self.maximum_response_bytes())
             .map_err(|_| invalid())?;
-        let mut reservations = capacity.reservations();
+        let mut reservations = capacity.reservations(Unit::AcquisitionCount, Unit::ResponseBytes);
         reservations.extend(managed_reservations(
             bound,
             Unit::AcquisitionCount,
@@ -287,7 +287,7 @@ pub fn compile_candidate_credential(
 fn candidate_capacity(
     candidate: &ConnectionRecord,
     maximum_bytes: u64,
-) -> Result<AcquisitionCapacity, EffectBindingError> {
+) -> Result<SourceCapacity, EffectBindingError> {
     if !(1..=65_536).contains(&maximum_bytes) {
         return Err(EffectBindingError::Invalid);
     }
@@ -302,7 +302,7 @@ fn candidate_capacity(
             ))?,
         )
     };
-    Ok(AcquisitionCapacity {
+    Ok(SourceCapacity {
         count_key: key(Unit::AcquisitionCount)?,
         bytes_key: key(Unit::ResponseBytes)?,
         maximum_bytes,
@@ -387,7 +387,7 @@ impl CandidatePlan {
         Ok(contract)
     }
 
-    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
+    pub(crate) fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
         let contract = self.witness()?;
         candidate_capacity(
             &self.connection()?,
@@ -400,7 +400,7 @@ impl CandidatePlan {
     pub(crate) fn validate(
         &self,
         binding: &EffectBinding,
-    ) -> Result<AcquisitionCapacity, EffectBindingError> {
+    ) -> Result<SourceCapacity, EffectBindingError> {
         let capacity = self.capacity()?;
         let candidate = self.connection()?;
         let previous = self
@@ -466,7 +466,7 @@ impl CandidatePlan {
                 .filter(|r| r.window == ReservationWindow::SourceLifetime)
                 .cloned()
                 .collect::<Vec<_>>()
-                != capacity.reservations()
+                != capacity.reservations(Unit::AcquisitionCount, Unit::ResponseBytes)
             || binding.wire.reservations.iter().any(|r| {
                 matches!(r.window, ReservationWindow::Fixed { .. })
                     && match r.unit {

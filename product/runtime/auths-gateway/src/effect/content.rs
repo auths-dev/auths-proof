@@ -183,7 +183,7 @@ impl ContentReadTarget {
             .and_then(|plan| plan.capacity())
             .map_err(|_| invalid())?;
         let maximum_bytes = capacity.maximum_bytes;
-        let mut reservations = capacity.reservations();
+        let mut reservations = capacity.reservations(Unit::AcquisitionCount, Unit::ResponseBytes);
         reservations.extend(managed_reservations(
             bound,
             Unit::AcquisitionCount,
@@ -332,7 +332,7 @@ impl ContentPlan {
         commitment(CONTRACT, self.contract.as_bytes())
     }
 
-    pub(crate) fn capacity(&self) -> Result<AcquisitionCapacity, EffectBindingError> {
+    pub(crate) fn capacity(&self) -> Result<SourceCapacity, EffectBindingError> {
         let contract = self.witness()?;
         let maximum_bytes = contract["content"]["request"]["maximum_response_bytes"]
             .as_u64()
@@ -354,7 +354,7 @@ impl ContentPlan {
                 ))?,
             )
         };
-        Ok(AcquisitionCapacity {
+        Ok(SourceCapacity {
             count_key: key(Unit::AcquisitionCount)?,
             bytes_key: key(Unit::ResponseBytes)?,
             maximum_bytes,
@@ -365,7 +365,7 @@ impl ContentPlan {
     pub(crate) fn validate(
         &self,
         binding: &EffectBinding,
-    ) -> Result<AcquisitionCapacity, EffectBindingError> {
+    ) -> Result<SourceCapacity, EffectBindingError> {
         let capacity = self.capacity()?;
         self.projection()?;
         let connection = self.connection()?;
@@ -393,7 +393,7 @@ impl ContentPlan {
                 .filter(|r| r.window == ReservationWindow::SourceLifetime)
                 .cloned()
                 .collect::<Vec<_>>()
-                != capacity.reservations()
+                != capacity.reservations(Unit::AcquisitionCount, Unit::ResponseBytes)
             || binding.wire.reservations.iter().any(|r| {
                 matches!(r.window, ReservationWindow::Fixed { .. })
                     && match r.unit {

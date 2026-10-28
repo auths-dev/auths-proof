@@ -19,6 +19,8 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 mod acquisition;
+mod capacity;
+pub(crate) use capacity::SourceCapacity;
 mod candidate;
 mod content;
 pub(crate) use content::ContentPlan;
@@ -39,8 +41,7 @@ pub use candidate::{
 };
 mod prerequisite;
 pub(crate) use acquisition::{
-    AcquisitionCapacity, AcquisitionPlan, MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL,
-    RecoveryPlan,
+    AcquisitionPlan, MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL, RecoveryPlan,
 };
 pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
 use prerequisite::Prerequisites;

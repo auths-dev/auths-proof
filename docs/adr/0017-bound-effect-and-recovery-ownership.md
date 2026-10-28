@@ -911,3 +911,15 @@ real local HTTP, then exercises native release compilation, review, fresh exact
 approval, full recompile, managed count/byte declarations, ACK binding and changed
 recipient/channel/instance/partition/operation refusals. It establishes no actual
 delivery, persistent ACK, isolated-agent or PostgreSQL claim.
+
+### Shared source allocation leaf
+
+`effect/capacity.rs` now owns the fixed source count/byte declaration arithmetic,
+with the protocol supplying its typed units. `store/capacity.rs` owns the existing
+canonical append-only allocation record, key and occupied-slot validation. The
+acquisition protocol continues to derive source eligibility, source identities,
+limits and transitions; disclosure supplies its distinct units and source keys.
+No schema, journal authority, admission decision or refund rule changes. The
+empty-disclosure ceiling convention does not alter nonempty acquisition bytes.
+This extracts the identical bounded record mechanism rather than copying the
+acquisition allocator into a second disclosure ledger.

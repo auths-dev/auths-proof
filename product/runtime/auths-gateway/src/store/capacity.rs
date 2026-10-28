@@ -396,3 +396,70 @@ pub(super) fn dependencies(
         })
         .collect())
 }
+
+/// One append-only slot charges one invocation and its declared byte amount.
+/// Unit domains and source eligibility remain in the bound protocol owner.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SourceAllocation {
+    schema: String,
+    claim: String,
+    source: String,
+    count_key: String,
+    bytes_key: String,
+    slot: u64,
+    calls: u64,
+    bytes: u64,
+}
+
+impl SourceAllocation {
+    pub(super) fn new(
+        source: [u8; 32],
+        capacity: &crate::effect::SourceCapacity,
+        key: GatewayAttemptKey,
+        slot: u64,
+    ) -> Result<Self, GatewayAttemptError> {
+        if slot >= capacity.attempts {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        Ok(Self {
+            schema: "auths.effect-allocation/1".to_owned(),
+            claim: hex::encode(key.as_bytes()),
+            source: hex::encode(source),
+            count_key: hex::encode(capacity.count_key),
+            bytes_key: hex::encode(capacity.bytes_key),
+            slot,
+            calls: 1,
+            bytes: capacity.maximum_bytes,
+        })
+    }
+
+    /// A losing admission can advance only past a canonical slot for the exact
+    /// same source and units. Another claim is expected; altered facts are not.
+    pub(super) fn validate_occupied(
+        &self,
+        expected: &Self,
+        bytes: &[u8],
+    ) -> Result<(), GatewayAttemptError> {
+        if canonical(self)? != bytes
+            || digest_bytes(&self.claim).is_err()
+            || self.schema != expected.schema
+            || self.source != expected.source
+            || self.count_key != expected.count_key
+            || self.bytes_key != expected.bytes_key
+            || self.slot != expected.slot
+            || self.calls != 1
+            || self.bytes != expected.bytes
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn allocation_key(
+    capacity: &crate::effect::SourceCapacity,
+    slot: u64,
+) -> GatewayAttemptKey {
+    GatewayAttemptKey(crate::bounds::count_slot_key(&capacity.count_key, slot))
+}

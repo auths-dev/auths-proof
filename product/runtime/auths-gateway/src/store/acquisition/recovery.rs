@@ -307,7 +307,7 @@ impl GatewayAttempts {
             if let Some(slot) = read.state.allocation {
                 keys.push((
                     GatewayRecordKind::EffectAllocation,
-                    allocation_key(&capacity, slot),
+                    capacity::allocation_key(&capacity, slot),
                 ));
             }
             let mut result = None;
@@ -334,8 +334,7 @@ impl GatewayAttempts {
                 if let Some(slot) = read.state.allocation
                     && snapshots[2].as_deref()
                         != Some(
-                            canonical(&Allocation::new(&read.state.plan, read_key, slot)?)?
-                                .as_slice(),
+                            canonical(&allocation(&read.state.plan, read_key, slot)?)?.as_slice(),
                         )
                 {
                     return Err(GatewayAttemptError::Corrupt);
