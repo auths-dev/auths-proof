@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "7641cbe2873f3b33fba2772531267878c2eb1e907d74b379e3885559172dd8be",
+  "digest": "145371541013f20b442ed785c5985d09733c8f8b6248619521874dfa29a19c45",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -205,7 +205,7 @@
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/transition.rs",
-      "sha256": "f876c72fa70abf6cb76bbd1ad385c48255702c06192889242c7f37b20a112584"
+      "sha256": "c06ca2e3b1337c2906c45ddcd9c7d80a7cde4bf2de5e3873a46c2361279c2b51"
     },
     {
       "path": "product/runtime/auths-lifecycle/Cargo.toml",
@@ -401,7 +401,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "c57617cd19351f71e145974e9c134717ce3d9e816510a8a03c922746b66bb9b0"
+      "sha256": "f98ace0550ead760eeb850fdb2a120ce0ea953ab2b6112da3a5f80175b222c9a"
     },
     {
       "path": "xtask/src/stripe.rs",
