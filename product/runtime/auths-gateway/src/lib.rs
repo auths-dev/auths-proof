@@ -143,8 +143,9 @@ pub use store::{
     GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts, GatewayCounterEntry,
     GatewayCounterKind, GatewayEvidenceChannel, GatewayFenceDecision, GatewayInsert,
     GatewayObservationFact, GatewayOperationStage, GatewayPreEntry, GatewayProviderEvidence,
-    GatewayRecordEntry, GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt,
-    PostgresGatewayAttemptStore, PrivateDirectoryError, ReservedAcquisition,
+    GatewayRecordEntry, GatewayRecordKind, GatewayRecoveryReport, GatewayRelativeBasis,
+    ObservableGatewayAttempt, PostgresGatewayAttemptStore, PrivateDirectoryError,
+    RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
     check_private_directory, check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{

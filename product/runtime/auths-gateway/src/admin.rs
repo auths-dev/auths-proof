@@ -1,14 +1,13 @@
 //! The operator socket's request frame: one JSON object with exactly the
-//! schema, the command, and that command's arguments. A secret, which only
-//! `rotate` and `rotate-prepare` carry, travels in a second frame and never
-//! in this one.
+//! schema, the command, and that command's arguments. Rotation secrets and
+//! recovery proof/action/approval inputs travel in a second bounded frame.
 
 use serde::Deserialize;
 
 /// Schema of an admin request frame.
-pub const ADMIN_REQUEST_SCHEMA: &str = "auths.gateway-admin-request/1";
+pub const ADMIN_REQUEST_SCHEMA: &str = "auths.gateway-admin-request/2";
 /// Schema of an admin response frame.
-pub const ADMIN_RESPONSE_SCHEMA: &str = "auths.gateway-admin-response/1";
+pub const ADMIN_RESPONSE_SCHEMA: &str = "auths.gateway-admin-response/2";
 
 /// One admin command and its arguments.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -40,14 +39,21 @@ pub enum AdminRequestCommand {
     /// Read the qualification inputs the operator placed on this host again
     /// and report the resulting state.
     QualificationReload {},
-    /// Re-observe one logical operation, read-only.
-    Reobserve {
-        /// The logical operation ID.
-        operation_id: String,
+    /// Acquire/refine one recovery read; a native submission follows in frame 2.
+    Recover {
+        /// Retained source mutation whose contract the read must bind.
+        source_operation: String,
+    },
+    /// Record evidence from an existing acquisition without provider/custody I/O.
+    RecoveryRecord {
+        /// Retained source mutation.
+        source_operation: String,
+        /// Separately authorized read whose response is already retained.
+        acquisition_operation: String,
     },
 }
 
-/// Parses one `auths.gateway-admin-request/1` frame.
+/// Parses one `auths.gateway-admin-request/2` frame.
 ///
 /// # Errors
 /// Returns `gateway.admin.invalid-frame` for anything but a JSON object with

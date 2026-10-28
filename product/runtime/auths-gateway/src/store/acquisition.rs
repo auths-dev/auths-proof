@@ -5,10 +5,16 @@
 use super::*;
 use crate::effect::{RecoveryCapacity, RecoveryPlan};
 
+mod recovery;
+pub(super) use recovery::RecoveryEvidenceLink;
+pub use recovery::{
+    GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts,
+};
+
 const ALLOCATION_SCHEMA: &str = "auths.effect-allocation/1";
 
 /// Public facts about a bounded acquisition, with no content or private digest.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct AcquisitionSnapshot {
     /// Durable journal revision.
     pub revision: u64,
@@ -27,7 +33,8 @@ pub struct AcquisitionSnapshot {
 }
 
 /// Acquisition has no mutation-observed or disclosure-acknowledged state.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum AcquisitionStage {
     /// Capacity held; no provider permit.
     Reserved,

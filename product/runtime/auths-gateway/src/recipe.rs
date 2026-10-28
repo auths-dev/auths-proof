@@ -22,6 +22,7 @@ pub use auths_gateway_kernel::{construct, recovery};
 
 mod effect_review;
 mod lower;
+mod response;
 mod review;
 #[cfg(any(test, feature = "testkit-harness"))]
 pub(crate) use effect_review::synthetic_review;
@@ -1307,7 +1308,7 @@ impl ClosedObservationRequest {
         if response.len() > self.maximum_response_bytes {
             return None;
         }
-        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let decoded = response::parse(response)?;
         let value = decoded.pointer(&self.json_pointer)?.clone();
         let echo = self
             .echo_pointer
@@ -1325,7 +1326,7 @@ impl ClosedObservationRequest {
         if response.len() > self.maximum_response_bytes {
             return None;
         }
-        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let decoded = response::parse(response)?;
         let matched = decoded.pointer(&self.json_pointer)? == &self.expected;
         let (Some(pointer), Some(token)) = (self.echo_pointer.as_deref(), token) else {
             return Some(ReadBack::Value { matched });

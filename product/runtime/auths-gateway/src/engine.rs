@@ -1201,59 +1201,6 @@ impl GatewayEngine {
         checks
     }
 
-    /// Performs the operator's read-only re-observation of one stored
-    /// attempt: one read-back from the stored plan under a fresh lease that
-    /// passes every credential check, when the recipe digest is unchanged
-    /// and the stored stage can be resolved by a read-back. It records only
-    /// positive evidence and never writes to the provider. The answer is the
-    /// recorded result, or the stored attempt's result when nothing was
-    /// recorded.
-    ///
-    /// # Errors
-    /// Returns `gateway.reobserve.not-observable` when the attempt is absent
-    /// or cannot be re-observed, and the entry refusal when the connection
-    /// cannot be leased.
-    pub async fn reobserve(&self, operation_id: &str) -> Result<GatewaySubmitResult, &'static str> {
-        let not_observable = "gateway.reobserve.not-observable";
-        let operation =
-            crate::LogicalOperationId::parse(operation_id).map_err(|_| not_observable)?;
-        let namespace = self.recipe.namespace();
-        let attempt = match self
-            .attempts
-            .resume_observable_operation(namespace, &operation, *self.recipe.digest())
-            .await
-        {
-            Ok(Some(attempt)) => attempt,
-            Ok(None) | Err(_) => return Err(not_observable),
-        };
-        let io = EngineIo {
-            engine: self,
-            pending: std::sync::Mutex::new(None),
-            started: Instant::now(),
-            prepared: OnceLock::new(),
-            #[cfg(unix)]
-            commissioning: None,
-            #[cfg(unix)]
-            commissioned_action: OnceLock::new(),
-            #[cfg(unix)]
-            commissioning_refusal: OnceLock::new(),
-        };
-        io.prepare().await?;
-        let context = SubmitContext {
-            recipe: &self.recipe,
-            attempts: &self.attempts,
-            context: &self.trusted_context,
-            observer: self.observer.as_ref(),
-        };
-        if let Some(result) = submit::reobserve(&context, &io, attempt).await {
-            return Ok(result);
-        }
-        match self.attempts.read(namespace, &operation).await {
-            Ok(Some(snapshot)) => Ok(stored_result(&snapshot)),
-            Ok(None) | Err(_) => Err(not_observable),
-        }
-    }
-
     /// Deletes at most [`SLOT_SWEEP_LIMIT`] count and sum slots whose expiry,
     /// one full window after their window ends, is at or before the gateway
     /// clock, and returns how many were deleted. Claims are never swept.
@@ -1381,6 +1328,15 @@ impl GatewayEngine {
                 .approve(approval, self.effect_policy.approver(), now)
                 .map_err(|_| not_entered("gateway.effect.approval"))?,
         );
+        self.acquire_recovery_approved(approved, now, started).await
+    }
+
+    async fn acquire_recovery_approved(
+        &self,
+        approved: Arc<ApprovedEffect>,
+        now: u64,
+        started: Instant,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         let reads = self
             .recipe
             .credential_reads()
@@ -1409,6 +1365,78 @@ impl GatewayEngine {
             Ok(snapshot) => Ok(snapshot),
             Err(_) => self.recovery_projection(&approved).await,
         }
+    }
+
+    /// Acquires and records independently approved recovery evidence. The read
+    /// operation comes from the native compiled effect, never an extra transport
+    /// parameter. A completed response remains distinct from source refinement.
+    ///
+    /// # Errors
+    /// Returns a native refusal or indeterminate state. No failure authorizes
+    /// retry of a granted acquisition or the original mutation.
+    pub async fn recover(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::RecoverySnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let effect = self
+            .compile_recovery_effect(source_operation, proof, action)
+            .await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        let operation = approved.effect().binding().journal_identity().1.to_owned();
+        self.acquire_recovery_approved(approved, now, started)
+            .await?;
+        self.refine_recovery(source_operation, &operation)
+            .await
+            .map_err(|code| GatewaySubmitResult::Indeterminate {
+                code: code.to_owned(),
+            })
+    }
+
+    /// Refines a retained mutation from one separately authorized, recorded
+    /// recovery acquisition. This performs journal I/O only; it never leases a
+    /// credential, sends a request or refreshes the read's receipt time. The
+    /// writer's expired or revoked authority does not erase historical facts.
+    ///
+    /// # Errors
+    /// Refuses an unrelated source/read pair, corrupt or unavailable journal,
+    /// or an unavailable deployment clock. Stale or inconclusive evidence is
+    /// returned as unchanged history with an explicit disposition.
+    pub async fn refine_recovery(
+        &self,
+        source_operation: &str,
+        read_operation: &str,
+    ) -> Result<crate::RecoverySnapshot, &'static str> {
+        let source = crate::LogicalOperationId::parse(source_operation)
+            .map_err(|_| "gateway.recovery.binding")?;
+        let read = crate::LogicalOperationId::parse(read_operation)
+            .map_err(|_| "gateway.recovery.binding")?;
+        let snapshot = self
+            .attempts
+            .refine_recovery(
+                self.recipe.namespace(),
+                &source,
+                &read,
+                *self.recipe.digest(),
+                Arc::clone(&self.qualification),
+            )
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => "gateway.recovery.binding",
+                _ => "gateway.recovery.unavailable",
+            })?;
+        Ok(snapshot)
     }
 
     async fn recovery_projection(
@@ -1487,15 +1515,12 @@ impl GatewayEngine {
         &self,
         source_operation: &str,
     ) -> Result<crate::effect::RecoveryReadTarget, GatewaySubmitResult> {
-        let unavailable = || not_entered("gateway.reobserve.not-observable");
+        let unavailable = || not_entered("gateway.recovery.not-observable");
         let operation =
             crate::LogicalOperationId::parse(source_operation).map_err(|_| unavailable())?;
         self.attempts
-            .resume_observable_operation(self.recipe.namespace(), &operation, *self.recipe.digest())
+            .retained_recovery_target(self.recipe.namespace(), &operation, *self.recipe.digest())
             .await
-            .map_err(|_| unavailable())?
-            .ok_or_else(unavailable)?
-            .recovery_target()
             .map_err(|_| unavailable())
     }
 

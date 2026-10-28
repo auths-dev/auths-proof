@@ -27,6 +27,8 @@ const SCHEMA: &str = "auths.gateway-codes/1";
 /// none exists yet). The fixture letters are R for the recipe corpus, A for
 /// the attempt scenarios, B for the bounds cases, and O for the outcomes.
 const ROWS: &[&str] = &[
+    "gateway.recovery.binding effect recovery new 74 -",
+    "gateway.recovery.unavailable effect recovery new 74 -",
     "gateway.acquisition.binding effect compile new 74 -",
     "gateway.acquisition.exhausted effect admission new 74 -",
     "gateway.acquisition.ancillary-required effect before-claim new 74 -",
@@ -86,7 +88,9 @@ const ROWS: &[&str] = &[
     "gateway.admin.credential-probe admin admin new 3 -",
     "gateway.admin.generation-conflict admin admin new 5 -",
     "gateway.admin.peer-refused admin admin existing - -",
-    "gateway.admin.reobserved admin admin new 5 -",
+    "gateway.admin.recovered admin admin new 74 -",
+    "gateway.admin.recovery-refused admin admin new 74 -",
+    "gateway.admin.recovery-recorded admin admin new 74 -",
     "gateway.admin.status admin admin new 5 -",
     "gateway.install.connection-exists install install new 5 -",
     "gateway.install.credential-account install install new 3 -",
@@ -97,7 +101,7 @@ const ROWS: &[&str] = &[
     "gateway.install.join-record-missing install install new 5 -",
     "gateway.install.operator-attestation-invalid install install new 5 -",
     "gateway.install.operator-attestation-required install install new 5 -",
-    "gateway.reobserve.not-observable admin admin new 5 -",
+    "gateway.recovery.not-observable effect compile new 74 -",
     "gateway.serve.accept-failed serve serve existing - -",
     "gateway.serve.descriptor-limit serve serve new 5 -",
     "audit.bound-exceeded audit audit new 4 B:audit-count-capacity-three-and-one",

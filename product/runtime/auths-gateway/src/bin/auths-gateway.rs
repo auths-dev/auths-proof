@@ -509,17 +509,31 @@ mod unix {
             #[arg(long)]
             admin_socket: Option<PathBuf>,
         },
-        /// Ask the private operator socket for one read-only re-observation
-        /// of a stored attempt.
-        Reobserve {
+        /// Acquire and refine one separately authorized bounded recovery read.
+        Recover {
             #[arg(long)]
             state_dir: PathBuf,
-            /// The admin socket `serve` was given with `--admin-socket`;
-            /// defaults to `<state-dir>/admin.sock`.
             #[arg(long)]
             admin_socket: Option<PathBuf>,
             #[arg(long)]
-            operation_id: String,
+            source_operation: String,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Refine from an existing acquisition response; performs no provider I/O.
+        RecoveryRecord {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            #[arg(long)]
+            source_operation: String,
+            #[arg(long)]
+            acquisition_operation: String,
         },
         /// Print the operator statement and the preimage the operator's own
         /// signer signs for `install --operator-attestation`. Prints no
@@ -1025,6 +1039,8 @@ mod unix {
         execution_witness: Option<auths_gateway::GatewayExecutionWitness>,
         #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<GatewaySubmitResult>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        recovery: Option<auths_gateway::GatewayRecoveryReport>,
         /// The reference commitment of a prepared successor. It names the
         /// stored secret without revealing it or where it is kept.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -1065,6 +1081,7 @@ mod unix {
                 status: None,
                 execution_witness: None,
                 result: None,
+                recovery: None,
                 commitment: None,
                 qualification: None,
             }
@@ -2193,7 +2210,14 @@ mod unix {
         RotateCommit([u8; 32]),
         Status,
         ExecutionWitness,
-        Reobserve(String),
+        Recover {
+            source_operation: String,
+            submission: Box<auths_gateway::app::DecodedSubmission>,
+        },
+        RecoveryRecord {
+            source_operation: String,
+            acquisition_operation: String,
+        },
         QualificationReload,
     }
 
@@ -2214,9 +2238,22 @@ mod unix {
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
             AdminRequestCommand::ExecutionWitness {} => Ok(AdminCommand::ExecutionWitness),
             AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
-            AdminRequestCommand::Reobserve { operation_id } => {
-                Ok(AdminCommand::Reobserve(operation_id))
+            AdminRequestCommand::Recover { source_operation } => {
+                let frame = Zeroizing::new(clock.read_frame(stream).await?);
+                let submission: AppSubmission =
+                    serde_json::from_slice(&frame).map_err(|_| "gateway.admin.invalid-frame")?;
+                Ok(AdminCommand::Recover {
+                    source_operation,
+                    submission: Box::new(submission.decode()?),
+                })
             }
+            AdminRequestCommand::RecoveryRecord {
+                source_operation,
+                acquisition_operation,
+            } => Ok(AdminCommand::RecoveryRecord {
+                source_operation,
+                acquisition_operation,
+            }),
             AdminRequestCommand::Rotate {} => read_admin_secret(clock, stream)
                 .await
                 .map(AdminCommand::Rotate),
@@ -2322,12 +2359,42 @@ mod unix {
                         Err(_) => AdminResponse::refused("gateway.qualification.unavailable"),
                     }
                 }
-                Ok(AdminCommand::Reobserve(operation_id)) => {
-                    match engine.reobserve(&operation_id).await {
-                        Ok(result) => AdminResponse {
+                Ok(AdminCommand::Recover {
+                    source_operation,
+                    submission,
+                }) => {
+                    match engine
+                        .recover(
+                            &source_operation,
+                            &submission.proof,
+                            &submission.action,
+                            submission.approval,
+                        )
+                        .await
+                    {
+                        Ok(snapshot) => AdminResponse {
                             ok: true,
+                            recovery: Some(snapshot.report()),
+                            ..AdminResponse::refused("gateway.admin.recovered")
+                        },
+                        Err(result) => AdminResponse {
                             result: Some(result),
-                            ..AdminResponse::refused("gateway.admin.reobserved")
+                            ..AdminResponse::refused("gateway.admin.recovery-refused")
+                        },
+                    }
+                }
+                Ok(AdminCommand::RecoveryRecord {
+                    source_operation,
+                    acquisition_operation,
+                }) => {
+                    match engine
+                        .refine_recovery(&source_operation, &acquisition_operation)
+                        .await
+                    {
+                        Ok(snapshot) => AdminResponse {
+                            ok: true,
+                            recovery: Some(snapshot.report()),
+                            ..AdminResponse::refused("gateway.admin.recovery-recorded")
                         },
                         Err(code) => AdminResponse::refused(code),
                     }
@@ -4119,14 +4186,42 @@ mod unix {
                 let command = serde_json::json!({"command": "status"});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
-            Command::Reobserve {
+            Command::Recover {
                 state_dir,
                 admin_socket,
-                operation_id,
+                source_operation,
+                proof,
+                action,
+                approval,
             } => {
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let approval = read_effect_approval(&approval)?
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.approval")?;
+                let proof = Zeroizing::new(read_bounded(&proof, 4 * 1024 * 1024)?);
+                let action = Zeroizing::new(read_bounded(&action, 64 * 1024)?);
+                let submission = AppSubmission {
+                    schema: APP_REQUEST_SCHEMA.to_owned(),
+                    proof_b64: Base64UrlUnpadded::encode_string(&proof),
+                    action_b64: Base64UrlUnpadded::encode_string(&action),
+                    approval_b64: Base64UrlUnpadded::encode_string(&approval),
+                };
+                let frame = Zeroizing::new(
+                    serde_json::to_vec(&submission).map_err(|_| "gateway.admin.invalid-frame")?,
+                );
                 let command =
-                    serde_json::json!({"command": "reobserve", "operation_id": operation_id});
+                    serde_json::json!({"command": "recover", "source_operation": source_operation});
+                admin_command(&state_dir, &admin_socket, command, Some(&frame)).await
+            }
+            Command::RecoveryRecord {
+                state_dir,
+                admin_socket,
+                source_operation,
+                acquisition_operation,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "recovery-record", "source_operation": source_operation,
+                    "acquisition_operation": acquisition_operation});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
             Command::OperatorRequest {
@@ -4533,21 +4628,21 @@ mod unix {
                 parse(serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "disable"}))
                     .expect("disable");
             assert!(matches!(disable, AdminRequestCommand::Disable {}));
-            let reobserve = parse(serde_json::json!({
+            let recover = parse(serde_json::json!({
                 "schema": ADMIN_REQUEST_SCHEMA,
-                "command": "reobserve",
-                "operation_id": "op-1"
+                "command": "recover",
+                "source_operation": "op-1"
             }))
-            .expect("reobserve");
+            .expect("recover");
             assert!(matches!(
-                reobserve,
-                AdminRequestCommand::Reobserve { ref operation_id } if operation_id == "op-1"
+                recover,
+                AdminRequestCommand::Recover { ref source_operation } if source_operation == "op-1"
             ));
             for refused in [
                 serde_json::json!({"command": "disable"}),
                 serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "delete"}),
                 serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "disable", "secret": "x"}),
-                serde_json::json!({"schema": "auths.gateway-admin-request/2", "command": "disable"}),
+                serde_json::json!({"schema": "auths.gateway-admin-request/1", "command": "disable"}),
                 serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "reobserve"}),
             ] {
                 assert!(parse(refused.clone()).is_err(), "{refused}");

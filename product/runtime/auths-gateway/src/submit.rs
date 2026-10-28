@@ -23,10 +23,12 @@ use crate::{
     ObservableGatewayAttempt, RequestHeader,
 };
 use auths_gateway_kernel::order::{
-    AccountResult, CeilingRead, ClaimResult, DeniedResult, Mode, Phase, PreEntryResult, Refusal,
-    ResponseRecord, Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, SubmitState,
-    Verification, WriteResult, next_step, start,
+    AccountResult, CeilingRead, ClaimResult, DeniedResult, Mode, PreEntryResult, Refusal,
+    ResponseRecord, Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, Verification,
+    WriteResult, next_step, start,
 };
+#[cfg(test)]
+use auths_gateway_kernel::order::{Phase, SubmitState};
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
@@ -316,6 +318,7 @@ pub(crate) async fn run<I: SubmitIo>(cx: &SubmitContext<'_>, io: &I) -> GatewayS
 /// every credential check, and one read-back from the stored plan. The
 /// caller has already prepared the entry. Returns the recorded result, or
 /// `None` when the read-back recorded nothing.
+#[cfg(test)]
 pub(crate) async fn reobserve<I: SubmitIo>(
     cx: &SubmitContext<'_>,
     io: &I,

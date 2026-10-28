@@ -19,7 +19,9 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 mod acquisition;
-pub(crate) use acquisition::{RECOVERY_READ_TOOL, RecoveryCapacity, RecoveryPlan};
+pub(crate) use acquisition::{
+    MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL, RecoveryCapacity, RecoveryPlan,
+};
 pub use acquisition::{RecoveryReadTarget, compile_recovery_acquisition};
 
 /// Only accepted effect binding schema. Old disposable state is rejected.

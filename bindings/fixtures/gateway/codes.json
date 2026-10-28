@@ -185,11 +185,27 @@
       "case": null
     },
     {
-      "code": "gateway.admin.reobserved",
+      "code": "gateway.admin.recovered",
       "owner": "admin",
       "stage": "admin",
       "status": "new",
-      "epic": 5,
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.recovery-recorded",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.recovery-refused",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 74,
       "case": null
     },
     {
@@ -757,6 +773,30 @@
       }
     },
     {
+      "code": "gateway.recovery.binding",
+      "owner": "effect",
+      "stage": "recovery",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.recovery.not-observable",
+      "owner": "effect",
+      "stage": "compile",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.recovery.unavailable",
+      "owner": "effect",
+      "stage": "recovery",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.relative-ceiling.above",
       "owner": "engine",
       "stage": "recorded",
@@ -788,14 +828,6 @@
         "fixture": "attempt-scenarios-v3.json",
         "id": "relative-basis-unavailable"
       }
-    },
-    {
-      "code": "gateway.reobserve.not-observable",
-      "owner": "admin",
-      "stage": "admin",
-      "status": "new",
-      "epic": 5,
-      "case": null
     },
     {
       "code": "gateway.serve.accept-failed",

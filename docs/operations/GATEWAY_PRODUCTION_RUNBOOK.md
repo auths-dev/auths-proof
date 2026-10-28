@@ -151,17 +151,26 @@ and rebuild authority/connection state under owner review; do not serve old
 operations as fresh. A newly created host without a floor cannot prove that a
 database is current; recover its floors before starting it.
 
-For each response-recorded or unknown operation, use `reobserve --state-dir
-... --operation-id ...` once. It uses the stored plan and a fresh read-only
-check under the declared capability. Reobserve requires an enabled connection
-because it leases a credential; a disabled or revoked connection refuses even
-this read. Only when the restored state passes the continuity and retained-floor
-checks, keep app ingress blocked on both hosts, require every other readiness
-check to pass, enable and rerun full doctor before reconciling. Do not enable
-a quarantined restore to work around a refusal. Confirmed evidence may advance the
-record; missing or delayed evidence stays unknown. Reobserve again after
-visibility returns; never issue a new provider write as recovery. Keep the
-opaque operation digest and stage only in support evidence.
+For a response-recorded or unknown operation, author a distinct bounded read
+using `effect-recovery-call`, authorize it through the native MCP flow, review
+it with `effect-review --recovery-of`, and sign its exact approval. Then use
+`recover --state-dir ... --source-operation ... --proof ... --action ...
+--approval ...`. The old unapproved `reobserve` command is refused. Each read
+reserves capacity permanently from the source's 16-attempt count/byte limit.
+Changed credentials and unimplemented ancillary/read-policy bounds fail closed.
+
+A new read requires an enabled connection. Only when restored state passes the
+continuity and retained-floor checks, keep app ingress blocked on both hosts,
+require every other readiness check to pass, enable and rerun full doctor before
+reconciling. Do not enable a quarantined restore to work around a refusal.
+`recovery-record --source-operation ... --acquisition-operation ...` can record
+fresh evidence already acquired; it performs no provider or credential I/O and
+does not borrow the writer's authority. New evidence must be no older than 30
+seconds at the journal fence. Stale, missing or inconclusive evidence leaves the
+source unresolved and charged. A repeated recorded fact is history with its
+original timestamp. No recovery command authorizes another mutation send.
+Retain only native redacted reports in support evidence. The complete installed
+AP074 recovery journey and fault evidence remain under implementation.
 
 ## Rolling upgrade
 

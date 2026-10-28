@@ -2,12 +2,12 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/7`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/8`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
 //! insert-once, compare-and-swap, and sweep mechanism over opaque bounded
-//! bytes of six closed kinds: [`FileGatewayAttemptStore`] for one host, and
+//! bytes of seven closed kinds: [`FileGatewayAttemptStore`] for one host, and
 //! the multi-host `PostgresLifecycleStore`, whose production qualification is
 //! still open.
 
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/7";
+const SCHEMA: &str = "auths.gateway-attempt/8";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -282,9 +282,24 @@ pub struct GatewayAttemptSnapshot {
     observation_fact: Option<GatewayObservationFact>,
     provider_evidence: Option<GatewayProviderEvidence>,
     pre_entry: Option<GatewayPreEntry>,
+    recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
 }
 
 impl GatewayAttemptSnapshot {
+    /// Whether this history was refined by an independently authorized read.
+    #[must_use]
+    pub const fn has_recovery_evidence(&self) -> bool {
+        self.recovery_evidence.is_some()
+    }
+
+    /// Returns the read's original receipt time, without refreshing it on replay.
+    #[must_use]
+    pub fn recovery_received_at(&self) -> Option<u64> {
+        self.recovery_evidence
+            .as_ref()
+            .map(|link| link.received_at())
+    }
+
     /// Returns the durable journal revision.
     #[must_use]
     pub const fn revision(&self) -> u64 {
@@ -689,7 +704,8 @@ enum ProtocolState {
 mod acquisition;
 pub(crate) use acquisition::AcquisitionEntryPermit;
 pub use acquisition::{
-    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, ReservedAcquisition,
+    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, GatewayRecoveryReport,
+    RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
 };
 
 trait JournalProtocol: Clone + Sized {
@@ -741,6 +757,8 @@ struct MutationState {
     provider_evidence: Option<EvidenceWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pre_entry: Option<PreEntryWire>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
 }
 
 /// Private immutable evidence of the unique acknowledged grant. It does not
@@ -802,13 +820,10 @@ impl Record {
     }
 
     fn recovery_target(&self) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
-        let binding = self.validate_header()?;
-        let link = self.link();
         let stage_resolvable = match self.state.stage {
-            GatewayAttemptStage::EntryGranted | GatewayAttemptStage::Unknown => {
-                transition::resolves_unknown(link)
-            }
-            GatewayAttemptStage::ResponseRecorded => transition::has_link(link),
+            GatewayAttemptStage::EntryGranted
+            | GatewayAttemptStage::Unknown
+            | GatewayAttemptStage::ResponseRecorded => true,
             GatewayAttemptStage::Reserved
             | GatewayAttemptStage::NotEntered
             | GatewayAttemptStage::Observed
@@ -817,6 +832,15 @@ impl Record {
         if !stage_resolvable {
             return Err(GatewayAttemptError::InvalidTransition);
         }
+        self.recovery_target_data()
+    }
+
+    /// The immutable observation contract also remains available after final
+    /// evidence, so history can be checked without acquiring new authority.
+    fn recovery_target_data(
+        &self,
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let binding = self.validate_header()?;
         let request = self
             .observation_request()
             .ok_or(GatewayAttemptError::InvalidTransition)?;
@@ -1070,6 +1094,9 @@ impl Record {
         {
             return Err(GatewayAttemptError::Corrupt);
         }
+        if let Some(link) = &self.state.recovery_evidence {
+            link.validate(self)?;
+        }
         let provider_evidence = match &self.state.provider_evidence {
             Some(wire) => {
                 let locator = self
@@ -1108,6 +1135,7 @@ impl Record {
             observation_fact: self.state.observation_fact,
             provider_evidence,
             pre_entry,
+            recovery_evidence: self.state.recovery_evidence.clone(),
         })
     }
 }
@@ -1355,7 +1383,7 @@ fn fence_keys(
     Ok(keys)
 }
 
-/// Durable storage of opaque gateway records of six closed kinds.
+/// Durable storage of opaque gateway records of seven closed kinds.
 /// Implementations never interpret the bytes.
 ///
 /// Every implementation must pass the same conformance suite: one winner per
@@ -2104,6 +2132,7 @@ fn claim_record(
             observation_match: None,
             observation_fact: None,
             provider_evidence: None,
+            recovery_evidence: None,
             pre_entry: None,
         },
     );
@@ -2312,6 +2341,29 @@ impl GatewayAttempts {
             return Err(GatewayAttemptError::BindingConflict);
         }
         record.snapshot(true).map(Some)
+    }
+
+    /// Retained source contract, including terminal history. Compiling it does
+    /// not permit a new read: acquisition entry separately requires an eligible
+    /// source under the writer fence. This enables exact read replay after a
+    /// source was refined without recreating a provider permit.
+    pub(crate) async fn retained_recovery_target(
+        &self,
+        namespace: &OperatorNamespace,
+        operation_id: &LogicalOperationId,
+        recipe_digest: [u8; 32],
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let (_, record) = self
+            .load(namespace, operation_id)
+            .await?
+            .ok_or(GatewayAttemptError::Unavailable)?;
+        record.snapshot(true)?;
+        if record.recipe_digest != hex::encode(recipe_digest)
+            || !transition::requires_entry(record.state.stage.kernel())
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        record.recovery_target_data()
     }
 
     /// Reopens a stored attempt for the operator's read-only

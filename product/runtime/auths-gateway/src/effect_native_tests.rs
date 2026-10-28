@@ -216,7 +216,9 @@ async fn native_recovery_acquisition_fixture_is_current() {
     )
     .expect("same read");
     assert!(
-        other.approve(original_approval, &public, NOW + 2).is_err(),
+        other
+            .approve(original_approval.clone(), &public, NOW + 2)
+            .is_err(),
         "write approval cannot authorize the read"
     );
     let mut refused = Vec::new();
@@ -302,7 +304,8 @@ async fn native_recovery_acquisition_fixture_is_current() {
                 .expect("exact read approval"),
         ));
     }
-    let corpus = exercise_recovery_journal(&attempts, &root_path, policy.clone(), reads).await;
+    let corpus =
+        exercise_recovery_journal(&attempts, &root_path, policy.clone(), reads.clone()).await;
     assert_eq!(
         attempts
             .read(recipe.namespace(), &operation)
@@ -317,6 +320,61 @@ async fn native_recovery_acquisition_fixture_is_current() {
         std::fs::write(&path, &bytes).expect("write recovery entry corpus");
     }
     assert_eq!(std::fs::read(path).expect("recovery entry corpus"), bytes);
+    let mut corpus = exercise_recovery_refinement(&attempts, &recipe, &source, &reads).await;
+    let mut frame_cases = Vec::new();
+    for (command, accepted) in [
+        (
+            json!({"command": "recover", "source_operation": "source-1"}),
+            true,
+        ),
+        (
+            json!({"command": "recovery-record", "source_operation": "source-1", "acquisition_operation": "read-1"}),
+            true,
+        ),
+        (
+            json!({"command": "reobserve", "operation_id": "source-1"}),
+            false,
+        ),
+        (
+            json!({"command": "recover", "source_operation": "source-1", "url": "https://untrusted.example/"}),
+            false,
+        ),
+        (
+            json!({"command": "recovery-record", "source_operation": "source-1", "acquisition_operation": "read-1", "evidence": "synthetic"}),
+            false,
+        ),
+    ] {
+        let mut frame = command;
+        frame["schema"] = json!(crate::admin::ADMIN_REQUEST_SCHEMA);
+        let bytes = serde_json::to_vec(&frame).expect("admin frame");
+        assert_eq!(crate::admin::parse_admin_request(&bytes).is_ok(), accepted);
+        frame_cases.push(json!({"frame": frame, "accepted": accepted}));
+    }
+    corpus["admin_frames"] = json!(frame_cases);
+    let frame = crate::app::AppSubmission {
+        schema: crate::app::APP_REQUEST_SCHEMA.to_owned(),
+        proof_b64: Base64UrlUnpadded::encode_string(&original.proof),
+        action_b64: Base64UrlUnpadded::encode_string(&original.action),
+        approval_b64: Base64UrlUnpadded::encode_string(
+            &original_approval.to_private_bytes().expect("approval"),
+        ),
+    };
+    let decoded = frame.decode().expect("bounded shared input decoder");
+    assert_eq!(&*decoded.proof, &original.proof);
+    assert_eq!(&*decoded.action, &original.action);
+    assert_eq!(
+        decoded.approval.to_private_bytes().expect("approval"),
+        original_approval.to_private_bytes().expect("approval")
+    );
+    corpus["shared_native_submission_decoder"] =
+        json!("bounded data only; no authority from decoding");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/recovery-refinement.json");
+    let bytes = serde_json::to_vec_pretty(&corpus).expect("refinement corpus");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &bytes).expect("write refinement corpus");
+    }
+    assert_eq!(std::fs::read(path).expect("refinement corpus"), bytes);
 }
 
 /// Real file-journal race and restart evidence. Both source and read entry use
@@ -491,6 +549,267 @@ async fn exercise_recovery_journal(
         "response": {"stage": "response-recorded", "revision": response.revision, "received_bytes": 2, "replay_preserves_facts": true},
         "source_journal_unchanged": true,
         "mixed_projection": {"mutations": mutation_count, "acquisitions": acquisition_count, "grants_project_unknown": true},
+    })
+}
+
+/// Signed read effects and durable file records with synthetic provider bodies.
+/// No installed authority, network or PostgreSQL claim is made by this corpus.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native evidence history and its refusal matrix"
+)]
+async fn exercise_recovery_refinement(
+    attempts: &crate::GatewayAttempts,
+    recipe: &CompiledRecipe,
+    source: &std::sync::Arc<crate::effect::ApprovedEffect>,
+    reads: &[std::sync::Arc<crate::effect::ApprovedEffect>],
+) -> Value {
+    use crate::{AcquisitionClaim, AcquisitionStage, RecoveryDisposition as D};
+    use std::sync::Arc;
+    let source_operation = LogicalOperationId::parse("source-1").expect("source operation");
+    let namespace = recipe.namespace();
+    let before = attempts
+        .read(namespace, &source_operation)
+        .await
+        .expect("source")
+        .expect("record");
+    let token = crate::echo_token(namespace, &source_operation, before.action_commitment());
+    let matched =
+        serde_json::to_vec(&json!({"fields": {"DemoStatus": "Approved", "auths_echo": token}, "private_note": "synthetic-recovery-content-canary"}))
+            .expect("body");
+    let cases = vec![
+        ("http-error", 503, true, matched.clone(), D::ResponseUnusable),
+        ("wrong-version", 200, false, matched.clone(), D::ResponseUnusable),
+        ("missing-field", 200, true, b"{}".to_vec(), D::ResponseUnusable),
+        ("malformed-json", 200, true, b"{".to_vec(), D::ResponseUnusable),
+        ("multiple-records", 200, true, b"[{\"fields\":{\"DemoStatus\":\"Approved\"}},{\"fields\":{\"DemoStatus\":\"Approved\"}}]".to_vec(), D::ResponseUnusable),
+        ("duplicate-members", 200, true, format!("{{\"fields\":{{\"DemoStatus\":\"Pending\",\"DemoStatus\":\"Approved\",\"auths_echo\":\"{token}\"}}}}").into_bytes(), D::ResponseUnusable),
+        ("state-match-without-echo", 200, true, b"{\"fields\":{\"DemoStatus\":\"Approved\"}}".to_vec(), D::Inconclusive),
+        ("unrelated-echo", 200, true, b"{\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"unrelated\"}}".to_vec(), D::Inconclusive),
+        ("wrong-value", 200, true, serde_json::to_vec(&json!({"fields": {"DemoStatus": "Pending", "auths_echo": token}})).expect("body"), D::Inconclusive),
+        ("exact-linked-evidence", 200, true, matched.clone(), D::Recorded),
+    ];
+    let clock = Arc::new(crate::FixedClock::at(NOW + 4));
+    let gate = Arc::new(crate::QualificationGate::new(
+        crate::QualificationPolicy::Optional,
+        None,
+        None,
+        Box::new(Arc::clone(&clock)),
+        auths_recipe_qualification::VerifierState::default(),
+    ));
+    let mut available = Vec::new();
+    for read in reads {
+        if attempts
+            .read_recovery(read)
+            .await
+            .expect("read")
+            .expect("record")
+            .stage
+            == AcquisitionStage::Reserved
+        {
+            available.push(Arc::clone(read));
+        }
+    }
+    assert!(available.len() >= cases.len());
+    let incomplete = LogicalOperationId::parse(reads[0].effect().binding().journal_identity().1)
+        .expect("operation");
+    let unknown = attempts
+        .refine_recovery(
+            namespace,
+            &source_operation,
+            &incomplete,
+            *recipe.digest(),
+            Arc::clone(&gate),
+        )
+        .await
+        .expect("incomplete history");
+    assert_eq!(unknown.disposition, D::AcquisitionIncomplete);
+    assert_eq!(unknown.source, before);
+    let mut outcomes = Vec::new();
+    for ((name, status, version_ok, body, expected), read) in cases.into_iter().zip(&available) {
+        let operation = LogicalOperationId::parse(read.effect().binding().journal_identity().1)
+            .expect("read operation");
+        let AcquisitionClaim::Reserved(reserved) = attempts
+            .claim_recovery(read, NOW + 2)
+            .await
+            .expect("resume")
+        else {
+            panic!("reservation");
+        };
+        let (granted, permit) = reserved
+            .grant_entry(
+                Arc::clone(read),
+                crate::entry::EntryValidation::Oracle { now: NOW + 3 },
+                NOW + 2,
+            )
+            .await
+            .expect("grant");
+        drop(permit);
+        granted
+            .record_response(status, version_ok, &body, NOW + 4)
+            .await
+            .expect("synthetic response");
+        assert!(
+            attempts
+                .refine_recovery(
+                    namespace,
+                    &source_operation,
+                    &operation,
+                    [255; 32],
+                    Arc::clone(&gate)
+                )
+                .await
+                .is_err(),
+            "wrong recipe"
+        );
+        if expected == D::Recorded {
+            clock.set(NOW + 35);
+            let stale = attempts
+                .refine_recovery(
+                    namespace,
+                    &source_operation,
+                    &operation,
+                    *recipe.digest(),
+                    Arc::clone(&gate),
+                )
+                .await
+                .expect("stale history");
+            assert_eq!(stale.disposition, D::EvidenceStale);
+            assert_eq!(stale.source, before);
+            clock.set(NOW + 3);
+            let future = attempts
+                .refine_recovery(
+                    namespace,
+                    &source_operation,
+                    &operation,
+                    *recipe.digest(),
+                    Arc::clone(&gate),
+                )
+                .await
+                .expect("future history");
+            assert_eq!(future.disposition, D::EvidenceStale);
+            assert_eq!(future.source, before);
+            clock.set(NOW + 34);
+        }
+        let refine = || {
+            attempts.refine_recovery(
+                namespace,
+                &source_operation,
+                &operation,
+                *recipe.digest(),
+                Arc::clone(&gate),
+            )
+        };
+        let result = if expected == D::Recorded {
+            let (first, second) = tokio::join!(refine(), refine());
+            let (first, second) = (
+                first.expect("concurrent refinement"),
+                second.expect("concurrent refinement"),
+            );
+            assert_eq!(first.source, second.source);
+            let (recorded, replay) = if first.disposition == D::Recorded {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            assert_eq!(replay.disposition, D::AlreadyRecorded);
+            recorded
+        } else {
+            refine().await.expect("refinement")
+        };
+        assert_eq!(result.disposition, expected, "{name}");
+        assert_eq!(result.acquisition.reserved_calls, 1);
+        if expected == D::Recorded {
+            assert_eq!(
+                result.source.stage(),
+                crate::GatewayAttemptStage::ObservedByProvider
+            );
+            assert_eq!(result.source.revision(), before.revision() + 1);
+            assert_eq!(result.source.evaluated_at(), before.evaluated_at());
+            assert_eq!(
+                result.source.action_commitment(),
+                before.action_commitment()
+            );
+            assert_eq!(result.source.counters(), before.counters());
+            assert_eq!(result.source.response_status(), None);
+            assert!(result.source.has_recovery_evidence());
+            assert_eq!(result.source.recovery_received_at(), Some(NOW + 4));
+            assert_eq!(
+                result
+                    .source
+                    .provider_evidence()
+                    .expect("evidence")
+                    .evidence(),
+                matched
+            );
+            clock.set(NOW + 1000);
+            let replay = attempts
+                .refine_recovery(
+                    namespace,
+                    &source_operation,
+                    &operation,
+                    *recipe.digest(),
+                    Arc::clone(&gate),
+                )
+                .await
+                .expect("late history replay");
+            assert_eq!(replay.disposition, D::AlreadyRecorded);
+            assert_eq!(replay.source, result.source);
+            assert_eq!(replay.acquisition, result.acquisition);
+            let retained = attempts
+                .retained_recovery_target(namespace, &source_operation, *recipe.digest())
+                .await
+                .expect("terminal contract remains available for replay");
+            assert!(
+                retained.journal_plan().expect("retained plan")
+                    == read
+                        .recovery_target()
+                        .expect("read target")
+                        .journal_plan()
+                        .expect("approved plan")
+            );
+            assert!(
+                matches!(
+                    attempts
+                        .claim_recovery(read, NOW + 4)
+                        .await
+                        .expect("read replay"),
+                    AcquisitionClaim::Existing(_)
+                ),
+                "terminal read cannot grant again"
+            );
+            assert!(
+                matches!(
+                    attempts.claim_bounded(source, NOW).await,
+                    Err(crate::GatewayAttemptError::Replay)
+                ),
+                "no new mutation admission"
+            );
+        } else {
+            assert_eq!(result.source, before, "unresolved source remains unchanged");
+        }
+        let report = result.report();
+        let report_bytes = serde_json::to_vec(&report).expect("public report");
+        let text = std::str::from_utf8(&report_bytes).expect("report UTF-8");
+        for private in [
+            token.as_str(),
+            "Approved",
+            "synthetic-recovery-content-canary",
+        ] {
+            assert!(!text.contains(private), "private data in report");
+        }
+        assert!(!text.contains(&hex::encode(before.action_commitment())));
+        outcomes.push(json!({"case": name, "disposition": result.disposition, "report": report}));
+    }
+    json!({
+        "schema": "auths.recovery-refinement-fixture/1",
+        "scope": "native signed effects and real file journal; synthetic entry validation/provider bodies and controlled deployment clock; no installed transport or PostgreSQL claim",
+        "cases": outcomes,
+        "freshness": {"maximum_age_seconds": 30, "age_31_refused": true, "future_receipt_refused": true, "age_30_recorded": true},
+        "history": {"expired_writer_preserved": true, "late_replay_idempotent": true, "receipt_time_unchanged": true, "charges_retained": true, "no_mutation_readmission": true},
+        "recipe_substitution_refused": true,
+        "concurrent_refinement": "one recorded, one already-recorded, same immutable facts",
+        "public_report_excludes_private_content_and_commitments": true,
     })
 }
 

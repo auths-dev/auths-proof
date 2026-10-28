@@ -76,9 +76,30 @@ A compiled read cannot be sent through mutation `submit`. The native runtime now
 has a separate recovery acquisition entry point with permanent count/byte
 allocation and a durable one-use grant. It refuses recipes needing additional
 credential reads until those reads are accounted for. The commands above still
-perform authoring/review only. Source-evidence refinement, public execution
-routes, installed authenticated review, frontend, and full concurrency/fault
-evidence remain open AP074 requirements.
+perform authoring/review only. After signing the exact review request and
+assembling `read-approval.json`, the owner-only operator socket accepts:
+
+```text
+auths-gateway recover --state-dir <private-state> --source-operation <retained-operation> \
+  --proof read-proof.cbor --action read-action.cbor --approval read-approval.json
+auths-gateway recovery-record --state-dir <private-state> \
+  --source-operation <retained-operation> --acquisition-operation <new-read-operation>
+```
+
+`recover` performs the independently authorized read and then attempts evidence
+refinement. `recovery-record` only uses an already retained acquisition response;
+it performs no credential or provider I/O. The original writer's expired proof
+is never reused as read authority. Freshness is checked under the journal fence:
+evidence older than 30 seconds, or with a future receipt time, cannot newly
+refine the source. A previously recorded fact remains history and does not get
+a new time on replay. Unknown sends remain unknown without supported linked
+evidence; a state match alone does not prove the original write occurred.
+
+Admin request/response `/2` removes the unapproved `reobserve` command. Native
+recovery report `/1` separates read and mutation facts and excludes provider
+content, locators, echo and private commitments. Installed transport/fault
+coverage, the authenticated approval frontend, ancillary acquisition cutovers
+and full acceptance evidence remain open AP074 requirements.
 
 A production installation names its operator only through a signed
 `auths.gateway-operator-attestation/2` statement. `operator-request` prints
@@ -155,7 +176,7 @@ held which key, is operator evidence and is not produced by this code.
   `auths.lifecycle.postgresql/8`; it installs only into an empty database.
   A database created with an obsolete schema is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
-  `auths.gateway-attempt/7`; a store holding obsolete records is refused as
+  `auths.gateway-attempt/8`; a store holding obsolete records is refused as
   corrupt, so the file store's attempts directory is recreated too. The journal
   keeps typed mutation/acquisition facts under one header. Recovery allocations
   are permanent source-lifetime count/byte reservations and are never swept.
@@ -212,7 +233,7 @@ held which key, is operator evidence and is not produced by this code.
 - **Sockets.** `serve` keeps separate capacity for the app socket
   (`--app-capacity`, 1–1 024, default 64) and the owner-only `admin.sock`
   (4), so `auths-gateway disable`, `enable`, `revoke`, `rotate`, `status`,
-  and `reobserve` still connect while the application holds or refills the
+  and `recovery-record` still connect while the application holds or refills the
   app socket. A connection past either socket's capacity is closed at accept
   without a response. An admin change commits without waiting for any
   submission or provider call, then waits at most 20 seconds for this
@@ -229,7 +250,7 @@ held which key, is operator evidence and is not produced by this code.
   must already exist, equal its canonical path (on macOS `/tmp` resolves to
   `/private/tmp`), be owned by the gateway's UID, and grant no group or
   other permission (mode 0700 or narrower); `rotate` sends the credential
-  over this socket. Give `disable`, `enable`, `status`, `reobserve`,
+  over this socket. Give `disable`, `enable`, `status`, `recover`, `recovery-record`,
   `revoke`, `rotate`, `operator-attest`, and `doctor` the same
   `--admin-socket`; without it they look for `<state-dir>/admin.sock` and
   report `gateway.admin.socket-unavailable` naming that path. The admin

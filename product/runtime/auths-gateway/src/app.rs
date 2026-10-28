@@ -139,6 +139,48 @@ pub struct AppSubmission {
     pub approval_b64: String,
 }
 
+/// Bounded decoded transport input. This is data only, not verified authority.
+pub struct DecodedSubmission {
+    /// Canonical proof bytes for native verification.
+    pub proof: Zeroizing<Vec<u8>>,
+    /// Canonical action bytes for native verification.
+    pub action: Zeroizing<Vec<u8>>,
+    /// Parsed exact-effect approval; native entry still validates it.
+    pub approval: ExactEffectApproval,
+}
+
+impl AppSubmission {
+    /// Decodes one bounded proof/action/approval frame without authorizing it.
+    ///
+    /// # Errors
+    /// Refuses wrong schema, oversized fields and invalid native encoding.
+    pub fn decode(&self) -> Result<DecodedSubmission, &'static str> {
+        let invalid = "gateway.submit.invalid-encoding";
+        if self.schema != APP_REQUEST_SCHEMA
+            || self.approval_b64.len() > (MAX_EFFECT_APPROVAL_BYTES * 4).div_ceil(3)
+        {
+            return Err("gateway.submit.invalid-frame");
+        }
+        if self.proof_b64.len() > (4 * 1024 * 1024 * 4_usize).div_ceil(3)
+            || self.action_b64.len() > (64 * 1024 * 4_usize).div_ceil(3)
+        {
+            return Err(invalid);
+        }
+        let proof =
+            Zeroizing::new(Base64UrlUnpadded::decode_vec(&self.proof_b64).map_err(|_| invalid)?);
+        let action =
+            Zeroizing::new(Base64UrlUnpadded::decode_vec(&self.action_b64).map_err(|_| invalid)?);
+        let approval =
+            Zeroizing::new(Base64UrlUnpadded::decode_vec(&self.approval_b64).map_err(|_| invalid)?);
+        let approval = ExactEffectApproval::from_private_bytes(&approval).map_err(|_| invalid)?;
+        Ok(DecodedSubmission {
+            proof,
+            action,
+            approval,
+        })
+    }
+}
+
 impl Drop for AppSubmission {
     fn drop(&mut self) {
         self.proof_b64.zeroize();
@@ -258,26 +300,15 @@ fn invalid_frame() -> GatewaySubmitResult {
 }
 
 async fn submit_frame(submission: AppSubmission, application: &impl GatewayApplication) -> Vec<u8> {
-    let result = if submission.schema == APP_REQUEST_SCHEMA
-        && submission.approval_b64.len() <= (MAX_EFFECT_APPROVAL_BYTES * 4).div_ceil(3)
-    {
-        match (
-            Base64UrlUnpadded::decode_vec(&submission.proof_b64).map(Zeroizing::new),
-            Base64UrlUnpadded::decode_vec(&submission.action_b64).map(Zeroizing::new),
-            Base64UrlUnpadded::decode_vec(&submission.approval_b64)
-                .ok()
-                .map(Zeroizing::new)
-                .and_then(|bytes| ExactEffectApproval::from_private_bytes(&bytes).ok()),
-        ) {
-            (Ok(proof), Ok(action), Some(approval)) => {
-                application.submit(&proof, &action, approval).await
-            }
-            _ => GatewaySubmitResult::Indeterminate {
-                code: "gateway.submit.invalid-encoding".to_owned(),
-            },
+    let result = match submission.decode() {
+        Ok(decoded) => {
+            application
+                .submit(&decoded.proof, &decoded.action, decoded.approval)
+                .await
         }
-    } else {
-        invalid_frame()
+        Err(code) => GatewaySubmitResult::Indeterminate {
+            code: code.to_owned(),
+        },
     };
     serde_json::to_vec(&result).unwrap_or_default()
 }

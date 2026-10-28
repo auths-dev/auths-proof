@@ -386,3 +386,24 @@ credential replacement, managed bounds, public execution routes and removal of
 existing raw observation/ancillary paths remain required work. The native file
 corpus uses synthetic entry validation and response bytes; it is narrow durable
 mechanism evidence, not an installed authority or transport claim.
+
+
+## Retained recovery evidence and operator cutover
+
+Journal `/8` adds immutable acquisition provenance to source observation facts.
+The existing adapter fence checks source/read/allocation and samples the deployed
+clock before the same transition predicate can advance the mutation. Read
+receipt time is preserved. Newly recorded evidence must have age 0–30 seconds;
+exact already-recorded history does not expire or refresh. Unknown sends require
+supported provider linkage; state equality alone does not establish execution.
+Duplicate object members are refused by the bounded native observation decoder.
+
+The production operator `reobserve` path is removed. Admin request/response `/2`
+uses `recover` with a separately signed native read and exact approval, or
+`recovery-record` with already retained read evidence and no external I/O.
+Application and operator input frames share a bounded native decoder. Redacted
+recovery report `/1` separates read facts, source facts and evidence disposition
+without private content, locators or commitments. The old operator step driver
+is test-only; automatic post-write and ancillary/application reads remain the
+next production cutovers. The native corpus is file-journal mechanism evidence
+with synthetic entry/response/clock inputs, not installed transport qualification.

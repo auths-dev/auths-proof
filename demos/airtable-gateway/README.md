@@ -58,9 +58,10 @@ does not establish a linked observation.
 
 **Lose PATCH response** actually drops the socket after the provider applies
 the write. The result stays unknown while fresh reads lack its value/echo.
-After three seconds choose **Observe lost operation again**. This submits the
-original proof/action to the native replay boundary: it can read again, and
-cannot PATCH again. The automated journey measures zero new write entries.
+The original proof/action replay returns retained history without another read
+or PATCH. The demo's recovery UI still needs the AP074 independent read-authority
+cutover; it must not be treated as evidence of the completed recovery journey.
+Fresh observations require a new native bounded read proof and exact approval.
 There is no automatic recovery or write retry.
 
 **Competing writer** makes a second actual HTTP actor write the same value with
@@ -93,11 +94,14 @@ docker exec --user 62004:62005 auths-airtable-gateway-demo \
 ```
 
 An IPC failure is unconfirmed, never permission to send another PATCH.
-Operator-only read-only re-observation and diagnostics use the shipped CLI:
+Operator-only recovery uses a separately authorized native read and exact approval;
+diagnostics remain available through the shipped CLI:
 
 ```sh
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
-  reobserve --state-dir /run/demo/gateway0 --operation-id lost-response
+  recover --state-dir /run/demo/gateway0 --source-operation lost-response \
+  --proof /private/read-proof.cbor --action /private/read-action.cbor \
+  --approval /private/read-approval.json
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
   doctor --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/app0.sock \
   --app-uid 62004 --app-gid 62005

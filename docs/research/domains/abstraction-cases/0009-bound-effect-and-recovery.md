@@ -216,3 +216,21 @@ slots, permanent retention, private response history and mixed-protocol stage
 projection. It establishes neither provider execution nor installed revocation,
 PostgreSQL parity, process crash behavior, source-evidence freshness or disclosure.
 Those remain required independent evidence and cutover gates.
+
+
+## Evidence refinement comparison
+
+The concrete recovery-read response is evaluated against its original closed
+source contract inside the shared source/read/allocation fence. No response field
+selects a provider implementation. The existing typed read-back distinction is
+retained: exact echo plus expected value can link provider evidence; equality
+without that echo cannot resolve an unknown mutation. Duplicate object members
+are rejected instead of silently choosing one value. This parsing hardening is
+a bounded observation leaf, not a new provider-semantic evaluator.
+
+`recovery-refinement.json` covers unusable/missing/multiple/duplicate responses,
+unrelated echo and noncausal equality, freshness boundaries, concurrent/idempotent
+recording, source attribution/charge retention and report privacy. It also freezes
+the closed replacement operator-frame grammar. These are native file-journal
+results with synthetic response, clock and entry validation; independent process,
+installed transport, PostgreSQL and final differential evidence are still needed.

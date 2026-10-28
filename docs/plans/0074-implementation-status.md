@@ -453,14 +453,61 @@ closure regeneration passed after that correction (one artifact-generation test)
   bindings, installed fault/race evidence and final formal/CI gates. No A01–A22
   acceptance criterion is closed by this checkpoint.
 
+## Recovery evidence and operator cutover checkpoint
+
+- Journal `/8` links newly recorded source evidence to the independently
+  authorized acquisition effect, operation, revision, original receipt time and
+  exact private response digest. It preserves source binding, actor attribution,
+  grant, response history and charges. Source/read/allocation and the deployment
+  clock are checked under the existing adapter fence; no new transaction owner
+  or provider capability is introduced by evidence recording.
+- Evidence is fresh through age 30 seconds; older or future-dated bytes cannot
+  newly refine a source. HTTP error, wrong version, malformed/missing/multiple
+  records and duplicate JSON members are unusable. Value equality without the
+  expected echo cannot resolve an unknown write. Recipe observation parsing now
+  rejects duplicate members at every depth while retaining its byte/depth bounds.
+- Exact supported echo/value evidence can refine an unknown mutation. Its private
+  provenance is immutable; repeated recording after expiry returns history with
+  the original time and charges. The source's retained contract remains available
+  for exact read replay after refinement; new read entry still requires an
+  eligible source under the grant fence.
+- Removed `GatewayEngine::reobserve` and the operator `reobserve` command. Admin
+  request/response `/2` exposes `recover` with a second bounded native
+  proof/action/approval frame and `recovery-record` for previously acquired
+  evidence without provider/custody I/O. Both submission channels reuse one
+  bounded input decoder. The former operator driver is a test-only reference.
+  Automatic post-write and other ancillary/application read paths still require
+  cutover; they are not made compliant by removing the operator endpoint.
+- Native recovery report `/1` exposes separate source/acquisition stages,
+  revisions, retained count/byte capacity and evidence disposition. It excludes
+  provider bytes, locators, echo, action commitments and private response digests.
+  This report is not a content-disclosure capability.
+- `recovery-refinement.json` extends the signed-proof/file-journal corpus with
+  unusable/inconclusive cases, age 30/31 and future-receipt boundaries, simultaneous
+  refinement (one update and one exact history result), expired-writer history,
+  unchanged receipt time/charges, recipe substitution refusal, redacted reports
+  and closed admin frame grammar. Provider bodies, entry validation and the
+  controllable clock remain synthetic. Installed sockets/provider transport,
+  lock-wait expiry, PostgreSQL, crash/ACK-loss and full binding evidence are open.
+- Required native recovery/entry/replay, attempt-scenario, stable/production-code,
+  custody and qualification schema/verification artifact construction passed.
+  Final CLI approval-envelope construction matched the signed corpus; final
+  semantic closure generation passed on `1322d182` plus this source. Remote bot
+  commit `1322d182` changed only formal qualification source-closure hashes and
+  was preserved by fast-forward. No broad local suite or hosted CI was run.
+- This source does not close A01–A22. Safe credential replacement, managed read
+  bounds, ordered admission, remaining read cutovers, disclosure/ACK, complete
+  UI/bindings, generated histories, final formal/release artifacts and hosted CI
+  remain required.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
-| P2 | Mutation grant and reservation restart wired | Public projections, independent recovery, installed fault/race evidence and formal links |
-| P3 | Recovery acquisition journal and runtime entry wired | Ancillary read/source-evidence cutover, disclosure/ACK; remove Python semantic owner |
+| P2 | Mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
+| P3 | Recovery acquisition/refinement and operator route wired | Remaining read cutovers, disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -481,11 +528,11 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A08 | ACK loss, restart, no redelivery, late ACK | Pending / no / no | Typed ACK protocol |
 | A09 | ACK substitution in every dimension | Pending / no / no | Authenticated exact ACK |
 | A10 | Timeout/denial/response/state-match distinction | Pending / no / no | Native projection |
-| A11 | Missing/multiple/unrelated/incomplete reconciliation | Pending / no / no | Bounded independent observation |
+| A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
 | A13 | Lock wait and independent evidence expiries | Pending / no / no | Clock/full verifier inside boundary |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
-| A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file journal / synthetic entry only | Source refinement, revocation and installed execution |
+| A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Pending / no / no | Private audit/public separation |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |
