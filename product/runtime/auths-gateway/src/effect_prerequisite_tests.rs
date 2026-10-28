@@ -272,7 +272,11 @@ async fn journal_witness(
         let store = Arc::new(crate::FileGatewayAttemptStore::open(&path).expect("journal"));
         let attempts = GatewayAttempts::new(store, policy.clone()).expect("attempts");
         let crate::store::BoundedClaim::Claimed(parent) = attempts
-            .claim_bounded(approved, NOW)
+            .claim_bounded(
+                approved,
+                NOW,
+                crate::entry::EntryValidation::Oracle { now: NOW },
+            )
             .await
             .expect("parent claim")
         else {
@@ -291,14 +295,24 @@ async fn journal_witness(
                 serde_json::from_value(corrupted).expect("audit only");
             assert!(corrupted.validate(approved.effect().binding()).is_err());
             let AcquisitionClaim::Reserved(reserved) = attempts
-                .claim_prerequisite(approved, kind, NOW)
+                .claim_prerequisite(
+                    approved,
+                    kind,
+                    NOW,
+                    crate::entry::EntryValidation::Oracle { now: NOW },
+                )
                 .await
                 .expect("read claim")
             else {
                 panic!("reserved")
             };
             let AcquisitionClaim::Reserved(stale) = attempts
-                .claim_prerequisite(approved, kind, NOW)
+                .claim_prerequisite(
+                    approved,
+                    kind,
+                    NOW,
+                    crate::entry::EntryValidation::Oracle { now: NOW },
+                )
                 .await
                 .expect("equal reservation")
             else {
@@ -364,7 +378,12 @@ async fn journal_witness(
             )
             .expect("reopened attempts");
             let AcquisitionClaim::Existing(snapshot) = reopened
-                .claim_prerequisite(approved, kind, NOW + 2)
+                .claim_prerequisite(
+                    approved,
+                    kind,
+                    NOW + 2,
+                    crate::entry::EntryValidation::Oracle { now: NOW + 2 },
+                )
                 .await
                 .expect("replay")
             else {

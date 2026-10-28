@@ -305,7 +305,7 @@ proptest! {
                     let values = arguments(&format!("op-{operation}"), "recTEST0000000001", "Approved");
                     let command = crate::scenario_tests::admitted(&recipe, &values, [operation; 32], Vec::new(), 60, Vec::new(), 1_790_000_000).expect("command");
                     let approved = Arc::new(crate::effect::approve_driver_fixture(command, digest, 1_790_000_000, None).expect("approval"));
-                    match runtime.block_on(attempts.claim_bounded(&approved, 1_790_000_000)) {
+                    match runtime.block_on(attempts.claim_bounded(&approved, 1_790_000_000, crate::entry::EntryValidation::Oracle { now: 1_790_000_000 })) {
                         Ok(crate::store::BoundedClaim::Claimed(claim)) => { held.insert(operation, (*claim, approved)); }
                         Err(GatewayAttemptError::Replay) => {}
                         other => prop_assert!(matches!(other, Err(GatewayAttemptError::Replay)), "unexpected claim result"),

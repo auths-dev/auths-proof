@@ -633,13 +633,51 @@ closure regeneration passed after that correction (one artifact-generation test)
   replacement credentials/read bounds, disclosure/ACK and Python removal,
   authenticated UI/bindings, full faults/formal/performance and CI remain open.
 
+## Ordered initial admission checkpoint
+
+- Mutation, independent recovery and prerequisite claims now validate native
+  authority/approval and current connection/configuration/qualification under
+  the same writer fence as their atomic claim and capacity insert. The adapter
+  decision can stamp only the first record's bytes; other batch fields remain
+  fixed. Initial admission time is sampled inside the fence.
+- Count/sum frontier discovery remains bounded candidate selection. Insertion
+  checks target vacancy and validates immutable sum predecessors under the
+  fence. Acquisition admission checks the eligible source in the same snapshot.
+  Mutation admission uses at most 55 of the existing 64 records. The existing
+  two-second lock/decision bounds and file rollback manifest remain in use.
+- Runtime callers now supply installed validation before claim publication;
+  recovery preparation precedes admission and is reused for entry. Transport
+  grant timestamps are sampled after admission, while the original monotonic
+  turn deadline remains enforced. No admission result itself grants transport.
+- The new fixture caught expiry being checked while constructing a replacement
+  candidate before reading existing history. Replay now loads retained history
+  first, preserving the original reservation and charges after approval expiry;
+  a later grant still requires eligible current approval and native authority.
+- `effect-admission.json` covers real file batch atomicity, missing/changed
+  dependencies, a dependency writer ordered before admission, collision/replay
+  suppression of the decision, admission time, expired-approval refusal without
+  writes, retained count/sum charges and expired-entry refusal. Native authority
+  uses an explicit-time approval oracle; dependency bytes are synthetic. The
+  same conformance source is authored for PostgreSQL, not executed locally.
+- Required artifact construction passed: new native admission, prerequisite
+  compilation/entry/guard, independent recovery, mutation entry/fuzz seeds and
+  replay projection (one exact generator each). Construction also caught and
+  corrected test Arc/zeroizing-buffer type mismatches. Final semantic closure
+  is regenerated with this checkpoint. No broad local suite or hosted CI was
+  observed, and no A01–A22 gate closes.
+- Remaining implementation: application/onboarding reads, safe credential
+  replacement and read-policy bounds, controlled disclosure/authenticated ACK,
+  Python-owner removal and authenticated UI/bindings. Complete installed
+  authority/adapter/process faults, differential/formal/performance and final
+  hosted evidence remain required.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
-| P2 | Mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
+| P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
 | P3 | Recovery and prerequisite acquisition routes wired | Application/onboarding read cutovers, disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
@@ -654,7 +692,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter cases / no | Execute concurrent binding conflicts and recovery cutover |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file fixtures including prerequisite charges | Full adapter concurrency and all units pending |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission and prerequisite charge fixtures | Full adapter concurrency and all units pending |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |

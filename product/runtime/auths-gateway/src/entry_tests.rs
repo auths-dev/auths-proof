@@ -173,7 +173,11 @@ async fn reservation_restart(backend: Backend) -> serde_json::Value {
     );
     assert_eq!(approved.effect().binding(), renewed.effect().binding());
     let BoundedClaim::Claimed(claim) = restarted
-        .claim_bounded(&renewed, RESUMED_AT)
+        .claim_bounded(
+            &renewed,
+            RESUMED_AT,
+            crate::entry::EntryValidation::Oracle { now: RESUMED_AT },
+        )
         .await
         .expect("reopen")
     else {
@@ -274,7 +278,13 @@ async fn reservation_restart(backend: Backend) -> serde_json::Value {
         "stale reservation cannot grant again"
     );
     assert!(matches!(
-        restarted.claim_bounded(&renewed, RESUMED_AT).await,
+        restarted
+            .claim_bounded(
+                &renewed,
+                RESUMED_AT,
+                crate::entry::EntryValidation::Oracle { now: RESUMED_AT }
+            )
+            .await,
         Err(GatewayAttemptError::Replay)
     ));
     for ((kind, key), before) in slot_keys.iter().zip(&slots_before) {
@@ -316,7 +326,14 @@ async fn reserved(
     attempts: &GatewayAttempts,
     approved: &Arc<ApprovedEffect>,
 ) -> ClaimedGatewayAttempt {
-    let BoundedClaim::Claimed(claim) = attempts.claim_bounded(approved, NOW).await.expect("claim")
+    let BoundedClaim::Claimed(claim) = attempts
+        .claim_bounded(
+            approved,
+            NOW,
+            crate::entry::EntryValidation::Oracle { now: NOW },
+        )
+        .await
+        .expect("claim")
     else {
         panic!("claim refused")
     };
@@ -530,7 +547,14 @@ async fn grant_conformance(backend: Backend) {
         .expect("retained");
     assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
     assert!(matches!(
-        store.attempts().claim_bounded(&approved, NOW).await,
+        store
+            .attempts()
+            .claim_bounded(
+                &approved,
+                NOW,
+                crate::entry::EntryValidation::Oracle { now: NOW }
+            )
+            .await,
         Err(GatewayAttemptError::Replay)
     ));
 }
@@ -545,4 +569,323 @@ async fn file_grant_has_one_winner_and_no_restart_permit() {
 async fn postgres_grant_has_one_winner_and_no_restart_permit() {
     assert!(postgres_configured());
     grant_conformance(Backend::Postgres).await;
+}
+
+/// Real adapter history with an explicit-time approval oracle. This establishes
+/// atomic persistence and original timestamps, not installed resource authority.
+async fn admission_conformance(backend: Backend) -> serde_json::Value {
+    let store = TestAttempts::open(backend);
+    let approved = bounded_approval();
+    let command = approved.command().expect("mutation");
+    let bound = command.bound.as_ref().expect("capacity");
+    let slots = bound
+        .counts
+        .iter()
+        .map(|counter| {
+            (
+                GatewayRecordKind::CountSlot,
+                crate::bounds::count_slot_key(&counter.key, 0),
+            )
+        })
+        .chain(bound.sums.iter().map(|counter| {
+            (
+                GatewayRecordKind::SumSlot,
+                crate::bounds::sum_slot_key(&counter.key, 0),
+            )
+        }))
+        .collect::<Vec<_>>();
+    // The original approval expires at NOW + 5. Refusal cannot consume an ID
+    // or either capacity unit, even though frontier selection already ran.
+    assert!(
+        store
+            .attempts()
+            .claim_bounded(
+                &approved,
+                NOW,
+                crate::entry::EntryValidation::Oracle { now: NOW + 6 }
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .attempts()
+            .read_effect(&approved)
+            .await
+            .expect("read")
+            .is_none()
+    );
+    for (kind, key) in &slots {
+        assert!(slot_bytes(&store, *kind, *key).await.is_none());
+    }
+    let BoundedClaim::Claimed(claim) = store
+        .attempts()
+        .claim_bounded(
+            &approved,
+            NOW,
+            crate::entry::EntryValidation::Oracle { now: NOW + 2 },
+        )
+        .await
+        .expect("admission")
+    else {
+        panic!("reserved");
+    };
+    assert_eq!(claim.attempt.record.evaluated_at, NOW + 2);
+    assert!(claim.attempt.record.entry.is_none());
+    let original = claim.attempt.stored.clone();
+    let mut allocated = Vec::new();
+    for (kind, key) in &slots {
+        allocated.push(slot_bytes(&store, *kind, *key).await.expect("charged"));
+    }
+    // Reopening does not validate expired admission again or alter its facts.
+    // It still cannot grant entry with that expired approval.
+    let BoundedClaim::Claimed(reopened) = store
+        .reopen()
+        .claim_bounded(
+            &approved,
+            NOW + 6,
+            crate::entry::EntryValidation::Oracle { now: NOW + 6 },
+        )
+        .await
+        .expect("reopen")
+    else {
+        panic!("reopened");
+    };
+    assert_eq!(reopened.attempt.stored, original);
+    assert!(
+        reopened
+            .grant_entry(
+                Arc::clone(&approved),
+                crate::entry::EntryValidation::Oracle { now: NOW + 6 },
+                NOW + 6,
+                &crate::GatewayPreEntry::default()
+            )
+            .await
+            .is_err()
+    );
+    for ((kind, key), bytes) in slots.iter().zip(allocated) {
+        assert_eq!(slot_bytes(&store, *kind, *key).await, Some(bytes));
+    }
+    serde_json::json!({
+        "backend": backend.label(), "authorization_started_at": NOW,
+        "admitted_at": NOW + 2, "capacity_records": slots.len(),
+        "expired_admission_persists_nothing": true, "reopen_preserves_bytes": true,
+        "expired_entry_refused": true, "charges_retained": true, "provider_calls": 0,
+    })
+}
+
+fn admission_batch_contract(store: &dyn GatewayAttemptStore) -> serde_json::Value {
+    let entry = |kind, id, bytes: &[u8]| GatewayRecordEntry {
+        kind,
+        key: GatewayAttemptKey([id; 32]),
+        record: bytes.to_vec(),
+        expires_at: None,
+    };
+    let dependency = entry(GatewayRecordKind::EffectConfiguration, 190, b"current");
+    store.insert(&dependency).expect("dependency");
+    let entries = [
+        entry(GatewayRecordKind::Attempt, 191, b"initial"),
+        entry(GatewayRecordKind::EffectAllocation, 192, b"charge"),
+    ];
+    let dependencies = [(dependency.kind, dependency.key)];
+    let missing = [(dependency.kind, GatewayAttemptKey([193; 32]))];
+    assert!(
+        store
+            .fenced_insert_all(&entries, &missing, &mut |snapshots| {
+                assert_eq!(snapshots, &[None]);
+                Err(GatewayAttemptError::InvalidTransition)
+            })
+            .is_err()
+    );
+    assert!(
+        store
+            .fenced_insert_all(&entries, &dependencies, &mut |snapshots| {
+                assert_eq!(snapshots, &[Some(b"current".to_vec())]);
+                Err(GatewayAttemptError::InvalidTransition)
+            })
+            .is_err()
+    );
+    for row in &entries {
+        assert!(store.load(row.kind, &row.key).expect("read").is_none());
+    }
+    assert_eq!(
+        store
+            .fenced_insert_all(&entries, &dependencies, &mut |snapshots| {
+                assert_eq!(snapshots, &[Some(b"current".to_vec())]);
+                Ok(b"admitted".to_vec())
+            })
+            .expect("insert"),
+        GatewayInsert::Inserted
+    );
+    assert_eq!(
+        store.load(entries[0].kind, &entries[0].key).expect("claim"),
+        Some(b"admitted".to_vec())
+    );
+    assert_eq!(
+        store
+            .load(entries[1].kind, &entries[1].key)
+            .expect("charge"),
+        Some(b"charge".to_vec())
+    );
+    assert_eq!(
+        store
+            .fenced_insert_all(&entries, &dependencies, &mut |_| panic!("replay decision"))
+            .expect("replay"),
+        GatewayInsert::Exists { index: 0 }
+    );
+    let competing = [
+        entry(GatewayRecordKind::Attempt, 194, b"other"),
+        entries[1].clone(),
+    ];
+    assert_eq!(
+        store
+            .fenced_insert_all(&competing, &dependencies, &mut |_| panic!(
+                "occupied capacity"
+            ))
+            .expect("collision"),
+        GatewayInsert::Exists { index: 1 }
+    );
+    assert!(
+        store
+            .load(competing[0].kind, &competing[0].key)
+            .expect("other")
+            .is_none()
+    );
+    assert!(
+        store
+            .fenced_insert_all(
+                &competing,
+                &[(competing[0].kind, competing[0].key)],
+                &mut |_| panic!("overlapping set")
+            )
+            .is_err()
+    );
+    serde_json::json!({"dependency_refusal_atomic": true, "missing_dependency_refused": true,
+        "first_record_stamped": true, "allocation_unchanged": true,
+        "replay_skips_decision": true, "capacity_collision_atomic": true,
+        "overlapping_set_refused": true})
+}
+
+/// A writer holds the common fence while admission starts. The decision must
+/// observe the writer's committed dependency, never its earlier value.
+fn admission_dependency_order(store: Arc<dyn GatewayAttemptStore>) -> serde_json::Value {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let dependency = (
+        GatewayRecordKind::EffectConfiguration,
+        GatewayAttemptKey([195; 32]),
+    );
+    store
+        .insert(&GatewayRecordEntry {
+            kind: dependency.0,
+            key: dependency.1,
+            record: b"current".to_vec(),
+            expires_at: None,
+        })
+        .expect("dependency");
+    let (locked_tx, locked_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let writer_store = Arc::clone(&store);
+    let writer = std::thread::spawn(move || {
+        writer_store.fenced_replace(&[dependency], &mut |snapshots| {
+            assert_eq!(snapshots, &[Some(b"current".to_vec())]);
+            locked_tx.send(()).expect("locked");
+            release_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("release writer");
+            Ok(b"revoked".to_vec())
+        })
+    });
+    locked_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("writer locked");
+    let (started_tx, started_rx) = mpsc::channel();
+    let admission_store = Arc::clone(&store);
+    let claim_key = GatewayAttemptKey([196; 32]);
+    let charge_key = GatewayAttemptKey([197; 32]);
+    let admission = std::thread::spawn(move || {
+        let entries = [
+            GatewayRecordEntry {
+                kind: GatewayRecordKind::Attempt,
+                key: claim_key,
+                record: b"claim".to_vec(),
+                expires_at: None,
+            },
+            GatewayRecordEntry {
+                kind: GatewayRecordKind::EffectAllocation,
+                key: charge_key,
+                record: b"charge".to_vec(),
+                expires_at: None,
+            },
+        ];
+        started_tx.send(()).expect("admission started");
+        admission_store.fenced_insert_all(&entries, &[dependency], &mut |snapshots| {
+            assert_eq!(snapshots, &[Some(b"revoked".to_vec())]);
+            Err(GatewayAttemptError::InvalidTransition)
+        })
+    });
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("admission start");
+    release_tx.send(()).expect("release");
+    writer.join().expect("writer").expect("updated dependency");
+    assert!(matches!(
+        admission.join().expect("admission"),
+        Err(GatewayAttemptError::InvalidTransition)
+    ));
+    assert!(
+        store
+            .load(GatewayRecordKind::Attempt, &claim_key)
+            .expect("claim")
+            .is_none()
+    );
+    assert!(
+        store
+            .load(GatewayRecordKind::EffectAllocation, &charge_key)
+            .expect("charge")
+            .is_none()
+    );
+    serde_json::json!({"writer_commits_before_admission_decision": true,
+        "decision_observes_changed_dependency": true, "refusal_leaves_no_claim_or_charge": true})
+}
+
+#[tokio::test]
+async fn native_admission_fixture_is_current() {
+    let store = TestAttempts::open(Backend::File);
+    let raw = store.raw();
+    let (mechanism, dependency_order) = tokio::task::spawn_blocking(move || {
+        (
+            admission_batch_contract(&*raw),
+            admission_dependency_order(raw),
+        )
+    })
+    .await
+    .expect("mechanism history");
+    let fixture = serde_json::to_vec_pretty(&serde_json::json!({
+        "schema": "auths.effect-admission-fixture/1",
+        "scope": "file adapter and explicit-time approval oracle; no installed authority or transport claim",
+        "mechanism": mechanism, "dependency_order": dependency_order,
+        "history": admission_conformance(Backend::File).await,
+    })).expect("fixture");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/effect-admission.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &fixture).expect("write fixture");
+    }
+    assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+}
+
+#[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
+async fn postgres_admission_checks_authority_before_atomic_charges() {
+    assert!(postgres_configured());
+    admission_conformance(Backend::Postgres).await;
+    let store = TestAttempts::open(Backend::Postgres);
+    let raw = store.raw();
+    tokio::task::spawn_blocking(move || {
+        admission_batch_contract(&*raw);
+        admission_dependency_order(raw);
+    })
+    .await
+    .expect("contract");
 }

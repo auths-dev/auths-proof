@@ -1391,6 +1391,21 @@ fn fence_keys(
 /// sweeps of expired slots only, and fail-closed reads that never report
 /// unreadable state as absent.
 pub trait GatewayAttemptStore: Send + Sync {
+    /// Atomically inserts a fixed batch after a native decision over dependencies
+    /// under the common writer fence. The decision replaces only the first
+    /// record's bytes. Existing keys return without a decision or new charges.
+    ///
+    /// # Errors
+    /// Refuses overlapping/oversized sets, missing/corrupt dependencies as
+    /// interpreted by the decision, failed authorization, deadlines or ambiguous
+    /// durability. The combined read/write set is at most 64 records.
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError>;
+
     /// Reads the bounded set while excluding every participating writer, calls
     /// `decide` once, and durably replaces the first record. This is a storage
     /// mechanism; the gateway owns validation and the one-use permit.
@@ -1742,6 +1757,18 @@ impl FileGatewayAttemptStore {
         crash: Option<BatchCrash>,
     ) -> Result<GatewayInsert, GatewayAttemptError> {
         validate_batch(entries)?;
+        let _lock = self.exclusive()?;
+        self.insert_batch_locked(entries, crash, None)
+    }
+
+    /// The caller holds the writer fence, including crash-batch recovery.
+    fn insert_batch_locked(
+        &self,
+        entries: &[GatewayRecordEntry],
+        crash: Option<BatchCrash>,
+        started: Option<Instant>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        validate_batch(entries)?;
         let files = entries
             .iter()
             .map(|entry| {
@@ -1751,7 +1778,6 @@ impl FileGatewayAttemptStore {
                 ))
             })
             .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
-        let _lock = self.exclusive()?;
         for (index, (name, _)) in files.iter().enumerate() {
             if self.root.join(name).exists() {
                 return Ok(GatewayInsert::Exists { index });
@@ -1767,6 +1793,7 @@ impl FileGatewayAttemptStore {
                 })
                 .collect(),
         })?;
+        admission_deadline(started)?;
         self.pending(&batch)?
             .persist_noclobber(self.root.join(BATCH_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
@@ -1779,6 +1806,7 @@ impl FileGatewayAttemptStore {
                 sync_directory(&self.root)?;
                 return Ok(GatewayInsert::Inserted);
             }
+            admission_deadline(started)?;
             self.pending(bytes)?
                 .persist_noclobber(self.root.join(name))
                 .map_err(|_| GatewayAttemptError::Unavailable)?;
@@ -1787,6 +1815,7 @@ impl FileGatewayAttemptStore {
         if crash == Some(BatchCrash::BeforeBatchDelete) {
             return Ok(GatewayInsert::Inserted);
         }
+        admission_deadline(started)?;
         fs::remove_file(self.root.join(BATCH_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
         sync_directory(&self.root)?;
@@ -1827,7 +1856,49 @@ fn valid_file_name(name: &str) -> bool {
     })
 }
 
+fn admission_deadline(started: Option<Instant>) -> Result<(), GatewayAttemptError> {
+    if started.is_some_and(|started| started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE) {
+        return Err(GatewayAttemptError::Unavailable);
+    }
+    Ok(())
+}
+
 impl GatewayAttemptStore for FileGatewayAttemptStore {
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        validate_batch(entries)?;
+        let mut keys: Vec<_> = entries
+            .iter()
+            .map(|entry| (entry.kind, entry.key))
+            .collect();
+        keys.extend_from_slice(dependencies);
+        fence_keys(&keys)?;
+        let _lock = self.exclusive()?;
+        let started = Some(Instant::now());
+        for (index, entry) in entries.iter().enumerate() {
+            admission_deadline(started)?;
+            if self.load_locked(entry.kind, &entry.key)?.is_some() {
+                return Ok(GatewayInsert::Exists { index });
+            }
+        }
+        let snapshots = dependencies
+            .iter()
+            .map(|(kind, key)| {
+                admission_deadline(started)?;
+                self.load_locked(*kind, key)
+            })
+            .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
+        admission_deadline(started)?;
+        let next = decide(&snapshots)?;
+        let mut entries = entries.to_vec();
+        entries[0].record = next;
+        self.insert_batch_locked(&entries, None, started)
+    }
+
     fn fenced_replace(
         &self,
         keys: &[(GatewayRecordKind, GatewayAttemptKey)],
@@ -2019,6 +2090,26 @@ impl FileGatewayAttemptStore {
 }
 
 impl GatewayAttemptStore for PostgresGatewayAttemptStore {
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        let mechanism: Vec<_> = entries.iter().map(GatewayRecordEntry::mechanism).collect();
+        let dependencies: Vec<_> = dependencies
+            .iter()
+            .map(|(kind, key)| (*kind, key.0))
+            .collect();
+        match self
+            .store()?
+            .fenced_gateway_insert(&mechanism, &dependencies, decide)?
+        {
+            GatewayRecordInsert::Inserted => Ok(GatewayInsert::Inserted),
+            GatewayRecordInsert::Exists { index } => Ok(GatewayInsert::Exists { index }),
+        }
+    }
+
     fn fenced_replace(
         &self,
         keys: &[(GatewayRecordKind, GatewayAttemptKey)],
@@ -2198,6 +2289,7 @@ impl GatewayAttempts {
             .await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn claim_binding(
         &self,
         request: &ClosedProviderRequest,
@@ -3024,18 +3116,22 @@ fn store_exhausted(
     key: GatewayAttemptKey,
     base: &Record,
     code: &'static str,
+    admission: &Admission,
 ) -> Result<Reserved, GatewayAttemptError> {
     let mut record = base.clone();
     record.state.stage = GatewayAttemptStage::NotEntered;
     record.state.refusal = Some(code.to_owned());
     record.snapshot(false)?;
-    store.insert(&GatewayRecordEntry {
+    let entries = [GatewayRecordEntry {
         kind: GatewayRecordKind::Attempt,
         key,
         record: encode(&record)?,
         expires_at: None,
-    })?;
-    Ok(Reserved::Exhausted(code))
+    }];
+    match insert_claim(store, &mut record, &entries, admission, None, &[], &[])? {
+        GatewayInsert::Inserted => Ok(Reserved::Exhausted(code)),
+        GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
+    }
 }
 
 /// The claim record with the reserved slots, and the batch that inserts it
@@ -3145,6 +3241,7 @@ fn reserve_with_claim(
     key: GatewayAttemptKey,
     base: &Record,
     bound: &crate::bounds::BoundAdmission,
+    admission: &Admission,
 ) -> Result<Reserved, GatewayAttemptError> {
     use crate::bounds::{count_slot_key, sum_slot_key};
     use auths_bounded_policy::kernel::{chain_counts_admit, chain_sums_admit};
@@ -3194,16 +3291,30 @@ fn reserve_with_claim(
             .zip(&bound.sums)
             .all(|(slot, counter)| *slot < counter.slots);
         if !chain_counts_admit(&counts, &count_capacities) || !sum_slots_left {
-            return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
+            return store_exhausted(
+                store,
+                key,
+                base,
+                "gateway.policy.window-exhausted",
+                admission,
+            );
         }
         if !chain_sums_admit(&totals, bound.argument, &sum_capacities) {
-            return store_exhausted(store, key, base, "gateway.policy.sum-exhausted");
+            return store_exhausted(store, key, base, "gateway.policy.sum-exhausted", admission);
         }
-        let (record, stored, entries) = claim_batch(key, base, bound, &counts, &sums, &totals)?;
-        match store.insert_all(&entries)? {
+        let (mut record, _, entries) = claim_batch(key, base, bound, &counts, &sums, &totals)?;
+        match insert_claim(
+            store,
+            &mut record,
+            &entries,
+            admission,
+            Some(bound),
+            &sums,
+            &totals,
+        )? {
             GatewayInsert::Inserted => {
                 return Ok(Reserved::Claimed {
-                    stored,
+                    stored: encode(&record)?,
                     record: Box::new(record),
                 });
             }
@@ -3230,6 +3341,106 @@ fn reserve_with_claim(
     Ok(Reserved::Contended)
 }
 
+/// Current native authority captured before custody and sampled again only
+/// inside the adapter writer fence. It never grants transport entry.
+struct Admission {
+    approved: Arc<ApprovedEffect>,
+    validation: crate::entry::EntryValidation,
+    authorization_started_at: u64,
+}
+
+impl Admission {
+    fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
+        self.validation.dependencies()
+    }
+
+    fn stamp<S: JournalProtocol>(
+        &self,
+        record: &mut Record<S>,
+        snapshots: &[Option<Vec<u8>>],
+    ) -> Result<(), GatewayAttemptError> {
+        if record.revision != 1
+            || record.entry.is_some()
+            || record.validate_header()? != *self.approved.effect().binding()
+        {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let now = self
+            .validation
+            .validate(&self.approved, snapshots, self.authorization_started_at)
+            .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+        record.evaluated_at = now;
+        S::validate(record)
+    }
+}
+
+/// Capacity candidates are chosen outside the lock, but target vacancy and
+/// immutable sum predecessors are checked with current authority before insert.
+fn insert_claim(
+    store: &dyn GatewayAttemptStore,
+    record: &mut Record,
+    entries: &[GatewayRecordEntry],
+    admission: &Admission,
+    bound: Option<&crate::bounds::BoundAdmission>,
+    sums: &[u64],
+    totals: &[u64],
+) -> Result<GatewayInsert, GatewayAttemptError> {
+    let mut dependencies = admission.dependencies();
+    let native_end = dependencies.len();
+    if let Some(bound) = bound {
+        if sums.len() != bound.sums.len() || totals.len() != sums.len() {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        for (counter, slot) in bound.sums.iter().zip(sums) {
+            if let Some(previous) = slot.checked_sub(1) {
+                dependencies.push((
+                    GatewayRecordKind::SumSlot,
+                    GatewayAttemptKey(crate::bounds::sum_slot_key(&counter.key, previous)),
+                ));
+            }
+        }
+    } else if !sums.is_empty() || !totals.is_empty() {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
+        if snapshots.len() != dependencies.len() {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        admission.stamp(record, &snapshots[..native_end])?;
+        if let Some(bound) = bound {
+            let mut predecessors = snapshots[native_end..].iter();
+            for ((counter, slot), total) in bound.sums.iter().zip(sums).zip(totals) {
+                match slot.checked_sub(1) {
+                    None if *total != 0 => return Err(GatewayAttemptError::Corrupt),
+                    None => {}
+                    Some(previous) => {
+                        let bytes = predecessors
+                            .next()
+                            .and_then(|bytes| bytes.as_deref())
+                            .ok_or(GatewayAttemptError::Corrupt)?;
+                        let row: SumSlotRecord = serde_json::from_slice(bytes)
+                            .map_err(|_| GatewayAttemptError::Corrupt)?;
+                        if canonical(&row)? != bytes
+                            || row.schema != SUM_SLOT_SCHEMA
+                            || row.counter != hex::encode(counter.key)
+                            || row.slot != previous
+                            || row.amount > row.cumulative
+                            || row.cumulative != *total
+                            || row.window_seconds != bound.window_seconds
+                            || row.window_index != bound.window_index
+                            || row.window_end != bound.window_end
+                            || row.cumulative > counter.capacity
+                        {
+                            return Err(GatewayAttemptError::Corrupt);
+                        }
+                    }
+                }
+            }
+        }
+        encode(record)
+    })
+}
+
 impl GatewayAttempts {
     /// Claims one logical ID together with one slot of every count and sum
     /// counter `bound` names, in one all-or-none batch, before credential
@@ -3242,10 +3453,14 @@ impl GatewayAttempts {
     /// `BindingConflict`. Reopening itself never authorizes provider entry.
     pub(crate) async fn claim_bounded(
         &self,
-        approved: &ApprovedEffect,
+        approved: &Arc<ApprovedEffect>,
         evaluated_at: u64,
+        validation: crate::entry::EntryValidation,
     ) -> Result<BoundedClaim, GatewayAttemptError> {
-        match self.claim_new_bounded(approved, evaluated_at).await {
+        match self
+            .claim_new_bounded(approved, evaluated_at, validation)
+            .await
+        {
             Err(GatewayAttemptError::Replay) => {
                 let request = &approved
                     .command()
@@ -3285,8 +3500,9 @@ impl GatewayAttempts {
 
     async fn claim_new_bounded(
         &self,
-        approved: &ApprovedEffect,
+        approved: &Arc<ApprovedEffect>,
         evaluated_at: u64,
+        validation: crate::entry::EntryValidation,
     ) -> Result<BoundedClaim, GatewayAttemptError> {
         let command = approved
             .command()
@@ -3296,24 +3512,64 @@ impl GatewayAttempts {
         if !self.policy.contains(binding) {
             return Err(GatewayAttemptError::BindingConflict);
         }
-        let Some(bound) = command.bound.as_ref() else {
-            return self
-                .claim_binding(request, binding, approved.approval(), evaluated_at)
-                .await
-                .map(|claim| BoundedClaim::Claimed(Box::new(claim)));
-        };
         let key = self.key(request.namespace(), request.operation_id())?;
-        let base = claim_record(request, binding, approved.approval(), evaluated_at)?;
+        let expected = String::from_utf8(
+            binding
+                .to_private_bytes()
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_vec(),
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
         let store = Arc::clone(&self.store);
-        let bound = bound.clone();
-        let reserved = blocking(
-            move || match reserve_with_claim(&*store, key, &base, &bound) {
+        let bound = command.bound.clone();
+        let admission = Admission {
+            approved: Arc::clone(approved),
+            validation,
+            authorization_started_at: evaluated_at,
+        };
+        let reserved = blocking(move || {
+            // History precedes candidate admission. Expiry cannot erase replay
+            // or turn an existing reservation into a new charged operation.
+            if store.load(GatewayRecordKind::Attempt, &key)?.is_some() {
+                return Err(existing_binding(&*store, key, &expected));
+            }
+            let base = claim_record(
+                &admission
+                    .approved
+                    .command()
+                    .ok_or(GatewayAttemptError::InvalidTransition)?
+                    .request,
+                admission.approved.effect().binding(),
+                admission.approved.approval(),
+                evaluated_at,
+            )?;
+            let result = match &bound {
+                Some(bound) => reserve_with_claim(&*store, key, &base, bound, &admission),
+                None => {
+                    let mut record = base.clone();
+                    let entries = [GatewayRecordEntry {
+                        kind: GatewayRecordKind::Attempt,
+                        key,
+                        record: encode(&record)?,
+                        expires_at: None,
+                    }];
+                    match insert_claim(&*store, &mut record, &entries, &admission, None, &[], &[])?
+                    {
+                        GatewayInsert::Inserted => Ok(Reserved::Claimed {
+                            stored: encode(&record)?,
+                            record: Box::new(record),
+                        }),
+                        GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
+                    }
+                }
+            };
+            match result {
                 Err(GatewayAttemptError::Replay) => {
                     Err(existing_binding(&*store, key, &base.binding_canonical))
                 }
                 result => result,
-            },
-        )
+            }
+        })
         .await?;
         Ok(match reserved {
             Reserved::Claimed { stored, record } => {

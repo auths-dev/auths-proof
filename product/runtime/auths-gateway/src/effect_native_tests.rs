@@ -90,8 +90,14 @@ async fn native_recovery_acquisition_fixture_is_current() {
         .join("journal");
     let store = Arc::new(crate::FileGatewayAttemptStore::open(&root_path).expect("file journal"));
     let attempts = crate::GatewayAttempts::new(store, policy.clone()).expect("attempts");
-    let crate::store::BoundedClaim::Claimed(claim) =
-        attempts.claim_bounded(&source, NOW).await.expect("claim")
+    let crate::store::BoundedClaim::Claimed(claim) = attempts
+        .claim_bounded(
+            &source,
+            NOW,
+            crate::entry::EntryValidation::Oracle { now: NOW },
+        )
+        .await
+        .expect("claim")
     else {
         panic!("expected source claim");
     };
@@ -191,9 +197,11 @@ async fn native_recovery_acquisition_fixture_is_current() {
     let signature = key
         .sign(&request.signing_message().expect("read message"))
         .to_bytes();
-    let approved = effect
-        .approve(request.with_signature(signature), &public, NOW + 2)
-        .expect("read approval");
+    let approved = Arc::new(
+        effect
+            .approve(request.with_signature(signature), &public, NOW + 2)
+            .expect("read approval"),
+    );
     approved
         .validate_for_entry(&read_installation, NOW + 3)
         .expect("fresh read validation");
@@ -205,7 +213,13 @@ async fn native_recovery_acquisition_fixture_is_current() {
     );
     assert!(
         matches!(
-            attempts.claim_bounded(&approved, NOW + 3).await,
+            attempts
+                .claim_bounded(
+                    &approved,
+                    NOW + 3,
+                    crate::entry::EntryValidation::Oracle { now: NOW + 3 }
+                )
+                .await,
             Err(crate::GatewayAttemptError::InvalidTransition)
         ),
         "mutation admission rejects acquisition"
@@ -278,7 +292,7 @@ async fn native_recovery_acquisition_fixture_is_current() {
         std::fs::write(&path, &bytes).expect("write fixture");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), bytes);
-    let mut reads = vec![Arc::new(approved)];
+    let mut reads = vec![approved];
     for index in 2..=17 {
         let call = target
             .authorization_call(
@@ -397,7 +411,11 @@ async fn exercise_recovery_journal(
     use std::sync::Arc;
     let first = Arc::clone(&reads[0]);
     let AcquisitionClaim::Reserved(reserved) = attempts
-        .claim_recovery(&first, NOW + 2)
+        .claim_recovery(
+            &first,
+            NOW + 2,
+            crate::entry::EntryValidation::Oracle { now: NOW + 2 },
+        )
         .await
         .expect("reserve read")
     else {
@@ -407,7 +425,11 @@ async fn exercise_recovery_journal(
     assert_eq!(reserved_view.stage, AcquisitionStage::Reserved);
     assert_eq!(reserved_view.reserved_calls, 1);
     let AcquisitionClaim::Reserved(stale) = attempts
-        .claim_recovery(&first, NOW + 2)
+        .claim_recovery(
+            &first,
+            NOW + 2,
+            crate::entry::EntryValidation::Oracle { now: NOW + 2 },
+        )
         .await
         .expect("reopen equal read")
     else {
@@ -443,7 +465,11 @@ async fn exercise_recovery_journal(
     )
     .expect("attempt owner");
     let AcquisitionClaim::Existing(replay) = reopened
-        .claim_recovery(&first, NOW + 3)
+        .claim_recovery(
+            &first,
+            NOW + 3,
+            crate::entry::EntryValidation::Oracle { now: NOW + 3 },
+        )
         .await
         .expect("replay after permit loss")
     else {
@@ -468,7 +494,11 @@ async fn exercise_recovery_journal(
             (
                 index,
                 attempts
-                    .claim_recovery(&approved, NOW + 2)
+                    .claim_recovery(
+                        &approved,
+                        NOW + 2,
+                        crate::entry::EntryValidation::Oracle { now: NOW + 2 },
+                    )
                     .await
                     .expect("race admission"),
             )
@@ -510,7 +540,11 @@ async fn exercise_recovery_journal(
     assert_eq!(response.reserved_calls, 1);
     assert_eq!(response.reserved_bytes, reserved_view.reserved_bytes);
     let AcquisitionClaim::Existing(history) = reopened
-        .claim_recovery(&reads[index], NOW + 4)
+        .claim_recovery(
+            &reads[index],
+            NOW + 4,
+            crate::entry::EntryValidation::Oracle { now: NOW + 4 },
+        )
         .await
         .expect("response replay")
     else {
@@ -635,7 +669,11 @@ async fn exercise_recovery_refinement(
         let operation = LogicalOperationId::parse(read.effect().binding().journal_identity().1)
             .expect("read operation");
         let AcquisitionClaim::Reserved(reserved) = attempts
-            .claim_recovery(read, NOW + 2)
+            .claim_recovery(
+                read,
+                NOW + 2,
+                crate::entry::EntryValidation::Oracle { now: NOW + 2 },
+            )
             .await
             .expect("resume")
         else {
@@ -776,7 +814,11 @@ async fn exercise_recovery_refinement(
             assert!(
                 matches!(
                     attempts
-                        .claim_recovery(read, NOW + 4)
+                        .claim_recovery(
+                            read,
+                            NOW + 4,
+                            crate::entry::EntryValidation::Oracle { now: NOW + 4 }
+                        )
                         .await
                         .expect("read replay"),
                     AcquisitionClaim::Existing(_)
@@ -785,7 +827,13 @@ async fn exercise_recovery_refinement(
             );
             assert!(
                 matches!(
-                    attempts.claim_bounded(source, NOW).await,
+                    attempts
+                        .claim_bounded(
+                            source,
+                            NOW,
+                            crate::entry::EntryValidation::Oracle { now: NOW }
+                        )
+                        .await,
                     Err(crate::GatewayAttemptError::Replay)
                 ),
                 "no new mutation admission"

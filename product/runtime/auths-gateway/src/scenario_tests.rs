@@ -105,6 +105,28 @@ impl RecordingStore {
 }
 
 impl GatewayAttemptStore for RecordingStore {
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut crate::GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        let mut admitted = None;
+        let inserted = self
+            .inner
+            .fenced_insert_all(entries, dependencies, &mut |snapshots| {
+                let next = decide(snapshots)?;
+                admitted = Some(next.clone());
+                Ok(next)
+            })?;
+        if inserted == GatewayInsert::Inserted
+            && let Some(record) = admitted
+        {
+            self.record(&record);
+        }
+        Ok(inserted)
+    }
+
     fn fenced_replace(
         &self,
         keys: &[(GatewayRecordKind, GatewayAttemptKey)],
@@ -1832,11 +1854,20 @@ async fn conformance_complete_binding_and_scope(backend: Backend) {
     let mut record = Record::open("airtable", backend);
     let command = record.airtable(ORIGINAL, "Approved");
     let approve = |command, digest, at| {
-        approve_driver_fixture(command, digest, at, None).expect("oracle approval")
+        Arc::new(approve_driver_fixture(command, digest, at, None).expect("oracle approval"))
     };
     let first = approve(command.clone(), *record.recipe.digest(), NOW);
     let attempts = record.store.attempts();
-    assert!(attempts.claim_bounded(&first, NOW).await.is_ok());
+    assert!(
+        attempts
+            .claim_bounded(
+                &first,
+                NOW,
+                crate::entry::EntryValidation::Oracle { now: NOW }
+            )
+            .await
+            .is_ok()
+    );
     let key = GatewayAttemptKey::for_operation(
         &crate::effect::fixture_policy().expect("policy"),
         command.request.namespace(),
@@ -1854,7 +1885,13 @@ async fn conformance_complete_binding_and_scope(backend: Backend) {
     let renewed = approve(command.clone(), *record.recipe.digest(), NOW + 1);
     assert!(
         matches!(
-            attempts.claim_bounded(&renewed, NOW + 1).await,
+            attempts
+                .claim_bounded(
+                    &renewed,
+                    NOW + 1,
+                    crate::entry::EntryValidation::Oracle { now: NOW + 1 }
+                )
+                .await,
             Ok(crate::store::BoundedClaim::Claimed(_))
         ),
         "renewing approval reopens the reservation without replacing its bytes"
@@ -1871,7 +1908,13 @@ async fn conformance_complete_binding_and_scope(backend: Backend) {
         ),
     ] {
         assert!(matches!(
-            attempts.claim_bounded(&changed, NOW).await,
+            attempts
+                .claim_bounded(
+                    &changed,
+                    NOW,
+                    crate::entry::EntryValidation::Oracle { now: NOW }
+                )
+                .await,
             Err(GatewayAttemptError::BindingConflict)
         ));
     }
@@ -1903,7 +1946,13 @@ async fn conformance_complete_binding_and_scope(backend: Backend) {
         );
         assert!(
             matches!(
-                scoped.claim_bounded(&first, NOW).await,
+                scoped
+                    .claim_bounded(
+                        &first,
+                        NOW,
+                        crate::entry::EntryValidation::Oracle { now: NOW }
+                    )
+                    .await,
                 Err(GatewayAttemptError::BindingConflict)
             ),
             "foreign binding cannot enter the new scope"

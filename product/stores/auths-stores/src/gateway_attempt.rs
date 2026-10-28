@@ -207,7 +207,113 @@ pub enum GatewayRecordInsert {
     },
 }
 
+fn decision_deadline(started: Option<Instant>) -> Result<(), StoreError> {
+    if started.is_some_and(|started| started.elapsed() >= GATEWAY_FENCE_DEADLINE) {
+        return Err(StoreError::Timeout);
+    }
+    Ok(())
+}
+
+fn insert_rows(
+    sql: &mut Transaction<'_>,
+    entries: &[GatewayRecordEntry],
+    started: Option<Instant>,
+) -> Result<GatewayRecordInsert, StoreError> {
+    let mut order: Vec<usize> = (0..entries.len()).collect();
+    order.sort_unstable_by_key(|index| entries[*index].key);
+    for index in order {
+        decision_deadline(started)?;
+        let entry = &entries[index];
+        let digest: [u8; 32] = Sha256::digest(&entry.record).into();
+        let expires_at = entry
+            .expires_at
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|_| StoreError::LimitExceeded)?;
+        let inserted = sql
+            .query_opt(
+                "INSERT INTO auths_gateway_records
+                         (record_key, record_kind, expires_at, record_bytes, record_sha256)
+                     VALUES ($1, $2, $3, $4, $5)
+                     ON CONFLICT (record_key) DO NOTHING
+                     RETURNING record_key",
+                &[
+                    &&entry.key[..],
+                    &entry.kind.as_str(),
+                    &expires_at,
+                    &entry.record,
+                    &&digest[..],
+                ],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        if inserted.is_none() {
+            return Ok(GatewayRecordInsert::Exists { index });
+        }
+    }
+    decision_deadline(started)?;
+    Ok(GatewayRecordInsert::Inserted)
+}
+
 impl PostgresLifecycleStore {
+    /// Inserts one immutable batch after one native decision over dependencies
+    /// under the common writer fence. Only the first record's bytes may change.
+    /// Conflicting keys return without invoking `decide`; no automatic retry.
+    ///
+    /// # Errors
+    /// Refuses invalid/overlapping read and write sets, unavailable/corrupt
+    /// snapshots, failed decisions, deadlines and ambiguous commit acknowledgement.
+    pub fn fenced_gateway_insert<E: From<StoreError>>(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, [u8; 32])],
+        decide: impl FnOnce(&[Option<Vec<u8>>]) -> Result<Vec<u8>, E>,
+    ) -> Result<GatewayRecordInsert, E> {
+        validate_gateway_batch(entries)?;
+        let mut keys: Vec<_> = entries
+            .iter()
+            .map(|entry| (entry.kind, entry.key))
+            .collect();
+        keys.extend_from_slice(dependencies);
+        validate_gateway_fence(&keys)?;
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
+            .map_err(|error| map_postgres_error(&error))?;
+        sql.batch_execute(&format!("SET LOCAL statement_timeout = '{}ms'; SET LOCAL idle_in_transaction_session_timeout = '{}ms'", self.gateway_statement_timeout.as_millis(), self.gateway_idle_timeout.as_millis()))
+            .map_err(|error| map_postgres_error(&error))?;
+        writer_fence(&mut sql, self.gateway_lock_timeout)?;
+        let started = Instant::now();
+        for (index, entry) in entries.iter().enumerate() {
+            decision_deadline(Some(started))?;
+            if load_record(&mut sql, entry.kind, &entry.key)?.is_some() {
+                sql.rollback().map_err(|error| map_postgres_error(&error))?;
+                return Ok(GatewayRecordInsert::Exists { index });
+            }
+        }
+        let snapshots = dependencies
+            .iter()
+            .map(|(kind, key)| {
+                decision_deadline(Some(started))?;
+                load_record(&mut sql, *kind, key)
+            })
+            .collect::<Result<Vec<_>, StoreError>>()?;
+        decision_deadline(Some(started))?;
+        let next = decide(&snapshots)?;
+        bounded(&next)?;
+        let mut entries = entries.to_vec();
+        entries[0].record = next;
+        let result = insert_rows(&mut sql, &entries, Some(started))?;
+        if let GatewayRecordInsert::Exists { .. } = result {
+            sql.rollback().map_err(|error| map_postgres_error(&error))?;
+            return Ok(result);
+        }
+        decision_deadline(Some(started))?;
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
+        Ok(result)
+    }
+
     /// Inserts every entry, or none when any key already exists. Rows are
     /// inserted in ascending key order inside one transaction, so two
     /// concurrent batches cannot deadlock.
@@ -221,8 +327,6 @@ impl PostgresLifecycleStore {
         entries: &[GatewayRecordEntry],
     ) -> Result<GatewayRecordInsert, StoreError> {
         validate_gateway_batch(entries)?;
-        let mut order: Vec<usize> = (0..entries.len()).collect();
-        order.sort_unstable_by_key(|index| entries[*index].key);
         let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
         let mut sql = client
             .build_transaction()
@@ -230,34 +334,10 @@ impl PostgresLifecycleStore {
             .start()
             .map_err(|error| map_postgres_error(&error))?;
         writer_fence(&mut sql, self.gateway_lock_timeout)?;
-        for index in order {
-            let entry = &entries[index];
-            let digest: [u8; 32] = Sha256::digest(&entry.record).into();
-            let expires_at = entry
-                .expires_at
-                .map(i64::try_from)
-                .transpose()
-                .map_err(|_| StoreError::LimitExceeded)?;
-            let inserted = sql
-                .query_opt(
-                    "INSERT INTO auths_gateway_records
-                         (record_key, record_kind, expires_at, record_bytes, record_sha256)
-                     VALUES ($1, $2, $3, $4, $5)
-                     ON CONFLICT (record_key) DO NOTHING
-                     RETURNING record_key",
-                    &[
-                        &&entry.key[..],
-                        &entry.kind.as_str(),
-                        &expires_at,
-                        &entry.record,
-                        &&digest[..],
-                    ],
-                )
-                .map_err(|error| map_postgres_error(&error))?;
-            if inserted.is_none() {
-                sql.rollback().map_err(|error| map_postgres_error(&error))?;
-                return Ok(GatewayRecordInsert::Exists { index });
-            }
+        let result = insert_rows(&mut sql, entries, None)?;
+        if let GatewayRecordInsert::Exists { .. } = result {
+            sql.rollback().map_err(|error| map_postgres_error(&error))?;
+            return Ok(result);
         }
         sql.commit().map_err(|error| map_postgres_error(&error))?;
         Ok(GatewayRecordInsert::Inserted)

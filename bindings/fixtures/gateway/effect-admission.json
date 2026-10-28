@@ -1,0 +1,29 @@
+{
+  "schema": "auths.effect-admission-fixture/1",
+  "scope": "file adapter and explicit-time approval oracle; no installed authority or transport claim",
+  "mechanism": {
+    "dependency_refusal_atomic": true,
+    "missing_dependency_refused": true,
+    "first_record_stamped": true,
+    "allocation_unchanged": true,
+    "replay_skips_decision": true,
+    "capacity_collision_atomic": true,
+    "overlapping_set_refused": true
+  },
+  "dependency_order": {
+    "writer_commits_before_admission_decision": true,
+    "decision_observes_changed_dependency": true,
+    "refusal_leaves_no_claim_or_charge": true
+  },
+  "history": {
+    "backend": "file",
+    "authorization_started_at": 1790000000,
+    "admitted_at": 1790000002,
+    "capacity_records": 2,
+    "expired_admission_persists_nothing": true,
+    "reopen_preserves_bytes": true,
+    "expired_entry_refused": true,
+    "charges_retained": true,
+    "provider_calls": 0
+  }
+}

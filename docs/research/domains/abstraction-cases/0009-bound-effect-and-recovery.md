@@ -310,3 +310,21 @@ positive Stripe input now has a known synthetic account commitment, allowing an
 actual matching account check rather than an unopenable placeholder. These are
 executed predicate fixtures; their scope excludes installed process/transport,
 transaction lock waits, PostgreSQL and full differential qualification.
+
+
+## Ordered initial admission
+
+Mutation count/sum claims and recovery/prerequisite acquisitions now use one
+bounded snapshot-and-insert mechanism under the existing writer fence. The
+adapter owns atomicity only; the gateway reuses its native entry validator to
+establish authority before publishing any claim or charge. Mutation sum
+predecessors and acquisition source eligibility remain typed, distinct checks.
+No schema, allocation algebra, retry owner or transport reconstruction is added.
+
+The file artifact `effect-admission.json` covers expired-approval refusal with
+no claim/capacity writes, admission-time stamping, immutable replay after expiry,
+retained count/sum charges, missing/changed dependencies, batch collisions and a
+writer-before-admission dependency order. Authority uses the explicit-time
+approval oracle; opaque dependency bytes exercise adapter ordering, not native
+revocation semantics. The same conformance source is authored for PostgreSQL.
+Installed authority races, process faults and performance remain required.

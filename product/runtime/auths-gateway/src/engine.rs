@@ -1352,7 +1352,47 @@ impl GatewayEngine {
                 }),
             };
         }
-        let reserved = match self.attempts.claim_recovery(&approved, now).await {
+        // Retained terminal history never needs preparation or custody.
+        if let Some(snapshot) = self
+            .attempts
+            .read_recovery(&approved)
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })?
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot);
+        }
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await.map_err(not_entered)?;
+        let fresh = io
+            .clock()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        io.revalidate(&approved, fresh)
+            .map_err(|_| not_entered("gateway.effect.authority-unavailable"))?;
+        let validation = io.entry_validation().map_err(not_entered)?;
+        let reserved = match self
+            .attempts
+            .claim_recovery(&approved, now, validation)
+            .await
+        {
             Ok(crate::AcquisitionClaim::Existing(snapshot)) => return Ok(snapshot),
             Ok(crate::AcquisitionClaim::Reserved(reserved)) => reserved,
             Err(crate::GatewayAttemptError::BindingConflict) => {
@@ -1361,7 +1401,7 @@ impl GatewayEngine {
             Err(_) => return self.recovery_projection(&approved).await,
         };
         match self
-            .run_recovery_reservation(*reserved, Arc::clone(&approved), now, started)
+            .run_recovery_reservation(*reserved, Arc::clone(&approved), &io)
             .await
         {
             Ok(snapshot) => Ok(snapshot),
@@ -1459,26 +1499,9 @@ impl GatewayEngine {
         &self,
         reserved: crate::ReservedAcquisition,
         approved: Arc<ApprovedEffect>,
-        now: u64,
-        started: Instant,
+        io: &EngineIo<'_>,
     ) -> Result<crate::AcquisitionSnapshot, &'static str> {
-        let io = EngineIo {
-            engine: self,
-            pending: std::sync::Mutex::new(None),
-            started,
-            prepared: OnceLock::new(),
-            #[cfg(unix)]
-            commissioning: None,
-            #[cfg(unix)]
-            commissioned_action: OnceLock::new(),
-            #[cfg(unix)]
-            commissioning_refusal: OnceLock::new(),
-        };
-        io.prepare().await?;
-        let fresh = io.clock().ok_or("gateway.verify.clock-unavailable")?;
-        io.revalidate(&approved, fresh)
-            .map_err(|_| "gateway.effect.authority-unavailable")?;
-        let _flight = submit::InFlight::enter(&io);
+        let _flight = submit::InFlight::enter(io);
         let lease = io.lease().await.ok_or("gateway.credential.unavailable")?;
         if self
             .recipe
@@ -1489,6 +1512,7 @@ impl GatewayEngine {
             return Err("gateway.credential.mode-guard");
         }
         let validation = io.entry_validation()?;
+        let now = io.clock().ok_or("gateway.verify.clock-unavailable")?;
         let (granted, permit) = reserved
             .grant_entry(approved, validation, now)
             .await

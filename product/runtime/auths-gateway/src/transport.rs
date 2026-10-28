@@ -709,7 +709,11 @@ mod tests {
                 crate::store_testkit::TestAttempts::open(crate::store_testkit::Backend::File);
             let crate::store::BoundedClaim::Claimed(claim) = attempts
                 .attempts()
-                .claim_bounded(&approved, 1000)
+                .claim_bounded(
+                    &approved,
+                    1000,
+                    crate::entry::EntryValidation::Oracle { now: 1000 },
+                )
                 .await
                 .expect("claim")
             else {

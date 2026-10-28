@@ -1631,6 +1631,8 @@ effect-review = [
   "product/runtime/auths-gateway/src/effect_native_tests.rs#native_compilation_approval_and_reverification_keep_exact_request",
 ]
 effect-entry = [
+  "product/runtime/auths-gateway/src/entry_tests.rs#native_admission_fixture_is_current",
+  "product/runtime/auths-gateway/src/entry_tests.rs#postgres_admission_checks_authority_before_atomic_charges",
   "product/runtime/auths-gateway/src/entry_tests.rs#native_entry_fixture_is_current",
   "product/runtime/auths-gateway/src/entry_tests.rs#file_grant_has_one_winner_and_no_restart_permit",
   "product/runtime/auths-gateway/src/entry_tests.rs#postgres_grant_has_one_winner_and_no_restart_permit",

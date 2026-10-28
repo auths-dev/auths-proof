@@ -392,6 +392,23 @@ Re-run the full native verifier, or use a mechanically justified equivalent depe
 
 Connection, trust, recipe, policy, qualification and admission epoch changes must be ordered with entry or fenced under a demonstrated version protocol. A mutable value checked before waiting for the lock is insufficient. Exact human approval must remain eligible at entry. If durable consent has a distinct validity/revocation contract, make that a separate mode with explicit evidence; never discard approval dependencies accidentally.
 
+Initial admission also orders fresh native authority, approval, configuration,
+connection and qualification with publication of the claim and its charges.
+The file and PostgreSQL adapters use the common writer fence for one insert
+batch plus bounded dependency reads. The decision can replace only the first
+record's bytes; allocation keys, kinds, amounts and expiries remain fixed.
+Persisted admission time is sampled inside that fence. A replay returns retained
+history without a new admission decision or charge and confers no entry permit.
+
+Count/sum frontiers may be selected outside the fence only as candidates. The
+transaction checks every target's vacancy and validates immutable sum
+predecessors against the proposed cumulative charges. Native recompilation must
+refuse a changed window before publication. Acquisition admission additionally
+checks its eligible source under the same fence. The combined insertion and
+read set is at most 64 records (at most 55 for mutation admission); the existing
+two-second lock-wait and decision bounds apply. Store failure or ambiguous
+acknowledgement cannot publish an executable capability.
+
 At the entry grant's serialization point, the atomic decision requires current
 native authority, eligible approval, current configuration and revocation state,
 an intact sufficient reservation with conserved accounting, and no previous

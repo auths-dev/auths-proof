@@ -513,3 +513,46 @@ observations, account mismatch, capability excess, bound currency/ratio changes,
 checkpoint substitution and duplicate JSON. They use signed native effects and
 synthetic provider bodies, not an installed transaction or transport. Independent
 process lock-wait histories and both adapter fault/race suites remain required.
+
+## Ordered initial admission design
+
+Initial effect admission uses an extension of the existing insert-once batch
+mechanism. Under the same file lock or PostgreSQL advisory transaction lock,
+the adapter checks the proposed keys for conflicts, reads a bounded dependency
+set, invokes one native decision and publishes the claim and all capacity rows
+atomically. The decision may replace only the first record's opaque bytes;
+keys, kinds, expiries and remaining capacity rows stay fixed. Existing keys
+return their original conflict index without invoking the admission decision.
+The combined insertion/dependency set retains the existing 64-record limit,
+and the same two-second fenced decision deadline applies. No nested store,
+credential or provider I/O is permitted in the decision.
+
+The native decision reuses final-entry authority/configuration validation,
+sampling time after the writer fence is held. A new record's `evaluated_at` is
+that admission time, not the earlier candidate compilation time. All current
+approval, native proof, configuration, connection and qualification constraints
+must hold before a charge is published. Subsequent entry remains a separate
+fresh check and one-use permit. Equal replay returns immutable history and does
+not rerun admission or charge again.
+
+Counter frontiers remain bounded candidate selection outside the fence. The
+insert transaction confirms target vacancy; immutable sum predecessors are
+included in the dependency snapshot and their validated cumulative amounts must
+match the proposed charge. Full native recompilation rejects a changed window
+before publication, so expired-slot collection cannot authorize an old-window
+admission. Exhausted claims are also recorded only after the same ordered
+checks. Acquisition admission additionally fences the eligible source record.
+
+
+Mutation admission has at most one claim, 34 capacity rows, 17 sum predecessors
+and three native dependencies: 55 records within the existing 64-record bound.
+The later entry boundary retains its independent 52-record maximum. Retained
+history is checked before constructing a new candidate so an expired current
+approval cannot hide an existing reservation; that handle still requires fresh
+entry validation. Runtime grant timestamps are sampled after admission rather
+than reused from the earlier candidate evaluation.
+
+`effect-admission.json` constructs real file-store ordering and atomicity
+histories with an explicit-time approval oracle. It does not establish installed
+native revocation, PostgreSQL execution or process fault qualification. The same
+adapter conformance source is available for the hosted PostgreSQL fixture.

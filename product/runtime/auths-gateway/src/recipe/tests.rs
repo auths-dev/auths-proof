@@ -779,7 +779,11 @@ async fn response_and_observation_are_distinct_durable_stages() {
             .expect("approval"),
     );
     let crate::store::BoundedClaim::Claimed(claim) = store
-        .claim_bounded(&approved, 1_790_000_000)
+        .claim_bounded(
+            &approved,
+            1_790_000_000,
+            crate::entry::EntryValidation::Oracle { now: 1_790_000_000 },
+        )
         .await
         .expect("claim")
     else {

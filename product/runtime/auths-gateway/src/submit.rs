@@ -511,10 +511,13 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(approved) = self.verified.as_ref() else {
             return ClaimResult::Unavailable;
         };
+        let Ok(validation) = self.io.entry_validation() else {
+            return ClaimResult::Unavailable;
+        };
         match self
             .cx
             .attempts
-            .claim_bounded(approved, self.evaluated_at)
+            .claim_bounded(approved, self.evaluated_at, validation)
             .await
         {
             Ok(BoundedClaim::Claimed(claim)) => {
@@ -563,17 +566,19 @@ impl<I: SubmitIo> Run<'_, I> {
         let lease = self.lease.as_ref()?;
         let approved = self.verified.as_ref()?;
         let started = self.io.clock()?;
+        let validation = self.io.entry_validation().ok()?;
         match self
             .cx
             .attempts
-            .claim_prerequisite(approved, kind, started)
+            .claim_prerequisite(approved, kind, started, validation)
             .await
             .ok()?
         {
             crate::AcquisitionClaim::Reserved(reserved) => {
                 let validation = self.io.entry_validation().ok()?;
+                let entry_started = self.io.clock()?;
                 let (granted, permit) = reserved
-                    .grant_entry(std::sync::Arc::clone(approved), validation, started)
+                    .grant_entry(std::sync::Arc::clone(approved), validation, entry_started)
                     .await
                     .ok()?;
                 match self.io.acquire(lease, permit).await {
@@ -723,6 +728,9 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(approved) = &self.verified else {
             return false;
         };
+        let Some(entry_started) = self.io.clock() else {
+            return false;
+        };
         let Some(claim) = self.claim.take() else {
             return false;
         };
@@ -730,7 +738,7 @@ impl<I: SubmitIo> Run<'_, I> {
             .grant_entry(
                 std::sync::Arc::clone(approved),
                 validation,
-                self.evaluated_at,
+                entry_started,
                 &self.pre_entry,
             )
             .await
