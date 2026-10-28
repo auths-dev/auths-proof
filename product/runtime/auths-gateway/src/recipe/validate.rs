@@ -804,3 +804,16 @@ pub(super) fn validate_source(
     }
     Ok(())
 }
+
+/// Content GETs use the existing fixed/verified-field path grammar. No
+/// response locator or echo can select their resource.
+pub(super) fn validate_content_path(
+    path: &[PathSegment],
+    fields: &BTreeMap<String, FieldSchema>,
+) -> Result<(), GatewayRecipeError> {
+    Rules {
+        fields,
+        consumed: Consumption::default(),
+    }
+    .path(path, PathRole::Write)
+}

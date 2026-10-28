@@ -431,6 +431,7 @@ impl AcquisitionCapacity {
 pub(super) enum AcquisitionTarget {
     Recovery(Box<RecoveryReadTarget>),
     Candidate(Box<super::candidate::CandidateCredentialTarget>),
+    Content(Box<super::content::ContentReadTarget>),
 }
 
 pub(super) struct VerifiedAcquisition {
@@ -449,7 +450,9 @@ impl VerifiedAcquisition {
     pub(super) fn journal_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
         match &self.target {
             AcquisitionTarget::Recovery(target) => target.journal_plan(&self.prerequisites),
-            AcquisitionTarget::Candidate(_) => Err(EffectBindingError::Invalid),
+            AcquisitionTarget::Candidate(_) | AcquisitionTarget::Content(_) => {
+                Err(EffectBindingError::Invalid)
+            }
         }
     }
 
@@ -457,6 +460,7 @@ impl VerifiedAcquisition {
         match &self.target {
             AcquisitionTarget::Recovery(target) => target.request_bytes(&self.prerequisites),
             AcquisitionTarget::Candidate(target) => target.request_bytes(),
+            AcquisitionTarget::Content(target) => target.request_bytes(&self.prerequisites),
         }
     }
 
@@ -468,7 +472,7 @@ impl VerifiedAcquisition {
             "action_commitment": hex::encode(self.action_commitment),
             "arguments": self.arguments,
             "method": match &self.target {
-                AcquisitionTarget::Recovery(_) => "GET",
+                AcquisitionTarget::Recovery(_) | AcquisitionTarget::Content(_) => "GET",
                 AcquisitionTarget::Candidate(target) => target.method(),
             },
             "prerequisite_acquisitions": self.prerequisites,
@@ -476,6 +480,7 @@ impl VerifiedAcquisition {
         match &self.target {
             AcquisitionTarget::Recovery(target) => review["recovery"] = target.contract(),
             AcquisitionTarget::Candidate(target) => review["candidate"] = target.contract(),
+            AcquisitionTarget::Content(target) => review["content"] = target.private_read_review(),
         }
         review
     }
@@ -508,7 +513,7 @@ pub fn compile_recovery_acquisition(
 
 #[allow(
     clippy::too_many_lines,
-    reason = "one native verification path retains the two closed acquisition target contracts"
+    reason = "one native verification path retains the closed acquisition target contracts"
 )]
 pub(super) fn compile_acquisition(
     installed: &EffectInstallation<'_>,
@@ -531,6 +536,9 @@ pub(super) fn compile_acquisition(
         AcquisitionTarget::Candidate(target) => target
             .validate_installation(installed)
             .map_err(|_| invalid())?,
+        AcquisitionTarget::Content(target) => target
+            .validate_installation(installed)
+            .map_err(|_| invalid())?,
     }
     let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
     let verified = sealed.action().ok_or_else(invalid)?;
@@ -548,6 +556,9 @@ pub(super) fn compile_acquisition(
             target.authorization_call(installed.recipe, &operation)
         }
         AcquisitionTarget::Candidate(target) => {
+            target.authorization_call(installed.recipe, &operation)
+        }
+        AcquisitionTarget::Content(target) => {
             target.authorization_call(installed.recipe, &operation)
         }
     }
@@ -571,7 +582,7 @@ pub(super) fn compile_acquisition(
     let action_commitment =
         commitment("auths.canonical-action.v1", &canonical_action).map_err(|_| invalid())?;
     let prerequisites = match &target {
-        AcquisitionTarget::Recovery(_) => {
+        AcquisitionTarget::Recovery(_) | AcquisitionTarget::Content(_) => {
             Prerequisites::credentials(installed.recipe, *installed.connection.account_commitment())
                 .map_err(|_| invalid())?
         }
@@ -591,6 +602,18 @@ pub(super) fn compile_acquisition(
             )?,
             json!({"contract": "auths.gateway-recovery-read/1", "recovery": target.contract(),
                 "consequences": "Acquire bounded provider evidence only. This does not repeat the mutation, disclose content, prove exclusive causation, refund capacity or change the original actor."}),
+        ),
+        AcquisitionTarget::Content(target) => (
+            target.binding(
+                installed,
+                &operation,
+                action_commitment,
+                authority,
+                bound.as_ref(),
+                &prerequisites,
+            )?,
+            json!({"contract": "auths.gateway-content-acquisition/1", "content": target.contract().map_err(|_| invalid())?,
+                "consequences": "Acquire only this bounded resource into private gateway custody. This grants no disclosure, mutation, automatic refetch or refund. Recipient release needs its own current authority, approval and durable grant."}),
         ),
         AcquisitionTarget::Candidate(target) => (
             target.binding(

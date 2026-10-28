@@ -528,3 +528,33 @@ AP070 differential equivalence nor a durability, actual delivery, authenticated
 channel or process-isolation claim. Those remain required for the direct consumer
 cutover. Kani source is extended, not executed; translated Lean/refinement work
 remains pending.
+
+
+## Content acquisition compiler comparison
+
+AP070 separates exact resource selection, bounded UTF-8 response validation and
+later release. Its provider-specific metadata predicates (ID, trash state,
+download capability and MIME-dependent endpoint) are additional domain semantics
+and are not erased by the new content declaration. They still need reviewed
+closed declarations/reference evidence before the AP070 runtime cutover.
+
+The identical subset implemented here is a fixed-origin GET over verified
+resource/account values, literal query parameters, and bounded UTF-8 or one
+JSON-string projection. Path/header/percent construction and JSON duplicate
+rejection reuse the existing gateway mechanisms. The new declaration has one
+resource field, sixteen path segments, eight sorted unique query pairs, 64-byte
+ASCII query names, 512-byte query values, the existing 8,192-byte URL bound and
+65,536-byte response/content ceilings. It rejects response locators and operation
+IDs as content resources. Query values are encoded data; no callback interprets
+them. The ADR's narrow primitive exception applies to this construction subset,
+not to Google metadata semantics or to a general provider qualification claim.
+
+`content-compilation.json` uses native signatures, exact approval and recompile
+for both projections. It exercises resource/installation/limit changes,
+operation-independent and administrative-metadata-independent capacity keys,
+expired/reused approval refusal, operator/native review, malformed source/query/
+pointer rejection and all six typed response failures. Projection copies exact
+bytes without truncation into a zeroizing buffer and gives no disclosure permit.
+This evidence does not establish durable source allocations, actual provider
+transport, content custody, standalone read-only deployment, AP070 differential
+parity or a recipient release. Those remain part of P3/P4.

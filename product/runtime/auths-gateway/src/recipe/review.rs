@@ -332,6 +332,13 @@ impl CompiledRecipe {
                     )
                 });
         document["credential_guard"] = self.guard_review();
+        if let Some(content) = &source.content {
+            document["content_acquisition"] = json!({
+                "declaration": content,
+                "method": "GET",
+                "disclosure": "independent native read authority and exact approval required; response remains private; release requires separate authorization and entry",
+            });
+        }
         document["idempotency"] =
             source
                 .write

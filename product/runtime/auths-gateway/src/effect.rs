@@ -20,6 +20,8 @@ use zeroize::Zeroizing;
 
 mod acquisition;
 mod candidate;
+mod content;
+pub use content::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
 mod disclosure;
 pub use disclosure::{
     AuthenticatedDisclosureAcknowledgement, DISCLOSURE_ACK_SCHEMA, DisclosureAcknowledgement,
@@ -1102,7 +1104,8 @@ impl ApprovedEffect {
         match &self.effect.command {
             CompiledEffect::Acquisition(command) => match &command.target {
                 acquisition::AcquisitionTarget::Candidate(target) => Some(target),
-                acquisition::AcquisitionTarget::Recovery(_) => None,
+                acquisition::AcquisitionTarget::Recovery(_)
+                | acquisition::AcquisitionTarget::Content(_) => None,
             },
             CompiledEffect::Mutation(_) => None,
         }
@@ -1119,7 +1122,8 @@ impl ApprovedEffect {
             CompiledEffect::Mutation(_) => None,
             CompiledEffect::Acquisition(command) => match &command.target {
                 acquisition::AcquisitionTarget::Recovery(target) => Some(target),
-                acquisition::AcquisitionTarget::Candidate(_) => None,
+                acquisition::AcquisitionTarget::Candidate(_)
+                | acquisition::AcquisitionTarget::Content(_) => None,
             },
         }
     }
@@ -1212,6 +1216,13 @@ impl ApprovedEffect {
             }
             CompiledEffect::Acquisition(command) => match &command.target {
                 acquisition::AcquisitionTarget::Recovery(target) => compile_recovery_acquisition(
+                    installed,
+                    target,
+                    now,
+                    &self.effect.proof,
+                    &self.effect.action,
+                )?,
+                acquisition::AcquisitionTarget::Content(target) => compile_content_acquisition(
                     installed,
                     target,
                     now,

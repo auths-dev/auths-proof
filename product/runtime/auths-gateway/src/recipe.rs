@@ -20,6 +20,8 @@ use url::{Host, Url};
 
 pub use auths_gateway_kernel::{construct, recovery};
 
+mod content;
+pub use content::{CONTENT_READ_SCHEMA, ClosedContentRead, ContentProjectionError};
 mod effect_review;
 mod lower;
 mod response;
@@ -539,7 +541,9 @@ impl CompiledRecipe {
         if source.schema != RECIPE_SOURCE_SCHEMA
             || matches!(
                 source.tool.as_str(),
-                crate::effect::RECOVERY_READ_TOOL | crate::effect::CANDIDATE_CHECK_TOOL
+                crate::effect::RECOVERY_READ_TOOL
+                    | crate::effect::CANDIDATE_CHECK_TOOL
+                    | crate::effect::CONTENT_READ_TOOL
             )
         {
             return Err(GatewayRecipeError::InvalidSource);
@@ -558,6 +562,9 @@ impl CompiledRecipe {
         credential_requirement(&source.credential).validate()?;
         validate_origin(&source.origin)?;
         validate::validate_source(&source, &fields)?;
+        if let Some(content) = &source.content {
+            content.validate(&fields)?;
+        }
         let canonical = serde_json_canonicalizer::to_vec(&source)
             .map_err(|_| GatewayRecipeError::InvalidSource)?;
         let mut hasher = Sha256::new();

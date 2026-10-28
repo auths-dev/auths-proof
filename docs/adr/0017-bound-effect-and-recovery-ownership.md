@@ -800,3 +800,32 @@ protected-content owner, disclosure admission/entry, recipient transport and
 runtime journal projection remain required before this is a managed release
 path. Kani oracle source includes disclosure; source-linked Lean regeneration
 and refinement are still open P4 obligations, with no new proof claim.
+
+
+## Explicit content recipe compilation
+
+General content reads are an explicit digest-bound recipe capability rather
+than reinterpreted credential checks or mutation observations. The versioned
+`content` declaration is optional within the existing source envelope; absent
+recipes retain their original canonical bytes/digest and cannot compile content
+reads. The declaration has its own closed schema and complete operator review.
+`recipe::content` validates resource fields, fixed query pairs and bounded
+UTF-8/JSON-string projection. It reuses the existing path/header lowering,
+percent encoder and duplicate-rejecting provider parser. No provider-name branch
+or new runtime callback is introduced.
+
+`effect::content` participates in the same native acquisition compilation,
+review, exact approval and fresh recompile owner. Its native read call binds the
+explicit resource/account arguments and full private contract. A sixteen-entry
+source allowance excludes logical operation IDs and administrative metadata;
+it includes recipe, connection ID, credential generation/reference and exact
+resource/account arguments. The full connection record still binds approval,
+so administrative changes demand recompilation without silently refreshing that
+allowance. Fixed-window native managed bounds are additionally retained.
+
+Content projection returns private bytes and typed response errors, not a
+receipt or release grant. Runtime must authenticate/retain HTTP metadata and
+content under the journal contract and issue a distinct disclosure capability.
+The current compiler slice does not add content admission/entry, read-only
+installation, AP070 metadata predicates, recipient transport or content custody.
+These remain required before migrating the maintained demo.

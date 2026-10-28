@@ -417,3 +417,17 @@ pub(super) fn plans(
         denied,
     })
 }
+
+/// Reuses the reviewed action-read lowering for an explicit content capability.
+pub(super) fn content_plan(
+    source: &RecipeSource,
+    fields: &BTreeMap<String, FieldSchema>,
+    path: &[PathSegment],
+) -> Result<ActionReadPlan, GatewayRecipeError> {
+    Lowering {
+        fields,
+        origin: source.origin.as_bytes().to_vec(),
+        headers: header_plan(source, fields)?,
+    }
+    .action_read(path)
+}

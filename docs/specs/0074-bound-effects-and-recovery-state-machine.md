@@ -368,6 +368,42 @@ same native binding, review renderer and approval machinery serve both types.
 This compilation contract does not itself implement read admission, an entry
 permit, observation evidence or disclosure.
 
+Explicit content acquisition is a versioned opt-in recipe capability,
+`content.schema = auths.gateway-content-read/1`, within recipe source `/3`.
+It is included in the recipe digest and operator review; absence permits no
+content acquisition. The declaration selects one string/enum resource field,
+a fixed/verified-resource path (existing 16-segment bound), up to eight sorted
+unique literal query pairs (64-byte ASCII names, 512-byte values), and either
+exact UTF-8 content or a JSON-string pointer (128 bytes/eight tokens with valid
+RFC 6901 escapes). The source origin, credential and registered version/account
+headers remain the existing recipe owners. Dynamic URLs, response-derived
+locators, operation-ID path parameters and arbitrary callbacks are refused.
+
+`auths_gateway_content_read_v1` is a reserved native read tool. Its private
+`auths.gateway-content-acquisition/1` contract binds the exact installed
+connection, recipe, resource/account arguments, GET, projection, response and
+content limits. Both byte limits are at most 65,536; the content ceiling cannot
+exceed the response ceiling. A source allowance has sixteen attempts and the
+full response ceiling per attempt, keyed by recipe, connection ID, credential
+generation/reference and resource/account arguments. Changing logical operation
+IDs or administrative timestamps/state cannot reset that allowance. Selected
+native count/byte policy bounds also apply. Account/denied-capability
+prerequisites use the existing compiled plan. Native exact approval and full
+recompilation are separate from the resource proof. Credential-check and recovery
+admission cannot be borrowed by a content effect.
+
+Projection requires status 200 and the declared `text/plain` or
+`application/json` media type, optionally with UTF-8 charset. It refuses lossy
+UTF-8, duplicate-member JSON, missing/non-string selections and over-limit
+responses/content instead of truncating. It returns private zeroizing bytes;
+projection alone establishes no transport provenance, custody or release
+permission. Stable native response errors distinguish status, media type, raw
+response limit, malformed input, missing projection and projected-content limit.
+The runtime must retain authentic response metadata with the acquired bytes
+before using this contract for disclosure. Standalone read-only installation,
+AP070 metadata checks, content journal/transport and protected retention remain
+implementation requirements; this compiler contract alone is not their cutover.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

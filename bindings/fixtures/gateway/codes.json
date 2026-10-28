@@ -244,6 +244,54 @@
       "case": null
     },
     {
+      "code": "gateway.content.content-too-large",
+      "owner": "ContentProjectionError",
+      "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.content.invalid-response",
+      "owner": "ContentProjectionError",
+      "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.content.missing-projection",
+      "owner": "ContentProjectionError",
+      "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.content.response-media-type",
+      "owner": "ContentProjectionError",
+      "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.content.response-status",
+      "owner": "ContentProjectionError",
+      "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
+      "code": "gateway.content.response-too-large",
+      "owner": "ContentProjectionError",
+      "stage": "projection",
+      "status": "new",
+      "epic": 74,
+      "case": null
+    },
+    {
       "code": "gateway.credential.account-mismatch",
       "owner": "engine",
       "stage": "recorded",

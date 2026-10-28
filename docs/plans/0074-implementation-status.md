@@ -1076,6 +1076,52 @@ closure regeneration passed after that correction (one artifact-generation test)
   this corpus do not establish durable accounting or actual byte delivery. No
   A01–A22 acceptance criterion closes.
 
+## Explicit content acquisition compiler checkpoint
+
+- Added the digest-bound opt-in `content` capability with its own
+  `auths.gateway-content-read/1` schema. It selects one string/enum resource,
+  existing fixed/verified path and account headers, bounded sorted literal query
+  pairs, and UTF-8 or JSON-string projection. The operator review includes the
+  complete declaration. An absent declaration cannot compile content reads;
+  the reserved native read tool cannot be installed as a mutation tool.
+- Added `ContentReadTarget` and `compile_content_acquisition` to the existing
+  acquisition compiler. Fresh native read proof, full private target/connection,
+  source allowance, managed policy counters, prerequisites, exact approval and
+  complete native review share the existing effect owner. Full revalidation
+  recompiles content effects. Mutation/recovery/candidate admission cannot be
+  borrowed by a content effect. No content transport or permit was added here.
+- Source allowance keys bind recipe, connection ID, credential generation/
+  reference and exact resource/account arguments, excluding logical operation
+  IDs and administrative metadata. The full connection still binds the approval.
+  The native corpus checks that disable/enable timestamp changes preserve keys
+  while old bound approval refuses the changed installation. Durable allocation
+  enforcement remains part of the next journal work, not a compiler claim.
+- Pure projection returns exact private zeroizing bytes, requires status 200,
+  declared media type and optional UTF-8 charset, and rejects malformed UTF-8,
+  duplicate JSON, missing/non-string projections and both raw/projected limits.
+  Six typed response codes distinguish these facts from native authority denial.
+- Exact artifact construction passed on `72fe870e` plus this source:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib -- --exact observed_tests::effect_native_tests::content_tests::native_content_compilation_fixture_is_current pending_vectors::codes::code_inventory_is_current`.
+  The final two-test run passed in 0.06 seconds. The corpus uses real native
+  proof/approval signatures for both projections, fresh/expired recompile,
+  different resource/connection/limit, extra arguments, approval reuse and stable
+  capacity keys; it checks the declared projection limits and all six error
+  codes. Final semantic-closure generation passed one exact test.
+- Initial fixture construction used a nonexistent review method and accidentally
+  supplied content source as profile-schema fields. The fixture now invokes
+  `render_literal` and edits the recipe source while preserving its profile lock.
+  No production check was weakened. No broad local gate, Kani, Lean or hosted CI
+  ran. This is compilation/pure projection evidence only.
+- Fetch found bot commit `5b9d9ecd`, changing only formal source-closure hashes
+  for the prior ACK/kernel source. It was inspected and retained by fast-forward;
+  no hosted result was inspected.
+- Next requirements are the content plan in the shared journal, response metadata
+  and protected retention, separately authorized disclosure entry/transport/ACK
+  persistence, standalone read-only installation and AP070 metadata predicates/
+  consumer cutover. The existing recipe still includes a mutation declaration;
+  this opt-in content capability is not a claim that standalone read-only
+  installation or the Google domain cutover is complete. A01–A22 remain open.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1083,7 +1129,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery/prerequisite runtime and content/ACK compilation wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

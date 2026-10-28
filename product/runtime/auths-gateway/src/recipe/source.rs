@@ -31,6 +31,8 @@ pub(super) struct RecipeSource {
     pub(super) relative_ceiling: Option<RelativeCeilingSource>,
     pub(super) write: WriteSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) content: Option<super::content::ContentSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) observation: Option<ObservationSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) echo: Option<EchoSource>,
