@@ -738,3 +738,37 @@ process cache. This is a store mechanism, with no change to credential identity,
 read authorization or publication policy. Staged/CLI fixtures cover real file
 custody, independent competing processes, held-lock refusal and stale handles;
 they do not establish AWS, PostgreSQL or full process-crash qualification.
+
+
+### First-install staging and floor binding
+
+A read-bearing first install now stores a private canonical connection draft
+before its manifest or custody mutation. The draft fixes the connection identity,
+account, descriptor and timestamps, and carries no read or publication authority.
+The existing candidate runtime derives the credential reference with the native
+custody commitment, initializes/registers cleanup notes, stores only an absent
+exact generation and binds the host floor to that unpublished generation-one
+record. The shared connection remains absent until fenced candidate publication.
+An exact custody `holds` result supports explicit retry from the same retained
+draft after an ambiguous write acknowledgement; another secret cannot replace it.
+
+`install` saves `candidate-installation.json`; `candidate-stage-installation`
+resumes from `candidate-installation.cbor` into a new private output file. Only
+this explicit operator action may initialize the installation's configuration,
+cleanup journal or floor. Candidate compilation, acquisition and publication
+check an existing floor, and ordinary entry still requires a live connection.
+There is no cross-store atomicity claim: a floor or output failure may leave
+custody with a retained cleanup obligation and no published connection.
+
+Production raw onboarding exports are removed. The previous checker remains a
+test-only reference; the pure probe predicate remains shared by managed entry.
+The offline install helper refuses recipes with reads before custody, while
+join records cleanup notes before confirming an exact already-published secret.
+The loopback option moves from unapproved install to approved candidate acquisition
+and is limited to development installations in feature-enabled builds.
+
+Native staging artifacts exercise absent connection, exact restart, conflicting
+secret, bad prefix, corrupt cleanup notes, substituted floor and runtime refusal
+to repair a missing floor. The production CLI artifact exercises actual install
+and a separate resume process. Full approved provider journeys, process faults
+and PostgreSQL evidence remain separate unfinished requirements.

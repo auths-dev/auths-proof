@@ -860,7 +860,7 @@ impl GatewayEngine {
             .recipe
             .credential_reads()
             .map_err(|_| "gateway.admin.transition-unavailable")?;
-        if reads.probe().is_some() || reads.account().is_some() || !reads.denied().is_empty() {
+        if !reads.is_empty() {
             return Err("gateway.admin.candidate-approval-required");
         }
         Ok(())
@@ -2517,6 +2517,7 @@ pub(crate) mod tests {
                 auths_connections::ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").expect("id");
             let recipe = airtable_recipe();
             crate::install_connection(
+                &recipe,
                 &first.engine.connection,
                 &*first.engine.credentials,
                 |reference| {
@@ -2632,6 +2633,7 @@ pub(crate) mod tests {
             ) -> Result<ConnectionRecord, &'static str> {
                 crate::join_connection(
                     &self.engine.connection,
+                    &crate::CredentialJournal::new(self._state.path().to_path_buf()),
                     &*self.engine.credentials,
                     &self.engine.recipe,
                     &candidate(secret),
@@ -3433,6 +3435,7 @@ pub(crate) mod tests {
                 auths_connections::ConnectionId::parse("conn_BBBBBBBBBBBBBBBBBBBBBA").expect("id");
             let recipe = airtable_recipe();
             let refused = crate::install_connection(
+                &recipe,
                 &second.engine.connection,
                 &*second.engine.credentials,
                 |reference| {

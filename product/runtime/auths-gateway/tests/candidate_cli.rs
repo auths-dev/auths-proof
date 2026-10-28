@@ -247,16 +247,16 @@ async fn native_candidate_cli_fixture_is_current() {
     )
     .expect("candidate record");
     assert!(reopened.holds(&staged.credential_binding()).await.is_ok());
-    let lock = std::fs::OpenOptions::new()
+    let custody_lock = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
         .open(root.join("credentials.cbor.lock"))
         .expect("custody lock");
-    lock.try_lock().expect("hold custody fence");
+    custody_lock.try_lock().expect("hold custody fence");
     let blocked = stage(&root, &root.join("blocked.json"), b"rk_test_blocked\n");
     assert!(!blocked.status.success());
     assert!(!root.join("blocked.json").exists());
-    drop(lock);
+    drop(custody_lock);
     let call_out = root.join("call.json");
     let call = Command::new(env!("CARGO_BIN_EXE_auths-gateway"))
         .arg("effect-candidate-call")
@@ -312,7 +312,9 @@ async fn native_candidate_cli_fixture_is_current() {
         .expect("refusal CLI");
     assert!(!refused.status.success());
     assert!(!root.join("refused.json").exists());
+    let first_installation = first_installation(&source, &lock, &trust, &policy, &recipe).await;
     let fixture = serde_json::to_vec_pretty(&json!({
+        "first_installation": first_installation,
         "schema": "auths.candidate-cli-fixture/1", "scope": "production staging and call-authoring CLI with real file custody, cleanup journal and generation floor; synthetic installation/trust; no approved provider acquisition or publication claim",
         "competing_processes_one_staging_winner": true, "held_custody_fence_refuses_without_proposal": true,
         "staged_generation": 2, "current_record_unchanged": true, "proposal_and_call_mode": "0600",
@@ -325,4 +327,143 @@ async fn native_candidate_cli_fixture_is_current() {
         std::fs::write(&path, &fixture).expect("fixture write");
     }
     assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+}
+
+async fn first_installation(
+    source: &[u8],
+    lock: &[u8],
+    trust: &[u8],
+    policy: &auths_gateway::effect::EffectPolicy,
+    recipe: &CompiledRecipe,
+) -> Value {
+    let directory = tempfile::tempdir().expect("installation directory");
+    let root = std::fs::canonicalize(directory.path()).expect("path");
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).expect("mode");
+    for (name, bytes) in [
+        ("source.json", source),
+        ("lock.json", lock),
+        ("trust.cbor", trust),
+        (
+            "policy.json",
+            policy.to_private_bytes().expect("policy").as_slice(),
+        ),
+    ] {
+        private(&root.join(name), bytes);
+    }
+    let state = root.join("state");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_auths-gateway"))
+        .arg("install")
+        .arg("--state-dir")
+        .arg(&state)
+        .arg("--recipe")
+        .arg(root.join("source.json"))
+        .arg("--profile-lock")
+        .arg(root.join("lock.json"))
+        .arg("--trusted-context")
+        .arg(root.join("trust.cbor"))
+        .arg("--effect-policy")
+        .arg(root.join("policy.json"))
+        .arg("--approve-digest")
+        .arg(recipe.digest_hex())
+        .args([
+            "--provider",
+            "stripe",
+            "--alias",
+            "synthetic",
+            "--account-label",
+            "acct_TESTACCOUNT01",
+            "--credential-stdin",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("install process");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"rk_test_initial_install\n")
+        .expect("secret");
+    let output = child.wait_with_output().expect("install output");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let proposal = state.join("candidate-installation.json");
+    let bytes = std::fs::read(&proposal).expect("proposal");
+    let json: Value = serde_json::from_slice(&bytes).expect("proposal JSON");
+    assert!(json["previous"].is_null());
+    let candidate = ConnectionRecord::from_canonical_cbor(
+        &hex::decode(json["candidate"].as_str().expect("candidate hex")).expect("hex"),
+    )
+    .expect("record");
+    let shared = SharedConnection::new(
+        Arc::new(FileGatewayAttemptStore::open(&state.join("attempts")).expect("store")),
+        candidate.provider_kind().clone(),
+        candidate.alias().clone(),
+    );
+    assert!(shared.load().await.expect("load").is_none());
+    let custody = PersistentCredentialStore::open(state.join("credentials.cbor")).expect("custody");
+    assert!(custody.holds(&candidate.credential_binding()).await.is_ok());
+    auths_gateway::GenerationFloor::new(state.clone())
+        .accept(&candidate)
+        .expect("floor");
+    assert_eq!(
+        auths_gateway::CredentialJournal::new(state.clone())
+            .generations(candidate.connection_id())
+            .expect("notes"),
+        vec![NonZeroU64::MIN]
+    );
+    let resume = |out: &Path, secret: &[u8]| {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_auths-gateway"))
+            .arg("candidate-stage-installation")
+            .arg("--state-dir")
+            .arg(&state)
+            .arg("--proposal-out")
+            .arg(out)
+            .arg("--credential-stdin")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("resume process");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(secret)
+            .expect("secret");
+        child.wait_with_output().expect("resume output")
+    };
+    let repeated = state.join("resumed.json");
+    let result = resume(&repeated, b"rk_test_initial_install\n");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(std::fs::read(&repeated).expect("resumed bytes"), bytes);
+    let conflict = resume(&state.join("conflict.json"), b"rk_test_different\n");
+    assert!(!conflict.status.success());
+    assert!(!state.join("conflict.json").exists());
+    assert!(
+        !resume(&proposal, b"rk_test_initial_install\n")
+            .status
+            .success()
+    );
+    assert_eq!(std::fs::read(&proposal).expect("preserved"), bytes);
+    for path in [
+        &proposal,
+        &repeated,
+        &state.join("candidate-installation.cbor"),
+    ] {
+        assert_eq!(
+            std::fs::metadata(path).expect("mode").permissions().mode() & 0o777,
+            0o600
+        );
+    }
+    assert!(shared.load().await.expect("load").is_none());
+    json!({"production_install_stages_without_publication":true,"private_draft_and_proposal":true,"exact_floor_and_cleanup_note":true,"independent_resume_process_reuses_exact_proposal":true,"different_secret_refused":true,"existing_output_preserved":true,"no_approved_provider_execution_claim":true})
 }

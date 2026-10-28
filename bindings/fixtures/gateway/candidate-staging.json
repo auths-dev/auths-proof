@@ -1,4 +1,42 @@
 {
+  "installation": {
+    "direct_install_requires_approval_before_custody": true,
+    "cases": [
+      {
+        "case": "staged",
+        "reopened_same_draft_and_secret_exact": true,
+        "different_secret_refused": true,
+        "runtime_missing_floor_refused_without_repair": true,
+        "explicit_restaging_exact": true,
+        "connection_remains_absent": true,
+        "cleanup_note_retained": true
+      },
+      {
+        "case": "bad-prefix",
+        "refused": true,
+        "stored_generations": 0,
+        "no_provider_entry": true
+      },
+      {
+        "case": "existing-connection",
+        "refused": true,
+        "stored_generations": 0,
+        "no_provider_entry": true
+      },
+      {
+        "case": "substituted-floor",
+        "refused": true,
+        "stored_generations": 1,
+        "no_provider_entry": true
+      },
+      {
+        "case": "corrupt-journal",
+        "refused": true,
+        "stored_generations": 0,
+        "no_provider_entry": true
+      }
+    ]
+  },
   "schema": "auths.candidate-staging-fixture/1",
   "scope": "actual engine, persistent file custody, generation floor and cleanup journal; fixed deployment clock; no provider execution, process crash or PostgreSQL claim",
   "cases": [

@@ -6,6 +6,98 @@ use crate::effect::{BoundEffect, CandidateCredentialTarget, compile_candidate_cr
 use crate::submit::AcquisitionIo;
 
 impl GatewayEngine {
+    /// Stages a generation-one candidate from a retained private operator
+    /// draft, without inserting a connection or contacting the provider. The
+    /// draft's reference is replaced by the native commitment to `candidate`.
+    /// Cleanup notes precede custody; exact existing custody supports explicit
+    /// replay after a lost acknowledgement. A configured host floor is bound
+    /// to this exact candidate before it may acquire independently approved reads.
+    ///
+    /// # Errors
+    /// Refuses an existing connection, invalid draft/prefix/recipe/location,
+    /// unavailable cleanup/configuration/custody or a missing/substituted floor
+    /// that cannot be initialized by this explicit fresh-install action. Errors
+    /// retain cleanup obligations and never imply custody was not written.
+    pub async fn stage_candidate_installation(
+        &self,
+        draft: &ConnectionRecord,
+        mut candidate: zeroize::Zeroizing<Vec<u8>>,
+    ) -> Result<CandidateCredentialTarget, &'static str> {
+        self.check_effect_configuration().await?;
+        let placeholder = CandidateCredentialTarget::new(&self.recipe, draft, None)
+            .map_err(|_| "gateway.install.connection-invalid")?;
+        self.check_candidate_location(&placeholder)?;
+        if !self.recipe.credential_prefix_matches(&candidate) {
+            return Err("gateway.install.credential-guard");
+        }
+        if self
+            .connection
+            .load()
+            .await
+            .map_err(|_| "gateway.connection.unavailable")?
+            .is_some()
+        {
+            return Err("gateway.install.connection-exists");
+        }
+        let reference = auths_connections::CredentialReferenceCommitment::of(
+            draft.connection_id(),
+            draft.credential_generation(),
+            &candidate,
+        );
+        let record = ConnectionRecord::new(
+            draft.provider_kind().clone(),
+            draft.alias().clone(),
+            draft.connection_id().clone(),
+            draft.contract().clone(),
+            draft.descriptor_schema().clone(),
+            draft.descriptor().to_vec(),
+            *draft.account_commitment(),
+            *reference.as_bytes(),
+            draft.generation(),
+            draft.state(),
+            draft.allowed_workloads().to_vec(),
+            draft.allowed_profiles().to_vec(),
+            draft.created_at_unix_seconds(),
+            draft.updated_at_unix_seconds(),
+            None,
+        )
+        .map_err(|_| "gateway.install.connection-invalid")?;
+        let target = CandidateCredentialTarget::new(&self.recipe, &record, None)
+            .map_err(|_| "gateway.install.connection-invalid")?;
+        let journal = self
+            .credential_journal
+            .clone()
+            .ok_or("gateway.admin.credential-journal-unavailable")?;
+        let id = record.connection_id().clone();
+        tokio::task::spawn_blocking(move || journal.initialize(&id))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        self.note_credential(&record, record.credential_generation())
+            .await?;
+        if self.holds(&record).await.is_err() {
+            let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+                .map_err(|_| "gateway.install.invalid-credential")?;
+            let stored = self
+                .credentials
+                .install(
+                    record.connection_id(),
+                    record.credential_generation(),
+                    secret,
+                )
+                .await
+                .map_err(|_| "gateway.install.credential-store-unavailable")?;
+            if stored != reference {
+                return Err("gateway.install.credential-store-unavailable");
+            }
+        }
+        self.connection
+            .initialize_candidate_floor(&record)
+            .await
+            .map_err(|_| "gateway.connection.restore-rollback")?;
+        self.check_candidate_predecessor(&target).await?;
+        Ok(target)
+    }
+
     /// Stages an operator-supplied rotation secret without leasing it or
     /// contacting the provider. The exact proposal can be persisted for native
     /// read authorization and approval. It never publishes the connection.
@@ -133,6 +225,12 @@ impl GatewayEngine {
     ) -> Result<(), &'static str> {
         self.check_effect_configuration().await?;
         self.check_candidate_location(target)?;
+        if target.previous().is_none() {
+            self.connection
+                .check_candidate_floor(target.record())
+                .await
+                .map_err(|_| "gateway.connection.restore-rollback")?;
+        }
         let current = self.connection.load().await.map_err(|error| match error {
             SharedConnectionError::Rollback => "gateway.connection.restore-rollback",
             _ => "gateway.connection.unavailable",
@@ -183,6 +281,12 @@ impl GatewayEngine {
         let started = Instant::now();
         self.check_effect_configuration().await?;
         self.check_candidate_location(target)?;
+        if target.previous().is_none() {
+            self.connection
+                .check_candidate_floor(target.record())
+                .await
+                .map_err(|_| "gateway.connection.restore-rollback")?;
+        }
         let current = self
             .connection
             .load()

@@ -464,3 +464,22 @@ new lifecycle owner. The production CLI corpus drives two competing staging
 processes and a held-lock refusal. Native staging evidence checks stale handle
 refresh and conflicting successor refusal. Broader fault and adapter evidence
 remains required before AP074 acceptance closes.
+
+
+### First-install source cutover
+
+Installation now uses the same sealed candidate and native acquisition owner as
+rotation. Its concrete difference is the expected absence of a live connection
+and an explicit generation-one host floor. The private draft is the existing
+canonical connection record, not another lifecycle format. The cleanup journal,
+custody reference commitment and floor retain their existing owners. Only the
+operator staging action initializes missing installation state; managed candidate
+execution checks it and cannot repair it.
+
+The raw onboarding I/O wrapper is removed from production exports and CLI calls;
+its pre-cutover evaluator is retained under `cfg(test)` as the closed reference.
+The production `install` command stages read-bearing recipes without publication.
+Native file evidence and independent CLI restart evidence cover exact restaging,
+conflicting secret refusal, explicit absence, cleanup ordering and floor checks.
+No provider predicate is inferred from successful staging, and these artifacts
+do not close the installed approved provider, fault or PostgreSQL obligations.

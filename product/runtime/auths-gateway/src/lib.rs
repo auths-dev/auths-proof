@@ -103,9 +103,6 @@ pub use observer::{
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,
     READ_BACK_SCHEMA, operation_subject,
 };
-#[cfg(feature = "loopback-provider")]
-pub use onboarding::check_candidate_credential_loopback;
-pub use onboarding::{OnboardingAccount, OnboardingFailure, check_candidate_credential};
 pub use operator::{
     MAX_ISSUED_AHEAD_SECONDS, MAX_OPERATOR_ATTESTATION_BYTES, MAX_OPERATOR_EVIDENCE,
     OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,

@@ -949,6 +949,51 @@ closure regeneration passed after that correction (one artifact-generation test)
   complete fault/formal/performance/hosted evidence remain required. No A01–A22
   acceptance criterion closes. No broad local gate or hosted CI was run.
 
+## First-install staging and onboarding cutover checkpoint
+
+- Read-bearing `install` now persists the existing canonical connection format
+  as a private draft, stages exact generation-one custody and saves a private
+  proposal. The shared connection stays absent until approved acquisition and
+  fenced publication. Draft identity/account/descriptor/timestamps survive
+  process restart. `candidate-stage-installation` explicitly resumes from it.
+- The stage initializes durable cleanup notes before custody and pins the host
+  floor to the exact unpublished candidate. An existing matching secret supports
+  retry after ambiguous custody acknowledgement; conflicting secrets or floors
+  refuse. Candidate compilation/acquisition/publication require the existing
+  floor. Runtime cannot repair it; explicit operator restaging may initialize
+  an unpublished floor. Independent custody/floor/output failures retain cleanup
+  obligations and do not imply that custody was never written.
+- Removed production raw onboarding exports and the install checker. The old
+  closed evaluator remains test-only; the pure probe predicate remains shipping.
+  The offline install helper now requires the recipe and refuses declared reads
+  before custody. Join requires cleanup notes before confirmation. Development
+  loopback selection moves from install to approved candidate acquisition.
+- Native candidate artifact construction passed on `1c23ca31` plus this source,
+  retaining all 80 journal/publication histories and adding five first-install
+  staging histories: exact reopen/restage, bad prefix, existing connection,
+  substituted floor and corrupt cleanup journal. The actual CLI generator passed
+  with `testkit-harness,loopback-provider`, covering installation, an independent
+  resume process, identical proposal bytes, private files and conflicts.
+- Initial generator failures were missing test-oracle imports, an incorrect
+  result-field assertion, comparing process-specific witness scopes across two
+  engines, and a test variable shadowing the recipe lock. Corrections retain
+  each process's own zero-I/O witness and the intended refusal assertions.
+- Required generators: `observed_tests::effect_native_tests::candidate_tests::native_candidate_compilation_fixture_is_current`
+  (library), `native_candidate_cli_fixture_is_current` (candidate_cli integration
+  target), code inventories and final semantic closure. These construct scoped
+  artifacts; they are not broad local gates, installed approved provider
+  qualification or hosted evidence. No hosted CI has been observed.
+- Final candidate/code/custody generation passed (four exact tests); the
+  production CLI artifact passed (one exact test), and final semantic closure
+  passed (one exact test). Fetch found upstream bot commit `67506ada`, updating
+  only the prior custody source's formal closure. It was inspected and retained
+  by fast-forward without observing hosted workflow results.
+- Remaining: maintained deployment/example scripts and complete approved
+  installation/rotation journeys; safe recovery credential replacement; general
+  acquisition/disclosure/ACK; Python-owner removal; authenticated UI/bindings;
+  full process/adapter/differential/formal/performance/hosted evidence. No A01–A22
+  acceptance criterion closes at this checkpoint.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -956,7 +1001,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | First-install staging, maintained deployment and full approved rotation journeys (candidate CLI wired), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Maintained deployment and full approved installation/rotation journeys (staging and candidate CLI wired), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger

@@ -272,6 +272,18 @@ and grants no native authority, custody lease, transport or publication. It is
 private operator data suitable for preserving an exact target across approval
 and restart; the journal and fresh fences remain authoritative.
 
+First installation retains a private canonical connection draft before custody,
+with fixed connection ID, account, descriptor and timestamps. For a read-bearing
+recipe, `install` stages the secret and private proposal but leaves the shared
+connection absent. Cleanup notes precede custody. The explicit operator staging
+action binds the host generation floor to the exact unpublished generation-one
+candidate; this does not authorize ordinary entry. Candidate compilation,
+acquisition and publication check that floor without initializing it. Runtime
+startup cannot repair a missing floor. Explicit installation staging can resume
+from the retained draft and same secret after an ambiguous custody result; it
+must not replace a conflicting staged secret or a substituted floor. Joining an
+existing connection records cleanup obligations before custody confirmation.
+
 Rotation staging stores a successor only after validating the live predecessor,
 recipe, secret prefix, custody and generation and recording its durable cleanup
 obligation. It performs no provider read or lease, never deletes an existing

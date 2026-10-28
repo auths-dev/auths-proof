@@ -262,5 +262,205 @@ pub(super) async fn histories(
             "no lease or provider entry"
         );
     }
-    json!({"schema": "auths.candidate-staging-fixture/1", "scope": "actual engine, persistent file custody, generation floor and cleanup journal; fixed deployment clock; no provider execution, process crash or PostgreSQL claim", "cases": cases})
+    let installation = installation_histories(recipe, trust, policy).await;
+    json!({"installation": installation, "schema": "auths.candidate-staging-fixture/1", "scope": "actual engine, persistent file custody, generation floor and cleanup journal; fixed deployment clock; no provider execution, process crash or PostgreSQL claim", "cases": cases})
+}
+
+async fn installation_histories(
+    recipe: &CompiledRecipe,
+    trust: &auths_model::TrustedContext,
+    policy: &EffectPolicy,
+) -> Value {
+    let mut cases = Vec::new();
+    for case in [
+        "staged",
+        "bad-prefix",
+        "existing-connection",
+        "substituted-floor",
+        "corrupt-journal",
+    ] {
+        let directory = tempfile::tempdir().expect("directory");
+        let root = std::fs::canonicalize(directory.path()).expect("path");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).expect("mode");
+        }
+        let credentials = Arc::new(
+            PersistentCredentialStore::open(root.join("credentials.cbor")).expect("custody"),
+        );
+        let store =
+            Arc::new(crate::FileGatewayAttemptStore::open(&root.join("attempts")).expect("store"));
+        let template = connection_account(
+            recipe,
+            crate::submit::account_commitment("acct_TESTACCOUNT01"),
+        );
+        let draft = ConnectionRecord::new(
+            template.provider_kind().clone(),
+            template.alias().clone(),
+            template.connection_id().clone(),
+            template.contract().clone(),
+            template.descriptor_schema().clone(),
+            template.descriptor().to_vec(),
+            *template.account_commitment(),
+            [0; 32],
+            NonZeroU64::MIN,
+            ConnectionState::Active,
+            template.allowed_workloads().to_vec(),
+            template.allowed_profiles().to_vec(),
+            NOW,
+            NOW,
+            None,
+        )
+        .expect("draft");
+        let shared = crate::SharedConnection::new(
+            store.clone(),
+            draft.provider_kind().clone(),
+            draft.alias().clone(),
+        );
+        let floor = crate::GenerationFloor::new(root.clone());
+        if case == "existing-connection" {
+            shared.insert(&draft).await.expect("existing");
+        }
+        if case == "substituted-floor" {
+            floor.initialize(&draft).expect("substituted floor");
+        }
+        if case == "corrupt-journal" {
+            std::fs::write(root.join("credential-journal.json"), b"invalid")
+                .expect("corrupt journal");
+        }
+        let make_engine = || {
+            crate::GatewayEngine::new(
+                recipe.clone(),
+                *recipe.digest(),
+                &auths_codec::encode_verifier_context(trust).expect("trust"),
+                policy.clone(),
+                draft.provider_kind().clone(),
+                draft.alias().clone(),
+                "gateway".to_owned(),
+                draft.allowed_profiles()[0].clone(),
+                Arc::new(
+                    PersistentCredentialStore::open(root.join("credentials.cbor"))
+                        .expect("reopened custody"),
+                ),
+                crate::GatewayAttempts::new(store.clone(), policy.clone()).expect("attempts"),
+            )
+            .expect("engine")
+            .with_credential_journal(crate::CredentialJournal::new(root.clone()))
+            .with_generation_floor(floor.clone())
+            .with_qualification(Arc::new(crate::QualificationGate::new(
+                crate::QualificationPolicy::Optional,
+                None,
+                None,
+                Box::new(Arc::new(crate::FixedClock::at(NOW))),
+                auths_recipe_qualification::VerifierState::default(),
+            )))
+        };
+        assert_eq!(
+            crate::install_connection(
+                recipe,
+                &shared,
+                &*credentials,
+                |_| panic!("unapproved draft must not run"),
+                draft.connection_id(),
+                SecretBytes::new(b"rk_test_unapproved".to_vec()).expect("secret")
+            )
+            .await
+            .err(),
+            Some("gateway.install.candidate-approval-required"),
+        );
+        let engine = make_engine();
+        engine
+            .initialize_effect_configuration()
+            .expect("configuration");
+        let before = engine.execution_witness();
+        let secret = if case == "bad-prefix" {
+            b"sk_live_invalid".as_slice()
+        } else {
+            b"rk_test_first_install".as_slice()
+        };
+        let result = engine
+            .stage_candidate_installation(&draft, zeroize::Zeroizing::new(secret.to_vec()))
+            .await;
+        if case == "staged" {
+            let target = result.expect("staged");
+            assert!(target.previous().is_none());
+            assert_eq!(target.record().generation(), NonZeroU64::MIN);
+            assert!(
+                credentials
+                    .holds(&target.record().credential_binding())
+                    .await
+                    .is_ok()
+            );
+            floor.accept(target.record()).expect("floor exact");
+            assert!(
+                floor.accept(&draft).is_err(),
+                "same generation substitution refused"
+            );
+            let bytes = target.to_private_bytes().expect("proposal");
+            assert_eq!(engine.execution_witness(), before);
+            drop(engine);
+            let reopened = make_engine();
+            let reopened_before = reopened.execution_witness();
+            let repeated = reopened
+                .stage_candidate_installation(&draft, zeroize::Zeroizing::new(secret.to_vec()))
+                .await
+                .expect("resume");
+            assert_eq!(
+                repeated.to_private_bytes().expect("resumed proposal"),
+                bytes
+            );
+            assert!(
+                reopened
+                    .stage_candidate_installation(
+                        &draft,
+                        zeroize::Zeroizing::new(b"rk_test_other".to_vec())
+                    )
+                    .await
+                    .is_err()
+            );
+            std::fs::remove_file(root.join("connection-floor.json")).expect("lost floor");
+            let refused = reopened
+                .compile_candidate_effect(&target, &[], &[])
+                .await
+                .err()
+                .expect("missing floor refusal");
+            assert_eq!(
+                refused,
+                crate::GatewaySubmitResult::NotEntered {
+                    code: "gateway.connection.restore-rollback".to_owned()
+                }
+            );
+            assert!(
+                !root.join("connection-floor.json").exists(),
+                "runtime cannot repair floor"
+            );
+            let restored = reopened
+                .stage_candidate_installation(&draft, zeroize::Zeroizing::new(secret.to_vec()))
+                .await
+                .expect("explicit operator restaging");
+            assert_eq!(restored.to_private_bytes().expect("restaged"), bytes);
+            assert_eq!(reopened.execution_witness(), reopened_before);
+            assert!(shared.load().await.expect("load").is_none());
+            assert_eq!(
+                crate::CredentialJournal::new(root.clone())
+                    .generations(draft.connection_id())
+                    .expect("notes"),
+                vec![NonZeroU64::MIN]
+            );
+            cases.push(json!({"case":case,"reopened_same_draft_and_secret_exact":true,"different_secret_refused":true,"runtime_missing_floor_refused_without_repair":true,"explicit_restaging_exact":true,"connection_remains_absent":true,"cleanup_note_retained":true}));
+        } else {
+            assert!(result.is_err(), "{case}");
+            assert_eq!(engine.execution_witness(), before);
+            let generations = credentials
+                .stored_generations(draft.connection_id())
+                .expect("generations");
+            assert_eq!(generations.len(), usize::from(case == "substituted-floor"));
+            if case != "existing-connection" {
+                assert!(shared.load().await.expect("load").is_none());
+            }
+            cases.push(json!({"case":case,"refused":true,"stored_generations":generations.len(),"no_provider_entry":true}));
+        }
+    }
+    json!({"direct_install_requires_approval_before_custody":true,"cases":cases})
 }

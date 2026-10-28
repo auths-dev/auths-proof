@@ -42,6 +42,38 @@ Active or disabled connections keep the normal floor requirement. If no
 connection committed, retain the journal as an orphan cleanup obligation;
 never infer deletion from a failed install command.
 
+## First installation with credential checks
+
+For a recipe declaring credential reads, `install` retains private installation
+inputs and writes `candidate-installation.cbor` and `candidate-installation.json`
+under the state directory. It stages the secret, cleanup note and exact host
+floor, but does not publish a connection or contact the provider. Continue with
+steps 2–5 of the candidate workflow below, using that proposal. Serving ordinary
+operations requires successful publication.
+
+If installation stops after retaining the draft, resume explicitly under
+operator identity with the same secret:
+
+```sh
+credential-source | auths-gateway candidate-stage-installation \
+  --state-dir /private/installation --credential-stdin \
+  --proposal-out /private/resumed-candidate.json
+```
+
+The output must be a new absolute owner-private file. Preserve an existing
+proposal; do not overwrite it to conceal a failed or ambiguous attempt. Restaging
+reuses the draft's exact connection identity and timestamps, confirms an existing
+matching secret or stores an absent one, and refuses conflicting custody/floors.
+A missing runtime floor is a refusal, never implicit repair. This explicit
+operator action may initialize the unpublished installation floor; it cannot
+stage after a connection has been published. A failed stage can retain custody
+and cleanup notes without a connection; retain that orphan cleanup obligation.
+
+Development provider doubles are selected only on `candidate-acquire
+--loopback-provider PORT` in a feature-enabled development build. `install`
+no longer accepts a provider transport option. Recipes without credential reads
+keep the offline installation flow.
+
 ## Provider-secret rotation
 
 For the web-identity reference, the operator configuration must explicitly
@@ -84,8 +116,8 @@ rotation API refuses `rotate`, `rotate-prepare` and commitment-only
 `rotate-commit` with `gateway.admin.candidate-approval-required`. Those commands
 remain the offline operator flow for recipes declaring no credential reads.
 Joining an already-published connection confirms the exact committed secret
-without acquiring new provider evidence. First-install candidate staging and
-full installed provider/custody qualification remain unfinished AP074 work.
+without acquiring new provider evidence. Full installed provider/custody
+qualification remains unfinished AP074 work.
 
 Check status on both hosts; each must see the same shared generation and hold
 the exact committed credential generation. The old generation remains for at

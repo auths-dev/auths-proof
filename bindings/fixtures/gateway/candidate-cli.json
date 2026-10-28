@@ -1,4 +1,13 @@
 {
+  "first_installation": {
+    "production_install_stages_without_publication": true,
+    "private_draft_and_proposal": true,
+    "exact_floor_and_cleanup_note": true,
+    "independent_resume_process_reuses_exact_proposal": true,
+    "different_secret_refused": true,
+    "existing_output_preserved": true,
+    "no_approved_provider_execution_claim": true
+  },
   "schema": "auths.candidate-cli-fixture/1",
   "scope": "production staging and call-authoring CLI with real file custody, cleanup journal and generation floor; synthetic installation/trust; no approved provider acquisition or publication claim",
   "competing_processes_one_staging_winner": true,

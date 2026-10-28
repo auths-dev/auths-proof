@@ -29,9 +29,8 @@ mod unix {
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
-        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
-        OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, check_candidate_credential, check_principal_separation,
+        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OperatorNamespace,
+        PostgresGatewayAttemptStore, PrincipalSeparationError, check_principal_separation,
         check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
@@ -87,6 +86,8 @@ mod unix {
     const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
+    const INSTALL_DRAFT_FILE: &str = "candidate-installation.cbor";
+    const INSTALL_PROPOSAL_FILE: &str = "candidate-installation.json";
     use auths_gateway::admin::{
         ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
     };
@@ -205,6 +206,16 @@ mod unix {
             #[arg(long)]
             request_out: PathBuf,
         },
+        /// Resume an unpublished first install from its retained private draft.
+        /// Reuses the exact connection ID and timestamps; performs no provider I/O.
+        CandidateStageInstallation {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long, required = true)]
+            credential_stdin: bool,
+            #[arg(long)]
+            proposal_out: PathBuf,
+        },
         /// Operator-only: stage a rotation secret from stdin and save its exact
         /// private proposal. No provider read, lease or publication occurs.
         CandidateStageRotation {
@@ -240,6 +251,10 @@ mod unix {
             action: PathBuf,
             #[arg(long)]
             approval: PathBuf,
+            /// Development build only: independently approved reads reach the local double.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            loopback_provider: Option<u16>,
         },
         /// Operator-only: publish an exact candidate from fresh retained checks.
         /// Performs no provider I/O and creates no new read allocation.
@@ -274,8 +289,8 @@ mod unix {
             signature_hex: String,
         },
         /// Operator-only install; credential bytes enter through stdin. The
-        /// first host inserts the shared connection record; each further host
-        /// joins it with `--join` and the same secret.
+        /// first host stages recipes with reads for independent approval and
+        /// publication; each further host joins published state with `--join`.
         Install {
             #[arg(long)]
             state_dir: PathBuf,
@@ -343,12 +358,6 @@ mod unix {
             attempt_store: Option<PathBuf>,
             #[command(flatten)]
             qualification: QualificationOptions,
-            /// Development builds only: send the onboarding credential reads
-            /// of a first install to a plain-HTTP provider double on
-            /// 127.0.0.1:<port>.
-            #[cfg(feature = "loopback-provider")]
-            #[arg(long, conflicts_with = "join")]
-            loopback_provider: Option<u16>,
         },
         /// Serve a restricted application socket and private admin socket.
         /// A Unix socket path holds at most 103 bytes on macOS and 107 on
@@ -1309,37 +1318,6 @@ mod unix {
         Ok(bytes)
     }
 
-    /// Runs every credential check the recipe declares on the candidate
-    /// secret before anything is stored: the prefix, the probe, the account
-    /// read against the operator's label, and the denied reads.
-    async fn checked_install_credential(
-        recipe: &CompiledRecipe,
-        mut candidate: Zeroizing<Vec<u8>>,
-        account_label: &str,
-        loopback_provider: Option<u16>,
-    ) -> Result<SecretBytes, &'static str> {
-        let account = OnboardingAccount::Label(account_label);
-        let review = recipe.review();
-        let requirement = review.credential();
-        let checked = match loopback_provider {
-            #[cfg(feature = "loopback-provider")]
-            Some(port) => {
-                auths_gateway::check_candidate_credential_loopback(
-                    recipe,
-                    requirement,
-                    &candidate,
-                    account,
-                    port,
-                )
-                .await
-            }
-            _ => check_candidate_credential(recipe, requirement, &candidate, account).await,
-        };
-        checked.map_err(OnboardingFailure::install_code)?;
-        SecretBytes::new(std::mem::take(&mut *candidate))
-            .map_err(|_| "gateway.install.invalid-credential")
-    }
-
     /// Verifies an operator attestation against the installation it must
     /// name, and requires the authenticated operator to pass separation by
     /// key from every root and observer of the trust.
@@ -1399,7 +1377,6 @@ mod unix {
         attempt_store: Option<PathBuf>,
         credential_store: CredentialStoreSettings,
         qualification: QualificationOptions,
-        loopback_provider: Option<u16>,
     ) -> Result<(), Failure> {
         // The store choice is checked before anything is read or written.
         auths_gateway::credential_store_policy(
@@ -1463,7 +1440,10 @@ mod unix {
             }
             (None, Deployment::Development) => None,
         };
-        let candidate = read_install_credential()?;
+        let mut candidate = read_install_credential()?;
+        if !recipe.credential_prefix_matches(&candidate) {
+            return Err("gateway.install.credential-guard".into());
+        }
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed".into());
@@ -1486,9 +1466,58 @@ mod unix {
             "gateway.install.credential-store-unavailable",
             CredentialAccess::Operator,
         )?;
-        // Retain authenticated cleanup inputs before any custody write. A
-        // pending install has no generation floor and cannot admit a lease.
-        // Explicit store-only revocation can still make its journal collectible.
+        // Retain the exact private initial draft before manifest/custody. An
+        // explicit staging retry reuses its connection ID and timestamps.
+        let draft = if join {
+            None
+        } else {
+            let label = account_label.ok_or("gateway.install.invalid-account-label")?;
+            if label.is_empty() || label.len() > 256 {
+                return Err("gateway.install.invalid-account-label".into());
+            }
+            let id =
+                ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
+            let profile = ConnectionProfile::new(
+                SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
+                2,
+            )
+            .map_err(|_| "gateway.install.profile")?;
+            let mut account_hash = Sha256::new();
+            account_hash.update(b"auths.gateway-account/1\0");
+            account_hash.update(label.as_bytes());
+            let timestamp = now()?;
+            Some(
+                ConnectionRecord::new(
+                    provider.clone(),
+                    alias.clone(),
+                    id,
+                    SemanticId::parse("auths.gateway-operation/1")
+                        .map_err(|_| "gateway.install.contract")?,
+                    SemanticId::parse("auths.gateway-connection-descriptor/1")
+                        .map_err(|_| "gateway.install.descriptor-schema")?,
+                    descriptor,
+                    account_hash.finalize().into(),
+                    [0; 32],
+                    NonZeroU64::MIN,
+                    ConnectionState::Active,
+                    vec!["gateway".to_owned()],
+                    vec![profile],
+                    timestamp,
+                    timestamp,
+                    None,
+                )
+                .map_err(|_| "gateway.install.connection-invalid")?,
+            )
+        };
+        if let Some(draft) = &draft {
+            private_file(
+                &state_dir.join(INSTALL_DRAFT_FILE),
+                &draft
+                    .to_canonical_cbor()
+                    .map_err(|_| "gateway.install.connection-invalid")?,
+            )?;
+        }
+        // Retain authenticated cleanup inputs before any custody write.
         private_file(&state_dir.join("recipe.json"), &source)?;
         private_file(&state_dir.join("profile.lock.json"), &lock)?;
         private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
@@ -1501,64 +1530,59 @@ mod unix {
         let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
             .map_err(|_| "gateway.install.manifest-invalid")?;
         private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
-        let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
+        let shared = SharedConnection::new(attempts.store(), provider, alias);
+        let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
         if join {
-            join_connection(&shared, &*credentials, &recipe, &candidate).await?;
+            join_connection(&shared, &journal, &*credentials, &recipe, &candidate).await?;
         } else {
-            let account_label = account_label.ok_or("gateway.install.invalid-account-label")?;
-            if account_label.is_empty() || account_label.len() > 256 {
-                return Err("gateway.install.invalid-account-label".into());
+            let draft = draft.ok_or("gateway.install.connection-invalid")?;
+            if !recipe
+                .credential_reads()
+                .map_err(|_| "gateway.install.invalid-descriptor")?
+                .is_empty()
+            {
+                let proposal = state_dir.join(INSTALL_PROPOSAL_FILE);
+                stage_installation(&state_dir, candidate, &proposal).await?;
+                println!(
+                    "installation candidate staged; approve checks and publish before serving"
+                );
+                return Ok(());
             }
-            let secret =
-                checked_install_credential(&recipe, candidate, &account_label, loopback_provider)
-                    .await?;
-            let connection_id =
-                ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
-            let profile = ConnectionProfile::new(
-                SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
-                2,
-            )
-            .map_err(|_| "gateway.install.profile")?;
-            let mut account_hash = Sha256::new();
-            account_hash.update(b"auths.gateway-account/1\0");
-            account_hash.update(account_label.as_bytes());
-            let account_commitment: [u8; 32] = account_hash.finalize().into();
-            let timestamp = now()?;
-            let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
-            let id = connection_id.clone();
+            let notes = journal.clone();
+            let id = draft.connection_id().clone();
             tokio::task::spawn_blocking(move || {
-                journal.initialize(&id)?;
-                journal.register(&id, NonZeroU64::MIN)
+                notes.initialize(&id)?;
+                notes.register(&id, NonZeroU64::MIN)
             })
             .await
             .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-            let record_id = connection_id.clone();
+            let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+                .map_err(|_| "gateway.install.invalid-credential")?;
             install_connection(
+                &recipe,
                 &shared,
                 &*credentials,
-                move |reference| {
+                |reference| {
                     ConnectionRecord::new(
-                        provider,
-                        alias,
-                        record_id,
-                        SemanticId::parse("auths.gateway-operation/1")
-                            .map_err(|_| "gateway.install.contract")?,
-                        SemanticId::parse("auths.gateway-connection-descriptor/1")
-                            .map_err(|_| "gateway.install.descriptor-schema")?,
-                        descriptor,
-                        account_commitment,
+                        draft.provider_kind().clone(),
+                        draft.alias().clone(),
+                        draft.connection_id().clone(),
+                        draft.contract().clone(),
+                        draft.descriptor_schema().clone(),
+                        draft.descriptor().to_vec(),
+                        *draft.account_commitment(),
                         reference,
-                        NonZeroU64::MIN,
-                        ConnectionState::Active,
-                        vec!["gateway".to_owned()],
-                        vec![profile],
-                        timestamp,
-                        timestamp,
+                        draft.generation(),
+                        draft.state(),
+                        draft.allowed_workloads().to_vec(),
+                        draft.allowed_profiles().to_vec(),
+                        draft.created_at_unix_seconds(),
+                        draft.updated_at_unix_seconds(),
                         None,
                     )
                     .map_err(|_| "gateway.install.connection-invalid")
                 },
-                &connection_id,
+                draft.connection_id(),
                 secret,
             )
             .await?;
@@ -1568,16 +1592,6 @@ mod unix {
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")?
             .ok_or("gateway.install.connection-store-unavailable")?;
-        if join {
-            let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
-            let record = installed.record().clone();
-            tokio::task::spawn_blocking(move || {
-                journal.initialize(record.connection_id())?;
-                journal.register(record.connection_id(), record.credential_generation())
-            })
-            .await
-            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-        }
         let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
         let record = installed.record().clone();
         tokio::task::spawn_blocking(move || floor.initialize(&record))
@@ -3116,6 +3130,48 @@ mod unix {
             .map_err(|_| "gateway.effect.approval")
     }
 
+    async fn stage_installation(
+        state_dir: &Path,
+        candidate: Zeroizing<Vec<u8>>,
+        proposal_out: &Path,
+    ) -> Result<(), Failure> {
+        if !proposal_out.is_absolute() || proposal_out.exists() {
+            return Err("gateway.state.file-exists-or-unavailable".into());
+        }
+        private_root(state_dir)?;
+        let path = state_dir.join(INSTALL_DRAFT_FILE);
+        let metadata = fs::symlink_metadata(&path).map_err(|_| "gateway.state.invalid-path")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let bytes = Zeroizing::new(read_bounded(
+            &path,
+            auths_gateway::effect::MAX_EFFECT_BYTES,
+        )?);
+        let draft = ConnectionRecord::from_canonical_cbor(&bytes)
+            .map_err(|_| "gateway.install.connection-invalid")?;
+        let loading = state_dir.to_path_buf();
+        let engine = tokio::task::spawn_blocking(move || -> Result<GatewayEngine, Failure> {
+            let engine = load_engine_for(&loading, CredentialAccess::Operator)?;
+            engine.initialize_effect_configuration()?;
+            Ok(engine)
+        })
+        .await
+        .map_err(|_| "gateway.configuration.unavailable")??;
+        let proposal = engine
+            .stage_candidate_installation(&draft, candidate)
+            .await?;
+        private_file(
+            proposal_out,
+            &Zeroizing::new(
+                proposal
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.review-refused")?,
+            ),
+        )?;
+        Ok(())
+    }
+
     fn read_candidate(
         state_dir: &Path,
         path: &Path,
@@ -3963,6 +4019,18 @@ mod unix {
                 .map_err(|_| "gateway.configuration.unavailable")??;
                 Ok(())
             }
+            Command::CandidateStageInstallation {
+                state_dir,
+                credential_stdin,
+                proposal_out,
+            } => {
+                if !credential_stdin || std::io::stdin().is_terminal() {
+                    return Err("gateway.install.credential-must-be-piped-to-stdin".into());
+                }
+                stage_installation(&state_dir, read_install_credential()?, &proposal_out).await?;
+                println!("installation candidate staged; private proposal saved");
+                Ok(())
+            }
             Command::CandidateStageRotation {
                 state_dir,
                 credential_stdin,
@@ -4017,14 +4085,27 @@ mod unix {
                 proof,
                 action,
                 approval,
+                #[cfg(feature = "loopback-provider")]
+                loopback_provider,
             } => {
                 let target = read_candidate(&state_dir, &candidate)?;
                 let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(&action, 64 * 1024)?;
                 let approval = read_effect_approval(&approval)?;
+                #[cfg(feature = "loopback-provider")]
+                if loopback_provider.is_some()
+                    && installation(&state_dir)?.deployment != Deployment::Development
+                {
+                    return Err("gateway.serve.invalid-installation".into());
+                }
                 let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
                     .await
                     .map_err(|_| "gateway.effect.unavailable")??;
+                #[cfg(feature = "loopback-provider")]
+                let engine = match loopback_provider {
+                    Some(port) => engine.with_loopback_provider(port),
+                    None => engine,
+                };
                 match engine
                     .acquire_candidate_credential(&target, &proof, &action, approval)
                     .await
@@ -4169,11 +4250,7 @@ mod unix {
                 aws_region,
                 aws_kms_key,
                 aws_identity,
-                #[cfg(feature = "loopback-provider")]
-                loopback_provider,
             } => {
-                #[cfg(not(feature = "loopback-provider"))]
-                let loopback_provider = None;
                 let credential_store = CredentialStoreSettings {
                     kind: credential_store,
                     namespace: credential_namespace,
@@ -4199,7 +4276,6 @@ mod unix {
                     attempt_store,
                     credential_store,
                     qualification,
-                    loopback_provider,
                 )
                 .await
             }

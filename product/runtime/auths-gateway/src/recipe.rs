@@ -1226,6 +1226,12 @@ pub struct ClosedCredentialReads {
 }
 
 impl ClosedCredentialReads {
+    /// Whether the recipe declares no provider credential checks.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.probe.is_none() && self.account.is_none() && self.denied.is_empty()
+    }
+
     /// Returns the onboarding probe, if declared.
     #[must_use]
     pub const fn probe(&self) -> Option<&ClosedCredentialRead> {
@@ -1587,4 +1593,15 @@ fn valid_enum_variant(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b':' | b'-'))
+}
+
+impl CompiledRecipe {
+    /// Checks only the recipe's offline credential prefix constraint. Passing
+    /// does not establish account, capability, provider mode or read authority.
+    #[must_use]
+    pub fn credential_prefix_matches(&self, candidate: &[u8]) -> bool {
+        self.guard_checks()
+            .as_ref()
+            .is_none_or(|guard| guard.admits_secret(candidate))
+    }
 }

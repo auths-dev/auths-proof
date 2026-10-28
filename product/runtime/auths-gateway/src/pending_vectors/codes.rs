@@ -92,6 +92,7 @@ const ROWS: &[&str] = &[
     "gateway.admin.recovery-refused admin admin new 74 -",
     "gateway.admin.recovery-recorded admin admin new 74 -",
     "gateway.admin.status admin admin new 5 -",
+    "gateway.install.candidate-approval-required install install new 74 -",
     "gateway.install.connection-exists install install new 5 -",
     "gateway.install.credential-account install install new 3 -",
     "gateway.install.credential-capability install install new 3 -",
