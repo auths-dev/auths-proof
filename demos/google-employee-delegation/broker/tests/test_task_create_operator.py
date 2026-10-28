@@ -108,7 +108,7 @@ class PlannedCreateOperatorTests(unittest.TestCase):
                     ))):
             self._submit()
         plan = {
-            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "schema": "auths.agent-effect-plan/2", "task_id": self.task_id,
             "task_commitment": "a" * 64,
             "create": {"operation_id": "create-1"},
             "populate_recipe_digest": "b" * 64,
@@ -270,7 +270,7 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             "observed_at": "2026-10-25T11:59:00Z",
         })
         self._write(self.task_dir / "effect-plan.json", {
-            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "schema": "auths.agent-effect-plan/2", "task_id": self.task_id,
             "create": {
                 "operation_id": "create-1", "resource_handle": "project-a-folder",
                 "recipe_digest": "d" * 64, "connection_id": "jules-connection",

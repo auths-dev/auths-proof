@@ -19,7 +19,8 @@ pub mod commissioning_floor;
 pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
     GatewaySubmissionReview, TaskActivity, TaskPopulatePreflightInputs, TaskPopulationLineage,
-    TaskWriteProofs, TaskWriteSession, commissioning_principal_sha256, review_submission,
+    TaskWriteProofs, TaskWriteReview, TaskWriteSession, commissioning_principal_sha256,
+    review_submission,
 };
 #[cfg(unix)]
 pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
@@ -205,3 +206,6 @@ pub use support::{
     SupportFacts, support_bundle,
 };
 pub use transport::MAX_TRANSPORT_DURATION;
+
+#[cfg(unix)]
+pub use task_write::ExactWriteIntent;

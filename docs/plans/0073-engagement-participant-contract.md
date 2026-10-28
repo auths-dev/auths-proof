@@ -881,12 +881,13 @@ shape changes: task commitment plus immutable principal/enrollment non-reuse bin
 the retained operation to the same instance, including late ACKs after revocation.
 Synthetic transport tests are separated from new native A/B enrollment tests.
 
-## 19. Next cutover: exact approval binds the enrolled writer
+## 19. Exact approval binds the enrolled writer
 
-**Design contract; not implemented.** `derive_exact_write_intent` currently checks
-that the sole native actor equals the card's initial agent. `ExactWriteIntent`
-binds canonical action and provider request commitments but has no enrolled actor
-or instance. `WriteOperation` consequently attributes every write to the root.
+**Source cutover implemented; hosted behavioral evidence pending.** Before this
+cutover, `derive_exact_write_intent` checked
+that the sole native actor equaled the card's initial agent. `ExactWriteIntent`
+bound canonical action and provider request commitments but had no enrolled actor
+or instance. `WriteOperation` consequently attributed every write to the root.
 Simply removing the initial-agent comparison would be unsafe: the canonical
 provider action can be identical when different authorized principals sign its
 native envelope. A human approving B's action must not thereby approve A executing
@@ -907,7 +908,7 @@ After:
 
 ```mermaid
 flowchart LR
-    P["Native command and exact enrolled scope ancestry"] --> A["Sealed enrolled writer projection"]
+    P["Native command and exact enrolled scope ancestry"] --> A["Retained enrolled writer projection"]
     A --> I["Rust-owned exact intent with participant and instance"]
     I --> R["Task review and canonical approval payload"]
     R --> H["Independent human signature"]
@@ -956,3 +957,27 @@ and native/binding approval payloads agree byte-for-byte. Existing recipe and
 provider request tests remain unchanged except for explicit task/participant
 fixtures. This design does not establish provider-entry freshness, whole-store
 rollback protection, identity recovery or the complete isolated demonstration.
+
+Implementation uses the enrollment-owned `EnrolledParticipant` as immutable
+attribution, deliberately not a permit. `ReleaseTaskState::write_participant`
+returns retained metadata for native actors; `admit_write_participant` separately
+checks the full active native scope ancestry and exact writer under the existing
+journal lock. `ExactWriteIntent.writer` is mandatory. Confirmation tool v2 and
+effect-plan tool/schema/domain v2 reject obsolete authoring; journal schema 12
+rejects obsolete state. The ordinary request commitment domain is unchanged
+because its provider-byte meaning is unchanged.
+
+`TaskWriteReview` contains the exact intent, ordinary closed-request projection,
+and canonical confirmation arguments. Python presentation checks consistency
+and preserves this Rust-owned intent; it no longer constructs the request digest.
+The Google broker now requires an installed task review. Its larger final-card →
+scoped native grant → root bootstrap workflow is still incomplete, so this is not
+a claim that the current workbench can run the full AP073 demonstration.
+
+The native source tests exercise B's human-signed exact intent, identical root
+payloads failing to reuse it, all writer identity substitutions, concurrent
+root/B capacity, revocation and restart attribution. They currently establish
+no hosted result and no provider execution. Sibling concurrency, changed-grant
+write mutations, child create/populate recovery, full language payload parity and
+the isolated provider write remain acceptance work. The old root-only bounded
+upfront restriction is preserved explicitly.

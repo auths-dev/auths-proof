@@ -2,7 +2,7 @@
 
 - **Status:** M0 source trace and acceptance inventory recorded; bounded delegation and temporal-evidence changes implemented, hosted verification pending. M0–M4 remain incomplete.
 - **Date:** 26 October 2026.
-- **Updated:** 27 October 2026.
+- **Updated:** 28 October 2026.
 - **Spec:** [Identity, authority, and enforcement foundation](../specs/0073-identity-authority-and-enforcement-foundation.md).
 - **Baseline:** `9b1fe3c202a202750704730aebc47e0585a24470` from `codex/ap-spec-071`.
 - **Branch:** `codex/identity-authority-foundation`.
@@ -948,3 +948,55 @@ correction. The participant contract §19 records the next child-write design:
 Rust-owned approval intent must bind the exact enrolled writer and instance,
 and retained journal accounting must attribute each write to its actual ancestry.
 Removing the initial-agent check without those changes is explicitly prohibited.
+
+## 28. Enrolled writer binding and exact approval cutover
+
+Source now carries one enrollment-owned immutable participant projection through
+exact intent, human confirmation, task review, write reservation and recovery.
+The journal compares native scope ancestry and the complete writer identity under
+its existing lock; every retained write charges its real writer and all ancestors.
+Revocation does not erase that attribution. Create/populate intent matching and
+reconciliation preserve the original writer. Bounded-upfront approval remains
+root-only. State schema 12, confirmation tool v2 and effect-plan tool/schema/domain
+v2 are direct cutovers with no old decoder.
+
+Task review exports canonical confirmation arguments and the same typed intent
+used by admission. The Python presentation preserves it instead of recomputing a
+provider request commitment. This is protocol ownership within the existing task
+runtime, not a new generic provider mechanism or domain-policy extraction.
+
+Added native source tests cover exact B approval versus A's identical payload,
+writer substitutions, shared concurrent write capacity, revocation and restart.
+The semantic-closure artifact constructor compiled these tests and ran only its
+own generation test (397 behavioral tests filtered out); it is not behavioral
+acceptance. Hosted verification of this source is pending. No F criterion closes.
+Provider-entry freshness, actual B provider execution, sibling contention,
+child create/populate recovery, native/binding byte parity, final-card operator
+bootstrap, isolated demonstration, lifecycle/federation and remaining F01–F16
+obligations are still open.
+
+The previous run [40604087805](https://github.com/auths-dev/auths-proof/actions/runs/40604087805)
+finished: fast Lean feedback passed, but preflight failed on the already repaired
+WASM optional-string lint, so downstream gates did not qualify the revision.
+Run [40605911534](https://github.com/auths-dev/auths-proof/actions/runs/40605911534)
+was dispatched for `164dd84cfa81bac2e1a4e10571fc56bdec1b8963`; it does not contain
+this writer cutover. Preserve exact revision attribution for both runs.
+
+The `164dd84c` run subsequently failed preflight on `doc_markdown` at
+`product/tools/auths-openapi-derive/tests/corpus.rs:182` (unquoted `OpenAPI` in a
+new fixture-test Rustdoc). This cutover fixes that comment. The hosted failure
+is a formatting lint, not a failed enrollment test; downstream behavior remains
+unverified. Fast Lean feedback was still running when this was recorded.
+
+The existing pre-entry guard also rechecks current participant ancestry and
+instance eligibility. This improves fail-closed checks but is not a linearizable
+entry/revocation protocol: revocation can race the final check, and recovery of
+an already revoked participant still needs an explicit independent recovery
+role. Retained writer metadata never grants new read/write authority.
+
+After inspecting that hosted failure, targeted
+`cargo clippy -p auths-openapi-derive --test corpus --all-features -- -D warnings`
+passed (including its gateway library dependency). The closure constructor
+passed with 397 behavior tests filtered out. Semantic inventory 410 advances
+identity 152 and public SDK 149; other protocol identities remain unchanged.
+Formatting and diff checks passed. These checks do not substitute for full CI.

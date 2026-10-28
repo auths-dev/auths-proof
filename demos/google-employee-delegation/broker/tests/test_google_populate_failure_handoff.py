@@ -151,7 +151,7 @@ class PopulateRecoveryJoinTests(unittest.TestCase):
         self.task = Path(temporary.name) / "task-1"
         self.task.mkdir(mode=0o700)
         self.plan = {
-            "schema": "auths.agent-effect-plan/1", "task_id": "task-1",
+            "schema": "auths.agent-effect-plan/2", "task_id": "task-1",
             "initial_text": "approved text", "populate_operation_id": "populate-1",
             "create": {"operation_id": "create-1", "resource_handle": "folder-1"},
         }

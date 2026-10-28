@@ -1183,6 +1183,12 @@ mod tests {
             .expect("revalidate signed card");
         assert_eq!(retained.descriptor().pending_child, card.pending_child);
         let create = ApprovedTaskWrite::from_test_intent(ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                &card.agent_principal,
+                approved.commitment(),
+                card.delegation.partition_generation,
+                card.delegation.root_instance_generation,
+            ),
             task_id: card.task_id.clone(),
             task_commitment: hex::encode(approved.commitment()),
             operation_id: "create-1".to_owned(),

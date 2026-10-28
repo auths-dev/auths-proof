@@ -244,15 +244,15 @@ class TaskWriteConfirmationFlow:
         if (recipe_sha != package.recipe_source_sha256
                 or lock_sha != package.profile_lock_sha256):
             raise OperatorDenied("reviewed recipe changed")
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("installed task review is unavailable")
         try:
             completed = subprocess.run([
-                str(self._binary()), "review-submission",
-                "--recipe", str(self.recipe_path),
-                "--profile-lock", str(self.profile_lock_path),
-                "--trusted-context", str(directory / "trusted-context.cbor"),
+                str(self._binary()), "task-review-submission",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id, "--recipe-digest", package.recipe_digest,
                 "--proof", str(directory / "agent.proof"),
                 "--action", str(directory / "agent.action"),
-                "--evaluated-at", str(now),
             ], capture_output=True, check=False, timeout=10)
             if completed.returncode != 0 or len(completed.stdout) > 131_072:
                 raise OperatorDenied("gateway refused staged agent proposal")
@@ -398,7 +398,7 @@ class TaskWriteConfirmationFlow:
             task_id, employee, agent, agent_identity_packet, card,
         )
         plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": task_id,
             "task_commitment": task_commitment(card),
             "create": intent,
@@ -520,12 +520,12 @@ class TaskWriteConfirmationFlow:
                 or type(envelope["signature_b64"]) is not str
                 or report != _canonical_json(envelope)):
             raise OperatorDenied("recovery evidence disagrees with task")
-        if (type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/1"
+        if (type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/2"
                 or plan.get("task_id") != task_id
                 or type(plan.get("initial_text")) is not str
                 or not 1 <= len(plan["initial_text"].encode("utf-8")) <= 192
                 or plan_raw != _canonical_json(plan)
-                or commitment("auths.agent-effect-plan.v1", plan)
+                or commitment("auths.agent-effect-plan.v2", plan)
                 != inputs["plan_commitment"]
                 or hashlib.sha256(
                     b"auths.agent-effect-plan-content/1\0"

@@ -126,7 +126,7 @@ def prepare_exact_confirmation(authority: TaskWriteAuthority, intent: dict,
 def prepare_effect_plan_confirmation(authority: TaskWriteAuthority, plan: dict,
                                      *, now: int | None = None) -> PreparedHumanAction:
     if (type(plan) is not dict
-            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("schema") != "auths.agent-effect-plan/2"
             or plan.get("task_id") is None
             or type(plan.get("initial_text")) is not str
             or not 1 <= len(plan["initial_text"].encode("utf-8")) <= 192):

@@ -6,6 +6,7 @@ import json
 import unittest
 from pathlib import Path
 
+from employee_read_demo.contracts import canonical_json
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_write_intent import project_exact_write
 from employee_read_demo.task_write_proofs import task_commitment
@@ -22,6 +23,8 @@ class TaskWriteIntentTests(unittest.TestCase):
             "schema": "auths.agent-task/4", "task_id": "task-1",
             "agent_principal": "agent-1", "connection_id": "jules-google",
             "connection_generation": 2, "connection_subject": "jules-subject",
+            "delegation": {"partition_generation": 7, "permitted_channels": {
+                "agent-b": {"principal": "agent-2", "instance_generation": 5}}},
             "write_scopes": [{"handle": "working-doc", "recipe_digest": digest,
                               "verb": "edit", "connection_id": "jules-google",
                               "connection_generation": 2,
@@ -34,7 +37,7 @@ class TaskWriteIntentTests(unittest.TestCase):
         }
         review = {
             "schema": "auths.gateway-submission-review/1",
-            "actors": ["agent-1"], "action_commitment": "b" * 64,
+            "actors": ["agent-2"], "action_commitment": "b" * 64,
             "arguments": arguments,
             "request": {
                 "method": "POST", "url": "https://docs.googleapis.com/v1/documents/working-doc:batchUpdate",
@@ -42,15 +45,36 @@ class TaskWriteIntentTests(unittest.TestCase):
                 "headers": [], "idempotency_key": None,
             },
         }
+        intent = {
+            "task_id": card["task_id"], "task_commitment": task_commitment(card),
+            "operation_id": "edit-1", "action_commitment": "b" * 64,
+            "request_commitment": "c" * 64, "recipe_digest": digest,
+            "resource_handle": "working-doc", "verb": "edit",
+            "connection_id": "jules-google", "connection_generation": 2,
+            "connection_subject": "jules-subject",
+            "writer": {"engagement_commitment": task_commitment(card),
+                       "partition_generation": 7, "enrollment_commitment": "d" * 64,
+                       "principal": "agent-2", "instance_generation": 5},
+        }
+        submission = review
+        review = {"schema": "auths.gateway-task-write-review/1", "submission": submission,
+                  "intent": intent, "confirmation_arguments": canonical_json({"write": intent}).decode()}
         projected = project_exact_write(card, review, recipe, digest)
         self.assertEqual(projected.intent["task_commitment"], task_commitment(card))
         self.assertEqual(projected.intent["resource_handle"], "working-doc")
         self.assertEqual(projected.intent["action_commitment"], "b" * 64)
         self.assertEqual(projected.method, "POST")
+        self.assertEqual(canonical_json({"write": projected.intent}).decode(), review["confirmation_arguments"])
+        self.assertEqual(projected.intent["writer"]["principal"], "agent-2")
+        # The presenter preserves the native digest; it must not implement a
+        # second request-commitment algorithm from the displayed HTTP fields.
+        self.assertEqual(projected.intent["request_commitment"], "c" * 64)
         for changed in (
-            {**review, "actors": ["other-agent"]},
-            {**review, "arguments": {**arguments, "document_id": "outside"}},
-            {**review, "request": {**review["request"], "url": "https://elsewhere.example/x"}},
+            {**review, "submission": {**submission, "actors": ["other-agent"]}},
+            {**review, "submission": {**submission, "arguments": {**arguments, "document_id": "outside"}}},
+            {**review, "submission": {**submission, "request": {**submission["request"], "url": "https://elsewhere.example/x"}}},
+            {**review, "confirmation_arguments": canonical_json({"write": {**intent, "writer": {**intent["writer"], "principal": "agent-1"}}}).decode()},
+            {**review, "schema": "auths.gateway-submission-review/1"},
         ):
             with self.assertRaises(OperatorDenied):
                 project_exact_write(card, changed, recipe, digest)

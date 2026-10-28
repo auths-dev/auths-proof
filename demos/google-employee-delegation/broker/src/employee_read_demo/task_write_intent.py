@@ -1,9 +1,9 @@
 """Project an exact human confirmation from gateway-verified write review.
 
-The input review must be the output of ``auths-gateway review-submission``
-against the installed recipe, lock and trust. This projection performs no
+The input review must be the output of ``auths-gateway task-review-submission``
+against the protected activation and installed native enrollment. This presentation performs no
 provider I/O or credential access. The gateway recomputes and compares the
-same intent at task submission; a broker projection alone grants nothing.
+same intent at task submission; presentation alone grants nothing.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from .contracts import commitment
+from .contracts import canonical_json
 from .operator_authority import OperatorDenied
 from .task_write_proofs import task_commitment
 
@@ -36,18 +36,43 @@ def project_exact_write(card: dict, review: dict, recipe: dict,
     if (type(card) is not dict or type(review) is not dict
             or type(recipe) is not dict or type(recipe_digest) is not str
             or _DIGEST.fullmatch(recipe_digest) is None
-            or review.get("schema") != "auths.gateway-submission-review/1"
+            or review.get("schema") != "auths.gateway-task-write-review/1"
             or recipe.get("schema") != "auths.gateway-recipe-source/2"
             or type(recipe.get("task_binding")) is not dict
             or type(recipe.get("write")) is not dict
             or type(recipe.get("origin")) is not str):
         raise OperatorDenied("gateway write review is unavailable")
+    intent = review.get("intent")
+    confirmation = review.get("confirmation_arguments")
+    submission = review.get("submission")
+    if (type(intent) is not dict or type(confirmation) is not str
+            or type(submission) is not dict
+            or submission.get("schema") != "auths.gateway-submission-review/1"
+            or confirmation.encode("utf-8") != canonical_json({"write": intent})):
+        raise OperatorDenied("gateway exact signing payload is malformed")
+    review = submission
+    writer = intent.get("writer")
+    delegation = card.get("delegation")
+    if (type(writer) is not dict or type(delegation) is not dict
+            or set(writer) != {"engagement_commitment", "partition_generation",
+                              "enrollment_commitment", "principal", "instance_generation"}
+            or writer["engagement_commitment"] != task_commitment(card)
+            or type(writer["partition_generation"]) is not int
+            or writer["partition_generation"] != delegation.get("partition_generation")
+            or type(writer["instance_generation"]) is not int
+            or not 1 <= writer["instance_generation"] <= (1 << 53) - 1
+            or type(writer["enrollment_commitment"]) is not str
+            or _DIGEST.fullmatch(writer["enrollment_commitment"]) is None
+            or not any(pin == {"principal": writer["principal"],
+                               "instance_generation": writer["instance_generation"]}
+                       for pin in delegation.get("permitted_channels", {}).values())):
+        raise OperatorDenied("gateway writer is outside signed task enrollment")
     actors = review.get("actors")
     arguments = review.get("arguments")
     request = review.get("request")
     binding = recipe["task_binding"]
     resource_field, verb = binding.get("resource_field"), binding.get("verb")
-    if (type(actors) is not list or actors != [card.get("agent_principal")]
+    if (type(actors) is not list or actors != [writer["principal"]]
             or type(arguments) is not dict or type(request) is not dict
             or type(resource_field) is not str or verb not in ("edit", "create")
             or type(arguments.get(resource_field)) is not str
@@ -86,21 +111,20 @@ def project_exact_write(card: dict, review: dict, recipe: dict,
                    or any(type(value) is not str for value in pair)
                    for pair in headers)):
         raise OperatorDenied("gateway closed request is malformed")
-    request_commitment = commitment("auths.agent-write-request.v1", {
-        "method": method, "url": url, "content_type": content_type,
-        "headers": headers, "body_hex": body.encode("utf-8").hex(),
-    })
-    intent = {
-        "task_id": card["task_id"],
-        "task_commitment": task_commitment(card),
+    # Rust owns commitment and writer construction. These comparisons protect
+    # presentation consistency, not an alternate authorization implementation.
+    expected = {
+        "task_id": card["task_id"], "task_commitment": task_commitment(card),
         "operation_id": arguments["operation_id"],
         "action_commitment": review["action_commitment"],
-        "request_commitment": request_commitment,
-        "recipe_digest": recipe_digest,
-        "resource_handle": arguments[resource_field],
-        "verb": verb,
-        "connection_id": matching[0]["connection_id"],
+        "recipe_digest": recipe_digest, "resource_handle": arguments[resource_field],
+        "verb": verb, "connection_id": matching[0]["connection_id"],
         "connection_generation": matching[0]["connection_generation"],
         "connection_subject": matching[0]["connection_subject"],
     }
+    if (set(intent) != set(expected) | {"writer", "request_commitment"}
+            or any(intent.get(key) != value for key, value in expected.items())
+            or type(intent.get("request_commitment")) is not str
+            or _DIGEST.fullmatch(intent["request_commitment"]) is None):
+        raise OperatorDenied("gateway exact intent disagrees with presentation")
     return ReviewedWrite(intent, arguments, method, url, content_type, body)

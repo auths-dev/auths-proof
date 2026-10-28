@@ -221,6 +221,12 @@ mod tests {
     fn pinned_preflight_signature_and_task_scope_are_required() {
         let key = SigningKey::from_bytes(&[7; 32]);
         let create = ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "test-agent",
+                &[0xaa; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".into(),
             task_commitment: "a".repeat(64),
             operation_id: "create-1".into(),

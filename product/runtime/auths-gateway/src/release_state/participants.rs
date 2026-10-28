@@ -34,15 +34,19 @@ impl ReleaseTaskState {
                     .ok_or(ReleaseStateError::Exhausted)?;
             }
         }
-        // The current exact-write projection still only admits the initial
-        // participant. Its writes belong to that immutable root, never a child.
-        // Child write admission must add exact actor/instance binding to approval.
-        if tree
-            .retained_path(&self.agent_principal)?
-            .contains(ancestor)
-        {
-            total.writes =
-                u32::try_from(self.writes.len()).map_err(|_| ReleaseStateError::Exhausted)?;
+        for write in self.writes.values() {
+            if tree.retained_identity(write.writer.principal())? != write.writer {
+                return Err(ReleaseStateError::Corrupt);
+            }
+            if tree
+                .retained_path(write.writer.principal())?
+                .contains(ancestor)
+            {
+                total.writes = total
+                    .writes
+                    .checked_add(1)
+                    .ok_or(ReleaseStateError::Exhausted)?;
+            }
         }
         Ok(total)
     }
@@ -86,7 +90,51 @@ impl ReleaseTaskState {
         )
     }
 
-    pub(super) fn admit_write_participant(
+    /// Metadata for review and reconstruction; never an admission decision.
+    pub(crate) fn write_participant(
+        &self,
+        verified: &crate::engine::VerifiedCommand,
+    ) -> Result<crate::participant_enrollment::EnrolledParticipant, ReleaseStateError> {
+        let [authority] = verified.authorities.as_slice() else {
+            return Err(ReleaseStateError::Binding);
+        };
+        Ok(self
+            .participants
+            .tree()?
+            .retained_identity(authority.actor().as_str())?)
+    }
+
+    /// Fresh eligibility check used by the existing pre-entry guard. This is
+    /// not an atomic provider-entry permit: that ordering remains separate.
+    pub(crate) fn write_participant_active(
+        &self,
+        writer: &crate::participant_enrollment::EnrolledParticipant,
+        now: u64,
+    ) -> bool {
+        self.participants.tree().is_ok_and(|tree| {
+            tree.retained_identity(writer.principal())
+                .is_ok_and(|current| current == *writer)
+                && tree.active_principal_path(writer.principal(), now).is_ok()
+        })
+    }
+
+    pub(super) fn matches_child_writer(
+        &self,
+        handle: &str,
+        recipe: &str,
+        writer: &crate::participant_enrollment::EnrolledParticipant,
+    ) -> bool {
+        self.child_binding.as_ref().is_none_or(|child| {
+            child.id != handle
+                || child.populate_recipe_digest != recipe
+                || self
+                    .writes
+                    .get(&child.create_operation_id)
+                    .is_some_and(|create| create.writer == *writer)
+        })
+    }
+
+    pub(crate) fn admit_write_participant(
         &self,
         verified: &crate::engine::VerifiedCommand,
         intent: &ExactWriteIntent,
@@ -95,7 +143,7 @@ impl ReleaseTaskState {
         let [authority] = verified.authorities.as_slice() else {
             return Err(ReleaseStateError::Binding);
         };
-        if authority.actor().as_str() != self.agent_principal
+        if self.write_participant(verified)? != intent.writer
             || hex::encode(verified.request.action_commitment()) != intent.action_commitment
             || verified.request.operation_id().as_str() != intent.operation_id
         {
@@ -128,6 +176,13 @@ impl ReleaseTaskState {
             .participants
             .tree()?
             .authorize_scope(authority, &scope_id, now)?;
+        if !self.matches_child_writer(
+            &intent.resource_handle,
+            &intent.recipe_digest,
+            &intent.writer,
+        ) {
+            return Err(ReleaseStateError::Binding);
+        }
         self.require_new_operation(&intent.operation_id)?;
         self.require_capacity(
             &path,

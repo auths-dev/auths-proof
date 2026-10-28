@@ -179,7 +179,7 @@ fn rejected_case(directory: &Path, rejected: &auths_openapi_derive::Rejected) {
 }
 
 /// Review reproduction needs only the committed recipe and lock, even when a
-/// large vendor OpenAPI input is unavailable. Full vendor derivation remains a
+/// large vendor `OpenAPI` input is unavailable. Full vendor derivation remains a
 /// separate pinned-input check above; this test does not claim to reproduce it.
 #[test]
 fn committed_recipe_reviews_match_current_compiler() {

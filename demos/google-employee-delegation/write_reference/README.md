@@ -108,7 +108,7 @@ omitting it selects the edit recipe. This prepares two distinct write effects
 under one task journal but does not bind a created child or permit population.
 The installed native trust must admit the recipe's provider action plus both
 `auths-agent-task` tools, `approve_agent_task_v1` and
-`confirm_agent_write_v1`. The task session refuses missing task-profile trust
+`confirm_agent_write_v2`. The task session refuses missing task-profile trust
 before activation or provider entry.
 The broker's [task authority builder](../broker/src/employee_read_demo/task_write_authority.py)
 now prepares that multi-profile trust and distinct root-to-employee grants

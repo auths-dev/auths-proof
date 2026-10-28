@@ -58,7 +58,7 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
             },
         }
         self.plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": "task-one",
             "task_commitment": task_commitment(self.card),
             "create": {
@@ -110,7 +110,7 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
                 "task_id": "task-one",
                 "task_commitment": self.plan["task_commitment"],
                 "plan_commitment": commitment(
-                    "auths.agent-effect-plan.v1", self.plan,
+                    "auths.agent-effect-plan.v2", self.plan,
                 ),
                 "create_operation_id": "create-one",
                 "child_id": "child-one",

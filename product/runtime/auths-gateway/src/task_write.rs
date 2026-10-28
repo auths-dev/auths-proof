@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
-pub(crate) const CONFIRMATION_TOOL: &str = "confirm_agent_write_v1";
+pub(crate) const CONFIRMATION_TOOL: &str = "confirm_agent_write_v2";
 
 /// Reviewed installation data, committed through the task's operator policy.
 /// `resource_field` is a profile field name, never a runtime JSON pointer.
@@ -40,7 +40,8 @@ pub(crate) struct TaskWriteBinding {
 /// bytes shown by the UI. Neither digest is a public content receipt.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ExactWriteIntent {
+pub struct ExactWriteIntent {
+    pub(crate) writer: crate::participant_enrollment::EnrolledParticipant,
     pub(crate) task_id: String,
     pub(crate) task_commitment: String,
     pub(crate) operation_id: String,
@@ -143,13 +144,17 @@ pub(crate) fn derive_exact_write_intent(
     recipe: &CompiledRecipe,
     binding: &TaskWriteBinding,
     bound_child_scope: Option<&TaskWriteScope>,
+    writer: &crate::participant_enrollment::EnrolledParticipant,
     now: u64,
 ) -> Result<ExactWriteIntent, GatewaySubmitResult> {
     let card = task.descriptor();
     if now < card.not_before || now >= card.expires_at {
         return Err(not_entered("gateway.task.inactive"));
     }
-    if verified.actors.len() != 1 || verified.actors[0].as_str() != card.agent_principal {
+    if verified.actors.len() != 1
+        || verified.actors[0].as_str() != writer.principal()
+        || !writer.matches_task(task)
+    {
         return Err(not_entered("gateway.task.agent-binding"));
     }
     if binding.resource_field.is_empty()
@@ -206,6 +211,7 @@ pub(crate) fn derive_exact_write_intent(
         return Err(not_entered("gateway.task.write-scope"));
     }
     let intent = ExactWriteIntent {
+        writer: writer.clone(),
         task_id: card.task_id.clone(),
         task_commitment: expected_task_commitment,
         operation_id: verified.request.operation_id().as_str().to_owned(),
@@ -357,6 +363,7 @@ pub(crate) fn admit_bounded_upfront_write(
 ) -> Result<ApprovedTaskWrite, GatewaySubmitResult> {
     let card = task.descriptor();
     if card.write_approval_mode != WriteApprovalMode::BoundedUpfront
+        || intent.writer.principal() != card.agent_principal
         || now < card.not_before
         || now >= card.expires_at
         || intent.task_id != card.task_id
@@ -386,6 +393,15 @@ pub(crate) fn admit_bounded_upfront_write(
 
 #[cfg(test)]
 mod tests {
+    fn test_writer(task: &ApprovedAgentTask) -> crate::participant_enrollment::EnrolledParticipant {
+        crate::participant_enrollment::EnrolledParticipant::for_test(
+            &task.descriptor().agent_principal,
+            task.commitment(),
+            task.descriptor().delegation.partition_generation,
+            task.descriptor().delegation.root_instance_generation,
+        )
+    }
+
     use super::*;
     use crate::GatewayObserver;
     use crate::engine::verify_detailed;
@@ -490,8 +506,16 @@ mod tests {
             connection_generation: 3,
             connection_subject: "jules-subject".to_owned(),
         };
-        let intent = derive_exact_write_intent(&task, &verified, &recipe, &binding, None, NOW)
-            .expect("task-bound intent");
+        let intent = derive_exact_write_intent(
+            &task,
+            &verified,
+            &recipe,
+            &binding,
+            None,
+            &test_writer(&task),
+            NOW,
+        )
+        .expect("task-bound intent");
         assert_eq!(intent.resource_handle, harness::RECORD);
         assert_eq!(intent.action_commitment, hex::encode(signed.commitment));
         let wrong_connection = TaskWriteBinding {
@@ -499,30 +523,62 @@ mod tests {
             ..binding.clone()
         };
         assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &wrong_connection, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &wrong_connection,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         let wrong_resource = TaskWriteBinding {
             resource_field: "task_id".to_owned(),
             ..binding.clone()
         };
         assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &wrong_resource, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &wrong_resource,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         let mut different_card = task.descriptor().clone();
         different_card.write_scopes[0].handle = "other-record".to_owned();
         let different_task = ApprovedAgentTask::from_test_card(different_card, *task.commitment());
         assert!(
-            derive_exact_write_intent(&different_task, &verified, &recipe, &binding, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &different_task,
+                &verified,
+                &recipe,
+                &binding,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         let mut different_card = task.descriptor().clone();
-        different_card.agent_principal = human.principal.as_str().to_owned();
+        different_card.delegation.partition_generation += 1;
         let different_task = ApprovedAgentTask::from_test_card(different_card, *task.commitment());
         assert!(
-            derive_exact_write_intent(&different_task, &verified, &recipe, &binding, None, NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &different_task,
+                &verified,
+                &recipe,
+                &binding,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         (task, intent, context, root, human)
     }
@@ -700,7 +756,18 @@ mod tests {
             connection_generation: 3,
             connection_subject: "jules-subject".to_owned(),
         };
-        assert!(derive_exact_write_intent(&task, &verified, &recipe, &binding, None, NOW).is_err());
+        assert!(
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &binding,
+                None,
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
+        );
         let child_scope = TaskWriteScope {
             handle: "child_ABC-123".to_owned(),
             recipe_digest: recipe.digest_hex(),
@@ -709,21 +776,44 @@ mod tests {
             connection_generation: binding.connection_generation,
             connection_subject: binding.connection_subject.clone(),
         };
-        let intent =
-            derive_exact_write_intent(&task, &verified, &recipe, &binding, Some(&child_scope), NOW)
-                .expect("bound child intent");
+        let intent = derive_exact_write_intent(
+            &task,
+            &verified,
+            &recipe,
+            &binding,
+            Some(&child_scope),
+            &test_writer(&task),
+            NOW,
+        )
+        .expect("bound child intent");
         assert_eq!(intent.resource_handle, "child_ABC-123");
         let mut wrong = child_scope.clone();
         wrong.handle = "other-child".to_owned();
         assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &binding, Some(&wrong), NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &binding,
+                Some(&wrong),
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
         wrong = child_scope;
         wrong.recipe_digest = "0".repeat(64);
         assert!(
-            derive_exact_write_intent(&task, &verified, &recipe, &binding, Some(&wrong), NOW)
-                .is_err()
+            derive_exact_write_intent(
+                &task,
+                &verified,
+                &recipe,
+                &binding,
+                Some(&wrong),
+                &test_writer(&task),
+                NOW
+            )
+            .is_err()
         );
     }
 

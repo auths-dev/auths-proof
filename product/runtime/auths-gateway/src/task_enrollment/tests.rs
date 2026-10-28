@@ -306,15 +306,32 @@ impl Fixture {
         crate::task_write::ApprovedTaskWrite,
         crate::engine::VerifiedCommand,
     ) {
+        self.write_as(false, operation_id)
+    }
+
+    fn write_as(
+        &self,
+        child: bool,
+        operation_id: &str,
+    ) -> (
+        crate::task_write::ApprovedTaskWrite,
+        crate::engine::VerifiedCommand,
+    ) {
         let recipe = &self.writes[0];
         let resources = &self.resources[&recipe.digest_hex()];
         let arguments = json!({"operator_namespace": harness::NAMESPACE,
             "operation_id": operation_id, "recipe_digest": recipe.digest_hex(),
             "record_id": harness::RECORD, "replacement": "Approved",
             "task_id": TASK, "task_commitment": hex::encode(self.task.commitment())});
+        let mut signers = vec![&self.company, &self.machine, &self.agent];
+        let mut grants = vec![&resources[0], &resources[1]];
+        if child {
+            signers.push(&self.child);
+            grants.push(&resources[2]);
+        }
         let signed = chained(
-            &[&self.company, &self.machine, &self.agent],
-            &[&resources[0], &resources[1]],
+            &signers,
+            &grants,
             harness::SERVICE,
             harness::TOOL,
             arguments.as_object().unwrap(),
@@ -335,8 +352,18 @@ impl Fixture {
             connection_generation: 4,
             connection_subject: "synthetic-account".into(),
         };
+        let writer = if child {
+            self.ledger()
+                .load(TASK)
+                .unwrap()
+                .unwrap()
+                .write_participant(&verified)
+                .unwrap()
+        } else {
+            crate::participant_enrollment::EnrolledParticipant::from_pins(&self.root)
+        };
         let intent = crate::task_write::derive_exact_write_intent(
-            &self.task, &verified, recipe, &binding, None, NOW,
+            &self.task, &verified, recipe, &binding, None, &writer, NOW,
         )
         .unwrap();
         let grant = grant(
@@ -1618,4 +1645,198 @@ async fn enrolled_child_channel_consumes_its_durable_permit_and_acknowledges_aft
         Some(crate::release_state::ReleaseStage::AgentAcknowledged)
     );
     assert_eq!(peer.await.unwrap(), b"Hello");
+}
+
+#[test]
+fn exact_child_write_approval_cannot_be_reused_by_another_enrolled_writer() {
+    let fixture = Fixture::with_writes(true);
+    fixture.bootstrap().unwrap();
+    let enrolled = fixture.enroll(&fixture.enrollment()).unwrap();
+    let (child, child_command) = fixture.write_as(true, "same-write");
+    let (root, root_command) = fixture.write("same-write");
+    assert_eq!(
+        child.intent().action_commitment,
+        root.intent().action_commitment
+    );
+    assert_eq!(
+        child.intent().request_commitment,
+        root.intent().request_commitment
+    );
+    assert_ne!(child.intent().writer, root.intent().writer);
+    assert_confirmation_writer_is_exact(&fixture, &child, &root);
+    let before = fixture.digest();
+    assert_eq!(
+        fixture
+            .ledger()
+            .reserve_write_with_namespace(
+                &child,
+                &root_command,
+                harness::NAMESPACE,
+                &fixture.time,
+                None
+            )
+            .err(),
+        Some(ReleaseStateError::Binding)
+    );
+    assert_writer_substitutions_refused(&fixture, &child, &child_command);
+    assert_eq!(fixture.digest(), before);
+    let retained = fixture
+        .ledger()
+        .reserve_write_with_namespace(
+            &child,
+            &child_command,
+            harness::NAMESPACE,
+            &fixture.time,
+            None,
+        )
+        .unwrap();
+    let stored = serde_json::to_value(&retained).unwrap();
+    assert_eq!(
+        stored["writes"]["same-write"]["writer"],
+        serde_json::to_value(&child.intent().writer).unwrap()
+    );
+    fixture.ledger().revoke_participant(TASK, enrolled).unwrap();
+    let reopened = fixture.ledger().load(TASK).unwrap().unwrap();
+    assert_eq!(reopened.write_count(), 1);
+    assert!(!reopened.write_participant_active(&child.intent().writer, NOW));
+    assert_eq!(
+        reopened.write_participant(&child_command).unwrap(),
+        child.intent().writer
+    );
+    let (other, other_command) = fixture.write("other-write");
+    assert_eq!(
+        fixture
+            .ledger()
+            .reserve_write_with_namespace(
+                &other,
+                &other_command,
+                harness::NAMESPACE,
+                &fixture.time,
+                None
+            )
+            .err(),
+        Some(ReleaseStateError::Exhausted)
+    );
+}
+
+fn assert_confirmation_writer_is_exact(
+    fixture: &Fixture,
+    child: &crate::task_write::ApprovedTaskWrite,
+    root: &crate::task_write::ApprovedTaskWrite,
+) {
+    let human_grant = grant(
+        &fixture.company,
+        &fixture.human,
+        TASK_SERVICE,
+        &[crate::task_write::CONFIRMATION_TOOL],
+        None,
+        0,
+    );
+    let signature = chained(
+        &[&fixture.company, &fixture.human],
+        &[&human_grant],
+        TASK_SERVICE,
+        crate::task_write::CONFIRMATION_TOOL,
+        json!({"write": child.intent()}).as_object().unwrap(),
+    );
+    assert!(
+        crate::task_write::verify_exact_write_confirmation(
+            &fixture.context,
+            &fixture.task,
+            root.intent().clone(),
+            NOW,
+            &signature.proof,
+            &signature.action
+        )
+        .is_err()
+    );
+}
+
+fn assert_writer_substitutions_refused(
+    fixture: &Fixture,
+    approved: &crate::task_write::ApprovedTaskWrite,
+    command: &crate::engine::VerifiedCommand,
+) {
+    for (field, value) in [
+        ("principal", json!(fixture.agent.principal.as_str())),
+        ("enrollment_commitment", json!("ef".repeat(32))),
+        ("engagement_commitment", json!("ef".repeat(32))),
+        ("instance_generation", json!(6)),
+        ("partition_generation", json!(8)),
+    ] {
+        let mut intent = serde_json::to_value(approved.intent()).unwrap();
+        intent["writer"][field] = value;
+        let intent = serde_json::from_value(intent).unwrap();
+        let substituted = crate::task_write::ApprovedTaskWrite::from_test_intent(intent);
+        assert_eq!(
+            fixture
+                .ledger()
+                .reserve_write_with_namespace(
+                    &substituted,
+                    command,
+                    harness::NAMESPACE,
+                    &fixture.time,
+                    None
+                )
+                .err(),
+            Some(ReleaseStateError::Binding)
+        );
+    }
+}
+
+#[test]
+fn root_and_child_contend_for_one_write_and_revocation_stops_unreserved_child() {
+    let fixture = Fixture::with_writes(true);
+    fixture.bootstrap().unwrap();
+    let enrolled = fixture.enroll(&fixture.enrollment()).unwrap();
+    let child = fixture.write_as(true, "child-write");
+    let root = fixture.write("root-write");
+    let barrier = std::sync::Barrier::new(2);
+    let reserve = |approval: &crate::task_write::ApprovedTaskWrite,
+                   command: &crate::engine::VerifiedCommand| {
+        barrier.wait();
+        fixture
+            .ledger()
+            .reserve_write_with_namespace(
+                approval,
+                command,
+                harness::NAMESPACE,
+                &fixture.time,
+                None,
+            )
+            .map(|_| ())
+    };
+    let results = std::thread::scope(|scope| {
+        let child = scope.spawn(|| reserve(&child.0, &child.1));
+        let root = scope.spawn(|| reserve(&root.0, &root.1));
+        [child.join().unwrap(), root.join().unwrap()]
+    });
+    assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| **result == Err(ReleaseStateError::Exhausted))
+            .count(),
+        1
+    );
+    fixture.ledger().revoke_participant(TASK, enrolled).unwrap();
+    assert_eq!(
+        fixture.ledger().load(TASK).unwrap().unwrap().write_count(),
+        1
+    );
+
+    let fixture = Fixture::with_writes(true);
+    fixture.bootstrap().unwrap();
+    let enrolled = fixture.enroll(&fixture.enrollment()).unwrap();
+    let (child, command) = fixture.write_as(true, "revoked-write");
+    fixture.ledger().revoke_participant(TASK, enrolled).unwrap();
+    let before = fixture.digest();
+    assert_eq!(
+        fixture
+            .ledger()
+            .reserve_write_with_namespace(&child, &command, harness::NAMESPACE, &fixture.time, None)
+            .err(),
+        Some(ReleaseStateError::Inactive)
+    );
+    assert_eq!(fixture.digest(), before);
 }

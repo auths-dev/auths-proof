@@ -34,7 +34,7 @@ mod delivery;
 mod participants;
 pub(crate) use delivery::{EnteredRelease, ReleaseDeliveryBinding};
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/11";
+const SCHEMA: &str = "auths.gateway-agent-task-state/12";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -80,6 +80,7 @@ pub(crate) struct ReleaseTaskPolicy {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WriteOperation {
+    writer: crate::participant_enrollment::EnrolledParticipant,
     /// Recorded at reservation so activity can find the exact attempt even
     /// when one task uses recipes with different replay namespaces.
     operator_namespace: String,
@@ -569,7 +570,14 @@ impl ReleaseTaskState {
             return false;
         };
         let create = &plan.create;
-        valid_digest(&plan.plan_commitment)
+        self.participants
+            .tree()
+            .and_then(|tree| {
+                tree.retained_identity(create.writer.principal())
+                    .map_err(Into::into)
+            })
+            .is_ok_and(|writer| writer == create.writer)
+            && valid_digest(&plan.plan_commitment)
             && valid_digest(&plan.content_commitment)
             && (1..=192).contains(&plan.content_length)
             && plan.expires_at > card.not_before
@@ -845,6 +853,7 @@ impl ReleaseTaskState {
         self.writes.insert(
             intent.operation_id.clone(),
             WriteOperation {
+                writer: intent.writer.clone(),
                 operator_namespace: operator_namespace.to_owned(),
                 resource_handle: intent.resource_handle.clone(),
                 recipe_digest: intent.recipe_digest.clone(),
@@ -891,6 +900,10 @@ impl ReleaseTaskState {
         };
         if intent.task_id != self.task_id
             || !same_commitment(&self.task_commitment, &intent.task_commitment)
+            || self
+                .writes
+                .get(&intent.operation_id)
+                .is_none_or(|write| write.writer != intent.writer)
             || !self.valid_child_binding(&binding)
         {
             return Err(ReleaseStateError::Binding);
@@ -945,6 +958,10 @@ impl ReleaseTaskState {
             || !same_commitment(&self.task_commitment, &intent.task_commitment)
             || &plan.create != intent
             || child.id() != attestation.candidate_id()
+            || self
+                .writes
+                .get(&intent.operation_id)
+                .is_none_or(|write| write.writer != intent.writer)
             || !self.valid_child_binding(&binding)
         {
             return Err(ReleaseStateError::Binding);
@@ -1045,6 +1062,7 @@ impl ReleaseTaskState {
             && write.connection_id == create.connection_id
             && write.connection_generation == create.connection_generation
             && write.connection_subject == create.connection_subject
+            && write.writer == create.writer
             && write.action_commitment == create.action_commitment
             && write.request_commitment == create.request_commitment
     }
@@ -1433,6 +1451,11 @@ impl ReleaseTaskState {
                 || write.action_commitment == "0".repeat(64)
                 || !valid_digest(&write.request_commitment)
                 || write.request_commitment == "0".repeat(64)
+                || !self.matches_child_writer(
+                    &write.resource_handle,
+                    &write.recipe_digest,
+                    &write.writer,
+                )
                 || write.connection_id != self.connection_id
                 || write.connection_generation != self.connection_generation
                 || write.connection_subject != self.connection_subject
@@ -2123,6 +2146,12 @@ mod tests {
 
     fn write_intent(operation_id: &str) -> ApprovedTaskWrite {
         ApprovedTaskWrite::from_test_intent(ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "agent",
+                &[0x11; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".to_owned(),
             task_commitment: "11".repeat(32),
             operation_id: operation_id.to_owned(),

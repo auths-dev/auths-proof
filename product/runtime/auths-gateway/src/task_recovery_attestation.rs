@@ -226,6 +226,12 @@ mod tests {
         let plan = VerifiedEffectPlan {
             plan_commitment: "b".repeat(64),
             create: ExactWriteIntent {
+                writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                    "test-agent",
+                    &[0xaa; 32],
+                    1,
+                    1,
+                ),
                 task_id: "task-1".into(),
                 task_commitment: "a".repeat(64),
                 operation_id: "create-1".into(),

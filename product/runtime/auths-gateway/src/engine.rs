@@ -191,6 +191,22 @@ pub struct GatewayRequestReview {
     pub idempotency_key: Option<String>,
 }
 
+/// Native task review with exact enrolled writer and canonical human-signing input.
+/// This private-content projection is a preview, never an execution permit.
+#[cfg(unix)]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct TaskWriteReview {
+    /// Review format, distinct from ordinary non-task review.
+    pub schema: &'static str,
+    /// Verified action, actors and exact provider request for human presentation.
+    pub submission: GatewaySubmissionReview,
+    /// Rust-owned exact intent, including immutable enrolled writer attribution.
+    pub intent: crate::task_write::ExactWriteIntent,
+    /// Canonical JSON arguments for the exact confirmation action. Bindings must
+    /// sign this object, without recomputing request commitments or the writer.
+    pub confirmation_arguments: String,
+}
+
 /// Reviews proof and action through the same native verification and closed
 /// request construction as submission, without opening custody or a store.
 /// `now` is an offline evaluation input; this function grants no lease and
@@ -1392,12 +1408,17 @@ impl GatewayEngine {
             Ok(verified) => verified,
             Err(result) => return result,
         };
+        let writer = match state.write_participant(&verified) {
+            Ok(writer) => writer,
+            Err(error) => return not_entered(error.write_code()),
+        };
         let intent = match derive_exact_write_intent(
             &task,
             &verified,
             &self.recipe,
             submission.binding,
             child_scope.as_ref(),
+            &writer,
             now,
         ) {
             Ok(intent) => intent,
@@ -2270,7 +2291,7 @@ impl TaskWriteSession<'_> {
         task_id: &str,
         proof: &[u8],
         action: &[u8],
-    ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
+    ) -> Result<TaskWriteReview, GatewaySubmitResult> {
         let now = self
             .engine
             .execution_time()
@@ -2291,15 +2312,29 @@ impl TaskWriteSession<'_> {
             proof,
             action,
         )?;
-        derive_exact_write_intent(
+        let intent = derive_exact_write_intent(
             &task,
             &command,
             &self.engine.recipe,
             &self.binding,
             state.bound_child_scope().as_ref(),
+            &state
+                .write_participant(&command)
+                .map_err(|error| not_entered(error.write_code()))?,
             now,
         )?;
-        review_verified_command(command)
+        state
+            .admit_write_participant(&command, &intent, now)
+            .map_err(|error| not_entered(error.write_code()))?;
+        let confirmation_arguments =
+            serde_json_canonicalizer::to_string(&serde_json::json!({"write": intent}))
+                .map_err(|_| not_entered("gateway.task.write-request"))?;
+        Ok(TaskWriteReview {
+            schema: "auths.gateway-task-write-review/1",
+            submission: review_verified_command(command)?,
+            intent,
+            confirmation_arguments,
+        })
     }
 
     /// Verifies a previously activated task and one agent write, then runs
@@ -2363,11 +2398,12 @@ impl TaskWriteSession<'_> {
             .engine
             .execution_time()
             .ok_or("gateway.task.effect-plan-clock")?;
-        let task = self
+        let state = self
             .ledger
             .load(task_id)
             .map_err(|_| "gateway.task.effect-plan-state")?
-            .ok_or("gateway.task.effect-plan-state")?
+            .ok_or("gateway.task.effect-plan-state")?;
+        let task = state
             .activated_task(&self.pins, now)
             .map_err(|_| "gateway.task.effect-plan-inactive")?;
         let verified = verify_task_command(
@@ -2385,9 +2421,15 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
+            &state
+                .write_participant(&verified)
+                .map_err(|_| "gateway.task.effect-plan-participant")?,
             now,
         )
         .map_err(|_| "gateway.task.effect-plan-create")?;
+        state
+            .admit_write_participant(&verified, &create, now)
+            .map_err(|_| "gateway.task.effect-plan-participant")?;
         let plan = verify_effect_plan(
             &self.engine.trusted_context,
             &task,
@@ -2717,6 +2759,9 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
+            &state
+                .write_participant(&verified)
+                .map_err(|_| "gateway.task.recovery-participant")?,
             original_time,
         )
         .map_err(|_| "gateway.task.recovery-intent")?;
@@ -2895,6 +2940,9 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
+            &state
+                .write_participant(&verified)
+                .map_err(|_| "gateway.task.reconcile-participant")?,
             evaluated_at,
         )
         .map_err(|_| "gateway.task.reconcile-intent")?;
@@ -3179,8 +3227,17 @@ impl EngineIo<'_> {
                     .load(&admission.task.descriptor().task_id)
                     .ok()
                     .flatten()
-                    .and_then(|state| state.activated_task(admission.pins, now).ok())
-                    .is_some_and(|current| current.commitment() == admission.task.commitment())
+                    .is_some_and(|state| {
+                        state
+                            .activated_task(admission.pins, now)
+                            .is_ok_and(|current| {
+                                current.commitment() == admission.task.commitment()
+                                    && state.write_participant_active(
+                                        &admission.approved.intent().writer,
+                                        now,
+                                    )
+                            })
+                    })
             })
         })
     }
@@ -3227,6 +3284,7 @@ impl SubmitIo for EngineIo<'_> {
                 &self.engine.recipe,
                 admission.binding,
                 admission.child_scope.as_ref(),
+                &admission.approved.intent().writer,
                 now,
             )?;
             if &intent != admission.approved.intent() {
@@ -3909,6 +3967,12 @@ pub(crate) mod tests {
             .expect("make arm parent private");
         let path = directory.path().join("population.json");
         let intent = crate::task_write::ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "test-agent",
+                &[0xaa; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".to_owned(),
             task_commitment: "a".repeat(64),
             operation_id: "populate-1".to_owned(),
@@ -4602,10 +4666,10 @@ pub(crate) mod tests {
             .review_submission(&card.task_id, &agent_signed.proof, &agent_signed.action)
             .expect("task audience review uses protected activation");
         assert_eq!(
-            review.action_commitment,
+            review.submission.action_commitment,
             hex::encode(verified.request.action_commitment())
         );
-        assert_eq!(review.arguments, verified.arguments);
+        assert_eq!(review.submission.arguments, verified.arguments);
         assert!(
             review_submission(
                 &engine.recipe,
@@ -4632,6 +4696,13 @@ pub(crate) mod tests {
             &engine.recipe,
             &session.binding,
             None,
+            &session
+                .ledger
+                .load(&card.task_id)
+                .unwrap()
+                .unwrap()
+                .write_participant(&verified)
+                .unwrap(),
             now,
         )
         .expect("closed write intent");
@@ -5248,6 +5319,13 @@ pub(crate) mod tests {
             &engine.recipe,
             &session.binding,
             None,
+            &session
+                .ledger
+                .load(&task.descriptor().task_id)
+                .unwrap()
+                .unwrap()
+                .write_participant(&verified)
+                .unwrap(),
             now,
         )
         .expect("exact create intent");
@@ -5284,7 +5362,7 @@ pub(crate) mod tests {
         plan_args.insert(
             "plan".to_owned(),
             json!({
-                "schema": "auths.agent-effect-plan/1",
+                "schema": "auths.agent-effect-plan/2",
                 "task_id": "task-create-reconcile",
                 "task_commitment": hex::encode(commitment.as_bytes()),
                 "create": intent,
@@ -5918,6 +5996,13 @@ pub(crate) mod tests {
             &engine.recipe,
             &unknown_session.binding,
             None,
+            &unknown_session
+                .ledger
+                .load(&unknown_task.descriptor().task_id)
+                .unwrap()
+                .unwrap()
+                .write_participant(&unknown_verified)
+                .unwrap(),
             now,
         )
         .expect("second create intent");

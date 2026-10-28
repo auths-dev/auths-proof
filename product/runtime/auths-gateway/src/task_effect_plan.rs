@@ -17,8 +17,8 @@ use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeMap;
 
-pub(crate) const EFFECT_PLAN_TOOL: &str = "confirm_agent_effect_plan_v1";
-const EFFECT_PLAN_SCHEMA: &str = "auths.agent-effect-plan/1";
+pub(crate) const EFFECT_PLAN_TOOL: &str = "confirm_agent_effect_plan_v2";
+const EFFECT_PLAN_SCHEMA: &str = "auths.agent-effect-plan/2";
 const CONTENT_DOMAIN: &[u8] = b"auths.agent-effect-plan-content/1\0";
 const MAX_INITIAL_TEXT_BYTES: usize = 192;
 
@@ -110,6 +110,7 @@ impl VerifiedEffectPlan {
             && preflight.checked_at <= now
             && now < preflight.valid_until
             && preflight.valid_until <= self.expires_at
+            && intent.writer == self.create.writer
             && intent.task_id == self.create.task_id
             && intent.task_commitment == self.create.task_commitment
             && intent.operation_id == self.populate_operation_id
@@ -249,7 +250,7 @@ pub(crate) fn verify_effect_plan(
     }
     let canonical = serde_json_canonicalizer::to_vec(&plan)
         .map_err(|_| not_entered("gateway.task.invalid-effect-plan"))?;
-    let plan_commitment = auths_codec::domain_commitment("auths.agent-effect-plan.v1", &canonical)
+    let plan_commitment = auths_codec::domain_commitment("auths.agent-effect-plan.v2", &canonical)
         .map_err(|_| not_entered("gateway.task.invalid-effect-plan"))?;
     Ok(VerifiedEffectPlan {
         plan_commitment: hex::encode(plan_commitment.as_bytes()),
@@ -372,6 +373,12 @@ mod tests {
         )
         .expect("reviewed populate recipe");
         let create = ExactWriteIntent {
+            writer: crate::participant_enrollment::EnrolledParticipant::for_test(
+                "test-agent",
+                &[0xaa; 32],
+                1,
+                1,
+            ),
             task_id: "task-1".into(),
             task_commitment: "a".repeat(64),
             operation_id: "create-1".into(),

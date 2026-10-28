@@ -22,6 +22,9 @@ pub use audience::resource_audience;
 mod root;
 pub use root::{ACTIVATE_ROOT_TOOL, RootEnrollmentProofs, root_enrollment_commitment};
 
+mod identity;
+pub use identity::EnrolledParticipant;
+
 mod tree;
 pub use tree::{EnrollmentTree, EnrollmentTreeError};
 

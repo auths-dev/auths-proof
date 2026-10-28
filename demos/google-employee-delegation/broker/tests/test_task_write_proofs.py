@@ -126,7 +126,7 @@ class TaskWriteProofTests(unittest.TestCase):
         self.assertGreater(len(confirmed.proof), 0)
         self.assertGreater(len(confirmed.action), 0)
         effect_plan = {
-            "schema": "auths.agent-effect-plan/1",
+            "schema": "auths.agent-effect-plan/2",
             "task_id": "task-1",
             "task_commitment": commitment,
             "create": {**intent, "operation_id": "create-1", "verb": "create"},

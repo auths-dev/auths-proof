@@ -61,7 +61,7 @@ class RecoveryReviewTests(unittest.TestCase):
         public = self.signer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         self.pin = {"public_key_hex": public.hex(), "rule_digest": "1" * 64}
         self.plan = {
-            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "schema": "auths.agent-effect-plan/2", "task_id": self.task_id,
             "initial_text": "Approved Project A handoff",
         }
         plan_path = self.directory / "effect-plan.json"
@@ -71,7 +71,7 @@ class RecoveryReviewTests(unittest.TestCase):
             "schema": "auths.gateway-task-create-recovery-inputs/1",
             "task_id": self.task_id,
             "task_commitment": task_commitment(self.card),
-            "plan_commitment": commitment("auths.agent-effect-plan.v1", self.plan),
+            "plan_commitment": commitment("auths.agent-effect-plan.v2", self.plan),
             "content_commitment": hashlib.sha256(
                 b"auths.agent-effect-plan-content/1\0"
                 + self.plan["initial_text"].encode()).hexdigest(),
