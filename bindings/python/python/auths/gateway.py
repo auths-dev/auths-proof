@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal, Mapping, Optional, Union, cast
 
-_REQUEST_SCHEMA = "auths.gateway-submit/1"
+_REQUEST_SCHEMA = "auths.gateway-submit/2"
 _OBSERVE_SCHEMA = "auths.gateway-observe/2"
 _READ_BACK_SCHEMA: Final = "auths.gateway-readback/1"
 _OUTCOME_SCHEMA: Final = "auths.gateway-outcome/2"
@@ -428,7 +428,7 @@ def _read_back_request(arguments: Mapping[str, str]) -> dict[str, object]:
 
 
 class GatewayClient:
-    """Submit only canonical proof and action bytes over the local app socket,
+    """Submit canonical proof, action and exact approval bytes over the local app socket,
     or request one read-only gateway-signed observation."""
 
     def __init__(self, endpoint: GatewayEndpoint) -> None:
@@ -436,7 +436,7 @@ class GatewayClient:
             raise TypeError("endpoint must be a GatewayEndpoint")
         self._endpoint = endpoint
 
-    async def submit(self, *, proof: bytes, action: bytes) -> GatewayResult:
+    async def submit(self, *, proof: bytes, action: bytes, approval: bytes) -> GatewayResult:
         """Return proof/transport stage without implying provider effect.
 
         An IPC failure is not a retry signal: the gateway may have entered the
@@ -446,11 +446,14 @@ class GatewayClient:
             raise ValueError("proof must be bounded bytes")
         if not isinstance(action, bytes) or not 1 <= len(action) <= _MAX_ACTION_BYTES:
             raise ValueError("action must be bounded bytes")
+        if not isinstance(approval, bytes) or not 1 <= len(approval) <= 4096:
+            raise ValueError("approval must be bounded native canonical bytes")
         payload = json.dumps(
             {
                 "schema": _REQUEST_SCHEMA,
                 "proof_b64": _encode_base64url(proof),
                 "action_b64": _encode_base64url(action),
+                "approval_b64": _encode_base64url(approval),
             },
             separators=(",", ":"),
         ).encode("utf-8")

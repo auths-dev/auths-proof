@@ -39,7 +39,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, writeFileSync,
+  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -569,8 +569,26 @@ function recordEntry(audit: string, entry: Entry): "appended" | "replaced" | "un
   return "unchanged";
 }
 
+function readEffectApproval(path: string): Uint8Array {
+  const file = openSync(path, "r");
+  try {
+    const bytes = new Uint8Array(4097);
+    let length = 0;
+    while (length < bytes.length) {
+      const count = readSync(file, bytes, length, bytes.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    // The native client enforces its public bound; parsing and signature
+    // validation remain in the gateway.
+    return bytes.subarray(0, length);
+  } finally {
+    closeSync(file);
+  }
+}
+
 async function submit(options: Readonly<{
-  state: string; socket: string; operationId: string; responses: string;
+  state: string; socket: string; operationId: string; responses: string; effectApproval: string;
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
@@ -619,7 +637,7 @@ async function submit(options: Readonly<{
   });
   const proof = collection.assemble(action);
   const gateway = new GatewayClient(new GatewayEndpoint(resolve(options.socket)));
-  Object.assign(record, await gateway.submit({ proof, action: built.action }), { decided_by: "gateway" });
+  Object.assign(record, await gateway.submit({ proof, action: built.action, approval: readEffectApproval(options.effectApproval) }), { decided_by: "gateway" });
   const observation = await gateway.observeOutcome(options.operationId);
   const outcome = observation.outcome === "signed" ? observation.observation : null;
   record.bundle = recordEntry(join(state, "audit"), {
@@ -694,6 +712,7 @@ async function main(): Promise<void> {
       amount: { type: "string" },
       required: { type: "string" },
       responses: { type: "string" },
+      "effect-approval": { type: "string" },
       out: { type: "string" },
       precheck: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
@@ -746,6 +765,7 @@ async function main(): Promise<void> {
         socket: required(values.socket, "socket"),
         operationId: required(values["operation-id"], "operation-id"),
         responses: resolve(required(values.responses, "responses")),
+        effectApproval: resolve(required(values["effect-approval"], "effect-approval")),
       }))}\n`);
       break;
     case "export":

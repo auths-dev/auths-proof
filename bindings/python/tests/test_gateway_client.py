@@ -1,4 +1,4 @@
-"""Proof/action-only application socket behavior with no provider credential."""
+"""Proof/action/exact-approval application socket behavior with no provider credential."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def _provider_result(status: object = 200, **evidence: object) -> bytes:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_sends_only_proof_and_action(socket_dir) -> None:
+def test_client_sends_proof_action_and_native_approval(socket_dir) -> None:
     async def scenario() -> None:
         socket = socket_dir / "gateway.sock"
         seen: list[dict[str, str]] = []
@@ -84,14 +84,15 @@ def test_client_sends_only_proof_and_action(socket_dir) -> None:
         server = await asyncio.start_unix_server(handle, path=str(socket))
         async with server:
             result = await GatewayClient(GatewayEndpoint(socket)).submit(
-                proof=b"proof", action=b"action"
+                proof=b"proof", action=b"action", approval=b"approval"
             )
         assert result == GatewayObserved(status=200, matched=True)
         assert seen == [
             {
-                "schema": "auths.gateway-submit/1",
+                "schema": "auths.gateway-submit/2",
                 "proof_b64": "cHJvb2Y",
                 "action_b64": "YWN0aW9u",
+                "approval_b64": "YXBwcm92YWw",
             }
         ]
 
@@ -103,7 +104,10 @@ def test_client_rejects_invalid_endpoint_and_oversized_input(socket_dir) -> None
         GatewayEndpoint(socket_dir.name)  # type: ignore[arg-type]
     client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
     with pytest.raises(ValueError):
-        asyncio.run(client.submit(proof=b"", action=b"action"))
+        asyncio.run(client.submit(proof=b"", action=b"action", approval=b"approval"))
+    for approval in (b"", b"a" * 4097):
+        with pytest.raises(ValueError):
+            asyncio.run(client.submit(proof=b"p", action=b"a", approval=approval))
 
 
 @pytest.mark.parametrize("code", [
@@ -415,7 +419,7 @@ def test_connect_failure_names_the_path_and_cause(socket_dir: Path) -> None:
     missing = socket_dir / "missing.sock"
     client = GatewayClient(GatewayEndpoint(missing))
     with pytest.raises(GatewayProtocolError) as failed:
-        asyncio.run(client.submit(proof=b"p", action=b"a"))
+        asyncio.run(client.submit(proof=b"p", action=b"a", approval=b"approval"))
     text = str(failed.value)
     assert "outcome may be unknown" in text
     assert str(missing) in text

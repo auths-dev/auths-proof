@@ -34,6 +34,34 @@ schema `/2` reject the obsolete formats; reinstall disposable prelaunch state.
 This configuration is a foundation for exact-effect approval, not evidence that
 transactional entry fencing has been completed.
 
+The application submission schema is now `auths.gateway-submit/2`; it requires
+canonical native exact-effect approval in addition to proof and action. The
+commissioning path requires the same approval. Resource-authority approvals in
+the proof remain separate requirements and cannot substitute for it.
+
+The private operator flow is:
+
+```text
+auths-gateway effect-review --state-dir <private-state> --proof proof.cbor --action action.cbor \
+  --not-before <unix-seconds> --expires-at <unix-seconds> --request-out <absolute-new-request-file>
+auths-gateway effect-approval --request <request-file> --signature-hex <external-ed25519-signature>
+auths-gateway submit --app-socket <socket> --proof proof.cbor --action action.cbor --approval <approval-file>
+```
+
+`effect-review` emits private JSON containing the native review, signing request
+and `signing_message_hex`. The external approver signs those exact decoded
+32 message bytes with Ed25519; do not independently hash or reconstruct them.
+Keep review/request/approval files on the authorized private channel. The
+`effect-approval` command only assembles canonical data; submission independently
+checks the installed signer, effect binding and validity interval. Missing,
+obsolete or invalid approvals are refused before credential leasing.
+
+AP074 remains under implementation: versioned semantic review completeness,
+transactional entry fencing, durable full-binding comparison and controlled
+recovery are not established by these commands. The existing example journeys
+still need the complete operator review round trip and updated integration
+evidence before they demonstrate the revised contract.
+
 A production installation names its operator only through a signed
 `auths.gateway-operator-attestation/2` statement. `operator-request` prints
 the statement for the installation and the preimage the operator's own

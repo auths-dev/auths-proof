@@ -10,6 +10,7 @@ use crate::bounds::{BoundAdmission, admit_bounds};
 use crate::connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry,
 };
+use crate::effect::{ApprovedEffect, ExactEffectApproval};
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
     outcome_facts, read_back_facts,
@@ -1113,8 +1114,7 @@ impl GatewayEngine {
         };
         let io = EngineIo {
             engine: self,
-            proof: &[],
-            action: &[],
+            pending: std::sync::Mutex::new(None),
             started: Instant::now(),
             prepared: OnceLock::new(),
             #[cfg(unix)]
@@ -1198,16 +1198,27 @@ impl GatewayEngine {
         )
     }
 
-    /// Verifies and attempts one exact action. Only proof and action bytes are
-    /// accepted from the application; trust, recipe, connection, and credential
+    /// Verifies and attempts one exactly approved action. Proof, action and
+    /// exact approval are accepted from the application; trust, recipe, connection, and credential
     /// come from the operator's installation. The admission-order step machine
     /// directs every step: a replay never writes again, and for a linked
     /// recipe it may perform one more read-only observation.
-    pub async fn submit(&self, proof_cbor: &[u8], action_cbor: &[u8]) -> GatewaySubmitResult {
+    pub async fn submit(
+        &self,
+        proof_cbor: &[u8],
+        action_cbor: &[u8],
+        approval: ExactEffectApproval,
+    ) -> GatewaySubmitResult {
+        let approved = match self
+            .approve_submission(proof_cbor, action_cbor, approval)
+            .await
+        {
+            Ok(approved) => approved,
+            Err(result) => return result,
+        };
         let io = EngineIo {
             engine: self,
-            proof: proof_cbor,
-            action: action_cbor,
+            pending: std::sync::Mutex::new(Some(approved)),
             started: Instant::now(),
             prepared: OnceLock::new(),
             #[cfg(unix)]
@@ -1227,6 +1238,22 @@ impl GatewayEngine {
             &io,
         )
         .await
+    }
+
+    async fn approve_submission(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<ApprovedEffect, GatewaySubmitResult> {
+        let effect = self.compile_effect(proof, action).await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        effect
+            .approve(approval, self.effect_policy.approver(), now)
+            .map_err(|_| not_entered("gateway.effect.approval"))
     }
 
     /// Loads the shared record, requires it to authorize this gateway's
@@ -1401,8 +1428,7 @@ fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResul
 /// The installed engine's I/O for one submission.
 struct EngineIo<'a> {
     engine: &'a GatewayEngine,
-    proof: &'a [u8],
-    action: &'a [u8],
+    pending: std::sync::Mutex<Option<ApprovedEffect>>,
     started: Instant,
     prepared: OnceLock<PreparedEntry>,
     #[cfg(unix)]
@@ -1417,29 +1443,51 @@ impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
     fn clock(&self) -> Option<u64> {
-        #[cfg(unix)]
-        if self.commissioning.is_some() {
-            return Some(self.engine.qualification.commissioning_time().0);
-        }
-        wall_clock_seconds()
+        self.engine.qualification.effect_time()
     }
 
-    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        let verified = verify_detailed(
-            &self.engine.recipe,
-            &self.engine.trusted_context,
+    fn verify(&self, now: u64) -> Result<ApprovedEffect, GatewaySubmitResult> {
+        let approved = self
+            .pending
+            .lock()
+            .map_err(|_| not_entered("gateway.effect.unavailable"))?
+            .take()
+            .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
+        approved.validate_for_entry(
+            &self.engine.effect_policy.installation(
+                &self.engine.recipe,
+                &self.engine.trusted_context,
+                approved.connection(),
+                self.engine.qualification.policy(),
+            ),
             now,
-            self.proof,
-            self.action,
         )?;
         #[cfg(unix)]
         if let Some(session) = self.commissioning {
-            let action = session.bind_verified(&verified).map_err(not_entered)?;
+            let action = session
+                .bind_verified(approved.command())
+                .map_err(not_entered)?;
             self.commissioned_action
                 .set(action)
                 .map_err(|_| not_entered("gateway.commissioning.binding-mismatch"))?;
         }
-        Ok(verified)
+        Ok(approved)
+    }
+
+    fn revalidate(&self, approved: &ApprovedEffect, now: u64) -> Result<(), GatewaySubmitResult> {
+        let prepared = self
+            .prepared
+            .get()
+            .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
+        approved.validate_for_entry(
+            &self.engine.effect_policy.installation(
+                &self.engine.recipe,
+                &self.engine.trusted_context,
+                prepared.loaded.record(),
+                self.engine.qualification.policy(),
+            ),
+            now,
+        )
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {

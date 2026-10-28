@@ -184,11 +184,23 @@ impl CommissioningSession<'_> {
     /// No proof/request can select this method through an ordinary app socket.
     /// The exact actor and action must match the finite signed permit; before
     /// every custody acquisition an atomic lifetime unit and host floor commit.
-    pub async fn submit(&self, proof: &[u8], action: &[u8]) -> GatewaySubmitResult {
+    pub async fn submit(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: crate::effect::ExactEffectApproval,
+    ) -> GatewaySubmitResult {
+        let approved = match self
+            .engine
+            .approve_submission(proof, action, approval)
+            .await
+        {
+            Ok(approved) => approved,
+            Err(result) => return result,
+        };
         let io = EngineIo {
             engine: self.engine,
-            proof,
-            action,
+            pending: std::sync::Mutex::new(Some(approved)),
             started: Instant::now(),
             prepared: OnceLock::new(),
             commissioning: Some(self),

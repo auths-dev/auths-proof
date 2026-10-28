@@ -7,16 +7,17 @@
 //! read, a store write, and the provider write each happen only when the
 //! machine names them, and the machine names them only in this order:
 //!
-//! 1. read the clock, verify natively, admit (with the account-scope binding
-//!    when declared), and prepare the transport, storing nothing;
+//! 1. read the clock, verify native authority and exact effect approval, admit
+//!    (with the account-scope binding when declared), and prepare the transport,
+//!    revalidating the approved effect against that installation, storing nothing;
 //! 2. claim the logical operation; a replay goes to one read-only
 //!    re-observation and never to a write;
 //! 3. reload the connection record, lease the credential, check the prefix,
 //!    the account read, and each denied read;
 //! 4. run the pre-entry re-read and the relative-ceiling read, when declared,
 //!    and record what they read in one checkpoint;
-//! 5. reload the connection record again, refuse entry after the deadline,
-//!    and send the one write;
+//! 5. reload the connection record again, refuse entry after the deadline or
+//!    failed fresh authority/approval validation, and send the one write;
 //! 6. record the response or `unknown`, then at most one read-back under a
 //!    fresh lease that passes the same credential checks.
 //!

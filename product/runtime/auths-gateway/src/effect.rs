@@ -55,6 +55,9 @@ impl fmt::Debug for EffectPolicy {
 }
 
 impl EffectPolicy {
+    pub(crate) const fn approver(&self) -> &[u8; 32] {
+        &self.approver
+    }
     /// Constructs the operator's policy. Epoch changes require deliberate
     /// operator action; they must never be inferred from a missing journal.
     ///
@@ -131,6 +134,87 @@ impl EffectPolicy {
             approver: self.approver,
         }
     }
+}
+
+/// Post-verification driver oracle only. It deliberately does not establish
+/// installed native authority, isolation or a real human review. Production
+/// builds cannot construct this fixture or select it through an app request.
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) fn approve_driver_fixture(
+    command: VerifiedCommand,
+    now: u64,
+    approval: Option<ExactEffectApproval>,
+) -> Result<ApprovedEffect, GatewaySubmitResult> {
+    use auths_connections::{
+        ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionState, ProviderKind, SemanticId,
+    };
+    use ed25519_dalek::{Signer as _, SigningKey};
+    let key = SigningKey::from_bytes(&[29; 32]);
+    let public = key.verifying_key().to_bytes();
+    let invalid = || not_entered("test.effect.fixture-invalid");
+    let connection = ConnectionRecord::new(
+        ProviderKind::parse("fixture").map_err(|_| invalid())?,
+        ConnectionAlias::parse("driver").map_err(|_| invalid())?,
+        ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").map_err(|_| invalid())?,
+        SemanticId::parse("auths.gateway-operation/1").map_err(|_| invalid())?,
+        SemanticId::parse("auths.gateway-connection-descriptor/1").map_err(|_| invalid())?,
+        b"post-verification-driver-fixture".to_vec(),
+        [4; 32],
+        [5; 32],
+        std::num::NonZeroU64::MIN,
+        ConnectionState::Active,
+        vec!["gateway".to_owned()],
+        vec![
+            ConnectionProfile::new(SemanticId::parse("auths.mcp").map_err(|_| invalid())?, 2)
+                .map_err(|_| invalid())?,
+        ],
+        now,
+        now,
+        None,
+    )
+    .map_err(|_| invalid())?;
+    let binding = EffectBinding::new(BindingWire {
+        schema: EFFECT_BINDING_SCHEMA.to_owned(),
+        namespace: command.request.namespace().as_str().to_owned(),
+        partition: "driver-fixture".to_owned(),
+        epoch: 1,
+        operation: command.request.operation_id().as_str().to_owned(),
+        action: *command.request.action_commitment(),
+        native_authority: command.native_authority,
+        scope: Scope::Unscoped,
+        recipe: [0; 32],
+        compiler: COMPILER.to_owned(),
+        connection: [0; 32],
+        credential_generation: 1,
+        qualification_policy: "optional".to_owned(),
+        approval_policy: ApprovalPolicy::Exact { approver: public },
+        reservations: Vec::new(),
+        protocol: Protocol::Mutation {
+            request: request_commitment(&command.request).map_err(|_| invalid())?,
+        },
+    })
+    .map_err(|_| invalid())?;
+    let effect = BoundEffect {
+        binding,
+        command,
+        connection,
+        proof: Zeroizing::new(Vec::new()),
+        action: Zeroizing::new(Vec::new()),
+    };
+    if let Some(approval) = approval {
+        return effect
+            .approve(approval, &public, now)
+            .map_err(|_| invalid());
+    }
+    let request = effect
+        .approval_request(now, now.saturating_add(MAX_EFFECT_APPROVAL_SECONDS))
+        .map_err(|_| invalid())?;
+    let signature = key
+        .sign(&request.signing_message().map_err(|_| invalid())?)
+        .to_bytes();
+    effect
+        .approve(request.with_signature(signature), &public, now)
+        .map_err(|_| invalid())
 }
 
 /// Private audit identity. Do not publish it as a hiding content commitment.
@@ -405,6 +489,7 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
 pub struct BoundEffect {
     binding: EffectBinding,
     command: VerifiedCommand,
+    connection: ConnectionRecord,
     proof: Zeroizing<Vec<u8>>,
     action: Zeroizing<Vec<u8>>,
 }
@@ -495,13 +580,10 @@ impl BoundEffect {
     /// Refuses an invalid key, time range or approval lifetime.
     pub fn approval_request(
         &self,
-        approver: [u8; 32],
         not_before: u64,
         expires_at: u64,
     ) -> Result<EffectApprovalRequest, EffectBindingError> {
-        if self.binding.wire.approval_policy != (ApprovalPolicy::Exact { approver }) {
-            return Err(EffectBindingError::Invalid);
-        }
+        let ApprovalPolicy::Exact { approver } = self.binding.wire.approval_policy;
         let request = EffectApprovalRequest {
             schema: APPROVAL_SCHEMA.to_owned(),
             effect: *self.binding.id().as_bytes(),
@@ -560,6 +642,31 @@ impl fmt::Debug for EffectApprovalRequest {
 }
 
 impl EffectApprovalRequest {
+    /// Canonical private signing request for an external human signer.
+    ///
+    /// # Errors
+    /// Refuses invalid/obsolete request data or encoding failure.
+    pub fn to_private_bytes(&self) -> Result<Zeroizing<Vec<u8>>, EffectBindingError> {
+        self.validate()?;
+        canonical(self)
+    }
+
+    /// Reads bounded canonical signing data; this grants no authority.
+    ///
+    /// # Errors
+    /// Refuses malformed, duplicate, noncanonical, obsolete or oversized input.
+    pub fn from_private_bytes(bytes: &[u8]) -> Result<Self, EffectBindingError> {
+        if bytes.is_empty() || bytes.len() > MAX_EFFECT_APPROVAL_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        let request: Self =
+            serde_json::from_slice(bytes).map_err(|_| EffectBindingError::Invalid)?;
+        if request.to_private_bytes()?.as_slice() != bytes {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(request)
+    }
+
     fn validate(&self) -> Result<(), EffectBindingError> {
         if self.schema != APPROVAL_SCHEMA {
             return Err(EffectBindingError::Unsupported);
@@ -685,6 +792,13 @@ pub struct ApprovedEffect {
 }
 
 impl ApprovedEffect {
+    pub(crate) fn command(&self) -> &VerifiedCommand {
+        &self.effect.command
+    }
+
+    pub(crate) fn connection(&self) -> &ConnectionRecord {
+        &self.effect.connection
+    }
     /// Immutable effect reviewed by the approver.
     #[must_use]
     pub const fn effect(&self) -> &BoundEffect {
@@ -831,6 +945,7 @@ fn bind_mutation(
     Ok(BoundEffect {
         binding,
         command,
+        connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
     })

@@ -167,6 +167,31 @@ mod unix {
             #[arg(long)]
             approver_public_key: String,
         },
+        /// Private native review of the installed exact effect, with a bounded
+        /// signing request. Does not lease credentials or enter provider transport.
+        EffectReview {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            not_before: u64,
+            #[arg(long)]
+            expires_at: u64,
+            /// New absolute owner-private file for the canonical signing request.
+            #[arg(long)]
+            request_out: PathBuf,
+        },
+        /// Attach an external reviewer's Ed25519 signature to native signing
+        /// data. Submission still verifies installed trust, binding and time.
+        EffectApproval {
+            #[arg(long)]
+            request: PathBuf,
+            #[arg(long)]
+            signature_hex: String,
+        },
         /// Operator-only install; credential bytes enter through stdin. The
         /// first host inserts the shared connection record; each further host
         /// joins it with `--join` and the same secret.
@@ -336,6 +361,9 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+            /// Canonical native exact-effect approval from the authorized reviewer.
+            #[arg(long)]
+            approval: PathBuf,
         },
         /// Ask the private operator socket to disable new writes in every
         /// process sharing the store.
@@ -414,6 +442,9 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+            /// Canonical native exact-effect approval from the authorized reviewer.
+            #[arg(long)]
+            approval: PathBuf,
             /// Optional new owner-private file of bounded, secret-free counter
             /// snapshots. Read-only diagnostics; never a remote effect claim.
             #[arg(long)]
@@ -2776,15 +2807,16 @@ mod unix {
         engine: &GatewayEngine,
         proof: &[u8],
         action: &[u8],
+        approval: auths_gateway::effect::ExactEffectApproval,
         witness_file: Option<&Path>,
         before: &auths_gateway::GatewayExecutionWitness,
     ) -> Result<(GatewaySubmitResult, Option<&'static str>), Failure> {
         let Some(path) = witness_file else {
-            return Ok((session.submit(proof, action).await, None));
+            return Ok((session.submit(proof, action, approval).await, None));
         };
         let mut witness = CommissioningWitnessFile::open(path)?;
         witness.record(before.clone())?;
-        let submission = session.submit(proof, action);
+        let submission = session.submit(proof, action, approval);
         tokio::pin!(submission);
         let mut interval = tokio::time::interval(Duration::from_millis(10));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -2808,7 +2840,7 @@ mod unix {
     /// Direct operator process; ordinary application handlers never call this.
     async fn commissioning(
         options: &CommissioningOptions,
-        command: Option<(&Path, &Path)>,
+        command: Option<(&Path, &Path, &Path)>,
         witness_file: Option<&Path>,
     ) -> Result<(), Failure> {
         use auths_recipe_qualification::{
@@ -2861,7 +2893,8 @@ mod unix {
                     "{{\"outcome\":\"commissioning-registered\",\"qualification\":\"required\"}}"
                 );
             }
-            Some((proof, action)) => {
+            Some((proof, action, approval)) => {
+                let approval = read_effect_approval(approval)?;
                 let proof = read_bounded(proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(action, 64 * 1024)?;
                 let before = engine.execution_witness();
@@ -2870,6 +2903,7 @@ mod unix {
                     &engine,
                     &proof,
                     &action,
+                    approval,
                     witness_file,
                     &before,
                 )
@@ -2893,13 +2927,85 @@ mod unix {
         Ok(())
     }
 
-    async fn submit(socket: PathBuf, proof: PathBuf, action: PathBuf) -> Result<(), Failure> {
+    fn read_effect_approval(
+        path: &Path,
+    ) -> Result<auths_gateway::effect::ExactEffectApproval, &'static str> {
+        let bytes = read_bounded(path, auths_gateway::effect::MAX_EFFECT_APPROVAL_BYTES)?;
+        auths_gateway::effect::ExactEffectApproval::from_private_bytes(&bytes)
+            .map_err(|_| "gateway.effect.approval")
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn effect_review(
+        state_dir: PathBuf,
+        proof: PathBuf,
+        action: PathBuf,
+        not_before: u64,
+        expires_at: u64,
+        request_out: PathBuf,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        if !request_out.is_absolute() {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
+            .await
+            .map_err(|_| "gateway.effect.unavailable")??;
+        let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&action, 64 * 1024)?;
+        let effect = engine
+            .compile_effect(&proof, &action)
+            .await
+            .map_err(|_| "gateway.effect.review-refused")?;
+        let request = effect
+            .approval_request(not_before, expires_at)
+            .map_err(|_| "gateway.effect.approval")?;
+        let review = effect
+            .private_review()
+            .map_err(|_| "gateway.effect.review-refused")?;
+        let signing_message = request
+            .signing_message()
+            .map_err(|_| "gateway.effect.approval")?;
+        let output = Zeroizing::new(
+            serde_json_canonicalizer::to_vec(&serde_json::json!({
+                "schema": "auths.private-effect-signing/1",
+                "review": review,
+                "approval_request": request,
+                "signing_message_hex": hex::encode(signing_message),
+            }))
+            .map_err(|_| "gateway.output")?,
+        );
+        if output.len() > auths_gateway::effect::MAX_PRIVATE_EFFECT_REVIEW_BYTES {
+            return Err("gateway.effect.review-refused".into());
+        }
+        private_file(
+            &request_out,
+            &request
+                .to_private_bytes()
+                .map_err(|_| "gateway.effect.approval")?,
+        )?;
+        std::io::stdout()
+            .write_all(&output)
+            .map_err(|_| "gateway.output")?;
+        Ok(())
+    }
+
+    async fn submit(
+        socket: PathBuf,
+        proof: PathBuf,
+        action: PathBuf,
+        approval: PathBuf,
+    ) -> Result<(), Failure> {
+        let approval = read_effect_approval(&approval)?
+            .to_private_bytes()
+            .map_err(|_| "gateway.effect.approval")?;
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
         let request = AppSubmission {
             schema: APP_REQUEST_SCHEMA.to_owned(),
             proof_b64: Base64UrlUnpadded::encode_string(&proof),
             action_b64: Base64UrlUnpadded::encode_string(&action),
+            approval_b64: Base64UrlUnpadded::encode_string(&approval),
         };
         let bytes = serde_json::to_vec(&request).map_err(|_| "gateway.submit.encoding-failed")?;
         let mut stream = connect_app_socket(&socket, "gateway.submit.socket-unavailable").await?;
@@ -3563,6 +3669,45 @@ mod unix {
     )]
     pub async fn run() -> Result<(), Failure> {
         match Cli::parse().command {
+            Command::EffectReview {
+                state_dir,
+                proof,
+                action,
+                not_before,
+                expires_at,
+                request_out,
+            } => {
+                effect_review(
+                    state_dir,
+                    proof,
+                    action,
+                    not_before,
+                    expires_at,
+                    request_out,
+                )
+                .await
+            }
+            Command::EffectApproval {
+                request,
+                signature_hex,
+            } => {
+                let bytes =
+                    read_bounded(&request, auths_gateway::effect::MAX_EFFECT_APPROVAL_BYTES)?;
+                let request =
+                    auths_gateway::effect::EffectApprovalRequest::from_private_bytes(&bytes)
+                        .map_err(|_| "gateway.effect.approval")?;
+                let mut signature = [0_u8; 64];
+                hex::decode_to_slice(signature_hex, &mut signature)
+                    .map_err(|_| "gateway.effect.approval")?;
+                let approval = request
+                    .with_signature(signature)
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.approval")?;
+                std::io::stdout()
+                    .write_all(&approval)
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
             Command::EffectPolicy {
                 partition,
                 epoch,
@@ -3708,8 +3853,16 @@ mod unix {
                 session,
                 proof,
                 action,
+                approval,
                 witness_file,
-            } => commissioning(&session, Some((&proof, &action)), witness_file.as_deref()).await,
+            } => {
+                commissioning(
+                    &session,
+                    Some((&proof, &action, &approval)),
+                    witness_file.as_deref(),
+                )
+                .await
+            }
             #[cfg(feature = "loopback-provider")]
             Command::Serve {
                 state_dir,
@@ -3788,7 +3941,8 @@ mod unix {
                 app_socket,
                 proof,
                 action,
-            } => submit(app_socket, proof, action).await,
+                approval,
+            } => submit(app_socket, proof, action, approval).await,
             Command::Disable {
                 state_dir,
                 admin_socket,

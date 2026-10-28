@@ -295,7 +295,7 @@ def runtime_info() -> RuntimeInfo:
         1,
         digest,
         native == 2,
-        ("auths.gateway-submit/1",),
+        ("auths.gateway-submit/2",),
         (),
         ("verification", "identity", "gateway.client-v1"),
         () if native == 2 else ("native ABI mismatch",),

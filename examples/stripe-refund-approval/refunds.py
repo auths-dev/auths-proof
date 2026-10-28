@@ -610,7 +610,9 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
     )
     proof = collection.assemble(action)
     gateway = GatewayClient(GatewayEndpoint(args.socket.resolve()))
-    result = await gateway.submit(proof=proof, action=proposal.action)
+    with args.effect_approval.open("rb") as approval_file:
+        approval = approval_file.read(4097)
+    result = await gateway.submit(proof=proof, action=proposal.action, approval=approval)
     record.update(dataclasses.asdict(result))
     record["decided_by"] = "gateway"
     observation = await gateway.observe_outcome(args.operation_id)
@@ -693,6 +695,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     submit = commands.add_parser("submit", help="collect the responses and submit through the gateway")
     submit.add_argument("--state", type=Path, required=True)
     submit.add_argument("--socket", type=Path, required=True)
+    submit.add_argument("--effect-approval", type=Path, required=True, help="native exact-effect approval")
     submit.add_argument("--operation-id", required=True)
     submit.add_argument("--responses", type=Path, required=True, help="directory of *.response files")
     bundle = commands.add_parser("export", help="write the audit bundle")

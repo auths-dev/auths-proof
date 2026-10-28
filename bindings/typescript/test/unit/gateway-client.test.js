@@ -28,12 +28,14 @@ test("gateway client submits proof/action only and separates observed from effec
     const result = await new GatewayClient(new GatewayEndpoint(path)).submit({
       proof: new Uint8Array([1, 2]),
       action: new Uint8Array([3, 4]),
+      approval: new Uint8Array([5, 6]),
     });
     assert.deepEqual(result, { outcome: "observed", status: 200, matched: true });
     assert.deepEqual(seen, [{
-      schema: "auths.gateway-submit/1",
+      schema: "auths.gateway-submit/2",
       proof_b64: "AQI",
       action_b64: "AwQ",
+      approval_b64: "BQY",
     }]);
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -73,6 +75,7 @@ test("gateway connect failure names the path and the cause", { skip: process.pla
       new GatewayClient(new GatewayEndpoint(path)).submit({
         proof: new Uint8Array([1]),
         action: new Uint8Array([2]),
+      approval: new Uint8Array([3]),
       }),
       (error) => error instanceof GatewayProtocolError && error.message.includes(path) && error.message.includes("ENOENT"),
     );
@@ -101,6 +104,7 @@ async function replyOnce(reply) {
     return await new GatewayClient(new GatewayEndpoint(path)).submit({
       proof: new Uint8Array([1]),
       action: new Uint8Array([2]),
+      approval: new Uint8Array([3]),
     });
   } finally {
     await new Promise((resolve) => server.close(resolve));

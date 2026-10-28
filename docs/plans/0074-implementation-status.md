@@ -53,9 +53,10 @@ No stage is complete merely because types, documentation or a happy path exist.
   is compilation, canonical round-trip and exact approval, not A01 completion.
   This local run constructs the required canonical artifact; it is not a broad
   pre-push verification run. No hosted workflows observed or formal gates run.
-- Existing submission still uses the baseline path. P1 is not closed until the
-  installed review/approval/admission path replaces it. No new effect can yet be
-  submitted, and the new sealed compilation API grants no execution authority.
+- Initially the new effect module was not connected to submission. The installed
+  approval cutover below now replaces that proof/action-only interface. P1 is
+  still open for review completeness, full binding persistence and integration
+  evidence; the existing reservation/entry lifecycle has not been replaced yet.
 - Added entry validation over the retained original proof/action. It re-runs the
   full verifier, compares the complete newly compiled binding, and checks the
   original human approval at the supplied transaction time. The installed exact
@@ -87,6 +88,28 @@ No stage is complete merely because types, documentation or a happy path exist.
   journey requires `AUTHS_QUALIFICATION_EFFECT_POLICY` before infrastructure or
   provider work. Live approval-channel integration remains pending; no synthetic
   approver is installed implicitly into a live journey.
+- The installed mutation and commissioning APIs now require native exact effect
+  approval. The shared driver owns `ApprovedEffect`, accesses its single sealed
+  command, and revalidates original proof/approval against prepared configuration
+  before claim and before send. Its clock now uses the existing deployment clock.
+  These checks are not a transaction fence. Full binding is not yet persisted in
+  the attempt journal; ancillary reads and replay observation still need their
+  separately authorized acquisition/recovery cutover.
+- Application socket `/2` requires bounded canonical approval bytes; `/1` and
+  missing approvals are rejected. Python/TypeScript wrappers carry those native
+  bytes without hashing or signing. Private `effect-review` and `effect-approval`
+  CLI commands expose native review/signing data and canonical envelope assembly.
+  Source tests cover obsolete/missing/oversized frames and installed wrong-signer
+  or expired approval with zero custody/transport calls; these tests are authored,
+  not executed. Test-only post-verification driver oracles use explicitly synthetic
+  approvals and establish no human or installed-authority claim.
+- The targeted native generator passed while constructing the `/2` frame and
+  `effect-approval-request.json`. Running the native CLI to construct
+  `effect-approval.json` succeeded and its bytes equal the native signed corpus.
+  This artifact construction also compiled the gateway binary. No broad local
+  suite or hosted workflow was run/observed. Installed binding journeys, example
+  proof preparation/review, qualification consumers and semantic closure/formal
+  regeneration still require updates for the new approval round trip.
 
 ## Immediate implementation continuation
 
@@ -98,11 +121,13 @@ claiming new executed evidence. The existing review and revalidation APIs do
 not yet meet review-completeness or transactional-fencing gates. The adapter
 mechanism remains an explicit open decision in ADR 0017 before P2 cutover.
 
-1. Complete the installed policy and IPC review/approve/submit cutover. The new
-   `effect` module currently owns native compile/approve/revalidate operations,
-   but `GatewayEngine::submit`, `SubmitIo`, the application socket and clients
-   still use the baseline proof/action submission. Replace that path with the
-   approved effect; do not leave a bypass or an optional compatibility mode.
+1. Complete the versioned semantic review contract and full operator review round
+   trip in maintained consumers. Installed submit and commissioning now require
+   exact approval, but the native raw review projection does not yet establish
+   the newly required mandatory-field presentation contract. Update installed
+   binding tests and example/qualification authoring so original proof bytes are
+   preserved from review through submission; never synthesize human approval in
+   an ordinary application wrapper.
 2. Store the complete immutable binding in the existing attempt journal, with
    replay keyed independently of the effect digest. Reuse the approved effect's
    single owned command for send and reporting; reject changed binding as conflict.
@@ -117,10 +142,12 @@ mechanism remains an explicit open decision in ADR 0017 before P2 cutover.
    source stabilizes. Required hosted workflows have deliberately not been
    observed yet. The draft's current CI is not completion evidence.
 
-The native artifact-generation run last passed for `c75e16ba` plus the installed
-policy source/fixture changes recorded above. It covers native compilation,
-canonical policy/binding, private review and exact approval/revalidation, not
-installed transport or transactional admission. All unfulfilled AP074 gates
+The native artifact-generation run last passed for `7c79532a` plus the installed
+approval and native signing/frame fixture changes recorded above. CLI canonical
+envelope generation then passed against that same native corpus. These cover
+compilation, canonical policy/binding, private review and exact approval data,
+not installed transport or transactional admission. Subsequent refusal tests
+and input-zeroization edits are source-authored only. All unfulfilled AP074 gates
 remain open, and the goal remains active.
 
 ## Phase gates

@@ -207,8 +207,21 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         Some(self.clock.load(Ordering::SeqCst))
     }
 
-    fn verify(&self, _now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        self.verified.clone()
+    fn verify(&self, now: u64) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
+        crate::effect::approve_driver_fixture(self.verified.clone()?, now, None)
+    }
+
+    fn revalidate(
+        &self,
+        effect: &crate::effect::ApprovedEffect,
+        now: u64,
+    ) -> Result<(), GatewaySubmitResult> {
+        let public = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+            .verifying_key()
+            .to_bytes();
+        effect
+            .validate_approval(&public, now)
+            .map_err(|_| crate::engine::not_entered("test.effect.approval"))
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {

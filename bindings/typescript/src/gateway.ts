@@ -1,5 +1,5 @@
 /**
- * Proof/action-only client for a separately operated local Auths gateway. It can also
+ * Proof/action/exact-approval client for a separately operated local Auths gateway. It can also
  * ask the gateway for one read-only signed observation to attach to a later action, or
  * for the signed pre-entry observations stored for one operation.
  */
@@ -7,7 +7,7 @@
 import { createConnection } from "node:net";
 import { platform } from "node:os";
 
-const REQUEST_SCHEMA = "auths.gateway-submit/1";
+const REQUEST_SCHEMA = "auths.gateway-submit/2";
 const OBSERVE_SCHEMA = "auths.gateway-observe/2";
 const READ_BACK_SCHEMA = "auths.gateway-readback/1";
 const OUTCOME_SCHEMA = "auths.gateway-outcome/2";
@@ -18,6 +18,7 @@ const MAX_READ_BACK_ARGUMENTS = 16;
 const MAX_ARGUMENT_BYTES = 128;
 const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES = 64 * 1024;
+const MAX_APPROVAL_BYTES = 4_096;
 const MAX_PRE_ENTRY_OBSERVATIONS = 4;
 // Room for four maximal pre-entry observations in one base64url response.
 const MAX_RESPONSE_BYTES = 32 * 1024;
@@ -371,17 +372,21 @@ export class GatewayClient {
     this.#endpoint = endpoint;
   }
 
-  async submit(input: Readonly<{ proof: Uint8Array; action: Uint8Array }>): Promise<GatewayResult> {
+  async submit(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<GatewayResult> {
     if (!(input.proof instanceof Uint8Array) || input.proof.length < 1 || input.proof.length > MAX_PROOF_BYTES) {
       throw new TypeError("proof must be bounded bytes");
     }
     if (!(input.action instanceof Uint8Array) || input.action.length < 1 || input.action.length > MAX_ACTION_BYTES) {
       throw new TypeError("action must be bounded bytes");
     }
+    if (!(input.approval instanceof Uint8Array) || input.approval.length < 1 || input.approval.length > MAX_APPROVAL_BYTES) {
+      throw new TypeError("approval must be bounded native canonical bytes");
+    }
     const payload = new TextEncoder().encode(JSON.stringify({
       schema: REQUEST_SCHEMA,
       proof_b64: encodeBase64Url(input.proof),
       action_b64: encodeBase64Url(input.action),
+      approval_b64: encodeBase64Url(input.approval),
     }));
     return this.#exchange(payload, "outcome may be unknown", parseResult);
   }

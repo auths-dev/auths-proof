@@ -3,6 +3,7 @@
 //! submission or an observation request; anything else is refused without
 //! reaching the application.
 
+use crate::effect::{ExactEffectApproval, MAX_EFFECT_APPROVAL_BYTES};
 use crate::{GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
@@ -12,9 +13,10 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::UnixStream;
 use tokio::time::{Instant, sleep_until, timeout_at};
+use zeroize::{Zeroize as _, Zeroizing};
 
 /// Schema of a proof/action submission frame.
-pub const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/1";
+pub const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/2";
 /// Schema of an observation request frame.
 pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/2";
 /// Largest frame either side accepts.
@@ -133,6 +135,16 @@ pub struct AppSubmission {
     pub proof_b64: String,
     /// Canonical action bytes, unpadded base64url.
     pub action_b64: String,
+    /// Native canonical exact-effect approval, unpadded base64url.
+    pub approval_b64: String,
+}
+
+impl Drop for AppSubmission {
+    fn drop(&mut self) {
+        self.proof_b64.zeroize();
+        self.action_b64.zeroize();
+        self.approval_b64.zeroize();
+    }
 }
 
 /// An observation request frame.
@@ -171,7 +183,12 @@ pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
 /// harness that follows the same dispatch against a counting provider.
 pub trait GatewayApplication {
     /// Verifies and attempts one exact action.
-    fn submit(&self, proof: &[u8], action: &[u8]) -> impl Future<Output = GatewaySubmitResult>;
+    fn submit(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> impl Future<Output = GatewaySubmitResult>;
 
     /// Signs one read-only observation.
     fn observe(
@@ -181,8 +198,13 @@ pub trait GatewayApplication {
 }
 
 impl GatewayApplication for GatewayEngine {
-    async fn submit(&self, proof: &[u8], action: &[u8]) -> GatewaySubmitResult {
-        GatewayEngine::submit(self, proof, action).await
+    async fn submit(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> GatewaySubmitResult {
+        GatewayEngine::submit(self, proof, action, approval).await
     }
 
     async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
@@ -236,12 +258,20 @@ fn invalid_frame() -> GatewaySubmitResult {
 }
 
 async fn submit_frame(submission: AppSubmission, application: &impl GatewayApplication) -> Vec<u8> {
-    let result = if submission.schema == APP_REQUEST_SCHEMA {
+    let result = if submission.schema == APP_REQUEST_SCHEMA
+        && submission.approval_b64.len() <= (MAX_EFFECT_APPROVAL_BYTES * 4).div_ceil(3)
+    {
         match (
-            Base64UrlUnpadded::decode_vec(&submission.proof_b64),
-            Base64UrlUnpadded::decode_vec(&submission.action_b64),
+            Base64UrlUnpadded::decode_vec(&submission.proof_b64).map(Zeroizing::new),
+            Base64UrlUnpadded::decode_vec(&submission.action_b64).map(Zeroizing::new),
+            Base64UrlUnpadded::decode_vec(&submission.approval_b64)
+                .ok()
+                .map(Zeroizing::new)
+                .and_then(|bytes| ExactEffectApproval::from_private_bytes(&bytes).ok()),
         ) {
-            (Ok(proof), Ok(action)) => application.submit(&proof, &action).await,
+            (Ok(proof), Ok(action), Some(approval)) => {
+                application.submit(&proof, &action, approval).await
+            }
             _ => GatewaySubmitResult::Indeterminate {
                 code: "gateway.submit.invalid-encoding".to_owned(),
             },
@@ -327,7 +357,12 @@ mod tests {
     }
 
     impl GatewayApplication for HeldApplication {
-        async fn submit(&self, _proof: &[u8], _action: &[u8]) -> GatewaySubmitResult {
+        async fn submit(
+            &self,
+            _proof: &[u8],
+            _action: &[u8],
+            _approval: ExactEffectApproval,
+        ) -> GatewaySubmitResult {
             self.release.notified().await;
             self.finished.store(true, Ordering::SeqCst);
             GatewaySubmitResult::Indeterminate {
@@ -343,12 +378,48 @@ mod tests {
     }
 
     fn submission() -> Vec<u8> {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../bindings/fixtures/gateway/effect-binding.json"
+        ))
+        .expect("native fixture");
+        let approval = fixture["approval_canonical"].as_str().expect("approval");
         serde_json::to_vec(&serde_json::json!({
             "schema": APP_REQUEST_SCHEMA,
             "proof_b64": "AA",
-            "action_b64": "AA"
+            "action_b64": "AA",
+            "approval_b64": Base64UrlUnpadded::encode_string(approval.as_bytes())
         }))
         .expect("submission frame")
+    }
+
+    #[tokio::test]
+    async fn obsolete_missing_and_oversized_approval_frames_do_not_dispatch() {
+        let valid: serde_json::Value = serde_json::from_slice(&submission()).expect("frame");
+        let mut missing = valid.clone();
+        missing
+            .as_object_mut()
+            .expect("object")
+            .remove("approval_b64");
+        assert!(serde_json::from_value::<AppFrame>(missing).is_err());
+        for (field, value) in [
+            ("schema", "auths.gateway-submit/1".to_owned()),
+            ("approval_b64", "x".repeat(MAX_EFFECT_APPROVAL_BYTES * 2)),
+            ("approval_b64", "not+base64url".to_owned()),
+        ] {
+            let mut changed = valid.clone();
+            changed[field] = serde_json::Value::String(value);
+            let frame: AppSubmission = serde_json::from_value(changed).expect("typed frame");
+            let application = HeldApplication::new(1);
+            let output = tokio::time::timeout(
+                Duration::from_millis(100),
+                submit_frame(frame, application.as_ref()),
+            )
+            .await
+            .expect("refusal without dispatch");
+            let result: GatewaySubmitResult = serde_json::from_slice(&output).expect("result");
+            assert!(matches!(result, GatewaySubmitResult::Indeterminate { .. }));
+            assert!(!application.finished.load(Ordering::SeqCst));
+        }
     }
 
     const SHORT: SessionLimits = SessionLimits {

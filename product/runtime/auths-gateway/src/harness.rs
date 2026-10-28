@@ -717,6 +717,7 @@ struct HarnessIo<'a> {
     proof: &'a [u8],
     action: &'a [u8],
     now: u64,
+    approval: Option<crate::effect::ExactEffectApproval>,
 }
 
 impl SubmitIo for HarnessIo<'_> {
@@ -726,14 +727,28 @@ impl SubmitIo for HarnessIo<'_> {
         Some(self.now)
     }
 
-    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        verify_detailed(
+    fn verify(&self, now: u64) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
+        let command = verify_detailed(
             &self.harness.recipe,
             &self.harness.context,
             now,
             self.proof,
             self.action,
-        )
+        )?;
+        crate::effect::approve_driver_fixture(command, now, self.approval.clone())
+    }
+
+    fn revalidate(
+        &self,
+        effect: &crate::effect::ApprovedEffect,
+        now: u64,
+    ) -> Result<(), GatewaySubmitResult> {
+        let public = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+            .verifying_key()
+            .to_bytes();
+        effect
+            .validate_approval(&public, now)
+            .map_err(|_| crate::engine::not_entered("test.effect.approval"))
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
@@ -867,6 +882,16 @@ impl Harness {
         action: &[u8],
         now: u64,
     ) -> GatewaySubmitResult {
+        self.submit_with_approval(proof, action, now, None).await
+    }
+
+    async fn submit_with_approval(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        now: u64,
+        approval: Option<crate::effect::ExactEffectApproval>,
+    ) -> GatewaySubmitResult {
         crate::submit::run(
             &SubmitContext {
                 recipe: &self.recipe,
@@ -879,6 +904,7 @@ impl Harness {
                 proof,
                 action,
                 now,
+                approval,
             },
         )
         .await
@@ -1001,9 +1027,19 @@ mod process {
     }
 
     impl GatewayApplication for Application {
-        async fn submit(&self, proof: &[u8], action: &[u8]) -> GatewaySubmitResult {
+        async fn submit(
+            &self,
+            proof: &[u8],
+            action: &[u8],
+            approval: crate::effect::ExactEffectApproval,
+        ) -> GatewaySubmitResult {
             self.harness
-                .submit(proof, action, self.clock.load(Ordering::SeqCst))
+                .submit_with_approval(
+                    proof,
+                    action,
+                    self.clock.load(Ordering::SeqCst),
+                    Some(approval),
+                )
                 .await
         }
 

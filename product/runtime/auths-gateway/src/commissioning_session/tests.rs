@@ -233,11 +233,24 @@ fn signed(
     QualificationCommissioningPermit::from_body(&body).expect("signed synthetic permit")
 }
 
-fn io<'a>(setup: &'a Setup, session: Option<&'a CommissioningSession<'a>>) -> EngineIo<'a> {
+async fn io<'a>(setup: &'a Setup, session: Option<&'a CommissioningSession<'a>>) -> EngineIo<'a> {
+    let effect = setup
+        .engine()
+        .compile_effect(&setup.proof, &setup.action)
+        .await
+        .expect("native bound effect");
+    let key = SigningKey::from_bytes(&[29; 32]);
+    let public = key.verifying_key().to_bytes();
+    let request = effect.approval_request(NOW, NOW + 3_600).expect("review");
+    let signature = key
+        .sign(&request.signing_message().expect("native message"))
+        .to_bytes();
+    let approved = effect
+        .approve(request.with_signature(signature), &public, NOW)
+        .expect("exact approval");
     EngineIo {
         engine: setup.engine(),
-        proof: &setup.proof,
-        action: &setup.action,
+        pending: std::sync::Mutex::new(Some(approved)),
         started: Instant::now(),
         prepared: OnceLock::new(),
         commissioning: session,
@@ -254,7 +267,7 @@ async fn ordinary_submission_cannot_select_commissioning_authority() {
         .commissioning_session(&setup.inputs())
         .expect("operator");
     session.initialize_budget().await.expect("registered");
-    let ordinary = io(&setup, None);
+    let ordinary = io(&setup, None).await;
     ordinary.verify(NOW).expect("native proof");
     assert_eq!(
         ordinary.prepare().await,
@@ -275,6 +288,46 @@ async fn ordinary_submission_cannot_select_commissioning_authority() {
 }
 
 #[tokio::test]
+async fn installed_submission_refuses_wrong_or_expired_exact_approval_before_custody() {
+    let setup = Setup::new().await;
+    for expired in [false, true] {
+        let effect = setup
+            .engine()
+            .compile_effect(&setup.proof, &setup.action)
+            .await
+            .expect("native effect");
+        let (not_before, expires_at) = if expired {
+            (NOW - 60, NOW)
+        } else {
+            (NOW, NOW + 60)
+        };
+        let request = effect
+            .approval_request(not_before, expires_at)
+            .expect("review");
+        // Expiry case has the actual installed signer. The other case has a
+        // valid signature from a different key and must fail independently.
+        let key = SigningKey::from_bytes(&[if expired { 29 } else { 30 }; 32]);
+        let signature = key
+            .sign(&request.signing_message().expect("message"))
+            .to_bytes();
+        let result = setup
+            .engine()
+            .submit(
+                &setup.proof,
+                &setup.action,
+                request.with_signature(signature),
+            )
+            .await;
+        assert_eq!(result, super::super::not_entered("gateway.effect.approval"));
+        assert_eq!(setup.leases(), 0);
+        let witness = setup.engine().execution_witness();
+        assert_eq!(witness.credential_lease_calls, 0);
+        assert_eq!(witness.write_transport_entries, 0);
+        assert_eq!(witness.read_transport_entries, 0);
+    }
+}
+
+#[tokio::test]
 async fn exact_native_actor_and_action_require_a_durable_unit_before_custody() {
     let setup = Setup::new().await;
     let session = setup
@@ -282,7 +335,7 @@ async fn exact_native_actor_and_action_require_a_durable_unit_before_custody() {
         .commissioning_session(&setup.inputs())
         .expect("operator");
     session.initialize_budget().await.expect("registered");
-    let commissioned = io(&setup, Some(&session));
+    let commissioned = io(&setup, Some(&session)).await;
     commissioned.verify(NOW).expect("exact native actor/action");
     commissioned
         .prepare()
@@ -321,7 +374,7 @@ async fn absent_registration_and_expiry_after_preparation_never_lease() {
         if initialized {
             session.initialize_budget().await.expect("registered");
         }
-        let commissioned = io(&setup, Some(&session));
+        let commissioned = io(&setup, Some(&session)).await;
         commissioned.verify(NOW).expect("native proof");
         commissioned.prepare().await.expect("prepared");
         if initialized {
@@ -349,7 +402,7 @@ async fn another_signed_actor_or_action_is_refused_before_custody() {
             .commissioning_session(&setup.inputs())
             .expect("operator");
         session.initialize_budget().await.expect("registered");
-        let commissioned = io(&setup, Some(&session));
+        let commissioned = io(&setup, Some(&session)).await;
         assert_eq!(
             commissioned.verify(NOW).map(|_| ()),
             Err(super::super::not_entered(
@@ -403,7 +456,7 @@ async fn execution_witness_measures_custody_calls_even_when_a_charged_call_fails
         .commissioning_session(&setup.inputs())
         .expect("operator");
     session.initialize_budget().await.expect("registered");
-    let commissioned = io(&setup, Some(&session));
+    let commissioned = io(&setup, Some(&session)).await;
     commissioned.verify(NOW).expect("native exact actor");
     commissioned
         .prepare()

@@ -113,13 +113,27 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
             .contains("private-sentinel")
     );
     assert!(!format!("{effect:?}").contains("private-sentinel"));
-    let review = effect
-        .approval_request(public, NOW, NOW + 30)
-        .expect("review");
+    let review = effect.approval_request(NOW, NOW + 30).expect("review");
     let signature = key
         .sign(&review.signing_message().expect("native message"))
         .to_bytes();
+    let signing_request = review
+        .to_private_bytes()
+        .expect("canonical signing request");
+    assert_eq!(
+        crate::effect::EffectApprovalRequest::from_private_bytes(&signing_request)
+            .expect("signing data"),
+        review
+    );
     let approval = review.with_signature(signature);
+    let frame = crate::app::AppSubmission {
+        schema: crate::app::APP_REQUEST_SCHEMA.to_owned(),
+        proof_b64: base64ct::Base64UrlUnpadded::encode_string(&submission.proof),
+        action_b64: base64ct::Base64UrlUnpadded::encode_string(&submission.action),
+        approval_b64: base64ct::Base64UrlUnpadded::encode_string(
+            &approval.to_private_bytes().expect("approval"),
+        ),
+    };
     let fixture = serde_json::to_vec_pretty(&json!({
         "schema": "auths.effect-fixture/1",
         "scope": "native compilation and exact approval; no entry or durability claim",
@@ -132,17 +146,24 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         "request_body": std::str::from_utf8(expected.body()).expect("request UTF-8"),
         "evaluated_at": NOW,
         "approval_expires_at": NOW + 30,
+        "submission_frame_canonical": String::from_utf8(serde_json_canonicalizer::to_vec(&frame).expect("native frame")).expect("UTF-8"),
     })).expect("fixture JSON");
     let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/effect-binding.json");
     let policy_path = fixture_path.with_file_name("effect-policy.json");
+    let request_path = fixture_path.with_file_name("effect-approval-request.json");
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").as_deref() == Some(std::ffi::OsStr::new("1")) {
         std::fs::write(&fixture_path, &fixture).expect("write native fixture");
         std::fs::write(&policy_path, &policy_bytes).expect("write native policy fixture");
+        std::fs::write(&request_path, &signing_request).expect("write native signing fixture");
     }
     assert_eq!(
         std::fs::read(&policy_path).expect("policy fixture"),
         *policy_bytes
+    );
+    assert_eq!(
+        std::fs::read(&request_path).expect("signing fixture"),
+        *signing_request
     );
     assert_eq!(
         std::fs::read(&fixture_path).expect("native fixture"),
@@ -157,7 +178,7 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     assert!(approved.validate_for_entry(&installed, NOW + 29).is_ok());
     assert!(approved.validate_for_entry(&installed, NOW + 30).is_err());
     let late_request = later
-        .approval_request(public, NOW + 3_570, NOW + 3_605)
+        .approval_request(NOW + 3_570, NOW + 3_605)
         .expect("approval spanning native action expiry");
     let late_signature = key
         .sign(&late_request.signing_message().expect("message"))

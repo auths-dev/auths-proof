@@ -9,6 +9,7 @@
 //! installed transport and credential store; the tests supply a counting
 //! provider double through the same driver.
 
+use crate::effect::ApprovedEffect;
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, replay_refused};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
 use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
@@ -46,7 +47,11 @@ pub(crate) trait SubmitIo {
     fn clock(&self) -> Option<u64>;
 
     /// Verifies natively at `now` and projects the verified command.
-    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult>;
+    fn verify(&self, now: u64) -> Result<ApprovedEffect, GatewaySubmitResult>;
+
+    /// Revalidates the retained original authority and approval against the
+    /// prepared installation. This is still separate from the durable fence.
+    fn revalidate(&self, effect: &ApprovedEffect, now: u64) -> Result<(), GatewaySubmitResult>;
 
     /// Checks that every link's scope lists the verified account-scope
     /// value.
@@ -232,7 +237,7 @@ struct Run<'a, I: SubmitIo> {
     guard: Option<GuardChecks>,
     ceiling: Option<CeilingCheck>,
     evaluated_at: u64,
-    verified: Option<VerifiedCommand>,
+    verified: Option<ApprovedEffect>,
     selected: Vec<SelectedRequirement>,
     claim: Option<ClaimedGatewayAttempt>,
     observable: Option<ObservableGatewayAttempt>,
@@ -341,7 +346,7 @@ impl<I: SubmitIo> Run<'_, I> {
             SubmitAction::Verify => SubmitEvent::Verification(self.verify()),
             SubmitAction::Admit => SubmitEvent::Admission(self.admit()),
             SubmitAction::BindScope => {
-                let bound = match &self.verified {
+                let bound = match self.verified.as_ref().map(ApprovedEffect::command) {
                     Some(verified) => self.io.bind_scope(verified),
                     None => Err("gateway.attempt.unavailable"),
                 };
@@ -355,7 +360,8 @@ impl<I: SubmitIo> Run<'_, I> {
                 if let Err(code) = prepared {
                     self.refuse_before_claim(not_entered(code));
                 }
-                SubmitEvent::Preparation(prepared.is_ok())
+                let valid = prepared.is_ok() && self.revalidate();
+                SubmitEvent::Preparation(valid)
             }
             SubmitAction::Claim => SubmitEvent::Claim(self.claim().await),
             SubmitAction::Resume => SubmitEvent::Resume(self.resume().await),
@@ -393,9 +399,9 @@ impl<I: SubmitIo> Run<'_, I> {
                 },
                 None => false,
             }),
-            SubmitAction::CheckDeadline => {
-                SubmitEvent::Deadline(self.io.within_entry_deadline(self.evaluated_at))
-            }
+            SubmitAction::CheckDeadline => SubmitEvent::Deadline(
+                self.io.within_entry_deadline(self.evaluated_at) && self.revalidate(),
+            ),
             SubmitAction::Send => SubmitEvent::Write(self.send().await),
             SubmitAction::RecordResponse => {
                 let recorded = self.record_response().await;
@@ -420,14 +426,42 @@ impl<I: SubmitIo> Run<'_, I> {
         }
     }
 
+    fn revalidate(&mut self) -> bool {
+        let (Some(effect), Some(now)) = (self.verified.as_ref(), self.io.clock()) else {
+            self.refuse_before_claim(not_entered("gateway.verify.clock-unavailable"));
+            return false;
+        };
+        match self.io.revalidate(effect, now) {
+            Ok(()) => true,
+            Err(result) => {
+                self.refusal = Some(match &result {
+                    GatewaySubmitResult::NotEntered { code }
+                        if code == "gateway.effect.approval" =>
+                    {
+                        "gateway.effect.approval"
+                    }
+                    GatewaySubmitResult::NotEntered { code }
+                        if code == "gateway.effect.binding-changed" =>
+                    {
+                        "gateway.effect.binding-changed"
+                    }
+                    _ => "gateway.effect.authority-unavailable",
+                });
+                self.refuse_before_claim(result);
+                false
+            }
+        }
+    }
+
     fn verify(&mut self) -> Verification {
-        let verified = match self.io.verify(self.evaluated_at) {
+        let approved = match self.io.verify(self.evaluated_at) {
             Ok(verified) => verified,
             Err(result) => {
                 self.refuse_before_claim(result);
                 return Verification::Refused;
             }
         };
+        let verified = approved.command();
         let argument = match &self.ceiling {
             None => 0,
             Some(ceiling) => {
@@ -438,7 +472,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 argument
             }
         };
-        self.verified = Some(verified);
+        self.verified = Some(approved);
         Verification::Authorized { argument }
     }
 
@@ -446,7 +480,7 @@ impl<I: SubmitIo> Run<'_, I> {
     /// observer check; nothing is stored. The first failing check's code is
     /// the one reported.
     fn admit(&mut self) -> bool {
-        let Some(verified) = &self.verified else {
+        let Some(verified) = self.verified.as_ref().map(ApprovedEffect::command) else {
             return false;
         };
         if let Some(retention) = self.cx.recipe.idempotency_retention()
@@ -500,7 +534,7 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn claim(&mut self) -> ClaimResult {
-        let Some(verified) = &self.verified else {
+        let Some(verified) = self.verified.as_ref().map(ApprovedEffect::command) else {
             return ClaimResult::Unavailable;
         };
         match self
@@ -535,7 +569,7 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn resume(&mut self) -> bool {
-        let Some(verified) = &self.verified else {
+        let Some(verified) = self.verified.as_ref().map(ApprovedEffect::command) else {
             return false;
         };
         match self
@@ -593,7 +627,7 @@ impl<I: SubmitIo> Run<'_, I> {
     async fn pre_entry_read(&mut self) -> PreEntryResult {
         let (Some(lease), Some(verified), Some(observer), Some(pointers)) = (
             &self.lease,
-            &self.verified,
+            self.verified.as_ref().map(ApprovedEffect::command),
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
         ) else {
@@ -637,9 +671,11 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn ceiling_read(&mut self) -> CeilingRead {
-        let (Some(lease), Some(verified), Some(ceiling)) =
-            (&self.lease, &self.verified, &self.ceiling)
-        else {
+        let (Some(lease), Some(verified), Some(ceiling)) = (
+            &self.lease,
+            self.verified.as_ref().map(ApprovedEffect::command),
+            &self.ceiling,
+        ) else {
             return CeilingRead::Unavailable;
         };
         let Some(read) = verified.request.relative_ceiling_read() else {
@@ -674,7 +710,10 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn send(&mut self) -> WriteResult {
-        let (Some(lease), Some(verified)) = (&self.lease, &self.verified) else {
+        let (Some(lease), Some(verified)) = (
+            &self.lease,
+            self.verified.as_ref().map(ApprovedEffect::command),
+        ) else {
             return WriteResult::NotEntered;
         };
         match self.io.write(lease, &verified.request).await {
@@ -693,9 +732,11 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn record_response(&mut self) -> ResponseRecord {
-        let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) =
-            (self.claim.take(), self.written.take(), &self.verified)
-        else {
+        let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) = (
+            self.claim.take(),
+            self.written.take(),
+            self.verified.as_ref().map(ApprovedEffect::command),
+        ) else {
             return ResponseRecord::Failed;
         };
         let locator = verified
@@ -722,6 +763,7 @@ impl<I: SubmitIo> Run<'_, I> {
             return false;
         };
         let code = match refusal {
+            Refusal::EntryDeadline => self.refusal.unwrap_or_else(|| refusal_code(refusal)),
             Refusal::CredentialUnavailable | Refusal::ConnectionChanged => self
                 .io
                 .authority_refusal()
