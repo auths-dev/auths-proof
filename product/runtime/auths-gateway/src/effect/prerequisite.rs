@@ -107,6 +107,11 @@ impl Serialize for ClosedPrerequisiteRead {
 }
 
 impl Prerequisites {
+    /// Disclosure reads only retained evidence and never leases a credential.
+    pub(super) const fn disclosure() -> Self {
+        Self(Vec::new())
+    }
+
     pub(super) fn kinds(&self) -> impl Iterator<Item = PrerequisiteKind> + '_ {
         self.0.iter().map(|declaration| declaration.purpose.kind())
     }

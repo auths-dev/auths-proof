@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-content-journal-fixture/2",
+  "schema": "auths.gateway-content-journal-fixture/3",
   "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
   "permanent_source_attempts": 16,
   "real_http_requests": 15,
@@ -426,6 +426,44 @@
         "response_bytes": null,
         "response_version_ok": null
       }
+    }
+  ],
+  "disclosure_compilation": [
+    {
+      "bytes": 25,
+      "native_release_compiled": true,
+      "read_authority_refused": true,
+      "no_provider_prerequisites": true,
+      "managed_disclosure_count_and_bytes": true,
+      "acquisition_budget_argument_refused": true,
+      "substitutions_refused": [
+        "channel",
+        "instance",
+        "recipient"
+      ],
+      "different_partition_refused": true,
+      "new_operation_retains_capacity_keys": true,
+      "old_approval_refused": true,
+      "exact_ack_validates": true,
+      "scope": "compilation and evidence only; no delivery grant or transport"
+    },
+    {
+      "bytes": 0,
+      "native_release_compiled": true,
+      "read_authority_refused": true,
+      "no_provider_prerequisites": true,
+      "managed_disclosure_count_and_bytes": true,
+      "acquisition_budget_argument_refused": true,
+      "substitutions_refused": [
+        "channel",
+        "instance",
+        "recipient"
+      ],
+      "different_partition_refused": true,
+      "new_operation_retains_capacity_keys": true,
+      "old_approval_refused": true,
+      "exact_ack_validates": true,
+      "scope": "compilation and evidence only; no delivery grant or transport"
     }
   ]
 }

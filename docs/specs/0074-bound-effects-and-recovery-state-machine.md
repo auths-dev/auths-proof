@@ -444,8 +444,39 @@ or new provider permit. Unknown/oversized responses retain their full charges.
 The public acquisition projection reports only `ready { bytes }` or
 `rejected { code }`, never the private key, content digest, hiding commitment or
 plaintext. A ready result grants no disclosure authority. Standalone read-only
-installation, AP070 metadata predicates, native disclosure compilation/entry/
-transport and installed CLI/binding journeys remain required for the cutover.
+installation, AP070 metadata predicates, disclosure entry/transport and installed
+CLI/binding journeys remain required for the cutover.
+
+The journal's sealed `RetainedContent` is private provenance, with no public
+plaintext accessor or deserializer. Loading requires the exact namespace,
+operation and partition and revalidates the content response and MAC. It refuses
+unknown, absent, projection-rejected, foreign-protocol or corrupt source state.
+This historical load does not reuse the source proof or approval as release
+authority, and never refetches content.
+
+The reserved native `auths_gateway_disclosure_v1` action compiles a separate
+`auths.gateway-disclosure/1` contract over that provenance. It binds the source,
+protected commitment, exact projection/length, raw-key Ed25519 recipient,
+channel and delivery instance. The byte ceiling is the exact projected length;
+there is no caller plaintext or truncation override. Recipient/channel values
+are proposed data until independently authenticated at entry. The full original
+connection, recipe, partition and epoch must still match; credential replacement
+is not implicitly accepted. Compilation verifies fresh native release authority,
+selected dependencies and observer separation; native review, exact approval and
+full entry-time recompilation are the existing shared owners. Disclosure has no
+provider credential prerequisites and cannot enter acquisition/mutation APIs.
+
+Disclosure adds the typed `disclosure-count` unit alongside `disclosure-bytes`.
+The fixed source allowance is sixteen deliveries, shared across operation IDs,
+recipients, channels and instances for the retained acquisition. Each declaration
+charges one count and the exact content length; the byte ceiling is sixteen times
+that length (one is used only for the nonzero ceiling representation of empty
+content). Empty delivery charges zero bytes and one count. Selected native policy
+bounds use `maximum_disclosure_bytes`, disjoint disclosure count/byte counter
+domains and the existing bounded tightening/window arithmetic. The thirty-four
+reservation bound is unchanged. These are compiler obligations, not a claim that
+disclosure admission or delivery is already wired. The journal must enforce them
+atomically before issuing any one-use delivery capability.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 

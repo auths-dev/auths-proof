@@ -317,6 +317,10 @@ impl ContentPlan {
         Ok(contract)
     }
 
+    pub(crate) fn private_review(&self) -> Result<Value, EffectBindingError> {
+        self.witness()
+    }
+
     pub(crate) fn projection(
         &self,
     ) -> Result<crate::recipe::ContentProjectionSpec, EffectBindingError> {

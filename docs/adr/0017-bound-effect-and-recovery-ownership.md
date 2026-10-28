@@ -886,3 +886,28 @@ fields and substitution from another valid acquisition with identical content.
 The same pure projection leaf serves compiler-only and durable response paths.
 Disclosure still needs separate native authority, approval, accounting, recipient
 channel authentication and the shared final-entry fence.
+
+## Sealed source and separately authorized disclosure compilation
+
+`GatewayAttempts::retained_content` reconstructs only private provenance after
+normal journal decoding, response projection and constant-time MAC validation.
+No public plaintext accessor, provider read or delivery authority is exposed.
+`DisclosureTarget` fixes recipient raw-key identity, channel and instance over
+that source. Fresh native authorization uses a reserved release tool; exact
+approval and entry-time re-verification use the existing bound-effect owner.
+The old source proof is history, never a release permission.
+
+Count and byte units are explicitly disjoint from acquisition and mutation.
+Sixteen source-lifetime deliveries share capacity regardless of changed operation
+ID, recipient or channel. Empty content remains an actual zero-byte delivery
+with one count. Managed policy bounds use the same arithmetic leaf with closed
+protocol domains; no provider semantic dispatch or new lifecycle is introduced.
+This source/compilation slice does not create a transport or journal grant.
+The shared store must next fence retained source facts, current release authority,
+recipient authentication and these reservations at the unique delivery grant.
+
+The content journal fixture constructs both empty and nonempty sources using
+real local HTTP, then exercises native release compilation, review, fresh exact
+approval, full recompile, managed count/byte declarations, ACK binding and changed
+recipient/channel/instance/partition/operation refusals. It establishes no actual
+delivery, persistent ACK, isolated-agent or PostgreSQL claim.

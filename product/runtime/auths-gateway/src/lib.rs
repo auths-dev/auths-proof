@@ -143,7 +143,7 @@ pub use store::{
     GatewayPreEntry, GatewayProviderEvidence, GatewayRecordEntry, GatewayRecordKind,
     GatewayRecoveryReport, GatewayRelativeBasis, ObservableGatewayAttempt,
     PostgresGatewayAttemptStore, PrivateDirectoryError, RecoveryDisposition, RecoverySnapshot,
-    RecoverySourceFacts, ReservedAcquisition, check_private_directory,
+    RecoverySourceFacts, ReservedAcquisition, RetainedContent, check_private_directory,
     check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{

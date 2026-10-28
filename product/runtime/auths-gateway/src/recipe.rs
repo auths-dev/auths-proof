@@ -545,6 +545,7 @@ impl CompiledRecipe {
                 crate::effect::RECOVERY_READ_TOOL
                     | crate::effect::CANDIDATE_CHECK_TOOL
                     | crate::effect::CONTENT_READ_TOOL
+                    | crate::effect::DISCLOSURE_TOOL
             )
         {
             return Err(GatewayRecipeError::InvalidSource);

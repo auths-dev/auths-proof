@@ -1211,6 +1211,34 @@ closure regeneration passed after that correction (one artifact-generation test)
   engine/CLI/UI/binding journey and P4 adapter/fault/differential/formal/performance
   evidence remain required. No A01–A22 case closes at this checkpoint.
 
+## Sealed source and disclosure compiler checkpoint
+
+- Based on `10a548ee`, added journal-only `RetainedContent` provenance with no
+  public plaintext accessor/deserializer. It requires validated ready content;
+  rejected/unknown responses remain ineligible and no source read is repeated.
+- Native `auths_gateway_disclosure_v1` compilation binds exact source/commitment,
+  projection/length, raw-key recipient, channel and delivery instance. It verifies
+  a separate native proof, uses existing complete private review/exact approval
+  and full fresh recompile, and has no provider credential prerequisites.
+- Added disjoint disclosure count/byte declarations, sixteen lifetime deliveries
+  per source, and existing managed policy arithmetic on the release byte argument.
+  Changing operation/recipient/channel does not create a new lifetime allowance.
+  These remain obligations until disclosure journal admission is implemented.
+- Required artifact construction executed two exact generators: content journal
+  and code inventory. Both passed (3.03 seconds execution after compilation).
+  The journal fixture still performs fifteen real local HTTP reads and adds
+  separate native release/approval/ACK cases for empty and nonempty content.
+  Cases cover managed budgets, wrong budget arguments, old read authority,
+  changed recipient/channel/instance/partition, reused approval, full recompile
+  and expired approval. No content or private correlations enter the artifact.
+- Final content-journal and semantic-closure artifact generators passed together
+  (two tests, 3.06 seconds). Review includes the source resource arguments and
+  projection contract, not just opaque commitments. Preserved upstream generated
+  formal closure commit `622a58fe` by fast-forward before this commit.
+- Disclosure entry, authenticated delivery, persistent ACKs and the full P3/P4
+  cutover remain incomplete. No acceptance case is closed by compilation.
+  No broad local gate, formal execution or hosted CI observation was run.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

@@ -18,6 +18,75 @@ pub enum ContentProjectionStatus {
     Rejected { code: String },
 }
 
+/// Validated private acquisition provenance. Only the journal can construct
+/// this value. It carries no plaintext accessor, native release authority,
+/// approval or delivery capability, and cannot be deserialized.
+#[derive(Clone)]
+pub struct RetainedContent {
+    pub(crate) source: EffectBinding,
+    pub(crate) commitment: [u8; 32],
+    pub(crate) projection: [u8; 32],
+    pub(crate) bytes: u64,
+    pub(crate) review: serde_json::Value,
+}
+
+impl std::fmt::Debug for RetainedContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RetainedContent { private: [redacted] }")
+    }
+}
+
+impl GatewayAttempts {
+    /// Loads protected content provenance from this partition's authoritative
+    /// acquisition journal. Historical source authority is not re-used as
+    /// current release authority. This does not fetch or disclose any bytes.
+    ///
+    /// # Errors
+    /// Refuses absent, incomplete, rejected or corrupt content, other protocols
+    /// and partition mismatches. All retained projection and MAC checks apply.
+    pub async fn retained_content(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+    ) -> Result<RetainedContent, GatewayAttemptError> {
+        let key = self.key(namespace, operation)?;
+        let store = Arc::clone(&self.store);
+        let bytes = blocking(move || store.load(GatewayRecordKind::Attempt, &key))
+            .await?
+            .ok_or(GatewayAttemptError::Unavailable)?;
+        let bytes = Zeroizing::new(bytes);
+        let record: Record<AcquisitionState> = decode_as(&bytes)?;
+        let source = record.validate_header()?;
+        if !self.policy.contains(&source)
+            || source.journal_identity().0 != namespace.as_str()
+            || source.journal_identity().1 != operation.as_str()
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let AcquisitionPlan::Content(plan) = &record.state.plan else {
+            return Err(GatewayAttemptError::InvalidTransition);
+        };
+        let AcquisitionPhase::ContentResponseRecorded {
+            content: ContentResult::Ready(content),
+            ..
+        } = &record.state.phase
+        else {
+            return Err(GatewayAttemptError::InvalidTransition);
+        };
+        Ok(RetainedContent {
+            source,
+            commitment: content.commitment,
+            projection: plan
+                .projection_commitment()
+                .map_err(|_| GatewayAttemptError::Corrupt)?,
+            bytes: content.bytes,
+            review: plan
+                .private_review()
+                .map_err(|_| GatewayAttemptError::Corrupt)?,
+        })
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(
     tag = "kind",

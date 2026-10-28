@@ -23,6 +23,8 @@ mod candidate;
 mod content;
 pub(crate) use content::ContentPlan;
 pub use content::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
+mod release;
+pub use release::{DISCLOSURE_TOOL, DisclosureTarget, compile_disclosure};
 mod disclosure;
 pub use disclosure::{
     AuthenticatedDisclosureAcknowledgement, DISCLOSURE_ACK_SCHEMA, DisclosureAcknowledgement,
@@ -414,6 +416,7 @@ enum Unit {
     MutationSum,
     AcquisitionCount,
     ResponseBytes,
+    DisclosureCount,
     DisclosureBytes,
 }
 
@@ -663,12 +666,15 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
                 reservation.unit,
                 Unit::AcquisitionCount | Unit::ResponseBytes
             ),
-            Protocol::Disclosure { .. } => reservation.unit == Unit::DisclosureBytes,
+            Protocol::Disclosure { .. } => matches!(
+                reservation.unit,
+                Unit::DisclosureCount | Unit::DisclosureBytes
+            ),
         };
         if !unit_allowed
             || (matches!(
                 reservation.unit,
-                Unit::MutationCount | Unit::AcquisitionCount
+                Unit::MutationCount | Unit::AcquisitionCount | Unit::DisclosureCount
             ) && reservation.amount != 1)
         {
             return Err(EffectBindingError::Invalid);
@@ -698,11 +704,12 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     Ok(())
 }
 
-/// Closed protocol-specific compiler output. Neither alternative is transport
+/// Closed protocol-specific compiler output. None of these alternatives is transport
 /// authority, and a mutation-only admission path must refuse an acquisition.
 enum CompiledEffect {
     Mutation(Box<VerifiedMutation>),
     Acquisition(Box<acquisition::VerifiedAcquisition>),
+    Disclosure(Box<release::VerifiedDisclosure>),
 }
 
 struct VerifiedMutation {
@@ -809,13 +816,13 @@ impl BoundEffect {
     }
 
     /// Returns the exact noncredential mutation request for private review,
-    /// or `None` for acquisition. This may contain private content; do not log it.
-    /// Use the shared private review to render either protocol completely.
+    /// or `None` for acquisition/disclosure. This may contain private content; do not log it.
+    /// Use the shared private review to render every protocol completely.
     #[must_use]
     pub fn private_request(&self) -> Option<&ClosedProviderRequest> {
         match &self.command {
             CompiledEffect::Mutation(mutation) => Some(&mutation.command.request),
-            CompiledEffect::Acquisition(_) => None,
+            CompiledEffect::Acquisition(_) | CompiledEffect::Disclosure(_) => None,
         }
     }
 
@@ -845,6 +852,7 @@ impl BoundEffect {
                 "connection_contract": self.connection.contract().as_str(),
             }),
             semantic: match &self.command {
+                CompiledEffect::Disclosure(_) => self.review.clone(),
                 CompiledEffect::Mutation(mutation) => {
                     let mut review = self.review.clone();
                     review["prerequisite_acquisitions"] =
@@ -863,6 +871,7 @@ impl BoundEffect {
             effect_id_hex: hex::encode(self.binding.id().as_bytes()),
             binding_canonical,
             native: match &self.command {
+                CompiledEffect::Disclosure(command) => command.private_review(),
                 CompiledEffect::Mutation(mutation) => {
                     serde_json::to_value(crate::engine::review_command(&mutation.command)?)
                         .map_err(|_| not_entered("gateway.effect.invalid-binding"))?
@@ -1097,7 +1106,7 @@ impl ApprovedEffect {
     pub(crate) fn command(&self) -> Option<&VerifiedCommand> {
         match &self.effect.command {
             CompiledEffect::Mutation(mutation) => Some(&mutation.command),
-            CompiledEffect::Acquisition(_) => None,
+            CompiledEffect::Acquisition(_) | CompiledEffect::Disclosure(_) => None,
         }
     }
 
@@ -1107,7 +1116,7 @@ impl ApprovedEffect {
                 acquisition::AcquisitionTarget::Content(target) => Some(target),
                 _ => None,
             },
-            CompiledEffect::Mutation(_) => None,
+            CompiledEffect::Mutation(_) | CompiledEffect::Disclosure(_) => None,
         }
     }
 
@@ -1124,7 +1133,7 @@ impl ApprovedEffect {
                 acquisition::AcquisitionTarget::Recovery(_)
                 | acquisition::AcquisitionTarget::Content(_) => None,
             },
-            CompiledEffect::Mutation(_) => None,
+            CompiledEffect::Mutation(_) | CompiledEffect::Disclosure(_) => None,
         }
     }
 
@@ -1136,7 +1145,7 @@ impl ApprovedEffect {
 
     pub(crate) fn recovery_target(&self) -> Option<&RecoveryReadTarget> {
         match &self.effect.command {
-            CompiledEffect::Mutation(_) => None,
+            CompiledEffect::Mutation(_) | CompiledEffect::Disclosure(_) => None,
             CompiledEffect::Acquisition(command) => match &command.target {
                 acquisition::AcquisitionTarget::Recovery(target) => Some(target),
                 acquisition::AcquisitionTarget::Candidate(_)
@@ -1147,7 +1156,7 @@ impl ApprovedEffect {
 
     pub(crate) fn acquisition_bound(&self) -> Option<&crate::bounds::BoundAdmission> {
         match &self.effect.command {
-            CompiledEffect::Mutation(_) => None,
+            CompiledEffect::Mutation(_) | CompiledEffect::Disclosure(_) => None,
             CompiledEffect::Acquisition(command) => command.bound.as_ref(),
         }
     }
@@ -1155,7 +1164,9 @@ impl ApprovedEffect {
     pub(crate) fn recovery_plan(&self) -> Result<RecoveryPlan, EffectBindingError> {
         match &self.effect.command {
             CompiledEffect::Acquisition(command) => command.journal_plan(),
-            CompiledEffect::Mutation(_) => Err(EffectBindingError::Invalid),
+            CompiledEffect::Mutation(_) | CompiledEffect::Disclosure(_) => {
+                Err(EffectBindingError::Invalid)
+            }
         }
     }
 
@@ -1163,6 +1174,7 @@ impl ApprovedEffect {
         match &self.effect.command {
             CompiledEffect::Mutation(command) => &command.prerequisites,
             CompiledEffect::Acquisition(command) => &command.prerequisites,
+            CompiledEffect::Disclosure(command) => &command.prerequisites,
         }
     }
 
@@ -1183,6 +1195,7 @@ impl ApprovedEffect {
                 request_bytes(&mutation.command.request, &mutation.prerequisites)?
             }
             CompiledEffect::Acquisition(command) => command.request_bytes()?,
+            CompiledEffect::Disclosure(_) => return Err(EffectBindingError::Invalid),
         };
         let plan = PrerequisitePlan::new(self.effect.binding(), index, transport)?;
         Ok((plan, read.clone()))
@@ -1228,6 +1241,13 @@ impl ApprovedEffect {
         self.validate_approval(&installed.approver, now)
             .map_err(|_| not_entered("gateway.effect.approval"))?;
         let fresh = match &self.effect.command {
+            CompiledEffect::Disclosure(command) => compile_disclosure(
+                installed,
+                &command.target,
+                now,
+                &self.effect.proof,
+                &self.effect.action,
+            )?,
             CompiledEffect::Mutation(_) => {
                 compile_mutation_effect(installed, now, &self.effect.proof, &self.effect.action)?
             }

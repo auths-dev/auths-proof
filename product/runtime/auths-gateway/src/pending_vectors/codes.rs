@@ -27,6 +27,8 @@ const SCHEMA: &str = "auths.gateway-codes/1";
 /// none exists yet). The fixture letters are R for the recipe corpus, A for
 /// the attempt scenarios, B for the bounds cases, and O for the outcomes.
 const ROWS: &[&str] = &[
+    "gateway.disclosure.binding effect compile new 74 -",
+    "gateway.disclosure.unsupported-bounds effect compile new 74 -",
     "gateway.content.response-version ContentProjectionError response new 74 -",
     "gateway.content.response-encoding ContentProjectionError response new 74 -",
     "gateway.content.response-status ContentProjectionError projection new 74 -",
@@ -182,6 +184,7 @@ fn expected_codes(value: &Value, found: &mut BTreeSet<String>) {
 /// Code families the revision introduced whole: every code under one of
 /// these prefixes that the crate defines must be in the inventory.
 const REVISION_FAMILIES: &[&str] = &[
+    "gateway.disclosure.",
     "gateway.acquisition.",
     "gateway.account-scope.",
     "gateway.echo-verify.",

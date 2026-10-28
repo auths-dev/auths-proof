@@ -702,12 +702,60 @@ pub(crate) fn admit_acquisition_bounds(
     namespace: &OperatorNamespace,
     now: u64,
 ) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    admit_information_bounds(
+        proof_cbor,
+        verified,
+        namespace,
+        now,
+        InformationBudget::Acquisition,
+    )
+}
+
+/// Disclosure policy has its own count/byte identities and ceiling argument.
+pub(crate) fn admit_disclosure_bounds(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+    namespace: &OperatorNamespace,
+    now: u64,
+) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    admit_information_bounds(
+        proof_cbor,
+        verified,
+        namespace,
+        now,
+        InformationBudget::Disclosure,
+    )
+}
+
+enum InformationBudget {
+    Acquisition,
+    Disclosure,
+}
+
+fn admit_information_bounds(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+    namespace: &OperatorNamespace,
+    now: u64,
+    protocol: InformationBudget,
+) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    let (argument, count_domain, bytes_domain, refusal) = match protocol {
+        InformationBudget::Disclosure => (
+            "maximum_disclosure_bytes",
+            b"auths.gateway-disclosure-policy-count/1\0".as_slice(),
+            b"auths.gateway-disclosure-policy-bytes/1\0".as_slice(),
+            "gateway.disclosure.unsupported-bounds",
+        ),
+        InformationBudget::Acquisition => (
+            "maximum_response_bytes",
+            b"auths.gateway-read-policy-count/1\0".as_slice(),
+            b"auths.gateway-read-policy-bytes/1\0".as_slice(),
+            "gateway.acquisition.unsupported-bounds",
+        ),
+    };
     let links = selected_bound_links(proof_cbor, verified)?;
-    if links
-        .iter()
-        .any(|link| link.policy.argument() != "maximum_response_bytes")
-    {
-        return Err(not_entered("gateway.acquisition.unsupported-bounds"));
+    if links.iter().any(|link| link.policy.argument() != argument) {
+        return Err(not_entered(refusal));
     }
     let mut bound = admit_policy_links(links, verified.canonical_action(), namespace, None, now)
         .map_err(not_entered)?;
@@ -721,10 +769,10 @@ pub(crate) fn admit_acquisition_bounds(
             hash.finalize().into()
         };
         for counter in &mut bound.counts {
-            counter.key = rekey(b"auths.gateway-read-policy-count/1\0", &counter.key);
+            counter.key = rekey(count_domain, &counter.key);
         }
         for counter in &mut bound.sums {
-            counter.key = rekey(b"auths.gateway-read-policy-bytes/1\0", &counter.key);
+            counter.key = rekey(bytes_domain, &counter.key);
         }
         bound.counts.sort_by_key(|counter| counter.key);
         bound.sums.sort_by_key(|counter| counter.key);

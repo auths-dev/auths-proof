@@ -8,8 +8,8 @@ use crate::effect::{
 };
 
 mod content;
-pub use content::ContentProjectionStatus;
 use content::ContentResult;
+pub use content::{ContentProjectionStatus, RetainedContent};
 mod candidate;
 pub use candidate::CandidatePublication;
 mod recovery;

@@ -604,3 +604,21 @@ foreign-source material, old-schema refusal and unchanged replay. Random keys
 and tags are never emitted into the canonical fixture; only checked facts and
 public redacted statuses are stored. This is still narrow file-adapter evidence,
 not PostgreSQL, independent-process or AP070 differential qualification.
+
+### Retained source to release compiler
+
+The native disclosure compiler now consumes sealed content provenance loaded
+from the acquisition journal. Unlike provider acquisition, it has no credential
+prerequisite or provider request. Unlike a mutation, it binds an exact retained
+projection to a recipient/channel/instance and uses disclosure count/byte units.
+The identical mechanisms remain native verification, selected dependencies,
+canonical binding, complete review, exact approval and full recompilation.
+Managed policy arithmetic is reused under closed, disjoint protocol domains.
+
+The source lifetime is the retained acquisition, with sixteen delivery counts
+across recipient/channel/operation changes and exact-length byte declarations.
+This is a bounded implementation contract, not an inferred provider semantic.
+The content journal corpus provides actual source transport plus separate
+release compilation/ACK comparisons for empty and nonempty content. Runtime
+entry, capacity enforcement and recipient-channel behavior remain unqualified;
+no generic workflow/callback or new ledger is introduced by this extraction.

@@ -8,7 +8,7 @@ use crate::{ArgumentCeilingPolicy, GatewayAttemptStore};
 use base64ct::Base64;
 use std::sync::Arc;
 
-fn read_grant(
+pub(super) fn read_grant(
     root: &Signer,
     reader: &Signer,
     call: &McpToolCall,

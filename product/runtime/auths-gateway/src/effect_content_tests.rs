@@ -457,8 +457,8 @@ async fn native_content_journal_fixture_is_current() {
     let root = signer(h::ROOT_SEED);
     let reader = signer(0x33);
     let observer = signer(h::OBSERVER_SEED);
-    let key = SigningKey::from_bytes(&[29; 32]);
-    let public = key.verifying_key().to_bytes();
+    let approval_key = SigningKey::from_bytes(&[29; 32]);
+    let public = approval_key.verifying_key().to_bytes();
     let policy =
         EffectPolicy::new("synthetic-content-journal".to_owned(), 1, public).expect("policy");
     let (source, lock) = h::recipe_sources(&json!({}), &Value::Null).expect("source");
@@ -532,7 +532,7 @@ async fn native_content_journal_fixture_is_current() {
             compile_content_acquisition(&installed, &target, NOW, &signed.proof, &signed.action)
                 .expect("effect");
         let request = effect.approval_request(NOW, NOW + 60).expect("request");
-        let signature = key
+        let signature = approval_key
             .sign(&request.signing_message().expect("message"))
             .to_bytes();
         Arc::new(
@@ -622,6 +622,7 @@ async fn native_content_journal_fixture_is_current() {
         .expect("lease");
     let mut histories = vec![];
     let mut first_protected = Value::Null;
+    let mut disclosures = Vec::new();
     for index in 0..17 {
         let approved = approve(&format!("content-journal-{index}"));
         let claim = attempts
@@ -810,6 +811,27 @@ async fn native_content_journal_fixture_is_current() {
             _ => unreachable!(),
         };
         assert_eq!(projection, expected_projection);
+        let retained_source = attempts
+            .retained_content(
+                recipe.namespace(),
+                &LogicalOperationId::parse(&format!("content-journal-{index}")).expect("operation"),
+            )
+            .await;
+        if matches!(index, 0 | 8 | 9 | 10 | 13) {
+            let retained_source = retained_source.expect("validated source");
+            assert_eq!(retained_source.bytes, expected_body.len() as u64);
+            if matches!(index, 0 | 9) {
+                disclosures.push(disclosure_compilation_cases(
+                    retained_source,
+                    &recipe,
+                    &record,
+                    &policy,
+                    &approval_key,
+                ));
+            }
+        } else {
+            assert!(retained_source.is_err(), "rejected/unknown source {index}");
+        }
         if index == 0 {
             first_protected = phase["content"].clone();
             for pointer in [
@@ -914,11 +936,11 @@ async fn native_content_journal_fixture_is_current() {
             .expect("source match")
             .0
     );
-    let fixture = json!({"schema": "auths.gateway-content-journal-fixture/2",
+    let fixture = json!({"schema": "auths.gateway-content-journal-fixture/3",
         "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
         "permanent_source_attempts": 16, "real_http_requests": 15,
         "protected_content_mutations_refused": true, "same_content_foreign_source_refused": true,
-        "history": histories});
+        "history": histories, "disclosure_compilation": disclosures});
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/content-journal.json");
     let bytes = serde_json::to_vec_pretty(&fixture).expect("fixture");
@@ -926,4 +948,316 @@ async fn native_content_journal_fixture_is_current() {
         std::fs::write(&path, &bytes).expect("fixture");
     }
     assert_eq!(std::fs::read(&path).expect("fixture"), bytes);
+}
+
+/// The source was loaded from a validated, real-HTTP content journal above.
+/// All values written to the fixture are public case results, never private
+/// content, MACs, source correlations, signed proof bytes or review material.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native disclosure compilation corpus over validated retained content"
+)]
+fn disclosure_compilation_cases(
+    retained: crate::RetainedContent,
+    recipe: &CompiledRecipe,
+    connection: &ConnectionRecord,
+    policy: &EffectPolicy,
+    approval_key: &SigningKey,
+) -> Value {
+    use crate::effect::{DisclosureTarget, compile_disclosure};
+    let root = signer(h::ROOT_SEED);
+    let observer = signer(h::OBSERVER_SEED);
+    let releaser = signer(0x44);
+    let recipient = SigningKey::from_bytes(&[51; 32]);
+    let recipient_key = recipient.verifying_key().to_bytes();
+    let target = DisclosureTarget::new(retained.clone(), recipient_key, [20; 32], [21; 32])
+        .expect("delivery target");
+    assert_eq!(
+        format!("{retained:?}"),
+        "RetainedContent { private: [redacted] }"
+    );
+    assert_eq!(
+        format!("{target:?}"),
+        "DisclosureTarget { private: [redacted] }"
+    );
+    let operation = LogicalOperationId::parse("disclosure-1").expect("operation");
+    let call = target
+        .authorization_call(recipe, &operation)
+        .expect("release call");
+    let trust = h::context_for_tool(&root, &observer.principal, NOW, &call).expect("release trust");
+    let grant = h::grant_for_tool(
+        &root,
+        &releaser.principal,
+        None,
+        window(NOW - 3600, NOW + 3600),
+        &call,
+    )
+    .expect("release grant");
+    let signed = submission_for_call(&root, &releaser, &grant, &call, &[]);
+    let installed = policy.installation(
+        recipe,
+        &trust,
+        connection,
+        crate::QualificationPolicy::Optional,
+        [12; 32],
+    );
+    let limit = retained.bytes.max(1);
+    let budget = crate::ArgumentCeilingPolicy::new("maximum_disclosure_bytes", limit, 3600, 2)
+        .expect("budget")
+        .with_sum(limit * 2, None)
+        .expect("byte budget");
+    let budget_grant = super::read_budget_tests::read_grant(&root, &releaser, &call, &budget);
+    let budget_signed = submission_for_call(&root, &releaser, &budget_grant, &call, &[]);
+    let budget_effect = compile_disclosure(
+        &installed,
+        &target,
+        NOW,
+        &budget_signed.proof,
+        &budget_signed.action,
+    )
+    .expect("budget effect");
+    let budget_wire: Value = serde_json::from_slice(
+        &budget_effect
+            .binding()
+            .to_private_bytes()
+            .expect("budget bytes"),
+    )
+    .expect("budget JSON");
+    let fixed: Vec<_> = budget_wire["reservations"]
+        .as_array()
+        .expect("reservations")
+        .iter()
+        .filter(|r| r["window"]["kind"] == "fixed")
+        .collect();
+    assert_eq!(fixed.len(), 2);
+    assert!(
+        fixed
+            .iter()
+            .any(|r| r["unit"] == "disclosure-count" && r["amount"] == 1 && r["ceiling"] == 2)
+    );
+    assert!(fixed.iter().any(|r| r["unit"] == "disclosure-bytes"
+        && r["amount"] == retained.bytes
+        && r["ceiling"] == limit * 2));
+    let wrong_budget = crate::ArgumentCeilingPolicy::new("maximum_response_bytes", limit, 3600, 2)
+        .expect("wrong budget");
+    let wrong_grant = super::read_budget_tests::read_grant(&root, &releaser, &call, &wrong_budget);
+    let wrong_signed = submission_for_call(&root, &releaser, &wrong_grant, &call, &[]);
+    assert!(
+        compile_disclosure(
+            &installed,
+            &target,
+            NOW,
+            &wrong_signed.proof,
+            &wrong_signed.action
+        )
+        .is_err()
+    );
+    let bound = compile_disclosure(&installed, &target, NOW, &signed.proof, &signed.action)
+        .expect("native release");
+    assert!(bound.private_request().is_none());
+    let bytes = bound.binding().to_private_bytes().expect("binding");
+    let binding: Value = serde_json::from_slice(&bytes).expect("binding JSON");
+    assert_eq!(binding["protocol"]["maximum_bytes"], retained.bytes);
+    assert_eq!(
+        binding["protocol"]["source_effect"],
+        json!(retained.source.id().as_bytes())
+    );
+    let reservations = binding["reservations"].as_array().expect("reservations");
+    assert_eq!(reservations.len(), 2);
+    assert!(
+        reservations
+            .iter()
+            .any(|r| r["unit"] == "disclosure-count" && r["amount"] == 1 && r["ceiling"] == 16)
+    );
+    assert!(
+        reservations
+            .iter()
+            .any(|r| r["unit"] == "disclosure-bytes" && r["amount"] == retained.bytes)
+    );
+    let review = bound
+        .private_review()
+        .expect("review")
+        .render_literal(crate::effect::LITERAL_REVIEW_RENDERER)
+        .expect("render");
+
+    assert!(review.contains("maximum_disclosure_bytes"));
+    assert!(review.contains("delivery_instance"));
+    assert!(review.contains("resource_arguments"));
+    assert!(review.contains(RECORD));
+    assert!(review.contains("projection"));
+    assert!(!review.contains("PRIVATE-SYNTHETIC-CONTENT"));
+    let request = bound
+        .approval_request(NOW, NOW + 60)
+        .expect("approval request");
+    let approval = request.clone().with_signature(
+        approval_key
+            .sign(&request.signing_message().expect("message"))
+            .to_bytes(),
+    );
+    let approved = bound
+        .approve(
+            approval.clone(),
+            &approval_key.verifying_key().to_bytes(),
+            NOW,
+        )
+        .expect("exact approval");
+    approved
+        .validate_for_entry(&installed, NOW)
+        .expect("fresh full recompile");
+    assert!(approved.validate_for_entry(&installed, NOW + 61).is_err());
+    assert!(approved.command().is_none());
+    assert!(approved.content_target().is_none());
+    assert!(approved.recovery_target().is_none());
+    assert!(approved.prerequisite_plans().expect("no reads").is_empty());
+    assert!(approved.content_plan().is_err());
+    assert!(approved.recovery_plan().is_err());
+    let ack_request = crate::effect::DisclosureAcknowledgementRequest::for_delivery(
+        approved.effect().binding(),
+        retained.bytes,
+        recipient_key,
+    )
+    .expect("ACK statement");
+    let ack = ack_request.clone().with_signature(
+        recipient
+            .sign(&ack_request.signing_message().expect("message"))
+            .to_bytes(),
+    );
+    assert!(
+        ack.verify(approved.effect().binding(), retained.bytes)
+            .is_ok()
+    );
+    assert!(
+        ack.verify(approved.effect().binding(), retained.bytes + 1)
+            .is_err()
+    );
+    let mut refused = Vec::new();
+    for (name, changed) in [
+        (
+            "channel",
+            DisclosureTarget::new(retained.clone(), recipient_key, [22; 32], [21; 32])
+                .expect("target"),
+        ),
+        (
+            "instance",
+            DisclosureTarget::new(retained.clone(), recipient_key, [20; 32], [22; 32])
+                .expect("target"),
+        ),
+        (
+            "recipient",
+            DisclosureTarget::new(
+                retained.clone(),
+                SigningKey::from_bytes(&[52; 32]).verifying_key().to_bytes(),
+                [20; 32],
+                [21; 32],
+            )
+            .expect("target"),
+        ),
+    ] {
+        assert!(
+            compile_disclosure(&installed, &changed, NOW, &signed.proof, &signed.action).is_err()
+        );
+        let changed_call = changed
+            .authorization_call(recipe, &operation)
+            .expect("call");
+        let changed_signed = submission_for_call(&root, &releaser, &grant, &changed_call, &[]);
+        let changed_bound = compile_disclosure(
+            &installed,
+            &changed,
+            NOW,
+            &changed_signed.proof,
+            &changed_signed.action,
+        )
+        .expect("new native action");
+        assert_ne!(
+            changed_bound.binding().id(),
+            approved.effect().binding().id()
+        );
+        assert!(ack.verify(changed_bound.binding(), retained.bytes).is_err());
+        assert!(
+            changed_bound
+                .approve(
+                    approval.clone(),
+                    &approval_key.verifying_key().to_bytes(),
+                    NOW
+                )
+                .is_err()
+        );
+        refused.push(name);
+    }
+    let new_call = target
+        .authorization_call(
+            recipe,
+            &LogicalOperationId::parse("disclosure-2").expect("operation"),
+        )
+        .expect("call");
+    let new_signed = submission_for_call(&root, &releaser, &grant, &new_call, &[]);
+    let new_bound = compile_disclosure(
+        &installed,
+        &target,
+        NOW,
+        &new_signed.proof,
+        &new_signed.action,
+    )
+    .expect("new effect");
+    let new_bytes = new_bound.binding().to_private_bytes().expect("binding");
+    let new_binding: Value = serde_json::from_slice(&new_bytes).expect("JSON");
+    assert_eq!(new_binding["reservations"], binding["reservations"]);
+    assert!(
+        new_bound
+            .approve(approval, &approval_key.verifying_key().to_bytes(), NOW)
+            .is_err()
+    );
+    let wrong_partition = EffectPolicy::new(
+        "different-partition".to_owned(),
+        1,
+        approval_key.verifying_key().to_bytes(),
+    )
+    .expect("policy");
+    let wrong_install = wrong_partition.installation(
+        recipe,
+        &trust,
+        connection,
+        crate::QualificationPolicy::Optional,
+        [12; 32],
+    );
+    assert!(
+        compile_disclosure(&wrong_install, &target, NOW, &signed.proof, &signed.action).is_err()
+    );
+    let read = ContentReadTarget::new(
+        recipe,
+        connection,
+        json!({"record_id": RECORD})
+            .as_object()
+            .expect("args")
+            .clone(),
+    )
+    .expect("read");
+    let read_call = read
+        .authorization_call(recipe, &operation)
+        .expect("read call");
+    let read_grant = h::grant_for_tool(
+        &root,
+        &releaser.principal,
+        None,
+        window(NOW - 3600, NOW + 3600),
+        &read_call,
+    )
+    .expect("read grant");
+    let read_signed = submission_for_call(&root, &releaser, &read_grant, &read_call, &[]);
+    assert!(
+        compile_disclosure(
+            &installed,
+            &target,
+            NOW,
+            &read_signed.proof,
+            &read_signed.action
+        )
+        .is_err()
+    );
+    json!({"bytes": retained.bytes, "native_release_compiled": true,
+        "read_authority_refused": true, "no_provider_prerequisites": true,
+        "managed_disclosure_count_and_bytes": true, "acquisition_budget_argument_refused": true,
+        "substitutions_refused": refused, "different_partition_refused": true,
+        "new_operation_retains_capacity_keys": true, "old_approval_refused": true,
+        "exact_ack_validates": true, "scope": "compilation and evidence only; no delivery grant or transport"})
 }
