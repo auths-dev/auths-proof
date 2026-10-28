@@ -74,6 +74,14 @@ Development provider doubles are selected only on `candidate-acquire
 no longer accepts a provider transport option. Recipes without credential reads
 keep the offline installation flow.
 
+The local `candidate-process-journey.json` artifact exercises these commands
+through separate production CLI processes and a counting HTTP double, including
+active/disabled rotation, replay, failed credential predicates and response loss.
+Its reviewer uses public test keys; it is not a live-provider, human-presence,
+production-custody or PostgreSQL qualification. In a production installation,
+the required signed qualification inputs must permit the candidate reads before
+acquisition. Staging alone does not bypass that gate.
+
 ## Provider-secret rotation
 
 For the web-identity reference, the operator configuration must explicitly

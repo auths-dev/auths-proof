@@ -1615,6 +1615,10 @@ configuration_inputs = ["installed-effect-policy", "operator-configuration-revis
 security_state = ["recovery-credential-prerequisite-allocations", "fixed-window-recovery-call-and-response-byte-slots", "source-lifetime-recovery-count-and-byte-allocations", "typed-mutation-acquisition-journal", "shared-effect-configuration", "monotonic-shared-qualification-memory", "configuration-saturation-denial", "permanent-commissioning-consumption", "commissioning-revocation-and-time-floor", "durable-credential-cleanup-notes", "host-generation-floor", "recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
 
 [packages.auths-gateway.claims]
+candidate-process-journey = [
+  "product/runtime/auths-gateway/tests/candidate_journey.rs#approved_candidate_process_journey_fixture_is_current",
+]
+
 candidate-installation = [
   "product/runtime/auths-gateway/src/effect_candidate_tests.rs#native_candidate_compilation_fixture_is_current",
   "product/runtime/auths-gateway/tests/candidate_cli.rs#native_candidate_cli_fixture_is_current",

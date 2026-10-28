@@ -1,0 +1,273 @@
+{
+  "schema": "auths.candidate-process-journey/1",
+  "scope": "production CLI processes, native proof/exact approval, real file custody/journal/floor and counting local HTTP transport; fixed public test keys simulate reviewer; no human presence, live provider, isolation, crash injection or PostgreSQL claim",
+  "cases": [
+    {
+      "case": "accepted",
+      "initial_requests": [
+        "GET /v1/balance HTTP/1.1",
+        "GET /v1/account HTTP/1.1",
+        "GET /v1/customers HTTP/1.1",
+        "GET /v1/payouts HTTP/1.1"
+      ],
+      "acquisition": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "replay": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "rotation_acquisition": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "journal_and_allocations_unchanged_on_replay_and_publication": true,
+      "publication": "published",
+      "restart_replay_no_provider_entry": true,
+      "invalid_approval_no_provider_entry": true,
+      "approval_alone_no_publication": true,
+      "rotation_completed": true,
+      "competing_acquisition_processes": true,
+      "old_approval_new_operation_refused": true,
+      "rotation_preserves_disabled_state": false,
+      "public_acquisition_excludes_secret_and_account": true
+    },
+    {
+      "case": "accepted-disabled",
+      "initial_requests": [
+        "GET /v1/balance HTTP/1.1",
+        "GET /v1/account HTTP/1.1",
+        "GET /v1/customers HTTP/1.1",
+        "GET /v1/payouts HTTP/1.1"
+      ],
+      "acquisition": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "replay": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "rotation_acquisition": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "journal_and_allocations_unchanged_on_replay_and_publication": true,
+      "publication": "published",
+      "restart_replay_no_provider_entry": true,
+      "invalid_approval_no_provider_entry": true,
+      "approval_alone_no_publication": true,
+      "rotation_completed": true,
+      "competing_acquisition_processes": false,
+      "old_approval_new_operation_refused": false,
+      "rotation_preserves_disabled_state": true,
+      "public_acquisition_excludes_secret_and_account": true
+    },
+    {
+      "case": "bad-probe",
+      "initial_requests": [
+        "GET /v1/balance HTTP/1.1"
+      ],
+      "acquisition": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "replay": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "rotation_acquisition": null,
+      "journal_and_allocations_unchanged_on_replay_and_publication": true,
+      "publication": "refused",
+      "restart_replay_no_provider_entry": true,
+      "invalid_approval_no_provider_entry": true,
+      "approval_alone_no_publication": true,
+      "rotation_completed": false,
+      "competing_acquisition_processes": false,
+      "old_approval_new_operation_refused": false,
+      "rotation_preserves_disabled_state": false,
+      "public_acquisition_excludes_secret_and_account": true
+    },
+    {
+      "case": "wrong-account",
+      "initial_requests": [
+        "GET /v1/balance HTTP/1.1",
+        "GET /v1/account HTTP/1.1"
+      ],
+      "acquisition": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "replay": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "rotation_acquisition": null,
+      "journal_and_allocations_unchanged_on_replay_and_publication": true,
+      "publication": "refused",
+      "restart_replay_no_provider_entry": true,
+      "invalid_approval_no_provider_entry": true,
+      "approval_alone_no_publication": true,
+      "rotation_completed": false,
+      "competing_acquisition_processes": false,
+      "old_approval_new_operation_refused": false,
+      "rotation_preserves_disabled_state": false,
+      "public_acquisition_excludes_secret_and_account": true
+    },
+    {
+      "case": "excess-capability",
+      "initial_requests": [
+        "GET /v1/balance HTTP/1.1",
+        "GET /v1/account HTTP/1.1",
+        "GET /v1/customers HTTP/1.1",
+        "GET /v1/payouts HTTP/1.1"
+      ],
+      "acquisition": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "replay": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 2,
+        "response_version_ok": true
+      },
+      "rotation_acquisition": null,
+      "journal_and_allocations_unchanged_on_replay_and_publication": true,
+      "publication": "refused",
+      "restart_replay_no_provider_entry": true,
+      "invalid_approval_no_provider_entry": true,
+      "approval_alone_no_publication": true,
+      "rotation_completed": false,
+      "competing_acquisition_processes": false,
+      "old_approval_new_operation_refused": false,
+      "rotation_preserves_disabled_state": false,
+      "public_acquisition_excludes_secret_and_account": true
+    },
+    {
+      "case": "unknown-primary",
+      "initial_requests": [
+        "GET /v1/balance HTTP/1.1",
+        "GET /v1/account HTTP/1.1",
+        "GET /v1/customers HTTP/1.1",
+        "GET /v1/payouts HTTP/1.1"
+      ],
+      "acquisition": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "replay": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "rotation_acquisition": null,
+      "journal_and_allocations_unchanged_on_replay_and_publication": true,
+      "publication": "refused",
+      "restart_replay_no_provider_entry": true,
+      "invalid_approval_no_provider_entry": true,
+      "approval_alone_no_publication": true,
+      "rotation_completed": false,
+      "competing_acquisition_processes": false,
+      "old_approval_new_operation_refused": false,
+      "rotation_preserves_disabled_state": false,
+      "public_acquisition_excludes_secret_and_account": true
+    }
+  ]
+}

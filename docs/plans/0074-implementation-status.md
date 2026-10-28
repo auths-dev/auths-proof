@@ -994,6 +994,50 @@ closure regeneration passed after that correction (one artifact-generation test)
   full process/adapter/differential/formal/performance/hosted evidence. No A01–A22
   acceptance criterion closes at this checkpoint.
 
+## Approved candidate process journey checkpoint
+
+- Added a real production-CLI journey over private installation files, file
+  custody, generation floor, cleanup journal and actual local HTTP sockets.
+  Test-only fixed-key native authoring supplies real canonical proof/action and
+  trust; `effect-candidate-call`, `effect-review`, `effect-approval`, acquisition
+  and publication still use the shipping compiler, verifier and transaction
+  owners. No oracle entry predicate or hand-built approved binding is used.
+- `candidate-process-journey.json` records six histories: successful first
+  installation with active rotation; rotation of a disabled predecessor; bad
+  probe; wrong account; excess final capability; and lost primary response.
+  The provider counts and checks exact request lines, version/credential headers
+  and absence of account-scope headers. Successful first install and rotation
+  each make exactly four declared GETs. Earlier failed predicates stop later
+  reads. Failed/unknown evidence cannot publish a connection.
+- Independent acquisition processes race the same operation: one set of reads
+  reaches the provider. A new process replays retained history without re-entry;
+  every non-connection journal record and allocation remains byte-identical
+  across replay and publication. Lost final response retains unknown and its
+  invocation charge. Exact publication replay reports `already-current` without
+  provider I/O. Disabled rotation preserves state while advancing generation.
+- Invalid approval and old exact approval for a new operation cause no provider
+  calls. Approval alone cannot publish. Native literal review includes every
+  credential request; public acquisition output is scanned for credential and
+  account sentinels. The test signer simulates an external reviewer and makes no
+  human-presence, live-provider, process-isolation or PostgreSQL claim.
+- Exact artifact generation passed on `ed557dab` plus this source:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --features testkit-harness,loopback-provider --test candidate_journey -- --exact approved_candidate_process_journey_fixture_is_current`.
+  The final six-case run passed in 7.27 seconds. Final semantic-closure artifact
+  generation also passed (one exact test). Initial test failures required
+  clearing macOS's inherited nonblocking socket flag and using the existing
+  `disable --store-only` command. Test cleanup avoids a second panic during
+  unwinding. No production check or predicate was weakened to pass the journey.
+- Maintained caller inventory still includes Stripe/Airtable demos, qualification
+  production/live/custody-fault scripts and the refund-approval example. Their
+  mutation-only trust/grants need explicit candidate read authority and exact
+  approval; production first install also needs the qualification bootstrap
+  order preserved. Merely replacing install/rotate command names is insufficient.
+  The no-read operator simulation retains its offline path.
+- This closes the previously missing local approved candidate transport evidence,
+  not P3 or A01–A22. General acquisition/disclosure/ACK, safe recovery credentials,
+  maintained consumers, authenticated UI/bindings and full adapter/fault/formal/
+  performance/hosted evidence remain required. Hosted CI has not been observed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1001,7 +1045,7 @@ closure regeneration passed after that correction (one artifact-generation test)
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
 | P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Maintained deployment and full approved installation/rotation journeys (staging and candidate CLI wired), general acquisition/disclosure/ACK; remove Python semantic owner |
+| P3 | Recovery, prerequisite and application recovery routes with managed read budgets wired | Maintained deployment/example journeys (local approved candidate CLI journey executed), general acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
 
 ## Acceptance ledger
@@ -1014,26 +1058,26 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | --- | --- | --- | --- |
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
-| A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter cases / no | Execute concurrent binding conflicts and recovery cutover |
+| A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / partial / narrow file admission, prerequisite and managed read charge fixtures | Full adapter concurrency and all units pending |
 | A05 | Crash at every persistence/transport boundary | Pending / no / no | Process failpoint journey |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Pending / no / no | Separate disclosure gate |
 | A08 | ACK loss, restart, no redelivery, late ACK | Pending / no / no | Typed ACK protocol |
 | A09 | ACK substitution in every dimension | Pending / no / no | Authenticated exact ACK |
-| A10 | Timeout/denial/response/state-match distinction | Pending / no / no | Native projection |
+| A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
 | A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and signed-observation cases / narrow file and native predicate fixtures | Installed lock-wait, independent expiry and adapter races pending |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
-| A17 | Sentinel privacy across errors/logs/public bindings | Pending / no / no | Private audit/public separation |
+| A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests / native valid fixture only | Binding parity and negative corpus pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / no / no | Retained independent references |
 | A20 | Generated histories and shipping predicate refinement | Pending / no / no | Update linked artifacts |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
-| A22 | Installed single-human/single-agent full journey/UI | Pending / no / no | Native runtime and local sockets |
+| A22 | Installed single-human/single-agent full journey/UI | Partial / local approved candidate CLI / candidate subprocess journey | Full installed read/disclosure/write/observation and authenticated UI |
 
 ## Deployment assumptions retained
 

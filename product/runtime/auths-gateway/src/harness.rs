@@ -8,6 +8,9 @@
 //! Everything here is test infrastructure: the root and observer keys come
 //! from public fixed seeds.
 
+#[cfg(feature = "testkit-harness")]
+pub mod authoring;
+
 use crate::engine::{
     GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, VerifiedCommand,
     gateway_verifier_configuration, observe_outcome, observe_pre_entry, observe_read_back,
@@ -395,7 +398,7 @@ pub(crate) fn context_accepting(
     )
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testkit-harness"))]
 pub(crate) fn context_for_tool(
     root: &Signer,
     observer: &PrincipalId,
