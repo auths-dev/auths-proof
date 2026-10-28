@@ -238,6 +238,17 @@ recorded, fresh responses. Receipt time is immutable, and evidence age uses the
 earlier grant time conservatively. These requirements do not waive tighter
 native evidence freshness or independently authorized later observation.
 
+Final mutation entry must also evaluate each prerequisite's actual purpose against
+those retained responses. Signed pre-entry observations must have valid canonical
+signatures from the pinned observer and exactly match the retained subject,
+projected facts and original conservative time. Reevaluate the selected native
+requirements and anchor validity at the fenced entry time. Relative-ceiling
+checkpoints must preserve the response's basis, digest and time, and satisfy the
+original bound values and ratio. Extraneous checkpoint evidence cannot substitute
+for a missing prerequisite. The selected gateway observer identity is part of the
+installed configuration commitment. All JSON prerequisite interpretations reject
+duplicate members through the shared bounded response decoder.
+
 Independent recovery compilation uses the reserved native MCP tool
 `auths_gateway_recovery_read_v1`; a mutation recipe cannot claim that name.
 Its `auths.gateway-recovery-read/1` contract binds the retained source effect

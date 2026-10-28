@@ -819,6 +819,10 @@ async fn exercise_recovery_refinement(
 }
 
 fn connection(recipe: &CompiledRecipe) -> ConnectionRecord {
+    connection_account(recipe, [4; 32])
+}
+
+fn connection_account(recipe: &CompiledRecipe, account: [u8; 32]) -> ConnectionRecord {
     ConnectionRecord::new(
         ProviderKind::parse("airtable").expect("provider"),
         ConnectionAlias::parse("synthetic").expect("alias"),
@@ -829,7 +833,7 @@ fn connection(recipe: &CompiledRecipe) -> ConnectionRecord {
             .expect("descriptor")
             .to_bytes()
             .expect("descriptor bytes"),
-        [4; 32],
+        account,
         [5; 32],
         std::num::NonZeroU64::MIN,
         ConnectionState::Active,

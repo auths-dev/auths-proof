@@ -479,3 +479,37 @@ ordered initial admission, all application/onboarding reads and disclosure still
 need completion. The file fixture uses native compilation but explicit-time
 oracle grants and synthetic responses; it is not provider transport, installed
 native entry or PostgreSQL qualification.
+
+
+## Final prerequisite evidence validation
+
+The installed mutation fence now reuses the existing account, denied-capability,
+relative-ceiling and selected-observation predicates on the exact retained child
+responses. The acquisition validator returns typed, bounded evidence only after
+checking its parent binding, plan, allocation, recorded grant and original times.
+The installed entry validator runs these predicates after full native authority
+validation and before publishing the mutation grant, at the same sampled time.
+
+For pre-entry observations, the existing canonical signature verifier checks the
+pinned observer. Every signed subject, fact set and observation time must match
+the exact acquired response projection and its conservative grant time. The
+selected requirements are resolved again from the approved native command and
+current pinned trust, then evaluated with their own maximum ages and anchor
+validity. The 30-second acquisition ceiling cannot override a tighter native
+requirement. No observer signing, custody or provider I/O occurs under the fence.
+The existing four-observation limit and bounded canonical decoder bound this
+additional signature work. The selected gateway observer identity is now included in the installed
+configuration commitment as well as checked against native observer trust.
+
+Relative-ceiling checkpoints must match the retained response's basis, digest
+and original grant time, and still satisfy the original ratio and bound values.
+Extra observation or basis checkpoint data is refused when the compiled plan
+has no corresponding prerequisite. Account, ceiling and pre-entry JSON now use
+the same bounded duplicate-rejecting response decoder as recovery observations.
+
+The native predicate fixtures cover canonical signature substitution, subject,
+observer, fact and timestamp mismatch, tighter age boundaries, missing/extra
+observations, account mismatch, capability excess, bound currency/ratio changes,
+checkpoint substitution and duplicate JSON. They use signed native effects and
+synthetic provider bodies, not an installed transaction or transport. Independent
+process lock-wait histories and both adapter fault/race suites remain required.

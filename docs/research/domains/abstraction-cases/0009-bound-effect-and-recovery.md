@@ -291,3 +291,22 @@ and responses are synthetic; no provider calls occur. The Airtable compilation
 case still has no native pre-entry requirement and does not establish installed
 mutation eligibility. Differential semantic evaluation, actual transport,
 process faults, PostgreSQL and tighter observer freshness remain exit gates.
+
+
+## Prerequisite evidence at entry
+
+The final gate does not add an alternate response evaluator: it calls the same
+account/denied predicates, recipe ceiling reader, ratio kernel, signed observation
+verifier, requirement selection and native freshness/condition predicates already
+used by the maintained paths. Journal membership provides the response and its
+original time; the installed gate checks the resulting evidence under the writer
+fence. Existing synthetic store oracles explicitly omit installed authority and
+remain test-only.
+
+`prerequisite-evidence.json` adds 15 native signed Airtable cases, including a
+2-second selected freshness bound within the 30-second acquisition ceiling.
+`prerequisite-guard-evidence.json` adds 15 Stripe response/checkpoint cases. The
+positive Stripe input now has a known synthetic account commitment, allowing an
+actual matching account check rather than an unopenable placeholder. These are
+executed predicate fixtures; their scope excludes installed process/transport,
+transaction lock waits, PostgreSQL and full differential qualification.

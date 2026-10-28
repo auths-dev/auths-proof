@@ -599,6 +599,40 @@ closure regeneration passed after that correction (one artifact-generation test)
   policy bounds, disclosure/ACK, Python-owner removal, installed UI/bindings,
   formal/performance and final CI. No A01–A22 criterion closes at this checkpoint.
 
+## Final prerequisite evidence checkpoint
+
+- Installed mutation entry now evaluates the required response purposes under
+  the existing writer fence after native revalidation and acquisition membership
+  checks. It reuses the existing account/denied, recipe ceiling/ratio and native
+  selected-observation predicates; no second evaluator or transport owner.
+- Signed pre-entry observations must verify canonically against the pinned
+  observer and match the exact acquired subject, facts and original grant time.
+  Selected native ages and anchor validity are evaluated at the fenced time;
+  the acquisition's 30-second ceiling cannot relax them. The installed
+  configuration commitment now includes the gateway's selected observer.
+- Relative-ceiling basis, response digest and time must match the retained read,
+  and original argument, ratio and binding checks still apply. Missing or extra
+  checkpoint evidence is refused. Account, ceiling and pre-entry JSON share
+  recovery's bounded duplicate-rejecting decoder.
+- New native predicate artifacts cover 15 Airtable evidence cases and 15 Stripe
+  guard/checkpoint cases. They include canonical invalid signatures, changed
+  signer/subject/facts/time, selected-age limit/limit-plus-one, account/currency
+  mismatch, excess capability, altered basis/digest/time, missing/extra evidence
+  and duplicate JSON members. Stripe compilation now uses a known synthetic
+  account commitment for a genuine matching comparison in this test corpus.
+- The exact prerequisite compilation/entry/guard generator, signed-observation
+  predicate generator and semantic-closure generator passed. The new signature
+  case decodes and re-encodes a canonical observation with altered signature
+  bytes, so it specifically exercises signature refusal. Construction caught
+  test-import/parser-visibility issues, corrected before generation passed.
+  No broad local suite or hosted CI was inspected.
+- These are native signed effects and synthetic response/predicate results, not
+  installed lock/process/provider or PostgreSQL evidence. The test-only store
+  grant oracle intentionally remains separate from installed native entry.
+  No A01–A22 acceptance case closes. Ordered admission, remaining read routes,
+  replacement credentials/read bounds, disclosure/ACK and Python removal,
+  authenticated UI/bindings, full faults/formal/performance and CI remain open.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -629,7 +663,7 @@ separate claim. No AP074 acceptance case is currently executed or qualified.
 | A10 | Timeout/denial/response/state-match distinction | Pending / no / no | Native projection |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Pending / no / no | Shared transaction order |
-| A13 | Lock wait and independent evidence expiries | Partial / narrow prerequisite cases / file fixture only | Lock-wait races and tighter selected observer freshness pending |
+| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and signed-observation cases / narrow file and native predicate fixtures | Installed lock-wait, independent expiry and adapter races pending |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |

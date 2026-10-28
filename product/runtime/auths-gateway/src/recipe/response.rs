@@ -74,7 +74,7 @@ impl<'de> Visitor<'de> for UniqueVisitor {
     }
 }
 
-pub(super) fn parse(bytes: &[u8]) -> Option<Value> {
+pub(crate) fn parse(bytes: &[u8]) -> Option<Value> {
     if bytes.len() > 65_536 {
         return None;
     }

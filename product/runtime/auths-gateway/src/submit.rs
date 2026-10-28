@@ -174,10 +174,7 @@ pub(crate) fn account_commitment(label: &str) -> [u8; 32] {
 /// names at `pointer`: a JSON string of 1–256 bytes.
 pub(crate) fn account_label(response: Option<&ProviderResponse>, pointer: &str) -> Option<String> {
     let body = response?.usable_body()?;
-    match serde_json::from_slice::<Value>(body)
-        .ok()?
-        .pointer(pointer)?
-    {
+    match crate::recipe::parse_provider_response(body)?.pointer(pointer)? {
         Value::String(label) if !label.is_empty() && label.len() <= MAX_ACCOUNT_BYTES => {
             Some(label.clone())
         }

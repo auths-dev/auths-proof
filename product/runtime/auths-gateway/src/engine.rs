@@ -479,6 +479,9 @@ impl GatewayEngine {
                 self.profile.version(),
                 self.qualification.contract_digest()?,
                 crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
+                self.observer
+                    .as_ref()
+                    .map(|observer| observer.principal().as_str()),
             ),
         )?;
         let key = self
@@ -1810,6 +1813,11 @@ impl SubmitIo for EngineIo<'_> {
             crate::entry::InstalledEntry {
                 recipe: self.engine.recipe.clone(),
                 trust: self.engine.trusted_context.clone(),
+                observer: self
+                    .engine
+                    .observer
+                    .as_ref()
+                    .map(|observer| observer.principal().clone()),
                 policy: self.engine.effect_policy.clone(),
                 configuration: self.engine.shared_configuration()?,
                 connection: prepared.loaded.clone(),

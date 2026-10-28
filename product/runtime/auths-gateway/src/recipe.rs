@@ -23,6 +23,7 @@ pub use auths_gateway_kernel::{construct, recovery};
 mod effect_review;
 mod lower;
 mod response;
+pub(crate) use response::parse as parse_provider_response;
 mod review;
 #[cfg(any(test, feature = "testkit-harness"))]
 pub(crate) use effect_review::synthetic_review;

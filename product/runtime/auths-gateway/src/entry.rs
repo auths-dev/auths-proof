@@ -6,7 +6,7 @@ use crate::configuration::SharedConfiguration;
 use crate::effect::{ApprovedEffect, EffectPolicy};
 use crate::{CompiledRecipe, GatewayAttemptKey, GatewayRecordKind, LoadedConnection};
 use auths_connections::ConnectionProfile;
-use auths_model::TrustedContext;
+use auths_model::{PrincipalId, TrustedContext};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -15,6 +15,7 @@ use std::{
 pub(crate) struct InstalledEntry {
     pub(crate) recipe: CompiledRecipe,
     pub(crate) trust: TrustedContext,
+    pub(crate) observer: Option<PrincipalId>,
     pub(crate) policy: EffectPolicy,
     pub(crate) configuration: SharedConfiguration,
     pub(crate) connection: LoadedConnection,
@@ -37,6 +38,35 @@ pub(crate) enum EntryValidation {
 }
 
 impl EntryValidation {
+    /// Runs only after exact native authority and acquisition membership have
+    /// been validated under the same fence. No signing, custody or provider I/O.
+    pub(crate) fn validate_prerequisite_evidence(
+        &self,
+        approved: &ApprovedEffect,
+        pre_entry: &crate::GatewayPreEntry,
+        acquired: &[crate::store::PrerequisiteResponse],
+        now: u64,
+    ) -> Result<(), &'static str> {
+        match self {
+            Self::Installed(entry) => validate_prerequisite_evidence(
+                approved,
+                &entry.policy.installation(
+                    &entry.recipe,
+                    &entry.trust,
+                    entry.connection.record(),
+                    entry.qualification.policy(),
+                    entry.configuration.candidate(),
+                ),
+                entry.observer.as_ref(),
+                pre_entry,
+                acquired,
+                now,
+            ),
+            #[cfg(any(test, feature = "testkit-harness"))]
+            Self::Oracle { .. } => Ok(()),
+        }
+    }
+
     pub(crate) fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
         match self {
             Self::Installed(entry) => {
@@ -143,4 +173,131 @@ impl EntryValidation {
             }
         }
     }
+}
+
+/// Reuses the recipe's existing response predicates and native selected
+/// observation requirements. Inputs are bounded, retained acquisition evidence;
+/// callers cannot replace them with a newly fetched or re-timestamped response.
+#[allow(
+    clippy::too_many_lines,
+    reason = "closed prerequisite alternatives preserve distinct existing predicates at one entry gate"
+)]
+pub(crate) fn validate_prerequisite_evidence(
+    approved: &ApprovedEffect,
+    installed: &crate::effect::EffectInstallation<'_>,
+    observer: Option<&PrincipalId>,
+    pre_entry: &crate::GatewayPreEntry,
+    acquired: &[crate::store::PrerequisiteResponse],
+    now: u64,
+) -> Result<(), &'static str> {
+    use crate::effect::PrerequisiteKind;
+    use auths_gateway_kernel::order::{AccountResult, DeniedResult, PreEntryResult};
+    use sha2::{Digest as _, Sha256};
+    let invalid = "gateway.entry.prerequisite-evidence";
+    let command = approved.command().ok_or(invalid)?;
+    let plans = approved.prerequisite_plans().map_err(|_| invalid)?;
+    if acquired.len() != plans.len() {
+        return Err(invalid);
+    }
+    let mut saw_observations = false;
+    let mut saw_basis = false;
+    for (plan, evidence) in plans.iter().zip(acquired) {
+        if plan.kind().map_err(|_| invalid)? != evidence.kind
+            || evidence.observed_at > evidence.received_at
+            || evidence.received_at > now
+            || !now
+                .checked_sub(evidence.observed_at)
+                .is_some_and(|age| age <= crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
+        {
+            return Err(invalid);
+        }
+        match evidence.kind {
+            PrerequisiteKind::Account => {
+                let guard = installed.recipe.guard_checks().ok_or(invalid)?;
+                let pointer = guard.account_pointer.as_deref().ok_or(invalid)?;
+                if crate::submit::account_result(
+                    Some(&evidence.response),
+                    pointer,
+                    Some(*installed.connection.account_commitment()),
+                ) != AccountResult::Equal
+                {
+                    return Err(invalid);
+                }
+            }
+            PrerequisiteKind::DeniedCapability(index) => {
+                let guard = installed.recipe.guard_checks().ok_or(invalid)?;
+                let refused = guard
+                    .denied_refused
+                    .get(usize::from(index))
+                    .ok_or(invalid)?;
+                if crate::submit::denied_result(Some(&evidence.response), refused)
+                    != DeniedResult::Refused
+                {
+                    return Err(invalid);
+                }
+            }
+            PrerequisiteKind::PreEntry => {
+                let observer = observer.ok_or(invalid)?;
+                let read = command.request.pre_entry_read().ok_or(invalid)?;
+                let pointers = installed.recipe.pre_entry_pointers().ok_or(invalid)?;
+                let selected = crate::pre_entry::select(
+                    &command.requirements,
+                    &command.canonical_action,
+                    installed.context,
+                    Some(observer),
+                    read,
+                    pointers,
+                    |namespace, subject| {
+                        crate::engine::resource_covers(installed.context, namespace, subject)
+                    },
+                )
+                .map_err(|_| invalid)?;
+                let observations = crate::pre_entry::verify_recorded(
+                    observer,
+                    read,
+                    pointers,
+                    evidence.response.usable_body().ok_or(invalid)?,
+                    evidence.observed_at,
+                    &pre_entry.observations,
+                )
+                .ok_or(invalid)?;
+                if crate::pre_entry::evaluate(&selected, &observations, now)
+                    != PreEntryResult::Satisfied
+                {
+                    return Err(invalid);
+                }
+                saw_observations = true;
+            }
+            PrerequisiteKind::RelativeCeiling => {
+                let ceiling = installed.recipe.ceiling_check().ok_or(invalid)?;
+                let body = evidence.response.usable_body().ok_or(invalid)?;
+                let argument = ceiling.argument_value(&command.arguments).ok_or(invalid)?;
+                let crate::recipe::CeilingReading::Read {
+                    basis,
+                    binds_equal: true,
+                } = ceiling.read(body, &command.arguments)
+                else {
+                    return Err(invalid);
+                };
+                let retained = pre_entry.basis.as_ref().ok_or(invalid)?;
+                if !auths_gateway_kernel::ratio::relative_ceiling_admits(
+                    argument,
+                    basis,
+                    ceiling.basis_points,
+                ) || retained.value != basis
+                    || retained.response_digest != <[u8; 32]>::from(Sha256::digest(body))
+                    || retained.read_at != evidence.observed_at
+                {
+                    return Err(invalid);
+                }
+                saw_basis = true;
+            }
+        }
+    }
+    if saw_observations == pre_entry.observations.is_empty()
+        || saw_basis != pre_entry.basis.is_some()
+    {
+        return Err(invalid);
+    }
+    Ok(())
 }

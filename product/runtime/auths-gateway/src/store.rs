@@ -2556,13 +2556,21 @@ impl ClaimedGatewayAttempt {
                     &snapshots[dependency_end..counter_end],
                     now,
                 )?;
-                acquisition::validate_prerequisites(
+                let acquired = acquisition::validate_prerequisites(
                     attempt.key,
                     approved.effect().binding(),
                     &prerequisites,
                     &snapshots[counter_end..],
                     now,
                 )?;
+                let evidence = pre_entry
+                    .as_ref()
+                    .map(PreEntryWire::decode)
+                    .transpose()?
+                    .unwrap_or_default();
+                validation
+                    .validate_prerequisite_evidence(&approved, &evidence, &acquired, now)
+                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
                 let mut next = current.clone();
                 next.record_grant(
                     &approved,

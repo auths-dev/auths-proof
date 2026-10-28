@@ -292,6 +292,7 @@ pub struct ReservedAcquisition {
 }
 
 pub(crate) struct PrerequisiteResponse {
+    pub(crate) kind: PrerequisiteKind,
     pub(crate) response: crate::transport::ProviderResponse,
     pub(crate) received_at: u64,
     pub(crate) observed_at: u64,
@@ -299,9 +300,9 @@ pub(crate) struct PrerequisiteResponse {
 
 impl Record<AcquisitionState> {
     fn prerequisite_response(&self, now: u64) -> Result<PrerequisiteResponse, GatewayAttemptError> {
-        if !matches!(self.state.plan, AcquisitionPlan::Prerequisite(_)) {
+        let AcquisitionPlan::Prerequisite(plan) = &self.state.plan else {
             return Err(GatewayAttemptError::BindingConflict);
-        }
+        };
         let AcquisitionPhase::ResponseRecorded { response } = &self.state.phase else {
             return Err(GatewayAttemptError::InvalidTransition);
         };
@@ -326,6 +327,7 @@ impl Record<AcquisitionState> {
             .capacity()
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         Ok(PrerequisiteResponse {
+            kind: plan.kind().map_err(|_| GatewayAttemptError::Corrupt)?,
             response: crate::transport::ProviderResponse {
                 status: response.status,
                 version_ok: response.version_ok,
@@ -808,10 +810,11 @@ pub(super) fn validate_prerequisites(
     plans: &[crate::effect::PrerequisitePlan],
     snapshots: &[Option<Vec<u8>>],
     now: u64,
-) -> Result<(), GatewayAttemptError> {
+) -> Result<Vec<PrerequisiteResponse>, GatewayAttemptError> {
     if snapshots.len() != plans.len() * 2 {
         return Err(GatewayAttemptError::Corrupt);
     }
+    let mut evidence = Vec::with_capacity(plans.len());
     for (plan, rows) in plans.iter().zip(snapshots.chunks_exact(2)) {
         let record: Record<AcquisitionState> =
             decode_as(rows[0].as_deref().ok_or(GatewayAttemptError::Corrupt)?)?;
@@ -825,7 +828,7 @@ pub(super) fn validate_prerequisites(
         {
             return Err(GatewayAttemptError::BindingConflict);
         }
-        record.prerequisite_response(now)?;
+        evidence.push(record.prerequisite_response(now)?);
     }
-    Ok(())
+    Ok(evidence)
 }

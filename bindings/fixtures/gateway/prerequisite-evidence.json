@@ -1,0 +1,83 @@
+{
+  "schema": "auths.prerequisite-evidence-fixture/1",
+  "scope": "native signed authority and observation substitutions against the installed entry predicate; no adapter lock, process, custody or provider execution claim",
+  "selected_maximum_age_seconds": 2,
+  "acquisition_maximum_age_seconds": 30,
+  "cases": [
+    {
+      "case": "exact",
+      "accepted": true,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "age-limit",
+      "accepted": true,
+      "evidence_age_seconds": 2
+    },
+    {
+      "case": "selected-age-exceeded",
+      "accepted": false,
+      "evidence_age_seconds": 3
+    },
+    {
+      "case": "wrong-facts",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "condition-false",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "refreshed-time",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "wrong-subject",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "wrong-observer",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "signature-changed",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "missing-observation",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "extra-observation",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "duplicate-provider-member",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "wrong-status",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "wrong-version",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    },
+    {
+      "case": "unrelated-ceiling-basis",
+      "accepted": false,
+      "evidence_age_seconds": 1
+    }
+  ]
+}
