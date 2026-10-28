@@ -51,6 +51,9 @@ mod bounds_tests;
 
 const NOW: u64 = 1_790_000_000;
 
+#[path = "effect_native_tests.rs"]
+mod effect_native_tests;
+
 fn window(from: u64, until: u64) -> ValidityWindow {
     h::window(from, until).expect("window")
 }

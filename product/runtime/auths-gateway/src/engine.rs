@@ -1613,6 +1613,8 @@ pub(crate) fn verify_command(
 /// need of its authorized branches.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    /// Stable native branch/evidence selection and installed trust identity.
+    pub(crate) native_authority: [u8; 32],
     /// Exact actors of action IDs already sealed by the native verifier.
     #[cfg(unix)]
     pub(crate) actors: Vec<auths_model::PrincipalId>,
@@ -1696,6 +1698,8 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
+        native_authority: crate::effect::native_authority_commitment(sealed.portable(), context)
+            .map_err(|_| not_entered("gateway.effect.native-authority"))?,
         #[cfg(unix)]
         actors: branches.actors,
         request,

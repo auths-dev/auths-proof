@@ -14,9 +14,11 @@ durable adapter guarantees and source-linked formal claims.
 Complete P0–P4 and A01–A22 with actual transport, process restart, file and
 PostgreSQL concurrency/fault evidence, differential recipes, installed bindings,
 formal/refinement links and bounded performance measurements. Commit coherent
-changes. Finish source, fixtures and documentation before pushing explicitly to
-`origin codex/effect-recovery-foundation`, opening a draft PR against main and
-observing required hosted workflows on the exact head. Repair failures; do not
+changes. The user's subsequent instruction on 28 October overrides the initial
+push timing: commit the current slice, push explicitly to
+`origin codex/effect-recovery-foundation`, open a new draft PR against main, then
+continue with incremental commits. Finish source, fixtures and documentation
+before observing required hosted workflows on the exact head. Repair failures; do not
 merge or deploy. Local generation needed to construct artifacts is permitted;
 do not duplicate hosted build/test/lint/formal gates before the first push.
 
@@ -34,14 +36,26 @@ No stage is complete merely because types, documentation or a happy path exist.
 - Existing source inspected: native sealed action, gateway verifier/compiler,
   submission driver, transition/recovery leaves, file/PostgreSQL attempt store,
   lifecycle preparation/acknowledgement contracts, AP070 admission/executor/receipt.
-- Verification: no tests, builds, lint, formal gates or hosted workflows run yet.
+- P0 committed as `43832adc`.
+- P1 source: canonical private binding, native evidence-selection commitment,
+  effect-free mutation compilation and separate exact Ed25519 human approval.
+  Native signature validation does not replace resource authority or live entry.
+- Source tests authored for identity mutations, canonical/duplicate/limit cases,
+  approval substitution/expiry and a real native signed-proof compilation path.
+- A targeted native fixture-generation test was started with
+  `AUTHS_UPDATE_FIXTURES=1`; compilation/generation is pending at this checkpoint.
+  This local run constructs the required canonical artifact; it is not a broad
+  pre-push verification run. No hosted workflows observed or formal gates run.
+- Existing submission still uses the baseline path. P1 is not closed until the
+  installed review/approval/admission path replaces it. No new effect can yet be
+  submitted, and the new sealed compilation API grants no execution authority.
 
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
-| P1 | Pending | Native binding, approval and complete first mutation cutover |
+| P1 | In progress | Finish installed first mutation cutover and native fixtures |
 | P2 | Pending | Explicit reservation/grant reducer, atomic fencing, both adapters |
 | P3 | Pending | Native acquisition/disclosure/ACK; remove Python semantic owner |
 | P4 | Pending | Differential/local journey, installed bindings, formal links, CI |
