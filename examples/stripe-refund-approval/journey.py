@@ -235,6 +235,8 @@ class Journey:
             operation,
             "--responses",
             str(folder),
+            "--operator-socket", str(self.work / "operator.sock"),
+            "--recover",
         ]
         return json.loads(self.run(*command).stdout)
 
@@ -292,7 +294,7 @@ def expect(condition: bool, message: str) -> None:
         raise SystemExit(f"journey check failed: {message}")
 
 
-SUBMIT_SCHEMA = "auths.gateway-submit/1"
+SUBMIT_SCHEMA = "auths.gateway-submit/2"
 # Words only the gateway's submit result may carry.
 GATEWAY_OUTCOMES = {
     "denied",
@@ -415,11 +417,18 @@ def resubmit(journey: Journey, operation: str) -> Dict[str, Any]:
 
     async def submit() -> Any:
         gateway = GatewayClient(GatewayEndpoint(journey.socket.resolve()))
-        return await gateway.submit(
-            proof=unb64(entry["proof_b64"]), action=unb64(entry["action_b64"])
-        )
+        from native_operator import request
+        reviewed = request(journey.work / "operator.sock", {"kind": "approve",
+            "proof": entry["proof_b64"], "action": entry["action_b64"]})
+        result = dataclasses.asdict(await gateway.submit(proof=unb64(entry["proof_b64"]),
+            action=unb64(entry["action_b64"]), approval=unb64(reviewed["approval"])))
+        if result.get("outcome") == "response-recorded" and result.get("status") == 200:
+            read = request(journey.work / "operator.sock", {"kind": "recover", "source": operation})
+            result["recovery"] = json.loads(await gateway.recover(operation,
+                proof=unb64(read["proof"]), action=unb64(read["action"]), approval=unb64(read["approval"])))
+        return result
 
-    return dataclasses.asdict(asyncio.run(submit()))
+    return asyncio.run(submit())
 
 
 def tamper(
@@ -463,7 +472,6 @@ def revoke_installed_connection(gateway: str, journey: "Journey", loopback: List
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gateway", required=True, help="auths-gateway binary")
-    parser.add_argument("--effect-policy", type=Path, required=True, help="Operator-installed human approval policy")
     parser.add_argument("--summary", type=Path, help="write the timing and result summary here")
     parser.add_argument("--stripe-test-mode", action="store_true")
     parser.add_argument("--payment-intent", default="pi_mock_journey")
@@ -548,6 +556,13 @@ def main() -> int:
                 "4",
             ),
         )
+        from native_operator import Operator, provision
+        operator_directory = journey.work / "operator"
+        asyncio.run(provision(operator_directory, facts,
+            {name: journey.state / "keys" / f"{name}.seed" for name in ("root", "reader", *MANAGERS)},
+            args.gateway, simulation=not live))
+        effect_policy = operator_directory / "effect-policy.json"
+
         # The double checks the bearer token by digest; the key itself stays
         # only in the gateway's credential store.
         mock_token_sha256 = hashlib.sha256(secret.encode()).hexdigest()
@@ -579,7 +594,7 @@ def main() -> int:
                 args.gateway,
                 "install",
                 "--effect-policy",
-                str(args.effect_policy.resolve()),
+                str(effect_policy.resolve()),
                 "--state-dir",
                 str(state_dir),
                 "--recipe",
@@ -597,7 +612,6 @@ def main() -> int:
                 "--account-label",
                 args.platform_account,
                 "--credential-stdin",
-                *loopback,
                 *extra_install,
                 stdin=key + "\n",
                 check=False,
@@ -627,6 +641,7 @@ def main() -> int:
         def install_key() -> None:
             installed = install(journey.gateway_state, secret)
             expect(installed.returncode == 0, f"install failed: {installed.stderr.strip()}")
+            Operator(operator_directory, journey.gateway_state).publish(loopback[-1] if loopback else None)
 
         onboarding_from = len(journey.provider_entries())
         journey.step("gateway install with the key on stdin", install_key)
@@ -643,6 +658,19 @@ def main() -> int:
                 ).stdout
             )["observer_anchor"]["principal"],
         )
+
+        configuration = json.loads(journey.run(args.gateway, "effect-configuration-review",
+            "--state-dir", str(journey.gateway_state)).stdout)
+        journey.run(args.gateway, "effect-configuration-activate", "--state-dir", str(journey.gateway_state),
+            "--expected-revision", configuration["previous_revision_hex"],
+            "--expected-candidate", configuration["candidate_hex"])
+        # The rollback test restores this actual active configuration, not an
+        # unpublished installation that can never grant entry.
+        shutil.rmtree(attempts_backup)
+        shutil.copytree(journey.gateway_state / "attempts", attempts_backup)
+        reviewer = journey.background(PYTHON, "native_operator.py", "--directory", str(operator_directory),
+            "serve", "--state", str(journey.gateway_state), "--socket", str(journey.work / "operator.sock"))
+        expect(reviewer.stdout.readline().strip() == "ready", "operator reviewer did not start")
 
         serve = [
             args.gateway,
@@ -742,6 +770,7 @@ def main() -> int:
                 str(proof),
                 "--action",
                 str(action),
+                "--approval", str(operator_directory / "adversarial-substitution.approval"),
             )
             # The CLI prints the gateway's submit result unchanged.
             return {"decided_by": "gateway", **json.loads(sent.stdout)}
@@ -828,6 +857,7 @@ def main() -> int:
                 str(proof_path),
                 "--action",
                 str(action_path),
+                "--approval", str(operator_directory / "adversarial-substitution.approval"),
             )
             return {"decided_by": "gateway", "sdk": sdk, **json.loads(sent.stdout)}
 
@@ -1033,11 +1063,14 @@ def main() -> int:
             "refund-1",
             observed,
             frames["refund-1"],
-            "observed-by-provider",
+            "response-recorded",
             status=200,
             action_b64=requests["refund-1"]["action_b64"],
         )
-        expect(observed["evidence"]["channel"] == "read-back", f"refund-1: {observed}")
+        expect(observed["recovery"]["report"]["source"]["provider_linked"] is True
+               and observed["recovery"]["report"]["source"]["stage"] == "observed-by-provider"
+               and observed["recovery"]["report"]["acquisition"]["response_status"] == 200,
+               f"refund-1 requires separately authorized linked recovery: {observed}")
         expect(observed["bundle"] == "appended", f"refund-1: {observed}")
         expect(
             observed["approved"] == ["manager-a", "manager-b"]
@@ -1202,10 +1235,12 @@ def main() -> int:
             expect(len(writes) == 2, f"expected exactly 2 provider writes, saw {len(writes)}")
             expect(all(entry["well_formed"] for entry in writes), "provider saw a malformed refund")
             expect([entry["amount"] for entry in writes] == [1_500, 4_000], f"provider writes {writes}")
-            expect(
-                writes[0]["echo"] == observed["evidence"]["echo"],
-                f"refund-1 echo {writes[0]['echo']} != {observed['evidence']['echo']}",
-            )
+            echo_record, echo_action = journey.work / "echo.json", journey.work / "echo.action"
+            echo_record.write_text(json.dumps({"echo": writes[0]["echo"]}))
+            echo_action.write_bytes(unb64(requests["refund-1"]["action_b64"]))
+            journey.run(args.gateway, "echo-verify", "--record", str(echo_record), "--pointer", "/echo",
+                "--operation-id", "refund-1", "--namespace", facts["operator_namespace"],
+                "--action", str(echo_action))
             read_back = f"/v1/refunds/{writes[0]['refund']}"
             expect(
                 any(entry["path"] == read_back and entry["status"] == 200 for entry in entries),
@@ -1238,7 +1273,8 @@ def main() -> int:
                 lose_attempts_and_resubmit,
             )
             expect(
-                state_loss["outcome"] == "observed-by-provider" and state_loss["status"] == 200,
+                state_loss["outcome"] == "response-recorded" and state_loss["status"] == 200
+                and state_loss["recovery"]["report"]["source"]["provider_linked"] is True,
                 f"resubmitted refund-1: {state_loss}",
             )
             writes = [entry for entry in journey.provider_entries() if entry["kind"] == "write"]
@@ -1529,6 +1565,7 @@ def main() -> int:
         writes = [entry for entry in journey.provider_entries() if entry["kind"] == "write"]
         summary = {
             "journey": "stripe-refund-approval",
+            "effect_reviewer": "interactive operator consent; development custody" if live else "finite scripted simulation; no human-trial claim",
             "provider": "stripe-test-mode" if live else "counting-mock",
             "credential_store": extra_install[extra_install.index("--credential-store") + 1]
             if "--credential-store" in extra_install

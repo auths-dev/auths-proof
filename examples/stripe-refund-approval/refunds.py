@@ -83,7 +83,7 @@ MANAGERS = ("manager-a", "manager-b", "manager-c")
 # The gateway's trusted context requires approvals from this many of the
 # three managers, any of them.
 APPROVALS_REQUIRED = 2
-ROLES = ("root", "agent") + MANAGERS
+ROLES = ("root", "agent", "reader") + MANAGERS
 ASSURANCE = "raw-key-baseline"
 DAY = 86_400
 # The test connected account the grant's scope lists; the gateway sends it as
@@ -304,7 +304,8 @@ def setup(args: argparse.Namespace) -> None:
             _native.Principal(principals[name]),
             ["raw-key-v1"],
             [("auths.mcp", 2)],
-            [permission],
+            [permission, *[("tools/call", f"{audience}/tools/{name}") for name in
+                ("auths_gateway_candidate_check_v1", "auths_gateway_recovery_read_v1")]],
             [audience],
             [audience],
             not_before,
@@ -610,11 +611,25 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
     )
     proof = collection.assemble(action)
     gateway = GatewayClient(GatewayEndpoint(args.socket.resolve()))
-    with args.effect_approval.open("rb") as approval_file:
-        approval = approval_file.read(4097)
+    if args.operator_socket:
+        from native_operator import request, unb64
+        reviewed = request(args.operator_socket, {"kind": "approve", "proof": _b64(proof),
+                                                 "action": _b64(proposal.action)})
+        approval = unb64(reviewed["approval"])
+        record["effect_review"] = {key: value for key, value in reviewed.items() if key != "approval"}
+    else:
+        with args.effect_approval.open("rb") as approval_file:
+            approval = approval_file.read(4097)
     result = await gateway.submit(proof=proof, action=proposal.action, approval=approval)
     record.update(dataclasses.asdict(result))
     record["decided_by"] = "gateway"
+    if args.recover and record.get("outcome") == "response-recorded" and record.get("status") == 200:
+        if not args.operator_socket:
+            raise ValueError("--recover requires a separately authorizing --operator-socket")
+        from native_operator import request, unb64
+        read = request(args.operator_socket, {"kind": "recover", "source": args.operation_id})
+        record["recovery"] = json.loads(await gateway.recover(args.operation_id,
+            proof=unb64(read["proof"]), action=unb64(read["action"]), approval=unb64(read["approval"])))
     observation = await gateway.observe_outcome(args.operation_id)
     outcome = observation.observation if isinstance(observation, GatewaySignedObservation) else None
     entry = {
@@ -695,7 +710,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     submit = commands.add_parser("submit", help="collect the responses and submit through the gateway")
     submit.add_argument("--state", type=Path, required=True)
     submit.add_argument("--socket", type=Path, required=True)
-    submit.add_argument("--effect-approval", type=Path, required=True, help="native exact-effect approval")
+    approval = submit.add_mutually_exclusive_group(required=True)
+    approval.add_argument("--effect-approval", type=Path, help="native exact-effect approval")
+    approval.add_argument("--operator-socket", type=Path, help="separate development operator reviewer")
+    submit.add_argument("--recover", action="store_true", help="request a separate authorized recovery read after a successful response")
     submit.add_argument("--operation-id", required=True)
     submit.add_argument("--responses", type=Path, required=True, help="directory of *.response files")
     bundle = commands.add_parser("export", help="write the audit bundle")

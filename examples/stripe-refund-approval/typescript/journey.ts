@@ -61,7 +61,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { authorMcpProof, compileTrustedContext, proposeMcpApproval } from "@auths-dev/sdk/self-hosted";
 
 import { CONTRACT, type CreateRefund } from "./generated.js";
-import { ASSURANCE, EXAMPLE, anchor, developmentSigner, roleKey, type SetupFacts } from "./refunds.js";
+import { ASSURANCE, EXAMPLE, anchor, developmentSigner, roleKey, requestOperator, type SetupFacts } from "./refunds.js";
 
 const REFUNDS = fileURLToPath(new URL("./refunds.js", import.meta.url));
 // The double's accounts and its already-refunded PaymentIntent.
@@ -203,7 +203,7 @@ class Journey {
   submit(operation: string, folder: string): Json {
     return JSON.parse(this.run(process.execPath, [
       REFUNDS, "submit", "--state", this.state, "--socket", this.witnessSocket, "--operation-id", operation,
-      "--responses", folder,
+      "--responses", folder, "--operator-socket", join(this.work, "operator.sock"), "--recover",
     ]).stdout) as Json;
   }
 
@@ -255,7 +255,7 @@ function expect(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`journey check failed: ${message}`);
 }
 
-const SUBMIT_SCHEMA = "auths.gateway-submit/1";
+const SUBMIT_SCHEMA = "auths.gateway-submit/2";
 // Words only the gateway's submit result may carry.
 const GATEWAY_OUTCOMES = new Set([
   "denied", "not-entered", "indeterminate", "unknown", "response-recorded", "observed", "observed-by-provider",
@@ -384,7 +384,6 @@ async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       gateway: { type: "string" },
-      "effect-policy": { type: "string" },
       summary: { type: "string" },
       python: { type: "string", default: "python3" },
       "stripe-test-mode": { type: "boolean", default: false },
@@ -395,8 +394,6 @@ async function main(): Promise<void> {
     },
   });
   if (values.gateway === undefined) throw new Error("--gateway PATH/TO/auths-gateway is required");
-  const effectPolicy = values["effect-policy"];
-  if (effectPolicy === undefined) throw new Error("--effect-policy PATH is required");
   const live = values["stripe-test-mode"]!;
   const paymentIntent = values["payment-intent"]!;
   const rejectedPaymentIntent = values["rejected-payment-intent"]!;
@@ -441,6 +438,12 @@ async function main(): Promise<void> {
         REFUNDS, "grant", "--state", journey.state, "--gateway", journey.gateway,
         "--agent", CHECKS_AGENT, "--max-count", "4",
       ]));
+    const operatorDirectory = join(work, "operator");
+    const operatorScript = join(EXAMPLE, "native_operator.py");
+    journey.run(journey.python, [operatorScript, "--directory", operatorDirectory, "setup",
+      "--facts", join(journey.state, "setup.json"), "--key-directory", join(journey.state, "keys"),
+      "--gateway", journey.gateway, ...(live ? [] : ["--simulation"])]);
+    const effectPolicy = join(operatorDirectory, "effect-policy.json");
     // The double checks the bearer token by digest; the key itself stays
     // only in the gateway's credential store.
     const mockTokenSha256 = createHash("sha256").update(secret).digest("hex");
@@ -469,7 +472,7 @@ async function main(): Promise<void> {
         "--profile-lock", "profile.lock.json",
         "--trusted-context", join(journey.state, "trust", "gateway.context.cbor"),
         "--approve-digest", facts.recipe_digest, "--provider", "stripe", "--alias", "refunds",
-        "--account-label", platformAccount, "--credential-stdin", ...loopback,
+        "--account-label", platformAccount, "--credential-stdin",
       ], `${key}\n`, false);
     };
 
@@ -494,6 +497,8 @@ async function main(): Promise<void> {
     await journey.step("gateway install with the key on stdin", () => {
       const installed = install(journey.gatewayState, secret);
       expect(installed.status === 0, `install failed: ${installed.stderr.trim()}`);
+      journey.run(journey.python, [operatorScript, "--directory", operatorDirectory, "publish",
+        "--state", journey.gatewayState, ...loopback]);
     });
     const onboarding = journey.providerEntries().slice(onboardingFrom);
     // The store as a backup taken now would hold it: the shared connection
@@ -503,6 +508,20 @@ async function main(): Promise<void> {
     const observer = await journey.step("gateway observer key", () =>
       ((JSON.parse(journey.run(journey.gateway, ["observer-init", "--state-dir", journey.gatewayState]).stdout) as
         { observer_anchor: { principal: string } }).observer_anchor.principal));
+    const configuration = JSON.parse(journey.run(journey.gateway,
+      ["effect-configuration-review", "--state-dir", journey.gatewayState]).stdout) as
+      { previous_revision_hex: string; candidate_hex: string };
+    journey.run(journey.gateway, ["effect-configuration-activate", "--state-dir", journey.gatewayState,
+      "--expected-revision", configuration.previous_revision_hex, "--expected-candidate", configuration.candidate_hex]);
+    rmSync(attemptsBackup, { recursive: true });
+    copyTree(join(journey.gatewayState, "attempts"), attemptsBackup);
+    const reviewer = journey.background(journey.python, [operatorScript, "--directory", operatorDirectory,
+      "serve", "--state", journey.gatewayState, "--socket", join(work, "operator.sock")], "pipe");
+    const reviewerReady = await Promise.race([
+      new Promise<string>((done) => createInterface({ input: reviewer.stdout! }).once("line", done)),
+      sleep(10_000, "", { ref: false }),
+    ]);
+    expect(reviewerReady === "ready", "operator reviewer did not start");
     let running: ChildProcess | undefined;
     const startGateway = async (): Promise<void> => {
       // A stopped gateway leaves its socket file behind; wait for a new one.
@@ -572,6 +591,7 @@ async function main(): Promise<void> {
       // The witness is its own process, so this blocking call cannot stall it.
       const sent = journey.run(journey.gateway, [
         "submit", "--app-socket", journey.witnessSocket, "--proof", proof, "--action", action,
+        "--approval", join(operatorDirectory, "adversarial-substitution.approval"),
       ]);
       // The CLI prints the gateway's submit result unchanged.
       return { decided_by: "gateway", ...(JSON.parse(sent.stdout) as Json) };
@@ -650,6 +670,7 @@ async function main(): Promise<void> {
       writeFileSync(actionPath, authored.action);
       const sent = journey.run(journey.gateway, [
         "submit", "--app-socket", journey.witnessSocket, "--proof", proofPath, "--action", actionPath,
+        "--approval", join(operatorDirectory, "adversarial-substitution.approval"),
       ]);
       return { decided_by: "gateway", sdk, ...(JSON.parse(sent.stdout) as Json) };
     };
@@ -784,11 +805,12 @@ async function main(): Promise<void> {
     }
 
     const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
-    const observed = results["refund-1"]! as Json & { evidence?: { channel: string; echo: string } };
+    const observed = results["refund-1"]! as Json & { recovery: { report: { source: { provider_linked: boolean; stage: string }; acquisition: { response_status: number } } } };
     expectGatewayDecided("refund-1", observed, frames["refund-1"]!, {
-      outcome: "observed-by-provider", status: 200, actionB64: requests["refund-1"]!.action_b64 as string,
+      outcome: "response-recorded", status: 200, actionB64: requests["refund-1"]!.action_b64 as string,
     });
-    expect(observed.evidence?.channel === "read-back" && observed.bundle === "appended",
+    expect(observed.recovery.report.source.provider_linked && observed.recovery.report.source.stage === "observed-by-provider" &&
+      observed.recovery.report.acquisition.response_status === 200 && observed.bundle === "appended",
       `refund-1: ${JSON.stringify(observed)}`);
     expect(same(observed.approved, ["manager-a", "manager-b"]) && same(observed.pending, ["manager-c"]) &&
       !("declined" in observed) &&
@@ -891,8 +913,11 @@ async function main(): Promise<void> {
       expect(writes.length === 2, `expected exactly 2 provider writes, saw ${writes.length}`);
       expect(writes.every((entry) => entry.well_formed === true), "provider saw a malformed refund");
       expect(same(writes.map((entry) => entry.amount), [1_500, 4_000]), `provider writes ${JSON.stringify(writes)}`);
-      expect(writes[0]!.echo === observed.evidence?.echo,
-        `refund-1 echo ${String(writes[0]!.echo)} != ${String(observed.evidence?.echo)}`);
+      const echoRecord = join(work, "echo.json"), echoAction = join(work, "echo.action");
+      writeFileSync(echoRecord, JSON.stringify({ echo: writes[0]!.echo }), { mode: 0o600 });
+      writeFileSync(echoAction, Buffer.from(requests["refund-1"]!.action_b64 as string, "base64url"), { mode: 0o600 });
+      journey.run(journey.gateway, ["echo-verify", "--record", echoRecord, "--pointer", "/echo",
+        "--operation-id", "refund-1", "--namespace", facts.operator_namespace, "--action", echoAction]);
       const readBack = `/v1/refunds/${String(writes[0]!.refund)}`;
       expect(entries.some((entry) => entry.path === readBack && entry.status === 200),
         `refund-1 was not read back at ${readBack}`);
@@ -922,11 +947,25 @@ async function main(): Promise<void> {
           const action = join(journey.work, "resubmit.action");
           writeFileSync(proof, new Uint8Array(Buffer.from(first.proof_b64 as string, "base64url")));
           writeFileSync(action, new Uint8Array(Buffer.from(first.action_b64 as string, "base64url")));
-          return JSON.parse(journey.run(journey.gateway, [
+          const reviewed = await requestOperator(join(work, "operator.sock"),
+            { kind: "approve", proof: first.proof_b64, action: first.action_b64 });
+          const approval = join(work, "resubmit.approval");
+          writeFileSync(approval, Buffer.from(String(reviewed.approval), "base64url"), { mode: 0o600 });
+          const result = JSON.parse(journey.run(journey.gateway, [
             "submit", "--app-socket", journey.socket, "--proof", proof, "--action", action,
+            "--approval", approval,
           ]).stdout) as Json;
+          const read = await requestOperator(join(work, "operator.sock"), { kind: "recover", source: "refund-1" });
+          for (const field of ["proof", "action", "approval"] as const) {
+            writeFileSync(join(work, `read.${field}`), Buffer.from(String(read[field]), "base64url"), { mode: 0o600 });
+          }
+          result.recovery = JSON.parse(journey.run(journey.gateway, ["app-recover", "--app-socket", journey.socket,
+            "--source-operation", "refund-1", "--proof", join(work, "read.proof"),
+            "--action", join(work, "read.action"), "--approval", join(work, "read.approval")]).stdout) as unknown;
+          return result;
         });
-      expect(stateLoss.outcome === "observed-by-provider" && stateLoss.status === 200,
+      expect(stateLoss.outcome === "response-recorded" && stateLoss.status === 200 &&
+        (stateLoss.recovery as { report: { source: { provider_linked: boolean } } }).report.source.provider_linked,
         `resubmitted refund-1: ${JSON.stringify(stateLoss)}`);
       writes = journey.providerEntries().filter((entry) => entry.kind === "write");
       expect(writes.length === 3, `expected 3 provider writes, saw ${writes.length}`);
@@ -1122,6 +1161,8 @@ async function main(): Promise<void> {
     const summary = {
       journey: "stripe-refund-approval",
       sdk: "@auths-dev/sdk (packed npm)",
+      operator_tooling: "separate Python SDK; native gateway authors and verifies read semantics",
+      effect_reviewer: live ? "interactive operator consent; development custody" : "finite scripted simulation; no human-trial claim",
       provider: live ? "stripe-test-mode" : "counting-mock",
       wall_seconds: Math.round(performance.now() - journey.started) / 1000,
       steps: journey.steps,

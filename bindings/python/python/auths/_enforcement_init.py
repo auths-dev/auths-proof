@@ -62,6 +62,7 @@ _COPIES = (
     ("dev/stripe_double.py", "dev/stripe_double.py.tmpl", 0o644),
     ("dev/gateway_witness.py", "dev/gateway_witness.py.tmpl", 0o644),
     ("lib/common.py", "lib/common.py.tmpl", 0o644),
+    ("lib/native_operator.py", "lib/native_operator.py.tmpl", 0o644),
     ("lib/operate.py", "lib/operate.py.tmpl", 0o644),
     ("lib/approve.py", "lib/approve.py.tmpl", 0o644),
     ("lib/selftest.py", "lib/selftest.py.tmpl", 0o644),

@@ -50,6 +50,7 @@ WRITTEN = {
     "dev/stripe_double.py": 0o644,
     "dev/gateway_witness.py": 0o644,
     "lib/common.py": 0o644,
+    "lib/native_operator.py": 0o644,
     "lib/operate.py": 0o644,
     "lib/approve.py": 0o644,
     "lib/selftest.py": 0o644,
@@ -107,6 +108,10 @@ elif command == "install":
         sys.exit(1)
     (state / "installation.json").write_text("{}")
     print("installed recipe " + __DIGEST__ + " with separate gateway credential custody")
+elif command == "effect-configuration-review":
+    print(json.dumps({"previous_revision_hex": "00" * 32, "candidate_hex": "11" * 32}))
+elif command == "effect-configuration-activate":
+    print(json.dumps({"activated": True}))
 elif command == "observer-init":
     print(json.dumps({"observer_anchor": {"principal": "key:sha256:stand-in"}}))
 elif command == "serve":
@@ -205,6 +210,14 @@ def pretend_setup(directory: Path) -> None:
     for folder in ("operator", "operator/trust", "audit"):
         (directory / folder).mkdir(mode=0o700)
     (directory / "operator" / "setup.json").write_text(json.dumps({"recipe_digest": DIGEST}))
+    # This stand-in exercises process/credential plumbing only. It never
+    # represents an authorized candidate acquisition or a signed effect.
+    effects = directory / "operator" / "effects"
+    effects.mkdir(mode=0o700)
+    (effects / "reviewer.seed").write_bytes(bytes(32))
+    (effects / "effect-policy.json").write_text("{}")
+    (effects / "configuration.json").write_text(json.dumps({"gateway": "stand-in",
+        "facts": {}, "simulation": True, "maximum_reviews": 128}))
     (directory / "operator" / "trust" / "gateway.context.cbor").write_bytes(b"\x00")
     (directory / "audit" / "pins.json").write_text(json.dumps({"trusted_context_sha256": "00" * 32, "observer": None}))
 
@@ -461,7 +474,8 @@ def test_double_mode_hands_the_key_on_unchanged_and_writes_only_its_digest(
         install = next(call for call in calls(short_root) if call[0] == "install")
         paths = {option: install[install.index(option) + 1] for option in ("--state-dir", "--recipe", "--profile-lock", "--trusted-context")}
         assert all(Path(value).is_absolute() and Path(value).is_relative_to(directory) for value in paths.values())
-        assert "--loopback-provider" in install
+        assert "--loopback-provider" not in install
+        assert "--effect-policy" in install
         for path in directory.rglob("*"):
             if path.is_file() and not path.is_relative_to(directory / "enforcement"):
                 assert b"rk_test_mock_abc" not in path.read_bytes(), path
@@ -479,7 +493,7 @@ def test_double_mode_hands_the_key_on_unchanged_and_writes_only_its_digest(
         assert serve[serve.index("--loopback-provider") + 1] == str(started["double_port"])
     finally:
         status, stopped, _ = run(directory, "stop")
-    assert status == 0 and set(stopped["stopped"]) == {"gateway", "double"}
+    assert status == 0 and set(stopped["stopped"]) == {"gateway", "double", "operator"}
     time.sleep(0.2)
     for pid in stopped["stopped"].values():
         with pytest.raises(OSError):
@@ -574,3 +588,142 @@ def test_the_installed_command_routes_a_recipe_to_the_enforcement_scaffold(short
         "known": ["stripe-refund-approval"],
         "recipe": "no-such-recipe",
     }
+
+
+def test_native_operator_template_matches_reviewed_example() -> None:
+    """One authored transport helper; neither copy implements gateway decisions."""
+    assert (TEMPLATES / "lib/native_operator.py.tmpl").read_bytes() == (EXAMPLE / "native_operator.py").read_bytes()
+
+
+@pytest.mark.parametrize("review", [
+    {"schema": "auths.private-effect-signing/2", "signing_message_hex": "00"},
+    {"schema": "auths.private-effect-signing/2", "renderer": "other", "literal_review": "shown", "signing_message_hex": "00"},
+    {"schema": "auths.private-effect-signing/2", "renderer": "auths.literal-complete-review/1", "literal_review": "", "signing_message_hex": "00"},
+])
+def test_operator_never_signs_incomplete_native_review(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, review: Dict[str, Any]) -> None:
+    import runpy
+    helper = runpy.run_path(str(EXAMPLE / "native_operator.py"))
+    operator = helper["Operator"].__new__(helper["Operator"])
+    operator.directory, operator.state = tmp_path, tmp_path / "gateway"
+    operator.binary, operator.sequence = "native-test-double", 0
+    operator.config = {"maximum_reviews": 1, "simulation": True}
+    class NoSigner:
+        def sign(self, _: bytes) -> bytes:
+            pytest.fail("an incomplete native review reached the signer")
+    operator.reviewer = NoSigner()
+    monkeypatch.setitem(operator.exact_approval.__globals__, "run", lambda *args, **kwargs:
+        subprocess.CompletedProcess(args, 0, stdout=json.dumps(review).encode()))
+    with pytest.raises(ValueError, match="complete-native-review-required"):
+        operator.exact_approval(b"test-only-proof", b"test-only-action")
+    assert not (tmp_path / "review-1" / "approval").exists()
+
+
+def test_live_operator_decline_prevents_exact_signature(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import runpy
+    helper = runpy.run_path(str(EXAMPLE / "native_operator.py"))
+    operator = helper["Operator"].__new__(helper["Operator"])
+    operator.directory, operator.state = tmp_path, tmp_path / "gateway"
+    operator.binary, operator.sequence = "native-test-double", 0
+    operator.config = {"maximum_reviews": 1, "simulation": False}
+    class NoSigner:
+        def sign(self, _: bytes) -> bytes:
+            pytest.fail("declined live review reached the signer")
+    operator.reviewer = NoSigner()
+    review = {"schema": "auths.private-effect-signing/2", "renderer": "auths.literal-complete-review/1",
+              "literal_review": "full native test review", "signing_message_hex": "00"}
+    monkeypatch.setitem(operator.exact_approval.__globals__, "run", lambda *args, **kwargs:
+        subprocess.CompletedProcess(args, 0, stdout=json.dumps(review).encode()))
+    def decline(directory: Path, name: str) -> None:
+        assert json.loads((directory / "literal-review.json").read_text()) == review
+        assert (directory / "literal-review.txt").read_text() == review["literal_review"]
+        assert json.loads((directory / "signing-request.json").read_text()) == review
+        assert name == "review-1"
+        raise ValueError("operator.review-declined")
+    monkeypatch.setitem(operator.exact_approval.__globals__, "consent", decline)
+    with pytest.raises(ValueError, match="review-declined"):
+        operator.exact_approval(b"test-only-proof", b"test-only-action")
+    assert not (tmp_path / "review-1" / "approval").exists()
+
+
+def test_operator_bad_peers_leave_listener_available(short_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Real Unix frames exercise the transport only, with no effect-authority claim."""
+    import runpy
+    import socket
+    import struct
+    import threading
+    helper = runpy.run_path(str(EXAMPLE / "native_operator.py"))
+    approved = {"kind": "approve", "proof": "AA", "action": "AA"}
+    invalid = [
+        b"[]", b"null", b'"text"',
+        b'{"kind":"recover","kind":"recover","source":"source-1"}',
+        b'{"kind":"approve","proof":[],"action":"AA"}',
+        b'{"kind":"approve","proof":"AA","action":1}',
+        b'{"kind":"approve","proof":"AA=","action":"AA"}',
+        b'{"kind":"approve","proof":"AB","action":"AA"}',  # noncanonical pad bits
+        b'{"kind":"recover","source":{}}',
+        b'{"kind":"recover","source":"--unsafe"}',
+        b'{"kind":"recover","source":"source-1","extra":true}',
+        b'{"kind":"recover","source":NaN}',
+        b'{"kind":"recover","source":"' + b'a' * 129 + b'"}',
+        json.dumps({"kind": "approve", "proof": "AA", "action": "A" * (88 * 1024)}).encode(),
+        b'{"kind":"approve","proof":"AA","action":"AA","nested":{"x":1,"x":2}}',
+        b'\xff', b'{',
+    ]
+    class TransportOnly:
+        def __init__(self):
+            self.calls = []
+        def request(self, request):
+            self.calls.append(request)
+            return {"accepted_transport_only": True}
+    operator = TransportOnly()
+    # Malformed peers cannot exhaust the single valid-request allowance.
+    monkeypatch.setitem(helper["serve"].__globals__, "MAX_REVIEWS", 1)
+    path = short_root / "review.sock"
+    thread = threading.Thread(target=helper["serve"], args=(operator, path), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 5
+    while not path.exists():
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    for body in [*invalid, None]:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
+            peer.settimeout(5)
+            peer.connect(str(path))
+            peer.sendall(struct.pack(">I", helper["MAX_FRAME"] + 1) if body is None else
+                         struct.pack(">I", len(body)) + body)
+            result = helper["receive"](peer)
+            assert set(result) == {"error"}
+            assert re.fullmatch(r"operator\.[a-z0-9-]+", result["error"])
+            assert "unsafe" not in result["error"] and str(short_root) not in result["error"]
+        assert thread.is_alive()
+    assert helper["request"](path, approved) == {"accepted_transport_only": True}
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert operator.calls == [approved]
+
+
+def test_operator_peer_and_native_deadlines_are_finite(monkeypatch: pytest.MonkeyPatch) -> None:
+    import runpy
+    import socket
+    import threading
+    helper = runpy.run_path(str(EXAMPLE / "native_operator.py"))
+    class NoOperation:
+        def request(self, _):
+            pytest.fail("truncated peer reached native operation")
+    client, server = socket.socketpair()
+    # receive's explicit deadline covers the whole frame, not each incoming byte.
+    receive = helper["receive"]
+    monkeypatch.setitem(helper["serve_peer"].__globals__, "receive", lambda peer: receive(peer, timeout=0.03))
+    thread = threading.Thread(target=helper["serve_peer"], args=(NoOperation(), server))
+    thread.start()
+    with client:
+        client.sendall(b"\x00")
+        assert receive(client) == {"error": "operator.peer-timeout"}
+    thread.join(timeout=2)
+    assert not thread.is_alive()
+    def timeout(*args, **kwargs):
+        assert kwargs["timeout"] == helper["NATIVE_COMMAND_TIMEOUT"]
+        raise subprocess.TimeoutExpired("private command must not be echoed", kwargs["timeout"])
+    monkeypatch.setattr(subprocess, "run", timeout)
+    with pytest.raises(ValueError, match="^operator.native-command-timeout$"):
+        helper["run"]("private-native-command", "private-input")

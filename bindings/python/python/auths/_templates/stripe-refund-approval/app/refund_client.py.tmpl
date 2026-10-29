@@ -303,9 +303,17 @@ async def _submit(options: argparse.Namespace) -> Dict[str, Any]:
         await loaded.signer.aclose()
     proof = collection.assemble(action)
     gateway = GatewayClient(GatewayEndpoint(inside(options.socket)))
-    result = await gateway.submit(proof=proof, action=proposal.action)
+    from native_operator import request, unb64
+    reviewed = request(PROJECT / "run" / "operator.sock", {"kind": "approve", "proof": _b64(proof),
+                                                        "action": _b64(proposal.action)})
+    result = await gateway.submit(proof=proof, action=proposal.action, approval=unb64(reviewed["approval"]))
+    record["effect_review"] = {key: value for key, value in reviewed.items() if key != "approval"}
     record.update(dataclasses.asdict(result))
     record["decided_by"] = "gateway"
+    if options.recover and record.get("outcome") == "response-recorded" and record.get("status") == 200:
+        read = request(PROJECT / "run" / "operator.sock", {"kind": "recover", "source": options.operation_id})
+        record["recovery"] = json.loads(await gateway.recover(options.operation_id,
+            proof=unb64(read["proof"]), action=unb64(read["action"]), approval=unb64(read["approval"])))
     observation = await gateway.observe_outcome(options.operation_id)
     outcome = observation.observation if isinstance(observation, GatewaySignedObservation) else None
     record["bundle"] = _record_entry(
@@ -324,6 +332,7 @@ def submit(arguments: List[str]) -> Dict[str, Any]:
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--responses", help="folder name under requests/; defaults to the operation ID")
     parser.add_argument("--socket", type=Path, default=PROJECT / "run" / "app.sock")
+    parser.add_argument("--recover", action="store_true", help="separately authorize a native recovery read after response")
     options = parser.parse_args(arguments)
     checked_config(gateway=False)
     return asyncio.run(_submit(options))
