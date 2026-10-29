@@ -3073,6 +3073,55 @@ freeze414 and only reported identity158/public-SDK155/public-surface414; other
 identity counters remain unchanged. Formal translation source closure remains
 a002. These construction results are not new hosted/formal acceptance.
 
+## Native valid-authority scope and recipe checkpoint
+
+Two new artifact constructors cover file and TLS PostgreSQL. Each independently
+verifies eleven acquisition and eighteen disclosure substitutions with the ordinary
+native verifier before requiring managed compilation/admission refusal. These are
+fresh, genuinely signed proofs under the installed trust: unsupported task/scope,
+participant/ancestor/charge fields, caller partition/epoch, and substitutions for
+the closed namespace/recipe/content or disclosure contract, source, recipient,
+channel, delivery instance and byte ceiling. The expected compiler binding refusal
+and unchanged raw attempt records/execution witness are asserted. No credential
+lease or provider request follows a refused call. Original exact acquisition and
+authenticated same-UID recipient delivery/ACK are positive controls.
+
+Each adapter also runs shared-store cross-partition and cross-recipe histories
+with identical actor, resource and logical operation names. Different operator
+partitions compile the same valid native proof to different effect identities;
+the old exact approval cannot cross them, and foreign history/disclosure source
+cannot resolve. The original approval still executes and replays without new
+entry. A replacement recipe requires explicit activation plus native connection
+rotation/CAS. Activation alone cannot bypass the old pinned descriptor. Old proof
+and approval cannot authorize the new recipe; even fresh proof/approval cannot
+overwrite the retained operation. A separately approved new operation succeeds.
+Original recipe history remains available under its original recipe.
+
+The cross-recipe constructor exposed a missing recipe check in the disclosure
+proposal getter: compilation and entry already rejected foreign provenance, but
+the getter could return a proposal. `GatewayEngine::disclosure_target` now compares
+the validated retained binding's recipe digest before returning provenance, using
+the existing binding and refusal code. The regression requires immediate refusal,
+with no journal or execution changes. This adds no authority owner or task system.
+The test-only engine loader can initialize an explicit credential generation;
+the replacement record is checked for exact equality with the ordinary native
+generation-incrementing rotation result before the existing connection CAS.
+
+Required local artifact construction passed both exact selectors with one matched,
+nonignored test: file0.79s and TLS PostgreSQL2.25s. The two artifacts contain 58
+valid-authority substitutions plus four partition/recipe histories. The PostgreSQL
+workflow retains all 30 preceding selectors and adds two for 32 explicit native
+selectors. These are constructor results, not new-head hosted acceptance. Same-UID
+local transport proves no hostile OS containment. Complete binding-dimension,
+installed language/UI and concurrent dependency/fault obligations remain; A02/A16
+remain partial. AP070 and the paused AP073 worktree are untouched. CI inspection,
+holistic repairs and publication timing remain with the requested CI subagent.
+
+Native source-closure construction and rebuilt non-update verification passed.
+Semantic inventory construction advances freeze415 and only the reported changed
+identity159/public-SDK156/public-surface415 subjects. Formal translation source
+closure remains a002; these construction results are not fresh formal proofs.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -3092,7 +3141,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | Case | Required evidence | Implementation / authored / executed | Limitation or next work |
 | --- | --- | --- | --- |
 | A01 | Same bound identity and exact request across review/approval/send | Partial / native review/compiler and real mutation replay corpus / ten file/TLS PostgreSQL histories send the exact reviewed PATCH body | Full installed review-completeness and authenticated human/UI evidence pending |
-| A02 | Independent mutation of every binding dimension | Partial / bound-effect corpus and native retained-input controls / distinct valid proof/action, damaged approval, changed resource and changed recipient rejected during file/TLS PostgreSQL replay | Complete independent substitutions for every binding dimension and installed surface remain required |
+| A02 | Independent mutation of every binding dimension | Partial / bound-effect corpus, native retained-input controls and 58 valid-authority acquisition/disclosure substitutions on file/TLS PostgreSQL / closed scope/contract/source/recipient/channel/delivery substitutions refused without admission or I/O | Complete independent substitutions for every binding dimension and installed surface remain required |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / native lifetime/acquisition histories executed; twelve mutation/disclosure count/sum/both contention histories now constructed on both adapters using prefix plus two OS contenders | New-head hosted confirmation and complete dependency-change/adverse grant schedules remain required |
 | A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
@@ -3106,7 +3155,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and native independent-process approval/authority/observer lock-wait cases / file/TLS PostgreSQL positive/stale observer controls executed at the exact freshness boundary and one second beyond | Full mutation/disclosure and installed/adverse evidence remain required |
 | A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls / four file/TLS PostgreSQL histories execute unchanged/changed selection; proof remains Authorized but changed authority invalidates the old still-current exact approval before grant | Complete installed language/UI and mutation/disclosure parity remain required |
 | A15 | Recovery actor differs; original authority revoked | Partial / native independent writer/reader OS-process journey / eight file/TLS PostgreSQL histories execute after operator withdrawal of writer root, with original entry/identity/charges preserved and fresh independent reader approval | Other revocation scopes and full installed language/authenticated UI evidence remain required |
-| A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
+| A16 | Cross-task/recipe/partition substitution | Partial / native valid-authority unscoped negatives and four shared-store file/TLS PostgreSQL partition/recipe histories / foreign approval, retained history and release provenance refused; original facts retained | Complete installed-boundary and remaining scope substitution evidence; no AP073 task implementation required |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / independent mutation and post-authorization information comparisons against unchanged references / hosted74ce mutation 28 requests + 26 responses, information 22 pairs across both adapters and 104 source/parser controls passed | Named A19 contracts audited in the differential-contracts document; final-head confirmation remains required, with AP070 independence and divergent claims retained |

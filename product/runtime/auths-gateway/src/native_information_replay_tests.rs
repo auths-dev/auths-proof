@@ -32,6 +32,9 @@ mod retention_tests;
 #[path = "native_epoch_tests.rs"]
 mod epoch_tests;
 
+#[path = "native_scope_tests.rs"]
+mod scope_tests;
+
 #[derive(Clone, Copy, Debug)]
 enum Protocol {
     Acquisition,

@@ -1675,6 +1675,8 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/configuration.rs#native_configuration_fixture_is_current",
   "product/runtime/auths-gateway/src/native_epoch_tests.rs#native_file_epoch_fence_fixture_is_current",
   "product/runtime/auths-gateway/src/native_epoch_tests.rs#postgres_native_epoch_fence_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_scope_tests.rs#native_file_managed_scope_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_scope_tests.rs#postgres_native_managed_scope_fixture_is_current",
   "product/runtime/auths-gateway/src/configuration.rs#file_configuration_changes_fence_stale_hosts_and_retain_revocations",
   "product/runtime/auths-gateway/src/configuration.rs#postgres_configuration_changes_fence_stale_hosts_and_retain_revocations",
   "product/runtime/auths-gateway/src/recipe/tests.rs#three_independent_recipes_compile_without_provider_code",

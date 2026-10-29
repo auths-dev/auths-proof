@@ -108,6 +108,23 @@ pub(super) async fn load_controlled_engine(
     attempts: GatewayAttempts,
     controls: EngineControls,
 ) -> (GatewayEngine, ConnectionRecord) {
+    load_controlled_engine_at_generation(
+        setup,
+        label,
+        attempts,
+        controls,
+        std::num::NonZeroU64::MIN,
+    )
+    .await
+}
+
+pub(super) async fn load_controlled_engine_at_generation(
+    setup: &Setup,
+    label: &str,
+    attempts: GatewayAttempts,
+    controls: EngineControls,
+    generation: std::num::NonZeroU64,
+) -> (GatewayEngine, ConnectionRecord) {
     let recipe = controls.recipe.unwrap_or_else(recipe);
     let trust = controls.trust.unwrap_or_else(|| trust(&recipe));
     let initial = crate::harness::fixture_connection(&recipe).expect("connection template");
@@ -118,7 +135,7 @@ pub(super) async fn load_controlled_engine(
     let reference = credentials
         .install(
             initial.connection_id(),
-            initial.credential_generation(),
+            generation,
             SecretBytes::new(SECRET.to_vec()).expect("synthetic credential"),
         )
         .await
@@ -132,7 +149,7 @@ pub(super) async fn load_controlled_engine(
         initial.descriptor().to_vec(),
         *initial.account_commitment(),
         *reference.as_bytes(),
-        initial.generation(),
+        generation,
         initial.state(),
         initial.allowed_workloads().to_vec(),
         initial.allowed_profiles().to_vec(),

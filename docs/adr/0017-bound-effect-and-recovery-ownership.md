@@ -1240,3 +1240,28 @@ histories include SIGKILL after actual reservation acknowledgement. Disclosure
 reservation-only admission returns data and no permit. These tests add no
 production owner or new semantic abstraction. Source-specific adverse schedules,
 rollback floors, installed containment and final hosted evidence remain required.
+
+## Native unscoped contract and partition evidence
+
+The native verifier and managed compiler retain different responsibilities.
+Freshly signed acquisition and disclosure calls can be valid native authority
+while proposing unsupported task, participant, ancestor or charge inputs, or
+substituting the closed compiler contract. The managed compiler refuses these
+calls before admission. File and TLS PostgreSQL histories inspect unchanged
+attempt bytes and execution witnesses, then execute the original exact read and
+authenticated same-UID disclosure/ACK as positive controls.
+
+Two independently configured operator partitions share the physical adapter but
+have different effect identities and control keys. The same valid proof does not
+let an exact approval cross partitions, nor let a partition read or release the
+other's retained content. Original history remains replayable without new entry.
+An activated replacement recipe also requires an independently approved native
+connection rotation/CAS; activation alone cannot reuse the old descriptor. Even
+fresh proof and approval cannot overwrite the original operation. A separately
+approved new operation remains possible under the replacement. The proposal
+getter now checks the retained recipe digest before returning provenance; the
+compiler and entry fence retain their own existing installation checks.
+These tests exercise the present single-agent, unscoped protocol; they introduce
+no task protocol, alternate admission authority or AP073 dependency. Installed
+language framing, all binding dimensions and hostile OS containment remain
+separate acceptance obligations.

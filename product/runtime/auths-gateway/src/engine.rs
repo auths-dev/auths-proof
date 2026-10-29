@@ -1378,7 +1378,8 @@ impl GatewayEngine {
     /// binding. This authenticates neither a live peer nor release authority.
     ///
     /// # Errors
-    /// Refuses absent, corrupt, rejected or unknown source content and invalid keys.
+    /// Refuses absent, corrupt, rejected, unknown or foreign-recipe source content
+    /// and invalid keys.
     pub async fn disclosure_target(
         &self,
         source_operation: &str,
@@ -1395,6 +1396,9 @@ impl GatewayEngine {
             .map_err(|_| GatewaySubmitResult::Indeterminate {
                 code: "gateway.attempt.state-unavailable".to_owned(),
             })?;
+        if source.source.journal_identity().3 != self.recipe.digest() {
+            return Err(not_entered("gateway.disclosure.binding"));
+        }
         crate::effect::DisclosureTarget::new(source, recipient_key, channel, delivery_instance)
             .map_err(|_| not_entered("gateway.disclosure.binding"))
     }

@@ -877,3 +877,19 @@ The pending acceptance gates still include dependency-race/adverse schedules,
 supported floors, complete public binding/containment negatives, generated
 concurrent histories/formal links, bounded performance and final hosted results.
 AP070 remains independently application-owned; AP073 is untouched.
+
+Native scope histories additionally compare ordinary verifier authorization with
+managed compiler refusal. Fresh signed acquisition/disclosure calls carrying
+unsupported delegation, participant or charge fields never reach admission;
+independent operator partitions sharing one adapter cannot exchange approvals,
+history or disclosure provenance. Original exact acquisition and recipient ACK
+are positive controls. These test-only histories use existing owners and create
+no reusable semantic mechanism, task implementation or second decision system.
+The evidence covers file/TLS PostgreSQL engines and local HTTP/same-UID sockets;
+installed language boundaries and hostile OS containment remain separate gates.
+The cross-recipe history exposed a missing provenance-getter recipe check.
+The engine now refuses a foreign recipe before returning its disclosure proposal;
+existing compilation/entry checks remain. The positive replacement uses native
+generation-incrementing connection rotation and the existing CAS, checks that
+activation alone is insufficient, and requires a new operation rather than
+overwriting retained facts. No new semantic owner is extracted.
