@@ -35,6 +35,9 @@ mod epoch_tests;
 #[path = "native_scope_tests.rs"]
 mod scope_tests;
 
+#[path = "native_disclosure_entry_tests.rs"]
+mod entry_tests;
+
 #[derive(Clone, Copy, Debug)]
 enum Protocol {
     Acquisition,

@@ -82,6 +82,8 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::scope_tests::postgres_native_managed_scope_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_replay_tests::entry_tests::native_file_mutation_entry_order_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_replay_tests::entry_tests::postgres_native_mutation_entry_order_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::entry_tests::native_file_disclosure_entry_order_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::entry_tests::postgres_native_disclosure_entry_order_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::native_file_independent_recovery_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::postgres_native_independent_recovery_fixture_is_current
           cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres

@@ -3170,6 +3170,50 @@ Semantic inventory construction advances freeze416 and only its reported changed
 identity160/public-SDK157/public-surface416 subjects. Formal translation closure
 remains a002; neither metadata construction nor translation reuse is fresh proof.
 
+## Native disclosure entry-order checkpoint
+
+Sixteen additional histories cover eight schedules per file/TLS PostgreSQL:
+connection revocation and shared configuration activation before versus after
+the final native disclosure grant, plus eligible/expired independent approval and
+native authority during actual writer-lock waits. An original native HTTP
+acquisition records the exact private source. Separate worker and operator OS
+processes race the maintained adapter fence; gateway/recipient tasks within the
+worker use real same-UID Unix sockets and exact native recipient authentication.
+The scheduling helper never constructs a grant, decision or journal bytes.
+
+If withdrawal or expiry wins, the original charged disclosure remains Reserved,
+with no recipient content result or ACK. If the native grant wins, the recipient
+receives exactly the retained projection and sends its native signed ACK. An
+opaque same-process socket relay independently captures every gateway byte: after
+the authentication challenge, refusal must produce zero bytes, including partial
+frame prefixes, and success must contain exactly one length-prefixed original
+content frame. The relay forwards bytes without changing native authentication or
+decisions. This strengthens the zero-content assertion beyond the receiver's
+complete-message result; it establishes no hostile-channel qualification.
+
+All schedules retain one lifetime delivery/byte allocation, original admission
+time and exact signed input bytes. Eligible wait cases record the advanced grant
+time. Release/replay performs zero credential leases or provider reads/writes;
+the sole HTTP read is the original acquisition. After reopen, native history and
+raw attempt bytes remain unchanged. Terminal replay emits no authentication or
+content frames, sends no recipient ACK and recreates no permit/charge. Reserved
+history inspection does not attempt continuation or create delivery authority.
+
+Required exact artifact constructors passed with one matched, nonignored test
+each. The initial file/TLS PostgreSQL cases passed3.04s/4.24s; the strengthened
+wire-capture constructors passed3.10s/4.28s. The workflow retains all prior34native
+selectors and adds two for36explicit selectors. No production runtime/store
+behavior changed in this batch. These are local constructor results, not
+new-head hosted acceptance. Gateway and recipient are tasks in one worker, not
+separate hostile OS processes. Complete selected observer/threshold/revocation
+scopes, installed binding/UI, adverse durability, containment and formal/performance
+obligations remain; A07/A12/A13 stay partial. AP070/AP073 are untouched.
+
+Native closure construction and rebuilt non-update verification passed. Semantic
+metadata construction advances freeze417 and only reported changed identity161/
+public-SDK158/public-surface417 subjects. Formal translation closure remains a002;
+this is not new hosted or formal qualification.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -3194,13 +3238,13 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / native lifetime/acquisition histories executed; twelve mutation/disclosure count/sum/both contention histories now constructed on both adapters using prefix plus two OS contenders | New-head hosted confirmation and complete dependency-change/adverse grant schedules remain required |
 | A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
-| A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
+| A07 | Revoke between acquisition and disclosure | Partial / daemon corpus plus native file/TLS PostgreSQL worker/operator release races / withdrawal before final grant produces no post-authentication wire bytes or ACK, while grant-first records exact delivery/ACK | Complete revocation scopes and installed boundary races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient and full native file/TLS PostgreSQL crash corpora / fifty-six release histories include partial sends, both peers killed before ACK, caller loss after ACK commit, current-authority gates, late and repeated ACKs with conserved allocations/slots | Remaining I/O-error/ambiguous-commit races and full installed boundary evidence pending |
 | A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP and independent native recovery histories / six candidate process histories plus eight file/TLS PostgreSQL histories distinguish denial, lost/recorded response, state equality and declared echo linkage | Complete installed mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
-| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate, native acquisition and sixteen native mutation worker/operator histories / actual file/TLS PostgreSQL writer-fence schedules order withdrawal around final grant | Full disclosure races and remaining mutation dependency scopes remain required |
-| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age, native acquisition evidence timing and native mutation independent proof/approval lock waits / eligible and expired controls executed on file/TLS PostgreSQL | Remaining mutation selected-observer/threshold, disclosure and installed/adverse evidence required |
+| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate, native acquisition plus sixteen mutation and sixteen disclosure worker/operator histories / actual file/TLS PostgreSQL writer-fence schedules order withdrawal around final grant | Complete dependency/revocation scopes and installed/adverse races remain required |
+| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age, native acquisition evidence timing and mutation/disclosure independent proof/approval lock waits / eligible and expired controls executed on file/TLS PostgreSQL | Remaining selected-observer/threshold, dependency scopes and installed/adverse evidence required |
 | A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls / four file/TLS PostgreSQL histories execute unchanged/changed selection; proof remains Authorized but changed authority invalidates the old still-current exact approval before grant | Complete installed language/UI and mutation/disclosure parity remain required |
 | A15 | Recovery actor differs; original authority revoked | Partial / native independent writer/reader OS-process journey / eight file/TLS PostgreSQL histories execute after operator withdrawal of writer root, with original entry/identity/charges preserved and fresh independent reader approval | Other revocation scopes and full installed language/authenticated UI evidence remain required |
 | A16 | Cross-task/recipe/partition substitution | Partial / native valid-authority unscoped negatives and four shared-store file/TLS PostgreSQL partition/recipe histories / foreign approval, retained history and release provenance refused; original facts retained | Complete installed-boundary and remaining scope substitution evidence; no AP073 task implementation required |

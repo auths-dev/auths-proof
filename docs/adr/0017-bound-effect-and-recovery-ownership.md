@@ -1283,3 +1283,26 @@ counts the custody lease that preceded the final fence; refusal does not undo it
 This extends the acquisition fence evidence using the same test-only scheduling
 helper and adds no production owner. Selected observer/threshold timing,
 disclosure races, installed languages and OS containment remain separate work.
+
+## Disclosure dependency order and wait-time validation
+
+The same eight order/time schedules now exercise separately approved native
+disclosure from an actual HTTP acquisition. Independent worker/operator processes
+order the actual adapter fence; gateway and recipient tasks inside the worker
+use real same-UID Unix sockets. Recipient authentication completes before the
+native final-grant pause. Withdrawal or expiry that wins retains a reservation
+and produces no recipient content or ACK. A grant that wins yields exactly the
+retained projection and an exact native recipient ACK. Historical replay after
+reopen emits no authentication/content frames or new custody/provider calls.
+Attempts and lifetime delivery/byte allocations remain retained on refusal.
+An opaque same-process socket relay independently captures all gateway bytes.
+After the native authentication challenge, refusal must produce zero wire bytes,
+including partial frame prefixes; success must carry exactly one length-prefixed
+content frame with the original bytes. The relay forwards bytes without changing
+native decisions or authentication and provides no hostile-channel qualification.
+
+These file/TLS PostgreSQL histories establish native entry ordering, not hostile
+recipient process containment, separate recipient OS processes within each worker,
+selected observer/threshold timing or installed binding/UI coverage. Existing
+native authority, approval, recipient authentication and journal owners remain
+unchanged; the test scheduler constructs no grant or decision.

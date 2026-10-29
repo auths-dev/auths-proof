@@ -902,3 +902,11 @@ grant persistence remain the existing production owners. Separate OS workers and
 operators order actual file/TLS PostgreSQL locks around revocation, configuration
 activation and independently expiring proof/approval intervals. This is additional
 vertical evidence, not a shared shipping abstraction or new lifecycle framework.
+
+Disclosure extends those eight order/time schedules through its own typed source,
+recipient authentication and native ACK. The source is an actual bounded HTTP
+acquisition. Zero content/ACK on final-grant refusal and exact authenticated
+delivery on success are measured independently of provider responses. Same-UID
+gateway/recipient tasks run within a worker process distinct from the operator.
+This adds test-only evidence for the existing disclosure owner, while retaining
+the distinct installed-language, selected-dependency and hostile-process gates.
