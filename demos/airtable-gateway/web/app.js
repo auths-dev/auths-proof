@@ -3,6 +3,9 @@ const element = id => document.getElementById(id);
 const descriptions = {
   'observed-by-provider': 'A fresh provider read matched the verified value and this action’s echo. The link assumes no other writer copied the echo.',
   observed: 'The gateway read the declared field. Value equality alone does not link that value to this action or establish its effect.',
+  'recovery-report': 'A separately authorized read completed. Inspect the original write stage, read facts and evidence disposition below; a state match alone is not causation.',
+  refused: 'The gateway refused this recovery action. No new write was authorized.',
+  reserved: 'The operation is reserved. Another process may still be working; this is not permission to repeat delivery.',
   'response-recorded': 'The gateway recorded an HTTP response. This alone does not establish an effect.',
   unknown: 'The outcome remains unknown. The provider may have received the write; its response or matching fresh value and echo is unavailable. Authority remains consumed; no automatic retry is allowed.',
   'not-entered': 'The gateway refused before write transport. A provider-read guard may already have acquired a credential and read evidence.',
@@ -20,6 +23,8 @@ function display(record) {
     : item.result.outcome.toUpperCase()).join(' / ');
   element('explanation').textContent = outcomes.map(value => descriptions[value] || 'Inspect the exact gateway result below.').join(' ');
   element('result-json').textContent = JSON.stringify(record, null, 2);
+  const reviewed = record.records.find(item => item.result.literal_review);
+  if (reviewed) element('approval-review').textContent = reviewed.result.literal_review;
 }
 async function initialize() {
   const response = await fetch('/api/status');
@@ -54,8 +59,9 @@ async function initialize() {
     const original = value === 'recover-loss' ? 'lost-response' : value === 'recover-competing' ? 'competing-writer' : 'exact';
     const action = status.proposals[value] || status.proposals[original];
     element('proposal').textContent = `${action.record_id} → ${action.replacement} · operation ${action.operation_id}`;
-    const review = status.approval.reviews[value] || status.approval.reviews[original];
-    element('approval-review').textContent = `${review.title} · ${review.fields.map(([label, field]) => `${label}: ${field}`).join(' · ')} · expires ${new Date(review.valid_until * 1000).toLocaleTimeString()}`;
+    const source = value.startsWith('recover-') ? value.slice(8) : value;
+    const review = status.effect_review.reviews[source] || (['replay', 'typescript', 'observe'].includes(value) ? status.effect_review.reviews.exact : null);
+    element('approval-review').textContent = value.startsWith('recover-') ? 'A separate native read review and operator consent are required. The exact read review is retained with its result.' : review || 'Native review refused this hostile input. This experiment substitutes another effect’s approval and must be rejected.';
     const link = element('provider-link');
     link.hidden = status.mode !== 'live' || !/^rec[A-Za-z0-9]{14}$/.test(action.record_id);
     if (!link.hidden) {

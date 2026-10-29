@@ -1667,6 +1667,108 @@ closure regeneration passed after that correction (one artifact-generation test)
   all crash/fault and dependency-race schedules, hostile agent containment and
   human UI remain open. A04 remains partial; no acceptance row is closed here.
 
+## Holistic CI contract and prerequisite-ownership checkpoint
+
+- Integrated isolated batch `ce308315` as `08f0064c`, directly after the two
+  native process-capacity commits. The batch preserves a shared parent's
+  reservation when a different process owns an unresolved prerequisite read.
+  Missing/in-flight evidence cannot be recorded as a terminal negative provider
+  predicate and suppress that owner's valid write. No retry permit is minted.
+- Deterministic paused-read regressions on file and TLS PostgreSQL retain
+  Reserved for the contender, complete ResponseRecorded for the owner and count
+  exactly one write, three credential reads and one ceiling read, with no
+  recovery read. These use the post-verification reference driver; the separate
+  native process cases still establish full native acquisition checking.
+- The batch repairs all currently inspected preflight/API/scenario/simulation
+  roots together: canonical compliance roles with preserved evidence anchors,
+  Python GatewayReserved snapshot, stale quorum proof fixture, complete review
+  declarations, native application frames, code/source inventories and strict
+  workspace lint. No lint suppression, security assertion or store deadline was
+  weakened. Synthetic qualification reports remain explicitly response-only
+  references and do not establish independently authorized native recovery.
+- In the isolated checkout, actual `xtask ci preflight` passed, including strict
+  all-target/all-feature workspace clippy and real compliance. The gateway run
+  passed 277 behavioral tests with ignored TLS PostgreSQL cases enabled and four
+  test threads; after source-closure regeneration its separate exact check passed
+  1/1. Five changed CLI targets passed 8/8 tests. Python API inventory passed.
+  An earlier unrestricted local run hit the existing file-lock deadline under
+  I/O saturation; the deadline/assertions were retained, the exact isolated case
+  and bounded-parallel full behavior run passed. This is not a hosted green claim.
+- Remote remains `6009de25` until the next integrated push. Required hosted
+  formal/authoritative/secret/dependency checks still need the final combined
+  source. Early green workflow subsets or skipped aggregate wrappers do not
+  close the goal.
+
+## Maintained demo native approval and explicit recovery checkpoint
+
+- Both managed demo installers now create native exact-effect policies, stage
+  credential-bearing candidates, separately authorize/acquire their native
+  credential checks and publish retained evidence. Additional hosts join the
+  same connection/alias, trust, policy and shared store with separate custody.
+  Installing the software observer explicitly reviews and activates the changed
+  configuration using native revision/candidate CAS tokens.
+- Mutation packets now carry native exact-effect approvals unchanged through
+  installed Python and TypeScript GatewayClient surfaces. The scripted reviewer
+  signs the full native literal review/signing request using an operator-only
+  ephemeral key. Invalid actions that cannot be reviewed are deliberately sent
+  with a different valid effect's approval as a binding-substitution negative
+  case; no placeholder or bypass approval is accepted.
+- Reserved candidate/recovery reads have their own private actor grant and
+  native quorum proofs. A bounded development reviewer socket can authorize only
+  listed fixture sources, at most four explicit read requests per source. The
+  native owner still determines whether the exact read can be compiled,
+  admitted, charged, entered or recorded. Python supplies no outcome reducer.
+- Simulation labels its automatic reviewer honestly. Live test-provider mode
+  requires explicit consent on a separate owner-only FIFO for the entire saved
+  native literal review; the application cannot read/write that channel. A
+  missing/different token or ten-minute expiry fails closed before signing.
+  This is development Docker-operator custody, not an independent-human trial,
+  remote approval inbox or production signing-custody claim. Actual live-provider
+  execution of this channel has not been run.
+- Writes expose ResponseRecorded without implicit read-back. A separate approved
+  native recovery operation returns the unchanged tagged report with original
+  mutation facts, independent read charges and evidence disposition. Exact replay
+  retains current facts without provider I/O. A different challenge under the
+  unchanged installed context is denied before custody; no second installation
+  silently activates different trust to make that action eligible. A Stripe
+  unknown without a retained response locator cannot manufacture an observation.
+- Updated evidence keeps independent exact HTTP mapping/read-back, negative
+  pre-custody checks, budgets, two-process single-write races and process kills.
+  Airtable crash replay now explicitly proves zero reads/writes before a
+  separately authorized recovery read establishes the linked observation. The
+  frontend displays the complete native literal review using textContent and
+  distinguishes response facts from the separate native recovery report.
+- Targeted diagnosis of the known hosted demo failures rebuilt the native
+  loopback binary at `08f0064c`. Same-UID reproductions passed 23 Stripe cases,
+  34 Airtable cases and two Airtable SIGKILL/reopen cases. Both TypeScript clients
+  compiled and executed their gateway transport. The diagnostic Python native
+  extension and npm build were the CI checkout's c809-era artifacts, with current
+  wrappers; these are not fresh exact-head installed-release evidence. Temporary
+  kit/harness files were outside the repository; no authorization check or native
+  engine was mocked, while OS ownership wiring was adapted to the current UID.
+- A concurrent diagnosis found a truthful interim Unknown projection for a race
+  contender inspecting the winning process after durable entry but before its
+  response persistence. The external counter and protected final journal showed
+  one write and ResponseRecorded. The race tests retain exactly-one-write and
+  a successful response, accept that interim native projection, and additionally
+  require final exact replay to converge without any read/write/custody entry.
+  This does not permit a terminal refusal to poison the parent or an unknown
+  outcome to retry. The prior prerequisite ownership defect still fails it.
+- Owner-only consent mechanics (two exact/substituted-token cases) and malformed/
+  unlisted reviewer requests (three cases returning no proof or approval) passed
+  the same-UID diagnostic with unchanged native counters. They are now authored
+  as explicit demo selftests. Docker UID containment, complete native
+  log/output sentinels, browser execution and newly built installed package
+  evidence remain required in hosted CI. No A01–A22 row is fully closed. The CI
+  agent continues the separate example/scaffold cutover while core fault,
+  fixed-window capacity, dependency-race, differential/formal/performance gates
+  remain open. AP070/AP073 were not changed.
+
+- Semantic freeze 394 records the updated managed demo/compliance contract;
+  identity protocol 140, public SDK contract 137 and public surface 394 were
+  explicitly advanced. Generated source/formal identities were not reclassified
+  as proved by these inventory updates.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

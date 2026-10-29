@@ -1,7 +1,7 @@
 # Stripe refunds through the general gateway
 
 The maintained Stripe demo uses a data-only platform-refund recipe and installed
-Auths SDKs. The app holds its own scoped signing identity, submits proof/action
+Auths SDKs. The app holds its own scoped signing identity, submits proof/action/exact-approval
 bytes over the gateway application socket, and has no Stripe key or private
 gateway state. No coupled Stripe vertical service executes this demo.
 
@@ -18,6 +18,32 @@ root-private operator directory; the app receives no manager or provider secret.
 The workbench shows the native review fields and includes insufficient-quorum
 and duplicate-response cases. This local simulator is integration evidence, not
 a human approval inbox: simulator state or a UI click never authorizes an action.
+
+The operator additionally requests the complete native exact-effect review and
+signs its canonical request. Simulation supplies this signature from a separate
+operator-only ephemeral development key. The app forwards the approval unchanged;
+it holds neither that key nor the private actor used for candidate/recovery reads.
+Credential-checking installs stage a candidate, acquire separately authorized
+checks, and publish from retained evidence before peers join. Adding the software
+observer requires explicit native configuration review and CAS activation.
+
+A write returns `response-recorded` when its HTTP response is retained. Choose
+**Separately approve and observe the exact operation** to authorize a distinct
+read. Its native report separates original-write facts, read charges and evidence
+disposition. Replaying a mutation returns retained facts without a read or write;
+unknown outcomes never cause an automatic read, resend or refund.
+
+Live mode never uses the scripted exact-effect reviewer. Startup and each new
+recovery read pause for at most ten minutes on an owner-only consent FIFO. In a
+separate trusted operator shell, use `docker exec CONTAINER cat REVIEW_PATH` to
+read the **entire** `literal-review.txt` and its `literal-review.json` signing
+request at the private paths printed by the operator. After
+checking its exact destination, units, consequences and signing request, use
+`docker exec CONTAINER sh -c 'printf "approve OPERATION\n" > CONSENT_PATH'` with
+the exact operation and consent path printed there. The application UID cannot
+read or write this private channel. Missing or different consent fails closed.
+This is local Docker-operator development custody, not a remote human approval
+inbox, independent-human trial or production signing-custody claim.
 
 ## Source-free Docker quick start
 
@@ -40,8 +66,9 @@ Open <http://localhost:8080>. Start with **Exact refund**, then replay, approval
 boundary, altered proof/action, two-gateway race and budget experiments. Each choice has
 one fixed operation and payment. Run the count/sum positive before its overflow.
 The separate operator starts two native gateway processes for the race and a
-third installation for the second challenge. Each installation checks its own
-credential and account; all three share the operation/budget store. The web app runs
+third joined installation. All three pin the same connection, trust and
+configuration and share the operation/budget store. The fresh-challenge
+experiment deliberately substitutes an uninstalled challenge and is refused. The web app runs
 as UID 62004. Gateway state and root/observer keys remain root-private.
 
 Default mode is clearly labeled **simulation**. A counting Stripe double measures
@@ -167,7 +194,7 @@ production claim. Never rename its evidence as AWS/PostgreSQL evidence.
 The workflow builds a digest-listed handoff, installs its actual SDK artifacts
 outside the checkout and runs the native simulation plus a real browser.
 `selftest.py` verifies independent wire mapping/read-back, pre-custody refusals,
-post-lease guards, count/sum boundaries, two-process race, fresh-challenge replay,
+post-lease guards, count/sum boundaries, two-process race, fresh-challenge refusal,
 process restart, actual response drop after effect, UID isolation, doctor and
 offline audit. Provider traffic is counted independently of the app display.
 Reports and desktop/mobile screenshots are retained as artifacts.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Application: public SDK authoring and proof/action-only gateway submission."""
+"""Application: public SDK authoring and proof/action/exact-approval gateway submission."""
 import argparse
 import asyncio
 from dataclasses import asdict, dataclass
@@ -7,6 +7,8 @@ import importlib.metadata
 import os
 from pathlib import Path
 import secrets
+import socket
+import struct
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,7 +31,7 @@ LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-
           'lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response', 'encoded-segment', 'typescript-positive',
           'crash-before', 'crash-after', 'approval-insufficient')
-EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
+EXPERIMENTS = tuple('recover-' + label for label in LABELS) + LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
 EXPERIMENTS += ('approval-duplicate',)
 FAULTS = ('lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response')
@@ -103,7 +105,7 @@ class Application:
                 'effect': 'Set DemoStatus and action-derived auths_echo; no compare-and-swap',
                 'grant_limits': {'budgets': 'No numeric budget capability in this reviewed profile'},
                 'experiments': [value for value in EXPERIMENTS if value not in OPERATOR_CASES],
-                'approval': self.plan['approval'],
+                'approval': self.plan['approval'], 'effect_review': self.plan['effect_review'],
                 'sdk_version': importlib.metadata.version('auths'),
                 'proposals': {label: case['arguments'] for label, case in self.plan['cases'].items()},
                 'records': self.records[-64:]}
@@ -163,6 +165,7 @@ class Application:
 
     async def exchange(self, packet, host=0, *, typescript=False):
         proof, action, operation = packet
+        approval = unb64(self.plan['effect_approvals'][operation])
         if typescript:
             completed = await asyncio.create_subprocess_exec(
                 '/usr/local/bin/node', str(HERE / 'submit.mjs'),
@@ -171,12 +174,13 @@ class Application:
                 stderr=asyncio.subprocess.DEVNULL,
                 env={'PATH': '/usr/local/bin:/usr/bin:/bin'})
             output, _ = await asyncio.wait_for(completed.communicate(
-                canonical({'proof_b64': b64(proof), 'action_b64': b64(action)})), 60)
+                canonical({'proof_b64': b64(proof), 'action_b64': b64(action),
+                           'approval_b64': b64(approval)})), 60)
             require(completed.returncode == 0 and len(output) <= 65536, 'demo.typescript-unavailable')
             result = decode(output)
         else:
             try:
-                result = asdict(await self.clients[host].submit(proof=proof, action=action))
+                result = asdict(await self.clients[host].submit(proof=proof, action=action, approval=approval))
             except GatewayProtocolError:
                 # The IPC request may have entered. Never retry automatically.
                 result = {'outcome': 'transport-unconfirmed', 'code': 'demo.gateway-unavailable'}
@@ -207,8 +211,56 @@ class Application:
                     self.approval_responses.append({'operation_id': operation, 'response': response})
                     recorded.add((operation, response))
 
+    async def recover(self, source):
+        """Request independent operator consent, then submit its native read proof."""
+        require(source in self.plan['cases'], 'demo.unknown-recovery-source')
+        def request_review():
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
+                channel.settimeout(660 if self.plan['mode'] == 'live' else 90)
+                channel.connect(str(self.sockets[0].parent / 'review.sock'))
+                payload = canonical({'source': source})
+                channel.sendall(struct.pack('>I', len(payload)) + payload)
+                def receive(length):
+                    output = b''
+                    while len(output) < length:
+                        block = channel.recv(length - len(output))
+                        require(bool(block), 'demo.review-response-incomplete')
+                        output += block
+                    return output
+                length = struct.unpack('>I', receive(4))[0]
+                require(0 < length <= 4 * 1024 * 1024, 'demo.review-response-bound')
+                return decode(receive(length))
+        approved = await asyncio.to_thread(request_review)
+        if set(approved) == {'code'}:
+            return {'operation_id': source, 'language': 'python', 'result': {
+                'outcome': 'not-submitted', 'code': 'demo.operator-recovery-review-refused'}}
+        require(set(approved) == {'proof', 'action', 'approval', 'literal_review'},
+                'demo.operator-review-unavailable')
+        raw = await self.clients[0].recover(source, proof=unb64(approved['proof']),
+            action=unb64(approved['action']), approval=unb64(approved['approval']))
+        report = decode(raw)
+        require(report.get('outcome') in ('recovery-report', 'refused'), 'demo.recovery-refused')
+        # The native report is retained unchanged. The UI label does not infer
+        # an observation or causation from a provider response.
+        return {'operation_id': source, 'language': 'python', 'result': {
+            **report, 'literal_review': approved['literal_review']}}
+
     async def execute(self, experiment):
         require(experiment in EXPERIMENTS, 'demo.unknown-experiment')
+        if experiment.startswith('recover-'):
+            source = experiment[len('recover-'):]
+            source = {'loss': 'lost-response', 'competing': 'competing-writer'}.get(source, source)
+            record = await self.recover(source)
+            result = {'schema': 'auths.airtable-gateway-demo-result/1',
+                'experiment': experiment, 'action': self.plan['cases'][source]['arguments'],
+                'records': [record], 'decided_by': ('operator-review'
+                    if record['result']['outcome'] == 'not-submitted' else 'gateway'),
+                'production_qualified': False,
+                'display_signature': 'unsigned', 'recorded_at': int(time.time())}
+            require(len(self.records) < 256, 'demo.session-full')
+            self.records.append(result)
+            write(self.directory / 'results.json', canonical(self.records))
+            return result
         if experiment == 'approval-duplicate':
             records = [self.approval_duplicate()]
             result = {'schema': 'auths.airtable-gateway-demo-result/1', 'experiment': experiment,

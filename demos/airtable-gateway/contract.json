@@ -2,7 +2,7 @@
   "schema": "auths.gateway-demo-contract/1",
   "platform": "airtable",
   "family": "airtable-record-update-v1",
-  "application_boundary": "installed public GatewayClient; proof and action only",
+  "application_boundary": "installed public GatewayClient; proof, action and native exact-effect approval",
   "recipe_source": "bindings/fixtures/gateway/airtable/recipe.json; fixed base/table reviewed by qualification/reference/airtable_record.py",
   "profile_source": "bindings/fixtures/gateway/airtable/profile.toml",
   "qualification_workflow": ".github/workflows/recipe-qualification.yml",

@@ -2121,19 +2121,23 @@ kind = "npm"
 layer = "demos"
 path = "demos/stripe-gateway"
 core_apis = []
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3"]
-wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle"]
+protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3", "auths.exact-effect-approval/1", "auths.gateway-recover/1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle", "ExactEffectApproval", "GatewayRecoveryReport"]
 fixture_suites = ["demos/stripe-gateway", "qualification/simulation/live/stripe-platform"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2", "stripe-platform-refund-v1"]
 transports = ["unix", "http-local-demo", "https-provider-test-mode"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket"]
-security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket", "native-effect-policy", "private-operator-consent-channel"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history", "private-read-actor-grant", "finite-scripted-recovery-reviews", "candidate-acquisition-history"]
 
 [packages.auths-stripe-gateway-demo.claims]
 demo-conformance-fixture = ["demos/stripe-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
-runtime-enforcement-boundary = ["demos/stripe-gateway/selftest.py#test_application_isolation_and_native_audit"]
+runtime-enforcement-boundary = [
+  "demos/stripe-gateway/selftest.py#test_application_isolation_and_native_audit",
+  "demos/stripe-gateway/selftest.py#test_private_reviewer_refuses_unlisted_inputs",
+  "demos/stripe-gateway/selftest.py#test_exact_operator_consent_binding",
+]
 receipt-producer-consumer = ["demos/stripe-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
 
 [packages.auths-airtable-gateway-demo]
@@ -2141,19 +2145,23 @@ kind = "npm"
 layer = "demos"
 path = "demos/airtable-gateway"
 core_apis = []
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3"]
-wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle"]
+protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3", "auths.exact-effect-approval/1", "auths.gateway-recover/1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle", "ExactEffectApproval", "GatewayRecoveryReport"]
 fixture_suites = ["demos/airtable-gateway", "bindings/fixtures/gateway/airtable"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2", "airtable-record-update-v1"]
 transports = ["unix", "http-local-demo", "https-provider-disposable-table"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket"]
-security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket", "native-effect-policy", "private-operator-consent-channel"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history", "private-read-actor-grant", "finite-scripted-recovery-reviews", "candidate-acquisition-history"]
 
 [packages.auths-airtable-gateway-demo.claims]
 demo-conformance-fixture = ["demos/airtable-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
-runtime-enforcement-boundary = ["demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit"]
+runtime-enforcement-boundary = [
+  "demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit",
+  "demos/airtable-gateway/selftest.py#test_private_reviewer_refuses_unlisted_inputs",
+  "demos/airtable-gateway/selftest.py#test_exact_operator_consent_binding",
+]
 receipt-producer-consumer = ["demos/airtable-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
 
 [packages.auths-google-employee-delegation-demo]

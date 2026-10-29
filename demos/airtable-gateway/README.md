@@ -2,7 +2,7 @@
 
 The maintained monorepo demo uses a fixed-table, data-only recipe and installed
 public Python/TypeScript SDKs. The application has its own signing key and sends
-proof/action bytes to the gateway socket. Only the operator and gateway hold
+proof/action/exact-approval bytes to the gateway socket. Only the operator and gateway hold
 provider credentials. The older field-lab `airtable-cli` app-owned-PAT mode is a
 self-hosted reference; its token holder can bypass enforcement.
 
@@ -14,6 +14,32 @@ root-private operator directory; the app receives no manager or provider secret.
 The workbench shows the native review fields and includes insufficient-quorum
 and duplicate-response cases. This local simulator is integration evidence, not
 a human approval inbox: simulator state or a UI click never authorizes an action.
+
+The operator additionally requests the complete native exact-effect review and
+signs its canonical request. Simulation supplies this signature from a separate
+operator-only ephemeral development key. The app forwards the approval unchanged;
+it holds neither that key nor the private actor used for candidate/recovery reads.
+Credential-checking installs stage a candidate, acquire separately authorized
+checks, and publish from retained evidence before peers join. Adding the software
+observer requires explicit native configuration review and CAS activation.
+
+A write returns `response-recorded` when its HTTP response is retained. Choose
+**Separately approve and observe the exact operation** to authorize a distinct
+read. Its native report separates original-write facts, read charges and evidence
+disposition. Replaying a mutation returns retained facts without a read or write;
+unknown outcomes never cause an automatic read, resend or refund.
+
+Live mode never uses the scripted exact-effect reviewer. Startup and each new
+recovery read pause for at most ten minutes on an owner-only consent FIFO. In a
+separate trusted operator shell, use `docker exec CONTAINER cat REVIEW_PATH` to
+read the **entire** `literal-review.txt` and its `literal-review.json` signing
+request at the private paths printed by the operator. After
+checking its exact destination, units, consequences and signing request, use
+`docker exec CONTAINER sh -c 'printf "approve OPERATION\n" > CONSENT_PATH'` with
+the exact operation and consent path printed there. The application UID cannot
+read or write this private channel. Missing or different consent fails closed.
+This is local Docker-operator development custody, not a remote human approval
+inbox, independent-human trial or production signing-custody claim.
 
 ## Source-free local demo
 
@@ -40,8 +66,9 @@ actual gateway audit-bundle format. Missing evidence remains missing.
 
 Default mode is clearly labeled **simulation**. An independent HTTP double
 counts real native reads and PATCH entries; it never reaches Airtable. Two
-native processes race through one operation store; a third uses a fresh
-challenge. Each installation independently checks its custody setup. The web
+native processes race through one operation store; a third joins the same
+connection, trust and configuration with independent custody. Substituting a
+fresh challenge is refused under the unchanged installed trust. The web
 app runs as UID 62004/GID 62005; private state/root/observer keys remain root-only.
 The source recipe is the reviewed Airtable fixture with exactly the fixed
 base/table substitutions authorized by the release reference. The shipping
@@ -59,9 +86,9 @@ does not establish a linked observation.
 **Lose PATCH response** actually drops the socket after the provider applies
 the write. The result stays unknown while fresh reads lack its value/echo.
 The original proof/action replay returns retained history without another read
-or PATCH. The demo's recovery UI still needs the AP074 independent read-authority
-cutover; it must not be treated as evidence of the completed recovery journey.
-Fresh observations require a new native bounded read proof and exact approval.
+or PATCH. The recovery UI explicitly requests a new native bounded read proof
+and exact approval from the separate operator channel; its tagged native report
+retains the original write stage and the independently charged read facts.
 There is no automatic recovery or write retry.
 
 **Competing writer** makes a second actual HTTP actor write the same value with
