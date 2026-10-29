@@ -32,7 +32,7 @@ const OPERATION: &str = "dependency-read";
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Scenario {
+pub(super) enum Scenario {
     Revoke,
     Configuration,
     ApprovalValid,
@@ -45,7 +45,7 @@ enum Scenario {
     ThresholdChanged,
 }
 impl Scenario {
-    const fn time_shift(self) -> u64 {
+    pub(super) const fn time_shift(self) -> u64 {
         match self {
             Self::ApprovalValid | Self::AuthorityValid => 4,
             Self::ObserverValid | Self::ThresholdValid => 5,
@@ -69,7 +69,7 @@ impl Scenario {
 }
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Order {
+pub(super) enum Order {
     ChangeFirst,
     GrantFirst,
     LockWait,
@@ -103,7 +103,7 @@ impl Race {
     }
 }
 
-fn connect(port: u16) -> TcpStream {
+pub(super) fn connect(port: u16) -> TcpStream {
     let channel = TcpStream::connect(("127.0.0.1", port)).expect("test control");
     channel
         .set_read_timeout(Some(Duration::from_secs(15)))
@@ -113,15 +113,15 @@ fn connect(port: u16) -> TcpStream {
         .expect("deadline");
     channel
 }
-fn send(channel: &mut TcpStream, marker: u8) {
+pub(super) fn send(channel: &mut TcpStream, marker: u8) {
     channel.write_all(&[marker]).expect("marker");
 }
-fn expect(channel: &mut TcpStream, marker: u8) {
+pub(super) fn expect(channel: &mut TcpStream, marker: u8) {
     let mut value = [0];
     channel.read_exact(&mut value).expect("control marker");
     assert_eq!(value, [marker]);
 }
-fn pending(channel: &mut TcpStream) {
+pub(super) fn pending(channel: &mut TcpStream) {
     channel
         .set_read_timeout(Some(Duration::from_millis(50)))
         .expect("short observation");
@@ -138,14 +138,34 @@ fn pending(channel: &mut TcpStream) {
         .expect("deadline");
 }
 
-struct EntryGate {
+pub(super) struct EntryGate {
     inner: Arc<dyn GatewayAttemptStore>,
     order: Order,
     port: u16,
     clock: Arc<FixedClock>,
     fired: AtomicBool,
+    key: GatewayAttemptKey,
 }
 impl EntryGate {
+    pub(super) fn reached(&self) -> bool {
+        self.fired.load(Ordering::SeqCst)
+    }
+    pub(super) fn new(
+        inner: Arc<dyn GatewayAttemptStore>,
+        order: Order,
+        port: u16,
+        clock: Arc<FixedClock>,
+        key: GatewayAttemptKey,
+    ) -> Self {
+        Self {
+            inner,
+            order,
+            port,
+            clock,
+            key,
+            fired: AtomicBool::new(false),
+        }
+    }
     fn before_lock(
         &self,
         keys: &[(GatewayRecordKind, GatewayAttemptKey)],
@@ -184,7 +204,7 @@ impl GatewayAttemptStore for EntryGate {
         keys: &[(GatewayRecordKind, GatewayAttemptKey)],
         decide: &mut GatewayFenceDecision<'_>,
     ) -> Result<(), GatewayAttemptError> {
-        let target = keys.first() == Some(&(GatewayRecordKind::Attempt, Race::key()));
+        let target = keys.first() == Some(&(GatewayRecordKind::Attempt, self.key));
         if !target || self.fired.swap(true, Ordering::SeqCst) {
             return self.inner.fenced_replace(keys, decide);
         }
@@ -194,7 +214,7 @@ impl GatewayAttemptStore for EntryGate {
         ] {
             let dependencies: Vec<_> = keys.iter().filter(|(found, _)| *found == kind).collect();
             assert_eq!(dependencies.len(), 1, "entry fences its actual dependency");
-            assert_ne!(dependencies[0].1, Race::key(), "physically distinct record");
+            assert_ne!(dependencies[0].1, self.key, "physically distinct record");
         }
         if !matches!(self.order, Order::GrantFirst) {
             return self.before_lock(keys, decide);
@@ -202,7 +222,10 @@ impl GatewayAttemptStore for EntryGate {
         self.inner.fenced_replace(keys, &mut |snapshots| {
             let bytes = decide(snapshots)?;
             let value: Value = serde_json::from_slice(&bytes).expect("native decision");
-            assert_eq!(value["state"]["facts"]["phase"]["stage"], "entry-granted");
+            assert!(
+                value["state"]["facts"]["phase"]["stage"] == "entry-granted"
+                    || value["state"]["facts"]["stage"] == "entry-granted"
+            );
             let mut channel = connect(self.port);
             send(&mut channel, b'P');
             expect(&mut channel, b'G');
@@ -255,6 +278,7 @@ fn run_worker(race: &Race, store: &TestAttempts) {
         port: race.installation.barrier_port,
         clock: clock.clone(),
         fired: AtomicBool::new(false),
+        key: Race::key(),
     });
     let attempts = GatewayAttempts::new(gate, crate::effect::fixture_policy().expect("policy"))
         .expect("attempts");
@@ -392,7 +416,7 @@ fn native_dependency_peer() {
         _ => panic!("unknown private test role"),
     }
 }
-struct Peer(Child);
+pub(super) struct Peer(pub(super) Child);
 impl Peer {
     fn start(input: &Path, role: &str) -> Self {
         Self(
@@ -425,7 +449,7 @@ impl Peer {
         }
         result
     }
-    fn accept(&mut self, listener: &TcpListener) -> TcpStream {
+    pub(super) fn accept(&mut self, listener: &TcpListener) -> TcpStream {
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
             assert!(
@@ -451,7 +475,7 @@ impl Peer {
             }
         }
     }
-    fn finish(&mut self) {
+    pub(super) fn finish(&mut self) {
         let deadline = Instant::now() + Duration::from_secs(20);
         while self.check_exit().is_none() {
             assert!(Instant::now() < deadline, "peer completion timeout");
@@ -472,7 +496,7 @@ impl Drop for Peer {
         }
     }
 }
-fn listener() -> TcpListener {
+pub(super) fn listener() -> TcpListener {
     let value = TcpListener::bind("127.0.0.1:0").expect("listener");
     value.set_nonblocking(true).expect("nonblocking");
     value

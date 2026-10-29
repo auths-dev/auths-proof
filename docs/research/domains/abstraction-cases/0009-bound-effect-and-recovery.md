@@ -893,3 +893,12 @@ existing compilation/entry checks remain. The positive replacement uses native
 generation-incrementing connection rotation and the existing CAS, checks that
 activation alone is insufficient, and requires a new operation rather than
 overwriting retained facts. No new semantic owner is extracted.
+
+Mutation entry-order histories reuse only the test scheduling helper from the
+native acquisition matrix. The helper now accepts an exact operation key and
+recognizes the existing typed mutation/acquisition entry-granted wire shapes.
+Native compilation, approval, admission, time checks, dependency snapshots and
+grant persistence remain the existing production owners. Separate OS workers and
+operators order actual file/TLS PostgreSQL locks around revocation, configuration
+activation and independently expiring proof/approval intervals. This is additional
+vertical evidence, not a shared shipping abstraction or new lifecycle framework.

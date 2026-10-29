@@ -1265,3 +1265,21 @@ These tests exercise the present single-agent, unscoped protocol; they introduce
 no task protocol, alternate admission authority or AP073 dependency. Installed
 language framing, all binding dimensions and hostile OS containment remain
 separate acceptance obligations.
+
+## Mutation dependency order and wait-time validation
+
+Native Airtable mutation histories now schedule independent worker and operator
+processes against each maintained adapter's actual common writer fence. Connection
+revocation and configuration activation are ordered before versus after the final
+grant. Independent approval and native authority deadlines have eligible and
+expired controls while the worker demonstrably waits on a physically different
+connection record. Only the existing native callback computes and persists the
+grant; the scheduling wrapper supplies neither record bytes nor a decision.
+
+Refused final entry retains the original reservation with zero HTTP writes. A
+grant that linearizes first permits one exact captured write; terminal replay
+after reopen creates no new custody or transport calls. The test explicitly
+counts the custody lease that preceded the final fence; refusal does not undo it.
+This extends the acquisition fence evidence using the same test-only scheduling
+helper and adds no production owner. Selected observer/threshold timing,
+disclosure races, installed languages and OS containment remain separate work.

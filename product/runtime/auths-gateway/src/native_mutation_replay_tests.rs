@@ -28,6 +28,9 @@ use std::{
 const OPERATION: &str = "retained-mutation";
 const SECRET: &[u8] = b"public-native-process-fixture";
 
+#[path = "native_mutation_entry_tests.rs"]
+mod entry_tests;
+
 struct Provider {
     port: u16,
     bodies: Arc<Mutex<Vec<Vec<u8>>>>,
