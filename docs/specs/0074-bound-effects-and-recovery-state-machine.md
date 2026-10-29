@@ -726,6 +726,15 @@ request. The failed I/O return is simulated, and production builds contain no
 selector. Actual device faults/power loss, PostgreSQL commit delivery and the
 complete mutation/disclosure fault matrix remain separate requirements.
 
+`native-postgres-partial-batch.json` separately rejects each insert of a
+four-record native admission transaction using a server trigger confined to an
+owned test schema. A nontransactional sequence witnesses the reached row prefix;
+actual gateway-table counts must show complete rollback before any credential
+lease or HTTP entry. Removing the test fault permits explicit native
+reauthorization of the unchanged operation, followed by no-I/O terminal replay.
+This is real PostgreSQL transaction-abort evidence, not commit-acknowledgement
+ambiguity, power loss or the complete mutation/disclosure fault matrix.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

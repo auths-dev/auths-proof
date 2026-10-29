@@ -169,3 +169,6 @@ mod native_budget_tests;
 
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_file_fault_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_postgres_fault_tests;

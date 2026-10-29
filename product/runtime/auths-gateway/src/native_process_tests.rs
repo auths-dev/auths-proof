@@ -367,6 +367,10 @@ fn native_capacity_peer() {
     assert_eq!(start, *b"G");
     let result = runtime.block_on(acquire(&engine, &setup.root, &operation));
     private(
+        &setup.root.join(format!("{operation}.witness")),
+        &serde_json::to_vec(&engine.execution_witness()).expect("execution witness"),
+    );
+    private(
         &setup.root.join(format!("{operation}.result")),
         &serde_json::to_vec(&result).expect("native result"),
     );

@@ -2046,6 +2046,44 @@ closure regeneration passed after that correction (one artifact-generation test)
   regenerated gateway closure includes the fault instrumentation and matrix.
   Hosted exact-head verification and the complete A06 gate remain required.
 
+## Native PostgreSQL partial-admission checkpoint
+
+- `native_postgres_fault_tests.rs` exercises four real server-side failure
+  histories through independent native gateway worker processes and the
+  maintained TLS PostgreSQL adapter. A trigger in each locally owned, isolated
+  test schema raises an exception on insert1,2,3 or4 of the actual four-record
+  admission batch. No shipping adapter fault switch, forged decision or alternate
+  authorization path is introduced. All source/proof/approval/custody and local
+  HTTP composition is the same native path as the capacity cases.
+- A PostgreSQL sequence survives transaction rollback and witnesses exactly the
+  rejected insert number. Thus each schedule proves the reached server row
+  prefix, including earlier successful inserts, rather than merely returning a
+  synthetic adapter error. After the exception, native history is unavailable
+  and direct server counts show no attempt, lifetime allocation, count slot or
+  byte-sum slot. The child execution witness and independent HTTP counter both
+  show no custody lease or external entry.
+- The trigger is removed only after the failed worker exits. A reopened native
+  engine revalidates the unchanged signed inputs under the same logical operation
+  and produces one response, one lifetime allocation, one count slot and one
+  byte-sum slot. Exact terminal replay preserves the attempt bytes and execution
+  witness, with no second HTTP request or charge. Temporary trigger/sequence
+  objects remain confined to the owned schema that the fixture drops.
+- Required artifact generation passed four histories in 4.72 seconds. Exact
+  feature-gated PostgreSQL CI invocation and consumer evidence anchors include
+  the new matrix. Strict gateway library/test lint passed without suppressions.
+  After closure regeneration and rebuild, all fifteen selected native artifact,
+  helper and closure cases passed without update mode in 6.15 seconds. Existing
+  capacity, crash, dependency, fixed-window and file-fault artifacts remained
+  byte-identical after adding the private peer execution witness. The dedicated
+  TLS containers/network/volume were stopped and removed after verification.
+  This is transaction-abort/partial-batch evidence, not ambiguous commit delivery,
+  server/power failure or the complete mutation/disclosure fault matrix. A06
+  remains partial and no acceptance requirement is weakened.
+
+- Release freeze399 advances the reported identity protocol145, public SDK
+  contract142 and public surface399 subjects. Fresh hosted exact-head evidence
+  remains required; source-identity counters are not formal acceptance evidence.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2069,7 +2107,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
 | A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
-| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O call-site failure matrix / fifteen independent native worker histories generated and executed | PostgreSQL transaction/commit delivery, complete mutation/disclosure schedules and remaining durability cases required |
+| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures and server-rejected PostgreSQL batches / fifteen file I/O fault histories and four real PostgreSQL rejected-prefix transactions executed | Ambiguous commit delivery, complete mutation/disclosure schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
