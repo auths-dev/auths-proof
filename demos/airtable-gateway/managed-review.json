@@ -4,7 +4,7 @@
     "schema": "auths.effect-review-contract/1",
     "consequences": [
       "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.",
-      "A separately approved bounded GET can retain this record as private UTF-8 content. Releasing it to the exact local recipient requires a separate native disclosure proof, exact approval and authenticated channel; acquisition does not disclose it."
+      "A separately approved bounded GET can retain the PrivateNote string of this JSON record as private UTF-8 content. Releasing it to the exact local recipient requires a separate native disclosure proof, exact approval and authenticated channel; acquisition does not disclose it."
     ],
     "fields": {
       "record_id": {
@@ -17,7 +17,7 @@
       }
     }
   },
-  "digest": "7b3fe9ccc12afd4c4398b944a81e42dc7a00992e8e4af176391fc204d0f0cb37",
+  "digest": "88f9e64b3f82ff6d369a31082d9e2b00890b0d676bb1c0c8e3610e961b1769eb",
   "operator_namespace": "airtable-demo",
   "service": "airtable-gateway-demo",
   "tool": "set_demo_status_v1",
@@ -81,7 +81,8 @@
       ],
       "query": [],
       "projection": {
-        "kind": "utf8"
+        "kind": "json-string",
+        "pointer": "/fields/PrivateNote"
       },
       "maximum_response_bytes": 1024,
       "maximum_content_bytes": 512
@@ -106,7 +107,7 @@
   "account_scope": null,
   "relative_ceiling": null,
   "bounds": null,
-  "recipe_digest": "7b3fe9ccc12afd4c4398b944a81e42dc7a00992e8e4af176391fc204d0f0cb37",
+  "recipe_digest": "88f9e64b3f82ff6d369a31082d9e2b00890b0d676bb1c0c8e3610e961b1769eb",
   "verifier_configuration": "4438003caabb21ef7848726c143782b3cb4c26adac7f609c70b23917613ef035",
   "profile_policy": "mcp-arguments-v1",
   "bounded_policy_extension": "bounded-policy-commitment-v1"

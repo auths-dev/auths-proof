@@ -40,7 +40,7 @@ from pathlib import Path
 files=list(Path('/run/demo/app/managed-content').glob('*.content'))
 for path in files:
  assert stat.S_IMODE(path.stat().st_mode)==0o600
- assert json.loads(path.read_bytes())['fields']['PrivateNote']=='PRIVATE-MANAGED-CONTENT-SENTINEL'
+ assert path.read_bytes()==b'PRIVATE-MANAGED-CONTENT-SENTINEL'
 print(json.dumps({'files':len(files),'private_mode':'0600'}))
 """
     return json.loads(subprocess.check_output(['docker', 'exec', '--user', '62004:62005', CONTAINER,
@@ -63,12 +63,19 @@ def managed_journey(owner, agent, before):
         literal = json.loads(native['literal_review'])
         assert literal['native']['protocol'] == 'acquisition'
         assert literal['native']['method'] == 'GET'
+        assert literal['native']['content']['projection'] == {
+            'kind': 'json-string', 'pointer': '/fields/PrivateNote'}
+        assert literal['native']['content']['required_media_type'] == 'application/json'
         assert literal['binding']['operation'] == operation
         assert witness() == prior, 'content review entered custody or transport'
         assert recipient_files()['files'] == 0, 'acquisition disclosed without independent consent'
         owner.locator('#approve').click()
+        # Both clients produce the same outcome label; wait for this request's
+        # completion before reading its result instead of accepting the prior one.
+        expect(agent.locator('#submit')).to_be_enabled(timeout=45000)
         expect(agent.locator('#outcome')).to_have_text('ACQUISITION · RESPONSE-RECORDED', timeout=45000)
         result = json.loads(agent.locator('#result-json').text_content())
+        assert result['records'][0]['operation_id'] == operation
         assert result['records'][0]['language'] == language
         snapshot = result['records'][0]['result']['native']['history']['snapshot']
         assert snapshot['reserved_calls'] == 1 and snapshot['reserved_bytes'] == 1024
@@ -85,7 +92,10 @@ def managed_journey(owner, agent, before):
     native = native_review('managed-disclosure')
     assert owner.locator('#literal').text_content() == native['literal_review']
     disclosure = json.loads(native['literal_review'])
-    assert disclosure['native']['protocol'] == 'disclosure'
+    assert disclosure['binding']['protocol']['kind'] == 'disclosure'
+    assert disclosure['native']['disclosure']['schema'] == 'auths.gateway-disclosure/1'
+    assert disclosure['native']['disclosure'] == disclosure['semantic']['disclosure']
+    assert disclosure['native']['disclosure']['source_operation'] == 'managed-read-python'
     assert disclosure['binding']['operation'] == 'managed-disclosure'
     assert witness() == after_acquisitions and provider_counts() == counts
     assert recipient_files()['files'] == 0

@@ -273,8 +273,9 @@ remain separate gates in AP-SPEC-066 and [AP-SPEC-068](../../docs/specs/0068-air
 
 The optional authenticated owner UI selects `managed-recipe.json` for the local
 simulation. Its mutation declaration matches the maintained record-update recipe;
-an additional bounded GET can retain at most 512 UTF-8 bytes from a response
-bounded to 1,024 bytes. `managed-review.json` is the actual native recipe review,
+an additional bounded GET projects the `/fields/PrivateNote` JSON string into
+at most 512 private UTF-8 bytes from an `application/json` response bounded to
+1,024 bytes. `managed-review.json` is the actual native recipe review,
 reconstructed and compared by CI. The original recipe remains the live/reference
 recipe. This local variant grants no managed Google or live-provider claim.
 

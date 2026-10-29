@@ -80,7 +80,7 @@
     "schema": "auths.effect-review-contract/1",
     "consequences": [
       "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.",
-      "A separately approved bounded GET can retain this record as private UTF-8 content. Releasing it to the exact local recipient requires a separate native disclosure proof, exact approval and authenticated channel; acquisition does not disclose it."
+      "A separately approved bounded GET can retain the PrivateNote string of this JSON record as private UTF-8 content. Releasing it to the exact local recipient requires a separate native disclosure proof, exact approval and authenticated channel; acquisition does not disclose it."
     ],
     "fields": {
       "record_id": {
@@ -116,7 +116,8 @@
     ],
     "query": [],
     "projection": {
-      "kind": "utf8"
+      "kind": "json-string",
+      "pointer": "/fields/PrivateNote"
     },
     "maximum_response_bytes": 1024,
     "maximum_content_bytes": 512

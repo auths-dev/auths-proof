@@ -85,6 +85,7 @@ jobs:
         run: |
           python demos/airtable-gateway/tests/test_launch.py
           python demos/airtable-gateway/tests/test_owner_review.py
+          python demos/airtable-gateway/tests/test_provider_ledger.py
       - name: Construct the source-free demo handoff
         run: |
           python demos/airtable-gateway/tools/package.py \
