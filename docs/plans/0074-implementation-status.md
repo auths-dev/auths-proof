@@ -2084,6 +2084,55 @@ closure regeneration passed after that correction (one artifact-generation test)
   contract142 and public surface399 subjects. Fresh hosted exact-head evidence
   remains required; source-identity counters are not formal acceptance evidence.
 
+## Formal translation and recovery correspondence repair
+
+- Integrated isolated formal repair `ffa982fa` as `884b5bd9`. The hosted
+  translation failure on `af01d376` exposed an obsolete 123-function inventory
+  and a model still using Attempting/implicit read-back. The shipping kernel
+  already has the direct Reserved/EntryGranted cutover; the model, generated
+  translation, exact refinement and assurance inventory now describe that
+  implementation together. This repair changes no shipping runtime behavior.
+- Reviewed inventory126 adds six closed protocol/grant/ACK checks and removes
+  three obsolete mode/implicit-read helpers. External and opaque local functions
+  remain zero. The reviewed qualification boundary digest was explicitly renewed
+  for that inventory change; tool pins, warnings, four existing external models,
+  axiom policy and CFG parity requirements remain intact.
+- The natural attempt model includes three protocols, JSON-safe bounded revision,
+  immutable grant and ACK evidence. Exact translated refinement covers every pair
+  of views including revision overflow. Separate late-response and late-recipient-
+  ACK theorems retain source/grant lineage without asserting provider observation;
+  the complete unknown-exit theorem retains strict linked-evidence requirements
+  for ObservedByProvider. Submission ordering proves durable grant before send,
+  one send at most, no post-send NotEntered/refund, no implicit response read,
+  and stored replay without a new send. Runtime signature/challenge/provenance,
+  filesystem/database atomicity and physical I/O remain separate obligations.
+- Isolated source reproduction passed both authored models, exact refinement,
+  full pinned Lean build (3,305 jobs), all eight qualification case modules,
+  two clean byte-identical translations, and a compiled transitive axiom audit
+  of329 statements: seven added, seven updated,315 unchanged, none removed.
+  Only the existing propext/Quot.sound/Classical.choice foundational axioms occur.
+  The boundary-pin unit test passed1/1 and the staged v8.28 secret scan passed.
+- Final non-update `cargo xtask formal --skip-kani` passed existing qualification,
+  329-claim audit, byte-stable semantic vectors,4/4 Rust refinement tests and the
+  49/49 Kani harness inventory. Bounded Kani was deliberately not duplicated
+  locally; the prior published head's hosted Kani job passed, and the next exact
+  head still requires hosted verification. Mutation campaign snapshots remain
+  explicitly stale pre-release evidence rather than newly passed campaigns.
+- The integration's sole generated source-closure conflict was resolved using
+  the source generator. Its output exactly equals the reviewed formal batch;
+  no digest was hand-edited. Main's independently generated gateway closure and
+  native fault/concurrency fixtures remain separate evidence. A20 and the full
+  AP074 acceptance/performance gates remain incomplete.
+
+- On the combined checkout, the required proof-coverage generator reproduced
+  study006 byte-for-byte and emitted unchanged current coverage artifacts
+  (110/1,031 decision-scope functions and1,289/11,353 code lines). The added native
+  test/fault scaffolding is not advertised as proved decision code. Release
+  freeze400 advances only the changed formal assurance-manifest61, generated
+  translations20, qualification17, formal source-closure105 and public-surface400
+  subjects. Identity protocol145 and public SDK142 remain unchanged by this
+  formal-only integration. No full acceptance gate is declared closed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2121,7 +2170,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / independent references retained / no complete differential corpus | Preserve AP070 reference independence; complete comparable native contracts without broker migration |
-| A20 | Generated histories and shipping predicate refinement | Partial / 576 typed stage pairs, ACK histories and Kani source / pure corpus executed | Full generated concurrent histories and source-linked formal artifacts pending |
+| A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
 

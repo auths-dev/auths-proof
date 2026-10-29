@@ -803,6 +803,7 @@ stateDiagram-v2
     EntryGranted --> Acknowledged: disclosure ACK
     ResponseRecorded --> Observed: separate supported observation
     Unknown --> Observed: sufficient reconciliation evidence
+    Unknown --> ResponseRecorded: late exact source response
     Unknown --> Acknowledged: late exact disclosure ACK
 ```
 
