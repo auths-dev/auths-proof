@@ -735,6 +735,17 @@ reauthorization of the unchanged operation, followed by no-I/O terminal replay.
 This is real PostgreSQL transaction-abort evidence, not commit-acknowledgement
 ambiguity, power loss or the complete mutation/disclosure fault matrix.
 
+`native-postgres-commit-reply-loss.json` separately exercises real lost COMMIT
+replies for admission, entry and response persistence. A deferred fixture trigger
+pauses the actual COMMIT; a direct TLS observer verifies the selected backend's
+TLS session and distinguishes committed state from an aborted transaction. An
+opaque TCP proxy withholds replies and disconnects the native client without
+terminating TLS or manufacturing an adapter error. Reopening must inspect the
+retained native history, continue only absent/pre-grant work through fresh native
+checks and never recreate a lost grant. Charges and exact terminal rows remain
+unchanged through replay. These acquisition histories do not replace the full
+mutation/disclosure commit-fault matrix or establish power-loss/rollback safety.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

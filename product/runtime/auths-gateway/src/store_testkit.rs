@@ -213,6 +213,13 @@ impl TestAttempts {
         }).collect()
         })
     }
+
+    /// Direct fixture connection for independent commit/rollback observation.
+    /// The ownership check confines test DDL to a schema this handle created.
+    #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn postgres_commit_observer(&self) -> (String, Client) {
+        (self.owned_postgres_schema(), off_runtime(admin_client))
+    }
 }
 
 impl Drop for TestAttempts {

@@ -2133,6 +2133,85 @@ closure regeneration passed after that correction (one artifact-generation test)
   subjects. Identity protocol145 and public SDK142 remain unchanged by this
   formal-only integration. No full acceptance gate is declared closed.
 
+## Native PostgreSQL COMMIT-reply loss checkpoint
+
+- `native_postgres_commit_tests.rs` and its private opaque TCP proxy author six
+  full native acquisition histories: actual commit success versus actual backend
+  abort during admission, entry-grant persistence and response persistence.
+  A schema-local deferred constraint trigger pauses the native COMMIT at a
+  separate advisory lock. An independent direct TLS client observes the waiting
+  backend through PostgreSQL locks and asserts that its pg_stat_ssl session is
+  encrypted. The test proxy never terminates TLS, parses SQL or fabricates a
+  store result; trust roots, server-name checks and native store deadlines remain
+  the maintained implementation's checks.
+- For committed transactions, the independent observer releases the trigger,
+  reads the newly committed exact operation phase and confirms that server reply
+  bytes are withheld before disconnecting the worker's transport. For aborted
+  transactions, the observer terminates only the fixture backend identified by
+  that owned-schema barrier, verifies backend exit/rollback, then disconnects.
+  The real adapter returns an error at the selected native decision exactly once.
+  Proxy forwarding resumes for fresh pool connections; unavailable immediate
+  caller projection remains a typed indeterminate result rather than authority.
+- Native error/custody/HTTP witnesses, unchanged signed inputs and independent
+  server counts verify all-or-none charges. An aborted admission leaves no claim
+  or allocation/counter rows. A committed admission or aborted grant retains a
+  charged reservation and can continue only through native fresh checks. A
+  committed grant with a lost acknowledgement stays charged Unknown even with
+  zero actual HTTP reads; it can never lease/fetch again. An aborted response
+  persistence retains charged Unknown after one read; a committed response
+  remains recorded despite reply loss. Native reopening/replay preserves every
+  inspected gateway-row byte and execution witness, with one permanent lifetime
+  allocation and one count/sum slot, no refund, no extra HTTP and no new permit.
+- Initial required artifact generation passed all six real transaction/transport
+  histories in2.25 seconds. Strengthened independent TLS and pre-reopen row-count
+  assertions passed in2.36 seconds; strict gateway library/test lint passed with
+  no suppressions. After closure regeneration and rebuild, all seventeen
+  selected native artifact/helper/closure tests passed without update mode in
+  6.92 seconds, including both adapters' previous capacity/crash/dependency
+  matrices. Their files stayed byte-identical. Dedicated fixture containers,
+  network and volume were stopped/removed after verification.
+  The explicit feature-gated PostgreSQL CI command and consumer anchor name this
+  matrix. No shipping adapter/kernel behavior or fault switch is introduced.
+- These cases cover acquisition COMMIT reply delivery over an actual TLS
+  connection, with committed and aborted database outcomes. They do not claim
+  PostgreSQL power-loss/whole-store rollback protection, hostile OS containment,
+  live qualification or the full mutation/disclosure fault matrix. A06 remains
+  partial until those required protocol-specific schedules are complete.
+
+## Published ab36 hosted observation
+
+- The combined security/artifact, native fault/concurrency, formal correspondence
+  and release-identity changes were pushed non-force as
+  `ab36e4b76420a37912d00b2c5b1fac1ad6c556c5` to the open draft PR213.
+  At the first observed checkpoint all12 non-main/non-live workflows passed;
+  the main CI workflow is still running with76 successful checks,8 conditional
+  skips and no failures. Pending checks are not passes. Custody-live is skipped
+  and provides no qualification evidence.
+- The [exact-head PostgreSQL job](https://github.com/auths-dev/auths-proof/actions/runs/40867724293/job/123426622975) passed with actual execution of all
+  eleven explicit feature-gated native cases (each1passed/0ignored), the thirty
+  ordinary ignored PostgreSQL cases and physical/WAL restore assertions. Fresh
+  installed Docker Stripe/Airtable demos passed23/36 cases respectively, each
+  explicitly production_qualification:false. Installed Python/TypeScript platform
+  harnesses, SDK recipes/scaffold and independent Google images passed. Distinct
+  UID isolation executed and passed2/2 cases. These are evidence on ab36, not
+  evidence for the newer unpublished COMMIT-loss source.
+- Subsequently, [authoritative implementation](https://github.com/auths-dev/auths-proof/actions/runs/40867724155/job/123431724494)
+  failed a CLI frame fixture that still omitted required exact approval. The CI
+  agent found two stale fixtures, including vacuous commissioning-field negative
+  cases. Its isolated repair uses the current canonical native submission and
+  requires approval to decode before forbidden-field checks; binary tests passed
+  9/9. The full failing workspace command is being reproduced with no-fail-fast
+  to collect downstream roots before one batch. Later compliance and Kani jobs
+  passed; translation and its downstream proof/evidence remain pending. These
+  local CLI repairs are not yet published-head passes.
+- The existing CI agent continues holistic exact-head triage. No new agent,
+  AP070 migration, AP073 modification, live action, merge or deployment occurred.
+
+- Release freeze401 advances the reported identity protocol146, public SDK
+  contract143 and public surface401 subjects for the new fixture/consumer
+  inventory. The shipping store and translated kernel are unchanged. Fresh
+  exact-head hosted execution is required before acceptance claims.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2156,7 +2235,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
 | A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
-| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures and server-rejected PostgreSQL batches / fifteen file I/O fault histories and four real PostgreSQL rejected-prefix transactions executed | Ambiguous commit delivery, complete mutation/disclosure schedules and remaining durability cases required |
+| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
