@@ -40,6 +40,9 @@ jobs:
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: |
           cargo test -p auths-gateway --lib -- --ignored postgres
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current
           cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres
       - name: Rehearse a physical backup and point-in-time restore
         run: deployment/gateway/tools/exercise-postgres-restore.sh

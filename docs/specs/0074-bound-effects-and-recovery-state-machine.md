@@ -677,6 +677,15 @@ Restart/replay changes neither journal bytes nor provider count. This is finite
 source-lifetime count/byte evidence, not fixed-window count/sum or PostgreSQL
 conformance; those acceptance requirements remain open.
 
+The common `native-process-capacity-{file,postgres}.json` cases additionally use
+full native engine entry validation in separate OS processes over both durable
+adapters, with exact proofs/approvals, fixed test deployment time and separate
+custody. They record one final winner and an exhausted non-entry while an actual
+HTTP double counts sixteen total grants/GETs, and reopening cannot remint access.
+These cases use no final-entry authorization oracle. They establish the stated
+source-lifetime count/byte behavior; fixed-window count/sum, complete fault and
+race schedules and deployed hostile-process containment remain separate gates.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

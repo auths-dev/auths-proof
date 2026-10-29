@@ -154,3 +154,6 @@ pub use support::{
     SupportFacts, support_bundle,
 };
 pub use transport::MAX_TRANSPORT_DURATION;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_process_tests;
