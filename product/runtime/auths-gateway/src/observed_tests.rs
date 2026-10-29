@@ -1464,12 +1464,7 @@ mod mock_custody {
             Ok(AwsKmsSignOutput {
                 key_arn: ARN.to_owned(),
                 algorithm,
-                signature_der: signature
-                    .normalize_s()
-                    .unwrap_or(signature)
-                    .to_der()
-                    .as_bytes()
-                    .to_vec(),
+                signature_der: signature.normalize_s().to_der().as_bytes().to_vec(),
             })
         }
     }
@@ -1486,7 +1481,7 @@ mod mock_custody {
                 public_key_sec1: self
                     .0
                     .verifying_key()
-                    .to_encoded_point(false)
+                    .to_sec1_point(false)
                     .as_bytes()
                     .to_vec(),
                 p256: true,
@@ -1503,7 +1498,7 @@ mod mock_custody {
         ) -> Result<Pkcs11SignOutput, Pkcs11Failure> {
             let signature: Signature = self.0.sign(message);
             Ok(Pkcs11SignOutput {
-                signature: signature.normalize_s().unwrap_or(signature).to_vec(),
+                signature: signature.normalize_s().to_vec(),
             })
         }
     }

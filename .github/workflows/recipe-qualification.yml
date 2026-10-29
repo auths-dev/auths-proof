@@ -30,6 +30,8 @@ concurrency:
 
 jobs:
   candidate:
+    outputs:
+      artifact-id: ${{ steps.candidate-artifact.outputs.artifact-id }}
     name: shipping gateway candidate without credentials
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -80,6 +82,7 @@ jobs:
           }, sort_keys=True, indent=2) + '\n')
           PY
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        id: candidate-artifact
         with:
           name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/qualification-shipping-candidate
@@ -87,6 +90,8 @@ jobs:
           retention-days: 30
 
   packet-author:
+    outputs:
+      artifact-id: ${{ steps.python-artifact.outputs.artifact-id }}
     name: installed packet author and shipping native review
     needs: candidate
     runs-on: ubuntu-latest
@@ -110,7 +115,7 @@ jobs:
           "${RUNNER_TEMP}/packet-consumer/bin/python" -m pip install target/qualification-wheels/*.whl
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/packet-candidate
       - name: Run the author without a checkout or provider credential
         shell: bash
@@ -162,6 +167,7 @@ jobs:
           retention-days: 30
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        id: python-artifact
         with:
           name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/qualification-wheels/*.whl
@@ -169,6 +175,8 @@ jobs:
           retention-days: 30
 
   typescript-consumer:
+    outputs:
+      artifact-id: ${{ steps.typescript-artifact.outputs.artifact-id }}
     name: installed TypeScript qualification consumer
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -226,6 +234,7 @@ jobs:
           }, sort_keys=True) + '\n')
           PY
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        id: typescript-artifact
         with:
           name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/qualification-typescript
@@ -327,7 +336,7 @@ jobs:
           cp qualification/reference/*.py "${RUNNER_TEMP}/offline-author-kit/"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/candidate
       - name: Run offline stages on the exact shipping candidate
         shell: bash
@@ -396,15 +405,15 @@ jobs:
           node-version: 22.23.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/candidate
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.packet-author.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/python-package
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.typescript-consumer.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/typescript-package
       - name: Install the exact credential-free consumer packages
         shell: bash
@@ -532,7 +541,7 @@ jobs:
         run: cargo build --locked --release -p auths-gateway --bin auths-gateway -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/candidate
       - name: Receive only this run's bounded public inputs
         shell: bash
@@ -586,15 +595,15 @@ jobs:
         run: cargo build --locked --release -p auths-gateway --bin auths-gateway -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/candidate
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.packet-author.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/python-package
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.typescript-consumer.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/typescript-package
       - name: Receive only this run's original public pool and first proposal
         shell: bash
@@ -630,7 +639,7 @@ jobs:
 
   sign:
     name: sign the complete cleaned qualification release
-    needs: [live, families, commissioner, first-sign]
+    needs: [live, families, commissioner, first-sign, candidate, packet-author, typescript-consumer]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -649,15 +658,15 @@ jobs:
         run: cargo build --locked --release -p auths-gateway --bin auths-gateway -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/candidate
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.packet-author.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/python-package
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.typescript-consumer.outputs.artifact-id || '0' }}
           path: ${{ runner.temp }}/typescript-package
       - name: Receive exact-run public inputs and cleanup-closed proposals
         shell: bash

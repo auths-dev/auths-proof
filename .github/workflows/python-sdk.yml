@@ -83,7 +83,10 @@ jobs:
       - run: python bindings/python/tools/check_contract.py
       - run: python bindings/python/tools/check_doc_snippets.py
 
+  # Consumers use producer IDs across retries; zero refuses missing outputs.
   consumer-contract:
+    outputs:
+      artifact-id: ${{ steps.consumer-artifact.outputs.artifact-id }}
     name: build external-consumer contract
     runs-on: ubuntu-latest
     steps:
@@ -97,6 +100,7 @@ jobs:
           cargo run --locked -p auths-proof-wasm
           --example generate-node-vectors -- target/binding-vectors
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        id: consumer-artifact
         with:
           name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -132,6 +136,10 @@ jobs:
           compression-level: 9
 
   wheel-build:
+    outputs:
+      ubuntu-24.04: ${{ steps.wheel-output.outputs['ubuntu-24.04'] }}
+      macos-latest: ${{ steps.wheel-output.outputs['macos-latest'] }}
+      windows-latest: ${{ steps.wheel-output.outputs['windows-latest'] }}
     name: build abi3 wheel (${{ matrix.os }})
     strategy:
       fail-fast: true
@@ -155,12 +163,20 @@ jobs:
           --features pyo3/extension-module
           --out target/python-release-wheels
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        id: wheel-artifact
         with:
           name: python-wheel-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/python-release-wheels/*.whl
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+      # Unique matrix keys retain the producing platform's immutable artifact ID.
+      - id: wheel-output
+        shell: bash
+        env:
+          WHEEL_PLATFORM: ${{ matrix.os }}
+          WHEEL_ARTIFACT_ID: ${{ steps.wheel-artifact.outputs.artifact-id }}
+        run: echo "${WHEEL_PLATFORM}=${WHEEL_ARTIFACT_ID}" >> "$GITHUB_OUTPUT"
 
   installed-workflow:
     name: installed CPython ${{ matrix.python }} (${{ matrix.os }})
@@ -177,11 +193,11 @@ jobs:
           python-version: ${{ matrix.python }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: python-wheel-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.wheel-build.outputs[matrix.os] || '0' }}
           path: wheelhouse
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.consumer-contract.outputs.artifact-id || '0' }}
           path: consumer
       - name: Assert a source-free consumer boundary
         shell: bash
@@ -248,11 +264,11 @@ jobs:
           python-version: "3.9"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: python-wheel-ubuntu-24.04-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.wheel-build.outputs['ubuntu-24.04'] || '0' }}
           path: wheelhouse
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.consumer-contract.outputs.artifact-id || '0' }}
           path: consumer
       - name: Install the wheel and pinned type checkers
         shell: bash
@@ -303,11 +319,11 @@ jobs:
           python-version: "3.9"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: python-wheel-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.wheel-build.outputs[matrix.os] || '0' }}
           path: wheelhouse
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.consumer-contract.outputs.artifact-id || '0' }}
           path: consumer
       - name: Install only the built wheel
         shell: bash

@@ -132,7 +132,12 @@ async fn installation_histories(
                 &*credentials,
                 |_| panic!("unapproved draft must not run"),
                 draft.connection_id(),
-                SecretBytes::new(b"rk_test_unapproved".to_vec()).expect("secret")
+                SecretBytes::new(
+                    concat!("rk_test_", "synthetic_unapproved_fixture")
+                        .as_bytes()
+                        .to_vec()
+                )
+                .expect("secret")
             )
             .await
             .err(),
