@@ -8,6 +8,7 @@
 
 use auths_gateway::CompiledRecipe;
 use auths_gateway::listener::max_socket_path_bytes;
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use std::{
     ffi::OsStr,
     fs,
@@ -546,8 +547,26 @@ fn a_client_reports_the_length_and_the_connect_error() {
     let (_directory, root) = private_root();
     let proof = root.join("proof");
     let action = root.join("action");
-    fs::write(&proof, b"p").expect("proof");
-    fs::write(&action, b"a").expect("action");
+    let approval = root.join("approval");
+    let fixture: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../../bindings/fixtures/gateway/effect-binding.json"
+    ))
+    .expect("native exact-effect fixture");
+    let frame: serde_json::Value = serde_json::from_str(
+        fixture["submission_frame_canonical"]
+            .as_str()
+            .expect("native submission"),
+    )
+    .expect("canonical frame");
+    for (path, field) in [
+        (&proof, "proof_b64"),
+        (&action, "action_b64"),
+        (&approval, "approval_b64"),
+    ] {
+        let bytes = Base64UrlUnpadded::decode_vec(frame[field].as_str().expect("encoded field"))
+            .expect("native bytes");
+        fs::write(path, bytes).expect("submission input");
+    }
     let submit = |socket: &Path| {
         run_with_deadline(
             Command::new(BIN)
@@ -557,7 +576,9 @@ fn a_client_reports_the_length_and_the_connect_error() {
                 .arg("--proof")
                 .arg(&proof)
                 .arg("--action")
-                .arg(&action),
+                .arg(&action)
+                .arg("--approval")
+                .arg(&approval),
             DEADLINE,
         )
     };

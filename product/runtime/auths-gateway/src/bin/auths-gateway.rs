@@ -5266,11 +5266,29 @@ mod unix {
             assert_eq!(stored.revoked_signers.len(), 8);
         }
 
+        fn canonical_application_frame() -> serde_json::Value {
+            let fixture: serde_json::Value = serde_json::from_slice(include_bytes!(
+                "../../../../../bindings/fixtures/gateway/effect-binding.json"
+            ))
+            .expect("native exact-effect fixture");
+            let frame: serde_json::Value = serde_json::from_str(
+                fixture["submission_frame_canonical"]
+                    .as_str()
+                    .expect("native submission frame"),
+            )
+            .expect("canonical frame JSON");
+            let submission: AppSubmission =
+                serde_json::from_value(frame.clone()).expect("current submission shape");
+            assert_eq!(submission.schema, APP_REQUEST_SCHEMA);
+            assert!(submission.decode().is_ok(), "native approval must decode");
+            frame
+        }
+
         #[test]
         fn application_and_admin_frames_cannot_select_a_commissioning_session() {
+            let canonical = canonical_application_frame();
             for field in ["commissioning", "permit", "authority", "operator_session"] {
-                let mut frame = serde_json::json!({"schema": APP_REQUEST_SCHEMA,
-                    "proof_b64": "AA", "action_b64": "AA"});
+                let mut frame = canonical.clone();
                 frame[field] = serde_json::json!("synthetic-untrusted-authority");
                 assert!(
                     serde_json::from_value::<AppSubmission>(frame).is_err(),
@@ -5391,12 +5409,7 @@ mod unix {
             .expect("service hostile cases");
             assert_eq!(cases["schema"], "auths.gateway-service-hostile/1");
             assert_eq!(cases["cases"].as_array().expect("cases").len(), 15);
-            let canonical = serde_json::json!({
-                "schema": APP_REQUEST_SCHEMA,
-                "proof_b64": "AA",
-                "action_b64": "AA"
-            });
-            assert!(serde_json::from_value::<AppSubmission>(canonical.clone()).is_ok());
+            let canonical = canonical_application_frame();
             for (key, value) in [
                 ("url", "https://attacker.example"),
                 ("method", "POST"),
