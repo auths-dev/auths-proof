@@ -276,11 +276,20 @@ fn response_cases(family: Family, request: &crate::ClosedProviderRequest) -> Vec
         ),
         ("malformed", "{".to_owned()),
         ("nonfinite", "{\"amount\":NaN}".to_owned()),
-        (
-            "over-limit",
-            " ".repeat(observation.maximum_response_bytes() + 1),
-        ),
     ]);
+    // Vary only trailing whitespace on a complete valid response, so the
+    // negative boundary cannot also be explained by malformed JSON.
+    let exact = serde_json::to_string(&original).expect("complete response");
+    for (name, length) in [
+        ("at-limit", observation.maximum_response_bytes()),
+        ("over-limit", observation.maximum_response_bytes() + 1),
+        ("over-reference-limit", 65_537),
+    ] {
+        assert!(exact.len() < length);
+        let mut response = exact.clone();
+        response.extend(std::iter::repeat_n(' ', length - exact.len()));
+        inputs.push((name, response));
+    }
     inputs
         .into_iter()
         .map(|(name, raw)| {
@@ -291,7 +300,11 @@ fn response_cases(family: Family, request: &crate::ClosedProviderRequest) -> Vec
                 Some(ReadBack::Value { matched: false }) => "state-mismatch",
                 None => "unavailable",
             };
-            json!({"name":name, "response":raw, "native":native})
+            let response = raw.trim_end_matches(' ');
+            json!({"name":name, "response":response,
+                "trailing_space_bytes":raw.len() - response.len(),
+                "native_maximum_response_bytes":observation.maximum_response_bytes(),
+                "native":native})
         })
         .collect()
 }

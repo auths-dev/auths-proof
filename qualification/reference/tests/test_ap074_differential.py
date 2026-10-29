@@ -39,7 +39,11 @@ class DifferentialContract(unittest.TestCase):
         def capability(value):
             value['families'][1]['recovery']['capability']['unknown_reobservation'] = True
 
-        for mutate in [request, decision, missing, duplicated, response, locator, scope, capability]:
+        def byte_boundary(value):
+            row = next(row for row in value['families'][0]['observations'] if row['name'] == 'at-limit')
+            row['trailing_space_bytes'] -= 1
+
+        for mutate in [request, decision, missing, duplicated, response, locator, scope, capability, byte_boundary]:
             with self.subTest(mutation=mutate.__name__):
                 changed = copy.deepcopy(original)
                 mutate(changed)

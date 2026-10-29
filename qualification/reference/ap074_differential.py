@@ -106,7 +106,9 @@ def compare_observations(family, baseline):
         'duplicate-member': ('unavailable', False),
         'malformed': ('unavailable', False),
         'nonfinite': ('unavailable', False),
-        'over-limit': ('unavailable', False)}
+        'at-limit': ('echo-linked', True),
+        'over-limit': ('unavailable', True),
+        'over-reference-limit': ('unavailable', False)}
     if reference is stripe:
         # A refund is discovered by action-bound echo, rather than a caller's
         # claimed refund ID. Another safe refund ID alone is not a mismatch.
@@ -119,17 +121,27 @@ def compare_observations(family, baseline):
     for name, (native, accepted) in expected.items():
         row = rows[name]
         require(row['native'] == native, 'ap074.differential.native-response')
+        padding = row['trailing_space_bytes']
+        require(type(padding) is int and 0 <= padding <= 65537
+                and row['native_maximum_response_bytes'] == 16384,
+                'ap074.differential.response-padding-bound')
+        raw = row['response'].encode() + b' ' * padding
+        if name in ['at-limit', 'over-limit', 'over-reference-limit']:
+            length = {'at-limit': 16384, 'over-limit': 16385, 'over-reference-limit': 65537}[name]
+            require(len(raw) == length and json.loads(raw) == json.loads(rows['exact']['response']),
+                    'ap074.differential.valid-json-byte-boundary')
         try:
             witness = fresh_evidence.witness(family['family'], baseline['arguments'],
                 family['resources'], baseline['action_commitment'], family['recipe_digest'],
-                row['response'].encode())
+                raw)
             actual, code = True, None
-            require(witness['response_sha256'] == sha256(row['response'].encode()),
+            require(witness['response_sha256'] == sha256(raw),
                     'ap074.differential.reference-response-digest')
         except Refusal as error:
             actual, code = False, str(error)
         require(actual is accepted, 'ap074.differential.reference-response')
-        compared.append({'name': name, 'native': native,
+        compared.append({'name': name, 'native': native, 'response_bytes': len(raw),
+                         'native_maximum_response_bytes': row['native_maximum_response_bytes'],
                          'reference_complete_domain_witness': actual, 'reference_code': code})
     return rows['exact']['response'].encode(), compared
 

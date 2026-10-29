@@ -16,7 +16,7 @@ an immutable bound effect. Successful cases also obtain and revalidate a real
 exact-effect approval signed by public fixed test keys. There is no admission,
 entry permit, credential, provider execution or human-presence claim.
 
-The retained native corpus has 28 request cases and 22 response cases across
+The retained native corpus has 28 request cases and 26 response cases across
 the two families. `qualification/reference/ap074_differential.py` calls the
 unchanged `airtable_record.py`, `stripe_platform.py`, `fresh_evidence.py` and
 `provider_readback.py`; the references never import the gateway implementation
@@ -31,6 +31,7 @@ decisions, case inventory, observations, recovery targets and resource scope.
 | Resource scope | The independent qualification pool refuses an otherwise well-shaped unowned resource. A native grant/recipe can authorize that resource without knowing the qualification pool. These expected differences are required assertions, not accepted unexplained drift. |
 | Provider guard | Native compilation is not the separately fenced fresh provider-read decision. Independent Stripe guards separately demonstrate the exact 50 percent ceiling and currency binding; this corpus does not claim to execute the native live guard. |
 | Observation | Exact expected value plus exact declared echo links the generic native observation. Wrong value/echo and unavailable JSON retain distinct facts. Duplicate members, malformed/nonfinite JSON and over-limit responses never become a definitive observation. |
+| Byte limits | Complete valid JSON plus trailing whitespace remains accepted at the native 16,384-byte observation limit and becomes unavailable at 16,385. The independent full-domain witness has a different 65,536-byte limit, so it accepts that larger valid native-refused response; both refuse 65,537 bytes. These bound differences are explicit. Large padding is represented by its bounded count in the corpus and materialized before actual native/reference calls. |
 | Full domain witness | Independent references additionally check the record identity or refund payment, status, currency and live-mode facts. A generic recipe that projects one value and echo does not acquire those extra domain predicates. Missing echo can be native state equality while the full independent witness refuses. |
 | Refund identity | The independent Stripe reference discovers a refund by its action-bound echo. A different safe refund ID alone does not invalidate that witness. It never trusts an application-supplied refund locator. |
 | Recovery capability | Airtable has a verified record locator before any write response. Stripe's native response-derived locator is unavailable without the recorded response; a declared idempotency key cannot recreate it or confer a new entry permit. The independent reference can instead find exactly one action-bound refund in its own bounded listing. That discovery is an intentionally different test-only capability, not a native recovery grant. |

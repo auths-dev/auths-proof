@@ -2742,6 +2742,25 @@ or authorization/ACK equivalence claim is made.
   advances freeze409 and only its reported identity153/public-SDK150/
   public-surface409 entries; no shipping Rust or reference implementation changes.
 
+## Differential response boundary hardening
+
+Review of the new mutation corpus found that its oversized response was also
+invalid JSON, so that negative alone could not isolate the byte-limit predicate.
+The follow-up over `f5f3a8ca` replaces it with complete valid domain JSON plus
+trailing whitespace at 16,384, 16,385 and 65,537 bytes. Native observation accepts
+exactly its configured 16,384-byte bound and refuses the next byte. The unchanged
+independent witness has a 65,536-byte bound and therefore accepts the valid
+16,385-byte response; both refuse 65,537. The difference is required explicitly,
+not hidden as equivalent bounds. A bounded padding count keeps the retained
+fixture readable; both implementations receive the actual materialized bytes.
+
+The updated native artifact generator passed one test, zero failed/ignored,
+0.11 seconds after compilation. Independent report construction also passed,
+now with 28 request and 26 response cases. Its nine adversarial comparator
+mutations include changing the exact-limit padding; that unit test and new
+hosted execution remain pending. Semantic inventory construction stayed at
+freeze409 without identity/hash changes. No shipping or AP070 source changed.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2778,7 +2797,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
-| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / mutation reference comparison constructed; 22 paired post-authorization information comparisons authored against unchanged AP070 and native file/PostgreSQL histories / 28 request and 22 response mutation cases constructed locally; information comparison unrun | Execute new independent information runner and parser controls plus exact-head hosted mutation corpus; complete coverage audit; AP070 source stays independent without managed guarantees |
+| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / mutation reference comparison constructed; 22 paired post-authorization information comparisons authored against unchanged AP070 and native file/PostgreSQL histories / 28 request and 26 response mutation cases constructed locally, including valid JSON at/above both byte bounds; information comparison unrun | Execute new independent information runner and parser controls plus exact-head hosted mutation corpus; complete coverage audit; AP070 source stays independent without managed guarantees |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
