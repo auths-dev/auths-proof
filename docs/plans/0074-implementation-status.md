@@ -2823,6 +2823,77 @@ not a runtime protocol change. Required semantic inventory regeneration advances
 freeze410 with only reported identity154/public-SDK151/public-surface410 inputs.
 Effect/compiler/attempt schemas and translated pure predicates stay unchanged.
 
+## Bounded inventory and first hosted differential results
+
+Published `76d008a020e5b8e6c89e70bcb86ebc34e2c0e29d` has real hosted progress,
+not complete qualification. Python source-contract job123730999956 executed
+the exact native mutation generator and independent comparison: 28 request and
+26 response cases passed; report artifact12934145521 was checksum verified by
+the CI subagent. PG job123730998172 executed all 24 selected native cases,
+including the two new retention generators, before the new information runner
+failed during spawned crash-worker startup. Its downstream restore stages were
+skipped and are not passed evidence.
+
+The CI repair retains a parent reference to the multiprocessing Event until
+the real crash worker exits; a temporary Event could lose its semaphore before
+spawn unpickling. The full 22-pair information runner passed a focused reproduction
+using the downloaded hosted native log and current hosted SDK wheel; no AP070
+source or SIGKILL/accounting assertion changed. Source-only reference discovery
+still requires no installed SDK; its existing 104-test suite passed. Strict
+repository preflight found one additional test-generator semicolon lint error;
+fixing it requires no allowance or predicate change. The CI subagent's focused
+all-feature gateway library/test clippy reproduction passed. Both repairs were
+committed together as `037cb97f` and integrated locally as `49a5c0f0`; publication
+and new exact-head hosted confirmation remain required. The independent mutation
+comparison report was regenerated because it hashes that generator source.
+
+The next bounded-read issue was file `claimed_keys`: it collected and sorted
+the entire directory before truncating. The new implementation keeps at most
+4,096 candidate keys in a max-heap, preserving exactly the original sorted
+smallest-key prefix when successful. It inspects at most 16,384 directory entries
+plus one overflow probe, with the shared two-second cooperative work budget.
+Irrelevant filenames count against work. Oversized requests or incomplete scans
+fail unavailable without a partial or apparently empty inventory. Direct
+known-operation loads, admission and replay are unchanged. The support consumer
+already distinguishes unavailable from empty inventory. Large file archives can
+exceed this explicit diagnostic-query limit; no records are discarded to fit it.
+
+Two controls are authored for exact prefix/cardinality, zero/excess limits,
+incomplete scans, nonclaim entries and unchanged direct lookup. They have not
+yet executed locally or hosted. Final A19/A21 closure still requires actual
+new-head report execution and the remaining scope-specific evidence; neither
+the local reproduction nor a parent workflow name replaces that evidence.
+
+The combined worktree's exact failed-check reproduction,
+`cargo clippy --locked -p auths-gateway --lib --tests --all-features -- -D warnings`,
+passed in 13.23 seconds; this checks the integrated lint repair and new inventory
+source but does not execute those unit tests. Independent mutation report
+construction passed again (28/26). Required source-closure construction emitted
+the same `a002dc42725b1e3e5234f8ba11eea3f8ba8141e2e64f052d950182d4f93a2825`;
+it is not a new Lean/Kani/translation result. Semantic inventory construction
+advances freeze411 and only reported identity155/public-SDK152/public-surface411.
+
+The prior cohort is now terminal: 96 checks = 65 success, 12 failure, 19 skipped;
+14 workflows = 11 success, CI/PG failed, custody conditionally skipped. The
+required implementation/formal rollups failed closed after the identified
+preflight root; formal-fast passed explicitly without qualification. All 24
+selected native cases passed in PG before the reference failure. Full provenance
+and exact PR-merge/tree identities are preserved in
+[the 76d report](0074-hosted-evidence-76d008a0.md). No healthy jobs were cancelled.
+
+Criterion-specific audit must avoid treating unrelated open gates as absent
+native evidence. A09 already has 56 actual disclosure crash histories and 30
+late-ACK histories across both adapters, with 300 independently re-signed or
+signature-damaged substitutions. Source `substituted_acks` exercises effect
+(including operation identity), source effect, content, channel, delivery
+instance, recipient/key, projection, byte ceilings/acknowledged length and
+signature, asserting unchanged raw journal and charge records after every
+refusal. The positive late/repeated original ACK controls refine once and
+preserve charges. These native generators passed on 76d; the next exact-head
+run must confirm them before current-head closure. Broader language/containment
+gates remain independently mandatory under A17/A18/A22 rather than disappearing
+from the full objective.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

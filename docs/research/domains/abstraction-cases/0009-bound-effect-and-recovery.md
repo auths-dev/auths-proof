@@ -121,6 +121,10 @@ File maintenance uses a nonauthoritative iterator (4,096 inspected directory
 entries and a cooperative two-second work budget), not a second journal or a
 full-directory sort. PostgreSQL retains its indexed LIMIT and common writer
 fence. The engine samples the existing deployment/effect clock for both stores.
+File inventory preserves its sorted-prefix contract using a bounded heap and
+separate output/scan budgets (4,096 keys, 16,384 names plus one overflow probe).
+If it cannot finish, it returns unavailable instead of a partial inventory;
+direct journal lookup and all admission/recovery decisions remain independent.
 The source and native retention fixtures are recorded in the ledger; they do
 not establish clock rollback detection, all reserved/mutation histories or
 malicious whole-store rollback protection.

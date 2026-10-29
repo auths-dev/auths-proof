@@ -1150,6 +1150,20 @@ required qualification with untrusted time refuses cleanup before storage work.
 An independently sampled wall clock must not age out a still-current effect
 window. This is not a new clock rollback detector or a whole-store rollback claim.
 
+Read-only file inventory is bounded separately from expiry maintenance. It
+retains at most 4,096 candidate keys in a max-heap, inspects at most 16,384
+directory entries plus one overflow probe, and observes the same cooperative
+two-second work budget under the shared fence. Successful results retain the
+original globally sorted smallest-key prefix. Larger output requests, excessive
+directory work, unreadable entries or an expired work budget return unavailable;
+they never return an apparently complete partial inventory. Irrelevant filenames
+consume scan work too. Known-operation lookup, admission, replay and accounting
+do not consult this inventory. The existing support-bundle consumer represents
+an unavailable inventory as unavailable, distinct from a successfully empty list.
+PostgreSQL keeps its existing indexed bounded query. A large file archive may
+therefore require direct known-key inspection or the indexed adapter for a
+complete inventory; no journal record is removed to make a query fit its budget.
+
 Native file/PostgreSQL evidence acquires actual HTTP content using signed
 count/byte bounds and exact approval, then optionally performs authenticated
 Unix disclosure with ACK or ACK loss. Slots remain before their exact expiry

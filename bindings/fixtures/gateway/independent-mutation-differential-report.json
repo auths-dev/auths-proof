@@ -464,7 +464,7 @@
   "schema": "auths.ap074-independent-mutation-differential/1",
   "scope": "test-only native verified compilation and response classification compared with retained independent references; no admission, provider I/O, production qualification or AP070 guarantee",
   "source_sha256": {
-    "product/runtime/auths-gateway/src/native_differential_tests.rs": "1c5993be7f284477952bd95ff36b38d1c426cee21ffbd533ec3886bdff5eb879",
+    "product/runtime/auths-gateway/src/native_differential_tests.rs": "4c9ef638d4eb38c564ed94d0c6cdc7cf0ede0bff669face453fa58809c1174f1",
     "qualification/reference/airtable_record.py": "d5bf4d750fee75f02200d180f8654f426fe738bc86a281f1d015f391cc5e67fa",
     "qualification/reference/ap074_differential.py": "b2f88044a9131a3d62b11f842ea1f132f70563063cc45a25d48796641266127c",
     "qualification/reference/common.py": "604d3d6598648fbc09611e663b4048b22fa748d0f6c6f1dbbceca5d83c02a2ce",

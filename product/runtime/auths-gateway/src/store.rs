@@ -24,7 +24,7 @@ use base64ct::{Base64, Encoding as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BinaryHeap},
     fs::{self, File, OpenOptions},
     io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
@@ -48,6 +48,10 @@ const MAX_RECOVERY_ROUNDS: usize = 8;
 /// Maintenance work is bounded even when most directory entries are retained
 /// attempts or slots that have not expired. This cursor confers no authority.
 const MAX_FILE_SWEEP_SCAN: usize = 4_096;
+/// Exact sorted inventory is read-only, never an authority lookup. Above these
+/// explicit work/output bounds it refuses rather than report a partial prefix.
+const MAX_FILE_INVENTORY_SCAN: usize = 16_384;
+const MAX_FILE_INVENTORY_KEYS: usize = 4_096;
 const MAX_RECORD_BYTES: usize = auths_stores::MAX_GATEWAY_RECORD_BYTES;
 const MAX_BATCH_ENTRIES: usize = auths_stores::MAX_GATEWAY_BATCH_ENTRIES;
 /// A slot file wraps its record in base64 with its expiry.
@@ -1429,7 +1433,8 @@ pub trait GatewayAttemptStore: Send + Sync {
     /// a digest and names no operation.
     ///
     /// # Errors
-    /// Returns [`GatewayAttemptError::Unavailable`] when storage fails.
+    /// Returns [`GatewayAttemptError::Unavailable`] when storage fails or its
+    /// bounded inventory cannot be completed. No partial inventory is returned.
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError>;
 }
 
@@ -1446,6 +1451,10 @@ pub trait GatewayAttemptStore: Send + Sync {
 /// stops between entries at the common two-second cooperative work deadline.
 /// One transient directory cursor resumes later; reopening loses only progress.
 /// It never sweeps attempts, configuration, commissioning or lifetime allocations.
+/// Read-only inventory keeps at most 4,096 candidate keys and scans at most
+/// 16,384 directory entries plus one overflow probe. Above that bound, or after
+/// the cooperative two-second work deadline, it fails without partial results.
+/// Direct operation lookups remain independent of inventory size.
 pub struct FileGatewayAttemptStore {
     root: PathBuf,
     sweep_cursor: Mutex<Option<fs::ReadDir>>,
@@ -2161,9 +2170,30 @@ impl Drop for PostgresGatewayAttemptStore {
 
 impl FileGatewayAttemptStore {
     fn claimed_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        self.claimed_keys_with_budget(limit, MAX_FILE_INVENTORY_SCAN)
+    }
+
+    fn claimed_keys_with_budget(
+        &self,
+        limit: usize,
+        scan_budget: usize,
+    ) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        if limit > MAX_FILE_INVENTORY_KEYS {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
         let _lock = self.shared()?;
-        let mut keys = Vec::new();
-        for entry in fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)? {
+        let started = Instant::now();
+        let mut keys = BinaryHeap::with_capacity(limit);
+        let entries = fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?;
+        for (inspected, entry) in entries.enumerate() {
+            if inspected >= scan_budget.min(MAX_FILE_INVENTORY_SCAN)
+                || started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE
+            {
+                return Err(GatewayAttemptError::Unavailable);
+            }
             let name = entry
                 .map_err(|_| GatewayAttemptError::Unavailable)?
                 .file_name();
@@ -2175,11 +2205,19 @@ impl FileGatewayAttemptStore {
             if let Some(key) = key {
                 let mut bytes = [0_u8; 32];
                 hex::decode_to_slice(key, &mut bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
-                keys.push(GatewayAttemptKey(bytes));
+                let key = GatewayAttemptKey(bytes);
+                if keys.len() < limit {
+                    keys.push(key);
+                } else if keys.peek().is_some_and(|largest| key < *largest) {
+                    let _ = keys.pop();
+                    keys.push(key);
+                }
             }
         }
-        keys.sort_unstable();
-        keys.truncate(limit);
+        let keys = keys.into_sorted_vec();
+        if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+            return Err(GatewayAttemptError::Unavailable);
+        }
         Ok(keys)
     }
 }

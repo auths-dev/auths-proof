@@ -122,3 +122,77 @@ fn corrupt_slot_is_not_treated_as_expired_or_absent() {
     ));
     assert!(store.path_for(record.kind, &record.key).exists());
 }
+
+#[test]
+fn inventory_retains_the_exact_sorted_prefix_and_refuses_incomplete_scans() {
+    let (_directory, store) = fixture();
+    let claims: Vec<_> = [9, 1, 7, 2, 4]
+        .into_iter()
+        .map(|byte| entry(GatewayRecordKind::Attempt, byte, None))
+        .collect();
+    for claim in &claims {
+        store.insert(claim).expect("claim");
+    }
+    store
+        .insert(&entry(GatewayRecordKind::Connection, 42, None))
+        .expect("connection");
+    let mut expected: Vec<_> = claims.iter().map(|claim| claim.key).collect();
+    expected.sort_unstable();
+    for limit in 0..=claims.len() + 1 {
+        assert_eq!(
+            store.attempt_keys(limit).expect("inventory"),
+            expected[..limit.min(expected.len())]
+        );
+    }
+    assert!(
+        matches!(
+            store.claimed_keys_with_budget(2, 3),
+            Err(GatewayAttemptError::Unavailable)
+        ),
+        "never return a prefix from an incomplete scan"
+    );
+    assert!(matches!(
+        store.attempt_keys(MAX_FILE_INVENTORY_KEYS + 1),
+        Err(GatewayAttemptError::Unavailable)
+    ));
+    assert_eq!(
+        store.claimed_keys_with_budget(0, 0).expect("zero query"),
+        Vec::new()
+    );
+    for claim in &claims {
+        assert_eq!(
+            store.load(claim.kind, &claim.key).expect("direct lookup"),
+            Some(claim.record.clone())
+        );
+    }
+    assert_eq!(
+        store
+            .attempt_keys(claims.len())
+            .expect("retry bounded read"),
+        expected
+    );
+}
+
+#[test]
+fn inventory_counts_nonclaim_entries_against_its_work_budget() {
+    let (_directory, store) = fixture();
+    let claim = entry(GatewayRecordKind::Attempt, 5, None);
+    store.insert(&claim).expect("claim");
+    // An irrelevant filename must consume work too; filtering first and then
+    // limiting matching claims would preserve the unbounded-directory bug.
+    for index in 0..8 {
+        fs::write(store.root.join(format!("other-{index}")), b"").expect("entry");
+    }
+    assert!(matches!(
+        store.claimed_keys_with_budget(1, 4),
+        Err(GatewayAttemptError::Unavailable)
+    ));
+    assert_eq!(
+        store.load(claim.kind, &claim.key).expect("retained claim"),
+        Some(claim.record)
+    );
+    assert_eq!(
+        store.attempt_keys(1).expect("complete scan"),
+        vec![claim.key]
+    );
+}
