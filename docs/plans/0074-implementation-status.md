@@ -2212,6 +2212,62 @@ closure regeneration passed after that correction (one artifact-generation test)
   inventory. The shipping store and translated kernel are unchanged. Fresh
   exact-head hosted execution is required before acceptance claims.
 
+## Integrated canonical application controls and CI attribution
+
+- Reviewed isolated CI batch31969a61 and integrated it as d7eea272. Two binary
+  negative-frame tests now begin with the canonical native submission fixture
+  and assert that exact approval actually decodes. The commissioning-field
+  negatives are no longer vacuous, and every forbidden provider/authority field
+  remains rejected. The socket-path tests supply real fixture proof/action/
+  approval so clap parsing cannot mask the intended socket failures.
+- Qualification's disposable synthetic source commit disables inherited Git
+  signing only on that single command. No user/repository setting, real commit
+  signing, qualification signer or signing acceptance gate is changed. Focused
+  isolated checks passed binary9/9, socket13/13 and pipeline2/2.
+- The actual failed workspace command was reproduced with no-fail-fast to expose
+  downstream issues before publishing another batch. Its305 result suites
+  reported1,503 passed,4 failed and47 ignored. Failures were the now-repaired
+  socket caller and synthetic signing environment, expected gateway closure drift
+  after binary source edits, and one typed Unavailable under broad-run file-store
+  contention. The original binary root had already been repaired before that run.
+  The identical compiled conformance test subsequently passed1/1 in8.82 seconds
+  with unchanged two-second lock/fence bounds and unchanged exact-once assertions.
+  This is not advertised as a successful full-workspace run or a store fix.
+- Published ab36's pinned translation job123431724418 passed two clean identical
+  translations. Authoritative Lean job123448869608 is still running and final
+  formal evidence follows it; no completed qualification is claimed yet. Hosted
+  compliance and all49 Kani harnesses passed, with zero Kani failures. Fresh
+  Python tests passed428 with11 skips, and native/WASM live-demo parity passed.
+- Producer attribution is retained precisely: standalone Python/TypeScript and
+  default-checkout CI/isolation jobs built the recorded PR merge revision
+  f25217f68ab1b69930660a29a61e5433cbd84210. Demo producers explicitly built ab36.
+  Both revisions have the identical verified tree
+  dc691ccb384709520202274dd2db7904841048a6, confirmed by Git tree inspection and
+  an empty diff. Their behavior covers the published source tree; their producer
+  revision is not relabeled as ab36. Future final-head evidence must retain its
+  actual source/producer attribution too.
+
+## Retained replay source audit
+
+- Source inspection shows execution methods compiling current authority and exact
+  approval before retained terminal lookup. A regression is required for original
+  requests after approval/resource expiry, connection revocation and configuration
+  replacement: retained grants must not be reported as NotEntered, replay must
+  not remint execution, and historical facts must remain queryable. This audit
+  is not yet behavioral evidence of a failure or a completed fix.
+- Any replay repair belongs to the native effect/journal owner. It must preserve
+  exact identity checks, reject changed actor/action/resource/recipient inputs,
+  keep pre-grant continuation subject to fresh native checks and keep historical
+  data separate from executable capabilities. No alternate binding, approval,
+  clock or fallback authority is authorized by this audit.
+
+- The combined gateway source closure was regenerated after integrating the
+  binary controls, and its rebuilt verification passed1/1 in0.06 seconds.
+  Release freeze402 advances only the generator-reported public
+  surface402 subject; no protocol/ABI meaning counter was advanced for test-only
+  repairs. The CI agent's formal final-head report and fresh publication are
+  still pending; these metadata changes do not turn the failed hosted root green.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
