@@ -39,6 +39,8 @@ pub(super) enum Point {
     DuringResponse,
     BeforeResponseCommit,
     AfterResponseCommit,
+    BeforeAcknowledgementCommit,
+    AfterAcknowledgementCommit,
 }
 impl Point {
     pub(super) const ALL: [Self; 7] = [
@@ -64,6 +66,9 @@ impl Point {
                 Some("entry-granted")
             }
             Self::AfterResponseCommit => Some("content-response-recorded"),
+            Self::BeforeAcknowledgementCommit | Self::AfterAcknowledgementCommit => {
+                panic!("ACK points require disclosure fixture")
+            }
         }
     }
     pub(super) const fn provider_calls(self) -> usize {
@@ -89,6 +94,8 @@ impl Point {
                     true,
                     "content-response-recorded" | "response-recorded"
                 )
+                | (Self::BeforeAcknowledgementCommit, false, "acknowledged")
+                | (Self::AfterAcknowledgementCommit, true, "acknowledged")
         )
     }
 }
@@ -120,6 +127,7 @@ pub(super) fn pause_at(port: u16) {
 pub(super) enum CrashProtocol {
     Acquisition,
     Mutation,
+    Disclosure,
 }
 
 pub(super) struct PausedStore {
@@ -127,7 +135,7 @@ pub(super) struct PausedStore {
     protocol: CrashProtocol,
     inner: Arc<dyn GatewayAttemptStore>,
     key: GatewayAttemptKey,
-    point: Point,
+    point: Option<Point>,
     port: u16,
     fired: AtomicBool,
 }
@@ -137,7 +145,7 @@ impl PausedStore {
         key: GatewayAttemptKey,
         operation: &'static str,
         protocol: CrashProtocol,
-        point: Point,
+        point: Option<Point>,
         port: u16,
     ) -> Self {
         Self {
@@ -169,11 +177,17 @@ impl PausedStore {
                 assert_eq!(value["state"]["protocol"], "mutation");
                 &value["state"]["facts"]["stage"]
             }
+            CrashProtocol::Disclosure => {
+                assert_eq!(value["state"]["protocol"], "disclosure");
+                &value["state"]["facts"]["phase"]["stage"]
+            }
         };
         stage.as_str().expect("native phase").to_owned()
     }
     fn pause(&self, after: bool, phase: &str) {
-        if self.point.matches(after, phase) && !self.fired.swap(true, Ordering::SeqCst) {
+        if self.point.is_some_and(|point| point.matches(after, phase))
+            && !self.fired.swap(true, Ordering::SeqCst)
+        {
             pause_at(self.port);
         }
     }
@@ -294,7 +308,7 @@ fn native_crash_peer() {
         operation_key(),
         OPERATION,
         CrashProtocol::Acquisition,
-        setup.point,
+        Some(setup.point),
         setup.installation.barrier_port,
     ));
     let attempts = GatewayAttempts::new(wrapped, crate::effect::fixture_policy().expect("policy"))

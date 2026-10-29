@@ -18,6 +18,20 @@ const MAX_CONTENT_BYTES: usize = 65_536;
 const AUTH_SECONDS: u64 = 5;
 const SESSION_SECONDS: u64 = 15;
 
+// Only the native test executable can arm this transparent I/O pause. The
+// normal binary, including installed testkit builds, has no selector or branch.
+#[cfg(all(test, feature = "loopback-provider", feature = "testkit-harness"))]
+static DELIVERY_PREFIX_PAUSE: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+
+#[cfg(all(test, feature = "loopback-provider", feature = "testkit-harness"))]
+pub(crate) fn arm_delivery_prefix_pause(port: u16) {
+    assert_ne!(port, 0);
+    assert_eq!(
+        DELIVERY_PREFIX_PAUSE.swap(port, std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+}
+
 impl UnixDisclosurePolicy {
     fn server_peer(&self, stream: &UnixStream) -> Result<(), &'static str> {
         Self::peer(stream, self.gateway_uid(), self.recipient_uid())
@@ -298,6 +312,23 @@ async fn write_frame(
         .write_u32(u32::try_from(bytes.len()).map_err(|_| "gateway.disclosure.frame")?)
         .await
         .map_err(|_| "gateway.disclosure.write")?;
+    #[cfg(all(test, feature = "loopback-provider", feature = "testkit-harness"))]
+    if maximum == MAX_CONTENT_BYTES && !bytes.is_empty() {
+        let port = DELIVERY_PREFIX_PAUSE.swap(0, std::sync::atomic::Ordering::SeqCst);
+        if port != 0 {
+            stream
+                .write_all(&bytes[..1])
+                .await
+                .map_err(|_| "gateway.disclosure.write")?;
+            tokio::task::spawn_blocking(move || crate::native_crash_tests::pause_at(port))
+                .await
+                .map_err(|_| "gateway.disclosure.write")?;
+            return stream
+                .write_all(&bytes[1..])
+                .await
+                .map_err(|_| "gateway.disclosure.write");
+        }
+    }
     stream
         .write_all(bytes)
         .await

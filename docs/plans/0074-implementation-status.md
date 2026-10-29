@@ -2417,6 +2417,70 @@ closure regeneration passed after that correction (one artifact-generation test)
   identity and existing native fixture bytes remain unchanged. AP074 is not
   complete and no acceptance gate is waived by this source repair.
 
+## Native disclosure/ACK process crash checkpoint
+
+- `native_disclosure_crash_tests.rs` and its private testkit run separate native
+  gateway/recipient OS processes over real authenticated Unix sockets. The source
+  is acquired by the real native engine through local HTTP and retained privately.
+  Release uses an independent native proof, exact approval, recipient key/channel
+  and native fixed-window count/byte commitments. No verifier result, entry
+  decision, durable acknowledgement, live channel or permit is substituted.
+- Each adapter has 28 histories: eight reservation/entry/partial-delivery/receipt/
+  ACK-commit interruptions, plus twenty expiry/revocation/configuration controls
+  around reserved continuation and genuine late ACKs. The gateway is SIGKILLed at
+  every selected point. Five histories per adapter also SIGKILL the recipient
+  after full native receipt but before ACK transmission; its exact private ACK
+  was retained before death. Native receipt returns no partial plaintext/ACK when
+  the gateway dies after a content prefix.
+- The partial-send selector is compiled only into the native unit-test executable
+  with loopback/testkit features. It pauses after an actual native prefix write,
+  preserving frame bytes, deadlines and the real consumed permit. Ordinary
+  binaries, including installed testkit binaries, have no selector/branch. The
+  shared test adapter observer has a distinct ACK phase; response and ACK facts
+  remain typed separately in the sole shipping journal/reducer.
+- Durable grants reopen as Unknown with no new challenge or plaintext. An absent
+  or reserved operation continues only with current native authority and approval
+  through the original writer fence and a new real recipient handshake. Expired
+  approval, expired resource authority, native revocation and changed native
+  configuration retain the original reservation/revision without authenticating
+  another recipient, fetching a provider response or recharging capacity.
+- Both source and release lifetime allocations, native fixed-window count/sum
+  slot 0 rows and absence of slot 1 are checked. A source acquisition remains one
+  invocation/1024 response bytes; disclosure holds one delivery/full projected
+  byte amount even on partial/unknown delivery. Original signed bytes, source
+  journal and charge rows remain byte-identical throughout replay and late ACK.
+  Exact repeated ACKs preserve the journal revision. Current expiry/revocation/
+  configuration cannot erase a valid assertion for a previously granted delivery.
+- Thirty histories actually submit genuine late ACKs (including exact replay of
+  already committed ACKs). Before the positive ACK, each exercises ten native
+  historical API substitutions: effect, source, protected content, channel,
+  instance, projection, byte limit, acknowledged length, an independently signed
+  different recipient, and damaged signature. All 300 negative controls leave
+  history and charges unchanged. A valid recipient signature without any durable
+  grant also cannot manufacture ACK history. Public snapshots contain no content.
+- Required construction passed 6/6, zero ignored, in 33.33 seconds, covering all
+  130 existing/new acquisition, mutation and disclosure process histories over
+  real file/TLS PostgreSQL. The two new matrices contain 56 histories. All older
+  acquisition/mutation crash artifacts stayed byte-identical after sharing the
+  observer. Combined strict all-feature gateway library/test Clippy passed in
+  11.47 seconds; only equivalent future boxing/reference fixes were needed, with
+  no new lint allowances or weakened assertions.
+- Both new cases are explicitly registered in the PostgreSQL workflow and
+  compliance inventory. These local source/artifact results do not close all
+  A05/A06/A08/A09 gates: actual remaining I/O-error/ambiguous-ACK-commit races,
+  guarded-provider/prerequisite, concurrent native histories, independent
+  differential, installed authenticated human UI, retention/rollback and
+  performance/formal integration evidence remain required. Fixed public keys,
+  maintained clock, same UID, trusted host/stores and local provider are explicit;
+  no live-provider, distinct-UID isolation or human-presence claim follows.
+
+- Source identities are regenerated under freeze 405 (only generator-reported
+  protocol 149, SDK 146 and public surface 405 subjects advanced). Journal schema
+  remains `/16`; no normal transport, grant, ACK, clock or provider-retry contract
+  changes. Publication is deliberately held while the actual authoritative Lean
+  job `123512213089` and final evidence for published `9913d4c7` remain live; do not
+  cancel that work merely to publish another test fixture batch.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2442,8 +2506,8 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file, daemon/recipient process and native file/TLS PostgreSQL history corpora / both peers killed before ACK in the process corpus; native lost-ACK history retained across expiry, revocation, configuration replacement and engine reopen on both stores | Remaining crash/persistence boundaries and complete late-ACK PostgreSQL schedules pending |
-| A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient and full native file/TLS PostgreSQL crash corpora / fifty-six release histories include partial sends, both peers killed before ACK, caller loss after ACK commit, current-authority gates, late and repeated ACKs with conserved allocations/slots | Remaining I/O-error/ambiguous-commit races and full installed boundary evidence pending |
+| A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate plus full native acquisition worker/operator histories / sixteen file/TLS PostgreSQL histories executed | Complete mutation/disclosure races remain required |

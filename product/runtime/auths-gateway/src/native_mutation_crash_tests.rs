@@ -292,7 +292,7 @@ fn native_mutation_crash_peer() {
         key(setup.flavor),
         OPERATION,
         CrashProtocol::Mutation,
-        setup.point,
+        Some(setup.point),
         setup.installation.barrier_port,
     ));
     let attempts = GatewayAttempts::new(wrapped, crate::effect::fixture_policy().expect("policy"))
@@ -547,6 +547,9 @@ impl Case {
                 Some("entry-granted")
             }
             Point::AfterResponseCommit => Some("response-recorded"),
+            Point::BeforeAcknowledgementCommit | Point::AfterAcknowledgementCommit => {
+                panic!("ACK points are not mutation crash schedules")
+            }
         };
         let phase =
             bytes.map(|bytes| PausedStore::phase_for(CrashProtocol::Mutation, OPERATION, bytes));

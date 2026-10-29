@@ -161,6 +161,8 @@ mod native_process_tests;
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_crash_tests;
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_disclosure_crash_tests;
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_mutation_crash_tests;
 
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]

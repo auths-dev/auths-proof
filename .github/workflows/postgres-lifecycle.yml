@@ -47,6 +47,8 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_crash_tests::postgres_native_process_crash_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::postgres_native_mutation_process_crash_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_native_disclosure_process_crash_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_dependency_tests::native_file_dependency_order_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_dependency_tests::postgres_native_dependency_order_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_budget_tests::native_file_window_capacity_fixture_is_current
