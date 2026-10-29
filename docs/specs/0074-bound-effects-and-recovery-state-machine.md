@@ -686,6 +686,24 @@ These cases use no final-entry authorization oracle. They establish the stated
 source-lifetime count/byte behavior; fixed-window count/sum, complete fault and
 race schedules and deployed hostile-process containment remain separate gates.
 
+`native-process-crash-{file,postgres}.json` records seven acquisition SIGKILL
+schedules per adapter, covering reservation, entry, partial HTTP response and
+response persistence. Reopening retains original charges and allocation; a lost
+grant cannot be recreated, and a lost response cannot authorize another fetch.
+These transaction-boundary process deaths do not establish actual sync/rename
+failure, partial-batch failure, ambiguous database commit delivery or the complete
+mutation/disclosure crash matrix.
+
+`native-dependency-order-{file,postgres}.json` adds eight independent worker/
+operator histories per adapter. Connection revocation and configuration activation
+race the actual grant fence in both orders. Separate positive/expired controls
+advance the maintained test clock while entry waits behind a physically distinct
+connection record's writer fence, independently checking human approval and
+native resource authority. Signed inputs and admission time remain unchanged;
+valid entry records the time after waiting. These cases establish acquisition
+ordering under the stated test deployment, not observer-evidence expiry,
+threshold-selection changes or complete mutation/disclosure dependency races.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

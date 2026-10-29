@@ -32,14 +32,24 @@ pub struct ToolFixture {
 /// # Errors
 /// Refuses invalid time ranges, call encodings or native authoring inputs.
 pub fn tool_fixture(call: &McpToolCall, now: u64) -> Result<ToolFixture, HarnessError> {
+    let until = now
+        .checked_add(86_400)
+        .ok_or(HarnessError::Fixture("time"))?;
+    tool_fixture_until(call, now, until)
+}
+
+/// Native test authoring with an explicit signed resource-authority end time.
+/// This changes no verification rule; expired proofs still fail the native owner.
+pub(crate) fn tool_fixture_until(
+    call: &McpToolCall,
+    now: u64,
+    until: u64,
+) -> Result<ToolFixture, HarnessError> {
     let root = Signer::new(0x11);
     let actor = Signer::new(0x22);
     let observer = Signer::new(0x33);
     let from = now
         .checked_sub(86_400)
-        .ok_or(HarnessError::Fixture("time"))?;
-    let until = now
-        .checked_add(86_400)
         .ok_or(HarnessError::Fixture("time"))?;
     let context = context_for_tool(&root, &observer.principal, now, call)?;
     let grant = grant_for_tool(&root, &actor.principal, None, window(from, until)?, call)?;

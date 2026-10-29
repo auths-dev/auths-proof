@@ -4,7 +4,7 @@
 #![cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
 
 use crate::effect::{CONTENT_READ_TOOL, ExactEffectApproval, fixture_policy};
-use crate::harness::authoring::{tool_fixture, tools_context};
+use crate::harness::authoring::{tool_fixture_until, tools_context};
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::{
     AcquisitionSnapshot, AcquisitionStage, CompiledRecipe, GatewayAttempts, GatewayEngine,
@@ -31,7 +31,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const NOW: u64 = 1_790_000_000;
+pub(super) const NOW: u64 = 1_790_000_000;
 const SECRET: &[u8] = b"public-native-process-fixture";
 pub(super) const CONTENT: &[u8] = b"PUBLIC-NATIVE-CONTENT";
 
@@ -69,10 +69,32 @@ pub(super) fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Runtime::new().expect("runtime")
 }
 
+pub(super) struct EngineControls {
+    pub(super) policy: crate::effect::EffectPolicy,
+    pub(super) clock: Arc<crate::FixedClock>,
+}
+impl EngineControls {
+    pub(super) fn baseline() -> Self {
+        Self {
+            policy: fixture_policy().expect("policy"),
+            clock: Arc::new(crate::FixedClock::at(NOW)),
+        }
+    }
+}
+
 pub(super) async fn load_engine(
     setup: &Setup,
     label: &str,
     attempts: GatewayAttempts,
+) -> (GatewayEngine, ConnectionRecord) {
+    load_controlled_engine(setup, label, attempts, EngineControls::baseline()).await
+}
+
+pub(super) async fn load_controlled_engine(
+    setup: &Setup,
+    label: &str,
+    attempts: GatewayAttempts,
+    controls: EngineControls,
 ) -> (GatewayEngine, ConnectionRecord) {
     let recipe = recipe();
     let initial = crate::harness::fixture_connection(&recipe).expect("connection template");
@@ -110,7 +132,7 @@ pub(super) async fn load_engine(
         QualificationPolicy::Optional,
         None,
         None,
-        Box::new(Arc::new(crate::FixedClock::at(NOW))),
+        Box::new(controls.clock),
         auths_recipe_qualification::VerifierState::default(),
     ));
     gate.load(&crate::QualificationBundle {
@@ -125,7 +147,7 @@ pub(super) async fn load_engine(
         recipe.clone(),
         *recipe.digest(),
         &trust(&recipe),
-        fixture_policy().expect("policy"),
+        controls.policy,
         record.provider_kind().clone(),
         record.alias().clone(),
         "gateway".to_owned(),
@@ -140,18 +162,28 @@ pub(super) async fn load_engine(
 }
 
 pub(super) async fn authorize(engine: &GatewayEngine, root: &Path, operation: &str) {
+    authorize_bounded(engine, root, operation, NOW + 86_400, NOW + 300).await;
+}
+
+pub(super) async fn authorize_bounded(
+    engine: &GatewayEngine,
+    root: &Path,
+    operation: &str,
+    authority_until: u64,
+    approval_until: u64,
+) {
     let call = engine
         .content_authorization_call(br#"{"record_id":"recTEST0000000001"}"#, operation)
         .await
         .expect("native call");
-    let signed = tool_fixture(&call, NOW).expect("native authority");
+    let signed = tool_fixture_until(&call, NOW, authority_until).expect("native authority");
     assert_eq!(signed.context, trust(&recipe()));
     let effect = engine
         .compile_content_action(&signed.proof, &signed.action)
         .await
         .expect("native effect");
     let request = effect
-        .approval_request(NOW, NOW + 300)
+        .approval_request(NOW, approval_until)
         .expect("review request");
     let key = SigningKey::from_bytes(&[29; 32]);
     let signature = key

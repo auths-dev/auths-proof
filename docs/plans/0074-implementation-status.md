@@ -1863,6 +1863,101 @@ closure regeneration passed after that correction (one artifact-generation test)
   bindings 125, public SDK contract 138 and public surface 395 for the combined
   source/inventory changes. It does not certify new formal or provider claims.
 
+## Combined publication observation
+
+- Pushed non-force to origin/codex/effect-recovery-foundation at exact head
+  `af01d3769a2d6a1b90820a506a2f797487ebbe4a`; GitHub confirms draft PR213
+  remains open at that head: https://github.com/auths-dev/auths-proof/pull/213.
+  The push includes native capacity/crash evidence and both substantial CI repair
+  batches, demos, examples/scaffold, inventories and regenerated source identities.
+- Exact-head hosted runs were confirmed live: main run 40799196205,
+  Python run 40799196247, TypeScript run 40799196258, TLS PostgreSQL run 40799196262,
+  SDK recipes run 40799196408, qualification run 40799196229,
+  operator package run 40799196193, Airtable run 40799196227, Stripe run 40799196249 and
+  isolation run 40799196259. Pending jobs are not passes; skipped custody/live-provider
+  workflows do not establish provider qualification. The CI agent continues
+  holistic triage with backoff and must collect all actual roots before a batch.
+- The PR description reports this work as an incomplete foundation and retains
+  every remaining acceptance/formal/installed/operational gate. No merge or
+  deployment was requested or performed. Subsequent implementation/checkpoint
+  commits need their own final exact-head verification before goal closure.
+
+## Native dependency ordering and expiry checkpoint
+
+- `native_dependency_tests.rs` adds independent native worker/operator OS
+  processes over the maintained file and TLS PostgreSQL adapters. Both handles
+  finish installation/review before contention begins. A transparent test-only
+  store wrapper schedules the unchanged native entry decision against actual
+  adapter fences; it cannot construct a permit or select a native transition.
+- Connection revocation and exact configuration activation each run in both
+  orders: a dependency change committed first prevents a grant/provider call;
+  an entry decision ordered first may exercise its one grant. The grant fence
+  explicitly contains the connection and effect-configuration records, each
+  physically distinct from the attempted effect. The competing writer is a
+  separately spawned operator using the maintained connection CAS or reviewed
+  configuration activation, not a fabricated record snapshot.
+- Four additional schedules hold the real connection writer fence while the
+  worker waits to grant entry. The maintained test clock advances without
+  modifying signed proof/action/approval bytes. Exact human approval and native
+  resource-authority expiry are tested independently, each with a still-valid
+  positive control. Expiry blocks entry; the positive controls record the new
+  grant time after waiting. Admission time remains the original signed/event
+  time. Existing allocations and the full call/byte charge remain unchanged.
+- Native public history is inspected through a reopened handle and must agree
+  with the actual result while preserving private journal bytes. Real HTTP
+  request counts distinguish admitted entry from blocked attempts. These cases
+  do not establish observer-evidence aging, threshold-selection changes,
+  mutation/disclosure dependency races, fixed-window budget contention,
+  power-loss or hostile-process isolation. A12/A13 remain partial.
+
+- Required fixture generation passed the two adapter cases plus the no-input
+  peer helper (three tests, 3.58 seconds). After regenerating the integrated
+  gateway source closure, a rebuilt executable verified both dependency files,
+  both existing process-capacity files, both seven-case crash files, all three
+  no-input peer helpers and the closure without update mode: ten tests passed
+  in 7.62 seconds. The shared-helper default authoring remains byte-identical
+  to the previous capacity/crash fixtures. Strict gateway library/test clippy
+  passed without new suppressions. The dedicated canonical TLS PostgreSQL
+  fixture used port55451, verified CA/server name and synchronous commits.
+  The dedicated containers, network and volume were removed after verification.
+  These are local artifact-construction/regression results; fresh hosted
+  verification remains required.
+
+## Additional holistic CI repairs
+
+- Integrated isolated repair `ae3154f3` as `050fa219`: patched dependency
+  requirements/lockfile and corresponding vetted crypto API callers, preserved
+  high-S rejection and all canonical signature fixtures, regenerated the SDK
+  baseline for the existing GatewayReserved export, corrected the synthetic
+  credential marker and documented fingerprint-specific historical public-data
+  exceptions. No broad secret-scan allowlist or dependency advisory exception
+  was added.
+- Hosted macOS setup initially failed DNS; its one exact-head job retry exposed
+  a separate artifact-handoff bug. Consumers now download immutable IDs emitted
+  by their actual producers, including unique per-platform matrix outputs.
+  Missing producer output fails closed. No consumer guesses its producer's
+  attempt number, and no head, platform, source-free or live approval requirement
+  is weakened. The repair spans Python, TypeScript, qualification and release
+  workflows as one batch.
+- Agent-local reproductions passed strict workspace check/clippy, dependency
+  policy, 1,597 unchanged wire vectors, conformance, 68 crypto/custody tests,
+  staged/full-history secret scans and workflow lint. Those results diagnose
+  the prior hosted failures; they are not successful hosted evidence for the
+  combined new head. The previous head's formal translation subsequently failed
+  and is under separate investigation before the next combined publication.
+  Its inventory and natural model still describe the superseded Attempting
+  state. The repair must model current protocol/revision/entry/ACK facts,
+  distinguish late source-bound response/recipient evidence from linked provider
+  observation, and retain strict provenance and no-blind-retry invariants.
+- The existing AP070 reference and paused AP073 worktree remain untouched.
+
+- Release freeze 396 advances only the generator-reported changed subjects:
+  formal source closure104, identity protocol142, external custody6, public SDK
+  contract139 and public surface396. The gateway semantic closure includes the
+  new tests and integrated crypto/custody/lockfile sources. These identities
+  record reviewed source changes; they do not establish completed formal proofs
+  or close an acceptance gate.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1892,8 +1987,8 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
-| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate / dependency changes after authentication and competing live grants executed | Full independent-process races on both adapters pending |
-| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and signed-observation cases / narrow file and native predicate fixtures | Installed lock-wait, independent expiry and adapter races pending |
+| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate plus full native acquisition worker/operator histories / sixteen file/TLS PostgreSQL histories executed | Complete mutation/disclosure races remain required |
+| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age, signed-observation cases and native independent-process approval/authority lock-wait cases / file/TLS PostgreSQL lock-wait controls executed | Observer expiry, threshold changes and full installed/adverse evidence remain required |
 | A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
