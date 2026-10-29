@@ -7,6 +7,13 @@ on:
       - "product/runtime/auths-gateway/**"
       - "product/stores/auths-stores/**"
       - "bindings/fixtures/gateway/**"
+      - "qualification/reference/ap074_information_differential.py"
+      - "qualification/reference/common.py"
+      - "qualification/reference/tests/test_ap074_information_differential.py"
+      - "demos/google-employee-delegation/broker/src/employee_read_demo/admission.py"
+      - "demos/google-employee-delegation/broker/src/employee_read_demo/authority.py"
+      - "demos/google-employee-delegation/broker/src/employee_read_demo/contracts.py"
+      - "bindings/python/**"
       - ".github/workflows/postgres-lifecycle.yml"
       - "deployment/gateway/**"
   workflow_dispatch:
@@ -39,6 +46,9 @@ jobs:
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: |
+          set -o pipefail
+          mkdir -p target
+          {
           cargo test -p auths-gateway --lib -- --ignored postgres
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current
@@ -63,6 +73,29 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::native_file_independent_recovery_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::postgres_native_independent_recovery_fixture_is_current
           cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres
+          } 2>&1 | tee target/ap074-native-adapter-evidence.log
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Install this checkout's native Python SDK for the unchanged reference digest
+        run: |
+          python -m venv .ap074-reference-venv
+          .ap074-reference-venv/bin/python -m pip install maturin==1.9.6
+          VIRTUAL_ENV="$PWD/.ap074-reference-venv" .ap074-reference-venv/bin/maturin develop --locked --manifest-path bindings/python/Cargo.toml
+      - name: Compare independent application state with freshly executed native adapter histories
+        run: >-
+          .ap074-reference-venv/bin/python qualification/reference/ap074_information_differential.py
+          --native-log target/ap074-native-adapter-evidence.log
+          --output target/ap074-independent-information-differential.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ap074-information-differential-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/ap074-native-adapter-evidence.log
+            target/ap074-independent-information-differential.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Rehearse a physical backup and point-in-time restore
         run: deployment/gateway/tools/exercise-postgres-restore.sh
       - name: Stop fixture

@@ -42,13 +42,40 @@ both artifacts. The report hashes the exact native corpus and relevant source
 files. A checked-in report alone is not fresh execution evidence. Required
 hosted results must identify the actual tested source/PR-merge revision and run.
 
-## Acquisition/disclosure boundary still to implement
+## Acquisition/disclosure comparison (authored; hosted execution pending)
 
 AP070 remains an independently implemented application-owned Python/SQLite
-reference. Its admission and release behavior may be compared on a precisely
-named post-authorization contract without rewriting its source or supplying it
-managed credentials or entry permits. It is not yet included in the mutation
-corpus above.
+reference. `ap074_information_differential.py` executes its unchanged admission,
+release and runtime-reopen code on a precisely named post-authorization contract.
+Its synthetic `VerifiedRead` inputs use the existing reference unit-test boundary;
+they do not prove authorization equivalence. Challenge body digests still call
+the actual native SDK built from the same checkout; hashing is not stubbed or
+reimplemented. No reference source, provider credential or managed permit is
+changed or supplied.
+
+The authored corpus has three separate count/byte/both capacity races, with a
+prefix admission and two independent SQLite worker processes contending for the
+last unit. Closing in-flight work retains all conservative call, content,
+provider-byte and two-GET attempt reservations. Four release gates cover current
+state, task revocation, connection revocation and task expiry. Reopening refuses
+the old claim and repeated release without additional charges. A further
+positive release followed by connection revocation is paired with native
+historical replay; retained facts cannot send again. A real SIGKILL after the
+reference persists its first provider-attempt start proves that runtime reopen
+marks the claim abandoned, frees only in-flight capacity and preserves charges.
+No Google I/O is performed.
+
+The PostgreSQL lifecycle job retains the output of its existing native selectors
+and then runs this comparator using the same checkout's installed native Python
+SDK. It requires exactly one passing, nonignored execution for each of eight
+file/PostgreSQL capacity, information replay, acquisition crash and disclosure
+crash selectors before reading their natively regenerated-and-checked artifacts.
+Missing, duplicated, ignored and zero-pass results refuse comparison; parser
+controls use explicitly synthetic logs and make no runtime claim themselves.
+The report records tested commit/run, native log/artifact hashes, unchanged
+reference source hashes and 22 paired comparisons. This avoids rerunning the
+native matrices merely to perform the independent comparison. The new runner
+and parser test have not yet executed; the hosted report is required evidence.
 
 Comparisons must preserve these differences:
 
@@ -65,8 +92,7 @@ Comparisons must preserve these differences:
 - A native durable multi-process/adapter guarantee cannot be inferred from
   AP070's application runtime lock or SQLite demonstration.
 
-Future comparisons must execute the unchanged reference, pair it with actual
-native file/PostgreSQL histories, and establish conservation, revocation before
-release, crash/reopen and no automatic repeated disclosure within the overlap.
-All remaining A19 requirements stay open until that evidence exists. No managed
-guarantee is claimed for AP070.
+Native current-authority gates and AP070 task expiry/revision are compared only
+on the shared fail-closed state property; their authority models are different.
+All remaining A19 requirements stay open until actual hosted execution and
+coverage audit establish them. No managed guarantee is claimed for AP070.

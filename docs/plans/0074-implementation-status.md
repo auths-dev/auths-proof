@@ -2704,6 +2704,44 @@ compiler identity, provider recipe or AP070 source is changed.
   not native fixed-window/disclosure units, and its runtime lock is not native
   multi-host durability. No managed guarantee is claimed for that reference.
 
+## Independent information comparison source (hosted execution pending)
+
+After local mutation comparison commit `91552fa5`, authored
+`qualification/reference/ap074_information_differential.py` without changing
+any AP070 file. This executes the retained application-owned SQLite state
+implementation at its existing synthetic post-authorization test boundary,
+using the same-checkout installed native SDK only for the unchanged canonical
+body-digest call. No Google call, managed credential/permit, reference migration
+or authorization/ACK equivalence claim is made.
+
+- Three count/byte/both scenarios use an initial admission and two independent
+  SQLite worker processes racing for the last unit; failed/closed work retains
+  all conservative call, content, metadata/provider-byte and two-attempt charges.
+- Four current/revoked/disconnected/expired release scenarios reopen state and
+  refuse repeat release/claim without refund. An additional successful release
+  followed by connection revocation provides the independent historical replay
+  comparison. The reference's release commitment stays distinct from ACK.
+- A real worker SIGKILL occurs after durable claim and provider-attempt start;
+  runtime reopen must mark the old claim abandoned, free only in-flight slots,
+  preserve all charges and refuse old-claim entry/release. It performs no I/O
+  against Google or a managed provider port.
+- The maintained PostgreSQL workflow preserves the output of the existing
+  native selector block without removing or repeating any of its tests. The
+  runner requires one actual pass, zero failed/ignored, for each of eight native
+  file/PostgreSQL capacity/replay/acquisition-crash/disclosure-crash selectors.
+  It checks their schemas and adapter identities, executes the reference, and
+  writes 22 paired comparisons with separate units, differing result meanings,
+  source/run/commit and artifact/log hashes. Synthetic log-parser controls
+  reject missing, duplicated, ignored and zero-pass executions.
+- New information runner, parser test and workflow extension are authored,
+  **not executed locally or hosted yet**. Existing cb1 native matrices do not
+  establish that the new comparison ran. The mutation report construction is
+  separate evidence. A19 remains partial pending exact-head hosted execution
+  and a full coverage audit. See the differential contract document for limits.
+- Required semantic inventory construction for this workflow/consumer extension
+  advances freeze409 and only its reported identity153/public-SDK150/
+  public-surface409 entries; no shipping Rust or reference implementation changes.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2740,7 +2778,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
-| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / two-family native signed/approved compilation and independent unchanged reference comparison / 28 request and 22 response cases constructed locally, explicit distinct recovery locator/link assertions | Acquisition/disclosure and durable contract comparisons plus exact-head hosted execution remain; AP070 source stays independent without managed guarantees |
+| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / mutation reference comparison constructed; 22 paired post-authorization information comparisons authored against unchanged AP070 and native file/PostgreSQL histories / 28 request and 22 response mutation cases constructed locally; information comparison unrun | Execute new independent information runner and parser controls plus exact-head hosted mutation corpus; complete coverage audit; AP070 source stays independent without managed guarantees |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
