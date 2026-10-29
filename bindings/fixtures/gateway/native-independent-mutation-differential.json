@@ -1,0 +1,766 @@
+{
+  "schema": "auths.ap074-native-mutation-differential/1",
+  "scope": "native signed authorization, bound effect, approval, closed request and response classification; no admission or I/O",
+  "families": [
+    {
+      "family": "airtable-record-update-v1",
+      "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+      "resources": {
+        "schema": "auths.airtable-record-qualification-resources/1",
+        "protected_run": "ap074-independent-differential",
+        "base": "appQD3Qf0YFBCW9bV",
+        "table": "tblBx2jwe0IsPYRKT",
+        "records": [
+          {
+            "id": "recTEST0000000001",
+            "run_metadata": "ap074-independent-differential"
+          }
+        ]
+      },
+      "cases": [
+        {
+          "name": "baseline",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": true,
+          "action_commitment": "66f58a580076258123d0aed9be63ebe8087fa1687b45822f54b2ee620906a87f",
+          "effect_id": "5f98943a2e3228a3e4917c9b78f1083f9a0b5999844e80075a8f605171c6c71d",
+          "request": {
+            "method": "PATCH",
+            "url": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+            "content_type": "application/json",
+            "body": "{\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"auths-e1-64d5feadbcf45b725231123481386f30821215397d52b5ad9a08c8770e8379ed\"}}",
+            "headers": [],
+            "idempotency_key": null
+          }
+        },
+        {
+          "name": "other-operation",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-2",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": true,
+          "action_commitment": "39e92faea5b0ab1b149d3960897bcd767e7609229a9699bd05b7c0a9e89cba81",
+          "effect_id": "1402dec6c48b0566e052a45b4d57b76900468a6a1013186e866fdf536a0ac5fb",
+          "request": {
+            "method": "PATCH",
+            "url": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+            "content_type": "application/json",
+            "body": "{\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"auths-e1-e6411277d2a3b39d6a829697d9c43b957900496af7c601f1a79ea5ecee73c1f5\"}}",
+            "headers": [],
+            "idempotency_key": null
+          }
+        },
+        {
+          "name": "wrong-namespace",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "other",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "wrong-recipe",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "extra-field",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved",
+            "unreviewed": true
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "empty-operation",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "long-operation",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "other-value",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": "Pending"
+          },
+          "native_accepted": true,
+          "action_commitment": "242d5ec4433731ba499ce0817cd313059a151268be3441fb29d37e886518ca53",
+          "effect_id": "a3d84a833afcd6dbd2360777ba94100bcbfa822f7c9022c89ce683a1246d2852",
+          "request": {
+            "method": "PATCH",
+            "url": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+            "content_type": "application/json",
+            "body": "{\"fields\":{\"DemoStatus\":\"Pending\",\"auths_echo\":\"auths-e1-f39b0e96ca5722bda5932f2cde32e0cf311bc2a4ba6f8aebaa6dea4a85eafe1d\"}}",
+            "headers": [],
+            "idempotency_key": null
+          }
+        },
+        {
+          "name": "invalid-value",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": "Deleted"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "wrong-value-type",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recTEST0000000001",
+            "replacement": true
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "unowned-resource",
+          "contract": "reference-pool-refuses",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "operation_id": "differential-1",
+            "record_id": "recOTHER000000001",
+            "replacement": "Approved"
+          },
+          "native_accepted": true,
+          "action_commitment": "00a098319fe0bd89dfcc0a0b59f35e66e10bce49646a5b8194f083b4a359f65e",
+          "effect_id": "5d5324a5aa20adcfcda73d4943f4bca88bb40b0c917f3f2dbf402284eb499436",
+          "request": {
+            "method": "PATCH",
+            "url": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recOTHER000000001",
+            "content_type": "application/json",
+            "body": "{\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"auths-e1-64d786ad3dbf8a0be990e97a9e615f81843c5211c30565a6e692108454b2a080\"}}",
+            "headers": [],
+            "idempotency_key": null
+          }
+        },
+        {
+          "name": "missing-operation",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "airtable-demo",
+            "recipe_digest": "09f2ef1441edd6808b78ea8dc7237dd0f14e7056999cec553a0c8f6fe9a99307",
+            "replacement": "Approved",
+            "record_id": "recTEST0000000001"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "name": "exact",
+          "response": "{\"id\":\"recTEST0000000001\",\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"auths-e1-64d5feadbcf45b725231123481386f30821215397d52b5ad9a08c8770e8379ed\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "wrong-value",
+          "response": "{\"id\":\"recTEST0000000001\",\"fields\":{\"DemoStatus\":0,\"auths_echo\":\"auths-e1-64d5feadbcf45b725231123481386f30821215397d52b5ad9a08c8770e8379ed\"}}",
+          "native": "state-mismatch"
+        },
+        {
+          "name": "wrong-echo",
+          "response": "{\"id\":\"recTEST0000000001\",\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"unrelated\"}}",
+          "native": "echo-mismatch"
+        },
+        {
+          "name": "null-echo",
+          "response": "{\"id\":\"recTEST0000000001\",\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":null}}",
+          "native": "state-match"
+        },
+        {
+          "name": "different-resource",
+          "response": "{\"id\":\"re_OTHER123\",\"fields\":{\"DemoStatus\":\"Approved\",\"auths_echo\":\"auths-e1-64d5feadbcf45b725231123481386f30821215397d52b5ad9a08c8770e8379ed\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "duplicate-member",
+          "response": "{\"id\":\"one\",\"id\":\"two\"}",
+          "native": "unavailable"
+        },
+        {
+          "name": "malformed",
+          "response": "{",
+          "native": "unavailable"
+        },
+        {
+          "name": "nonfinite",
+          "response": "{\"amount\":NaN}",
+          "native": "unavailable"
+        },
+        {
+          "name": "over-limit",
+          "response": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ",
+          "native": "unavailable"
+        }
+      ],
+      "recovery": {
+        "without_write_response_url": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+        "with_write_response_url": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+        "dot_segment_response_locator_refused": true,
+        "separator_response_locator_url": null,
+        "capability": {
+          "class": "linked",
+          "state_locator": "verified",
+          "provider_link": "verified",
+          "unknown_reobservation": true,
+          "declared_idempotency_retention_seconds": null,
+          "pre_entry_reread": false,
+          "write_is_conditional": false
+        }
+      }
+    },
+    {
+      "family": "stripe-platform-refund-v1",
+      "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+      "resources": {
+        "schema": "auths.stripe-platform-qualification-resources/1",
+        "protected_run": "ap074-independent-differential",
+        "platform": "acct_TEST123",
+        "payments": [
+          {
+            "id": "pi_TEST123",
+            "amount_received": 2000,
+            "currency": "usd",
+            "livemode": false,
+            "run_metadata": "ap074-independent-differential"
+          }
+        ]
+      },
+      "cases": [
+        {
+          "name": "baseline",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": true,
+          "action_commitment": "a48e849c7bf68005ca5ddae4f85e4606edf94ecb84b06b59d29aedae31bb2eb6",
+          "effect_id": "0f98ac340142839f4f75718ce23cace9d794382ecd20774096ad6100c10da5b6",
+          "request": {
+            "method": "POST",
+            "url": "https://api.stripe.com/v1/refunds",
+            "content_type": "application/x-www-form-urlencoded",
+            "body": "amount=1000&metadata%5Bauths_echo%5D=auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5&payment_intent=pi_TEST123",
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ],
+              [
+                "Idempotency-Key",
+                "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+              ]
+            ],
+            "idempotency_key": "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+          }
+        },
+        {
+          "name": "other-operation",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-2",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": true,
+          "action_commitment": "28a7460889975f09f92c7b70270433b895fd71347868d2491fc1d1c6ab8fc9d1",
+          "effect_id": "ddf1e8f9ad3fb48dabfea3d09254cb9624277762fb8e41d7c7f3c6a6a1711aa1",
+          "request": {
+            "method": "POST",
+            "url": "https://api.stripe.com/v1/refunds",
+            "content_type": "application/x-www-form-urlencoded",
+            "body": "amount=1000&metadata%5Bauths_echo%5D=auths-e1-956164018784dd5360359e9065469f21cef7cfaa4a7564ce4199b4cdf9de8e98&payment_intent=pi_TEST123",
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ],
+              [
+                "Idempotency-Key",
+                "auths-i1-4ab0c6f7e4e5cf3207644b2cd5067fca82849a274f14ab6240311bfab491840d"
+              ]
+            ],
+            "idempotency_key": "auths-i1-4ab0c6f7e4e5cf3207644b2cd5067fca82849a274f14ab6240311bfab491840d"
+          }
+        },
+        {
+          "name": "wrong-namespace",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "other",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "wrong-recipe",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "extra-field",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd",
+            "unreviewed": true
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "empty-operation",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "long-operation",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "minimum-amount",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 1,
+            "currency": "usd"
+          },
+          "native_accepted": true,
+          "action_commitment": "2e112296fad14010df8203d13a6947493c2fbcebfd1857180558671ff435048b",
+          "effect_id": "9cde1e05aea4849c8b57aa2bcc88b8ec130e595cede5f70449f604352efa332c",
+          "request": {
+            "method": "POST",
+            "url": "https://api.stripe.com/v1/refunds",
+            "content_type": "application/x-www-form-urlencoded",
+            "body": "amount=1&metadata%5Bauths_echo%5D=auths-e1-96abcdbce6502a2d66afd33a5e0f6d1b8e0b61ecc5070bfb095a3af59ebda750&payment_intent=pi_TEST123",
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ],
+              [
+                "Idempotency-Key",
+                "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+              ]
+            ],
+            "idempotency_key": "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+          }
+        },
+        {
+          "name": "maximum-amount",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 10000,
+            "currency": "usd"
+          },
+          "native_accepted": true,
+          "action_commitment": "d6b9319f1bca77084049edd604e007786362b2b9321193dd6dd82eec2bceb19f",
+          "effect_id": "b7dc642d7e76d0486ead39a2f7320d1b851d2d2e07cea3b6acb84c1ea1e869a4",
+          "request": {
+            "method": "POST",
+            "url": "https://api.stripe.com/v1/refunds",
+            "content_type": "application/x-www-form-urlencoded",
+            "body": "amount=10000&metadata%5Bauths_echo%5D=auths-e1-de7b5a2eaf54bb774648d466b6dcdcc83d7978649fd0423d644041b5f1dee3a4&payment_intent=pi_TEST123",
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ],
+              [
+                "Idempotency-Key",
+                "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+              ]
+            ],
+            "idempotency_key": "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+          }
+        },
+        {
+          "name": "other-currency",
+          "contract": "equal-request",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000,
+            "currency": "eur"
+          },
+          "native_accepted": true,
+          "action_commitment": "7d20d9a26aca455a9533ce4d7638fef508cec323578db89772d05641edc3a1fa",
+          "effect_id": "51f5b71f4d573dfbbb4cd5955cae945461b5818930fb70261f121bbdae22afee",
+          "request": {
+            "method": "POST",
+            "url": "https://api.stripe.com/v1/refunds",
+            "content_type": "application/x-www-form-urlencoded",
+            "body": "amount=1000&metadata%5Bauths_echo%5D=auths-e1-a4515cb008893feba8e0c9b054d091b7dd7d21ba81b7dc6c2b64a0f86369d22c&payment_intent=pi_TEST123",
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ],
+              [
+                "Idempotency-Key",
+                "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+              ]
+            ],
+            "idempotency_key": "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+          }
+        },
+        {
+          "name": "zero-amount",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 0,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        },
+        {
+          "name": "negative-amount",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": -1,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.policy.argument-unavailable"
+          }
+        },
+        {
+          "name": "boolean-amount",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": true,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.policy.argument-unavailable"
+          }
+        },
+        {
+          "name": "over-grant-ceiling",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_TEST123",
+            "amount": 10001,
+            "currency": "usd"
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.policy.above-ceiling"
+          }
+        },
+        {
+          "name": "unowned-resource",
+          "contract": "reference-pool-refuses",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "operation_id": "differential-1",
+            "payment_intent": "pi_OTHER",
+            "amount": 1000,
+            "currency": "usd"
+          },
+          "native_accepted": true,
+          "action_commitment": "37175b71d9b0df38bf46ebf96ecdd5b761295b7d08f5a24e6ee3d7ee6706aa67",
+          "effect_id": "74de469548c6e5a3ebb5b1598a977a8d33e079203f879b2e91b255adf6c261dc",
+          "request": {
+            "method": "POST",
+            "url": "https://api.stripe.com/v1/refunds",
+            "content_type": "application/x-www-form-urlencoded",
+            "body": "amount=1000&metadata%5Bauths_echo%5D=auths-e1-10112f4ae4b0e07f547513fde48845bdee6c06c82d8b6885f218349382f45a33&payment_intent=pi_OTHER",
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ],
+              [
+                "Idempotency-Key",
+                "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+              ]
+            ],
+            "idempotency_key": "auths-i1-6a00004b8dfbec9f03af24e555e51e452c0eb1a156c0e780d66be3d57d555730"
+          }
+        },
+        {
+          "name": "missing-operation",
+          "contract": "both-refuse",
+          "arguments": {
+            "operator_namespace": "stripe-platform-refunds",
+            "recipe_digest": "8927c857adafbbb4231827c68c6e8dd828c08e6dba0f4fe1585fcafa3e672a9a",
+            "currency": "usd",
+            "payment_intent": "pi_TEST123",
+            "amount": 1000
+          },
+          "native_accepted": false,
+          "native_result": {
+            "outcome": "not-entered",
+            "code": "gateway.recipe.action-mismatch"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "name": "exact",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "wrong-value",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":0,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "state-mismatch"
+        },
+        {
+          "name": "wrong-echo",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"unrelated\"}}",
+          "native": "echo-mismatch"
+        },
+        {
+          "name": "null-echo",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":null}}",
+          "native": "state-match"
+        },
+        {
+          "name": "different-resource",
+          "response": "{\"id\":\"re_OTHER123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "pending-refund",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"pending\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "other-payment",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_OTHER\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "other-currency",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":false,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"eur\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "live-refund",
+          "response": "{\"id\":\"re_TEST123\",\"object\":\"refund\",\"livemode\":true,\"payment_intent\":\"pi_TEST123\",\"amount\":1000,\"currency\":\"usd\",\"status\":\"succeeded\",\"metadata\":{\"auths_echo\":\"auths-e1-1c757c5260b8cb620c77830b93ac52caffadcb7d4b4042201014b4a5df7e84f5\"}}",
+          "native": "echo-linked"
+        },
+        {
+          "name": "duplicate-member",
+          "response": "{\"id\":\"one\",\"id\":\"two\"}",
+          "native": "unavailable"
+        },
+        {
+          "name": "malformed",
+          "response": "{",
+          "native": "unavailable"
+        },
+        {
+          "name": "nonfinite",
+          "response": "{\"amount\":NaN}",
+          "native": "unavailable"
+        },
+        {
+          "name": "over-limit",
+          "response": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ",
+          "native": "unavailable"
+        }
+      ],
+      "recovery": {
+        "without_write_response_url": null,
+        "with_write_response_url": "https://api.stripe.com/v1/refunds/re_TEST123",
+        "dot_segment_response_locator_refused": true,
+        "separator_response_locator_url": "https://api.stripe.com/v1/refunds/..%2Fother",
+        "capability": {
+          "class": "linked-after-response",
+          "state_locator": "response",
+          "provider_link": "response",
+          "unknown_reobservation": false,
+          "declared_idempotency_retention_seconds": 86400,
+          "pre_entry_reread": false,
+          "write_is_conditional": false
+        }
+      }
+    }
+  ]
+}

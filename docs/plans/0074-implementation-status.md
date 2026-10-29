@@ -2656,6 +2656,54 @@ closure regeneration passed after that correction (one artifact-generation test)
   and owner UI `37a218c9` remain outside this older-head evidence and require
   fresh exact-head hosted verification. Complete AP074 acceptance remains open.
 
+## Independent mutation differential checkpoint
+
+This batch starts from published `cb1ee6d15a8f728b2f6f9ce01021de69b67ac966`.
+It changes test-only native authoring/comparison, fixtures, CI wiring and
+documentation; no shipping authorization, admission, recovery, binding schema,
+compiler identity, provider recipe or AP070 source is changed.
+
+- Native generator
+  `observed_tests::effect_native_tests::differential_tests::native_independent_mutation_differential_fixture_is_current`
+  verifies actual signed native grants/actions/proofs and exact effect approval.
+  Airtable uses the independently reviewed fixed base/table pure expansion;
+  Stripe uses the maintained guarded platform recipe and a signed bounded
+  amount/count/sum policy. No admission, custody or provider call occurs.
+- The two-family native artifact has 28 request and 22 response cases.
+  Successful shared requests agree byte-for-byte with the unchanged independent
+  Airtable/Stripe mappings. Shared refusals, source-owned resource-pool limits,
+  fresh-guard versus compilation differences, full domain witness versus
+  generic observation, and distinct recovery locator capabilities have explicit
+  assertions. An injected read-only exchange runs each independent reference's
+  real discovery/read-back selection without a network or credential.
+- The native capability projection explicitly retains response/verified locator,
+  provider link, unknown reobservation, declared idempotency retention and
+  nonconditional-write facts. A declared Stripe idempotency key cannot fabricate
+  its missing recorded-response locator. Reference discovery is not a native
+  permit. Full contracts and remaining gaps:
+  [0074-differential-contracts.md](0074-differential-contracts.md).
+- Construction executed locally on this batch over the stated base:
+  `AUTHS_UPDATE_FIXTURES=1 cargo test --locked -p auths-gateway --features testkit-harness --lib observed_tests::effect_native_tests::differential_tests::native_independent_mutation_differential_fixture_is_current -- --exact`
+  passed one test, zero failed/ignored, 0.10 seconds after compilation.
+  `python3 qualification/reference/ap074_differential.py --update` constructs the
+  independently checked comparison report with native corpus and source hashes.
+  These are required artifact construction, not exact-head hosted qualification.
+- Eight adversarial comparator mutations are authored (request bytes, decision,
+  omitted/duplicate cases, response claim, missing-response locator, resource
+  scope and recovery capability); that unit test is not yet executed. The
+  existing reference unittest workflow will execute it. The Python source-contract
+  workflow now first executes the native generator without updates, then the
+  independent comparator and uploads both artifacts.
+- Semantic inventory construction advances freeze408 and only the reported
+  identity152/public-SDK149/public-surface408 entries. No formal source or
+  translation input was intentionally changed. New hosted execution remains
+  pending; the live cb1 CI/formal cohort is preserved while this batch is local.
+- A19 remains partial. AP070 acquisition/disclosure comparisons, native durable
+  contract overlap, and final hosted evidence remain required. AP070's
+  transactional release is not a recipient ACK, its task-lifetime budgets are
+  not native fixed-window/disclosure units, and its runtime lock is not native
+  multi-host durability. No managed guarantee is claimed for that reference.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2692,7 +2740,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
-| A19 | Stripe/Airtable and acquisition/disclosure differential | Pending / independent references retained / no complete differential corpus | Preserve AP070 reference independence; complete comparable native contracts without broker migration |
+| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / two-family native signed/approved compilation and independent unchanged reference comparison / 28 request and 22 response cases constructed locally, explicit distinct recovery locator/link assertions | Acquisition/disclosure and durable contract comparisons plus exact-head hosted execution remain; AP070 source stays independent without managed guarantees |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
 | A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |

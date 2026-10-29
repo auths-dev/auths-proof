@@ -1694,6 +1694,8 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe/tests.rs#credential_reads_are_fixed_and_carry_no_action_value",
   "product/runtime/auths-gateway/src/recipe/tests.rs#construction_leaf_matches_the_serde_oracle_on_json_bodies",
   "product/runtime/auths-gateway/src/recipe/tests.rs#construction_leaf_matches_the_serde_oracle_on_form_bodies",
+  "product/runtime/auths-gateway/src/native_differential_tests.rs#native_independent_mutation_differential_fixture_is_current",
+  "qualification/reference/tests/test_ap074_differential.py#test_comparator_rejects_request_response_inventory_and_recovery_drift",
   "product/runtime/auths-gateway/src/pending_vectors/recipes.rs#every_base_compiles_to_its_documented_class_and_digest",
   "product/runtime/auths-gateway/src/pending_vectors/recipes.rs#every_hostile_case_fails_with_its_code",
 ]

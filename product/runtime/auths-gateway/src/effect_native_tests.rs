@@ -12,6 +12,10 @@ use ed25519_dalek::{Signer as _, SigningKey};
 #[path = "effect_candidate_tests.rs"]
 mod candidate_tests;
 
+#[cfg(feature = "testkit-harness")]
+#[path = "native_differential_tests.rs"]
+mod differential_tests;
+
 #[path = "effect_disclosure_journal_tests.rs"]
 mod disclosure_journal_tests;
 

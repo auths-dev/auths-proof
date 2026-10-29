@@ -1,0 +1,399 @@
+{
+  "families": [
+    {
+      "family": "airtable-record-update-v1",
+      "independent_entry_guards": null,
+      "observations": [
+        {
+          "name": "exact",
+          "native": "echo-linked",
+          "reference_code": null,
+          "reference_complete_domain_witness": true
+        },
+        {
+          "name": "wrong-value",
+          "native": "state-mismatch",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "wrong-echo",
+          "native": "echo-mismatch",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "null-echo",
+          "native": "state-match",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "different-resource",
+          "native": "echo-linked",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "duplicate-member",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "malformed",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "nonfinite",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "over-limit",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        }
+      ],
+      "recovery": {
+        "contract": "same known record can be read without a write response",
+        "native_capability": {
+          "class": "linked",
+          "declared_idempotency_retention_seconds": null,
+          "pre_entry_reread": false,
+          "provider_link": "verified",
+          "state_locator": "verified",
+          "unknown_reobservation": true,
+          "write_is_conditional": false
+        },
+        "native_with_response_target": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+        "native_without_response_target": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+        "reference_read_paths": [
+          "/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001"
+        ]
+      },
+      "requests": [
+        {
+          "contract": "both-refuse",
+          "name": "wrong-namespace",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "wrong-recipe",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "extra-field",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "empty-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "long-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "missing-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "equal-request",
+          "name": "baseline",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-operation",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "reference-pool-refuses",
+          "name": "unowned-resource",
+          "native_accepted": true,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.resource-binding"
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-value",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "both-refuse",
+          "name": "invalid-value",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.replacement"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "wrong-value-type",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.replacement"
+        }
+      ]
+    },
+    {
+      "family": "stripe-platform-refund-v1",
+      "independent_entry_guards": {
+        "baseline": null,
+        "maximum-amount": "gateway.relative-ceiling.above",
+        "other-currency": "gateway.relative-ceiling.binding-mismatch"
+      },
+      "observations": [
+        {
+          "name": "exact",
+          "native": "echo-linked",
+          "reference_code": null,
+          "reference_complete_domain_witness": true
+        },
+        {
+          "name": "wrong-value",
+          "native": "state-mismatch",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "wrong-echo",
+          "native": "echo-mismatch",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "null-echo",
+          "native": "state-match",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "different-resource",
+          "native": "echo-linked",
+          "reference_code": null,
+          "reference_complete_domain_witness": true
+        },
+        {
+          "name": "duplicate-member",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "malformed",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "nonfinite",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "over-limit",
+          "native": "unavailable",
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "pending-refund",
+          "native": "echo-linked",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "other-payment",
+          "native": "echo-linked",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "other-currency",
+          "native": "echo-linked",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        },
+        {
+          "name": "live-refund",
+          "native": "echo-linked",
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false
+        }
+      ],
+      "recovery": {
+        "contract": "native needs its recorded response locator; independent reference discovers one refund from an action-bound bounded listing; discovery is not a native recovery permit",
+        "native_capability": {
+          "class": "linked-after-response",
+          "declared_idempotency_retention_seconds": 86400,
+          "pre_entry_reread": false,
+          "provider_link": "response",
+          "state_locator": "response",
+          "unknown_reobservation": false,
+          "write_is_conditional": false
+        },
+        "native_with_response_target": "https://api.stripe.com/v1/refunds/re_TEST123",
+        "native_without_response_target": null,
+        "reference_read_paths": [
+          "/v1/refunds?payment_intent=pi_TEST123&limit=100",
+          "/v1/refunds/re_TEST123"
+        ]
+      },
+      "requests": [
+        {
+          "contract": "both-refuse",
+          "name": "wrong-namespace",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "wrong-recipe",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "extra-field",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "empty-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "long-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "missing-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "equal-request",
+          "name": "baseline",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-operation",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "reference-pool-refuses",
+          "name": "unowned-resource",
+          "native_accepted": true,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.resource-binding"
+        },
+        {
+          "contract": "equal-request",
+          "name": "minimum-amount",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "maximum-amount",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-currency",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "both-refuse",
+          "name": "zero-amount",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.integer-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "negative-amount",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.integer-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "boolean-amount",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.integer-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "over-grant-ceiling",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.ceiling"
+        }
+      ]
+    }
+  ],
+  "native_corpus_sha256": "5bf9583f6bee226f243e34c0e125b6f179370de53d5a76c36b76203e20947c26",
+  "schema": "auths.ap074-independent-mutation-differential/1",
+  "scope": "test-only native verified compilation and response classification compared with retained independent references; no admission, provider I/O, production qualification or AP070 guarantee",
+  "source_sha256": {
+    "product/runtime/auths-gateway/src/native_differential_tests.rs": "65d5ed32c660d2e25c503417ada142bfd8b550f449fe1c21c35f5afe556ade2b",
+    "qualification/reference/airtable_record.py": "d5bf4d750fee75f02200d180f8654f426fe738bc86a281f1d015f391cc5e67fa",
+    "qualification/reference/ap074_differential.py": "08684a044c2d46b43f3ee8c27c901430de5ddac1fca892cdde384e0abb6fa866",
+    "qualification/reference/common.py": "604d3d6598648fbc09611e663b4048b22fa748d0f6c6f1dbbceca5d83c02a2ce",
+    "qualification/reference/fresh_evidence.py": "cb54ea66a4775c5af76fbc36c4f8c8a007c553de2b2303e80fd744aee1c54d2f",
+    "qualification/reference/provider_readback.py": "d576768208985b3544f146597d181d796f2a5e2eca5026dae3fa15cadcfe65b2",
+    "qualification/reference/stripe_platform.py": "2da918e72f0ec3aed4f5a80701748e0d37c71292806bfa38c74ffbe69055c4ec"
+  }
+}
