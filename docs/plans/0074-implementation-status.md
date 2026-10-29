@@ -2957,14 +2957,69 @@ generated durable histories/formal linkage, supported rollback floors, bounded
 performance and all required hosted checks on the final completed head. AP070
 and the paused AP073 checkout remain unchanged by this batch.
 
+## Installed managed owner/agent journey (authored)
+
+The previous published74ce cohort is fully terminal: 85 passed, 3 failed and
+8 conditionally skipped checks across 14 workflows (12 succeeded, CI failed,
+custody conditionally skipped). The three failures share the stale gateway
+semantic closure root repaired in local epoch commit `41763d5a`. Actual formal
+aggregation passed after 329 compiled Lean claims, 49 Kani verifications and the
+four native Rust refinement tests. Translation evidence is validated reuse under
+unchanged a002 source, not a new translation. Full exact identities, artifact
+checksums and scoped behavioral evidence are in
+[the 74ce report](0074-hosted-evidence-74ce9f75.md). No healthy jobs were cancelled.
+
+The next source increment composes the existing native content capability into
+the installed authenticated owner journey. A separate local data-only managed
+recipe retains the original mutation declaration and adds a bounded fixed-record
+GET (response1,024/content512 bytes). The maintained live/reference recipe stays
+unchanged. Native recipe-review construction completed successfully and produced
+`demos/airtable-gateway/managed-review.json`; the hosted packaging workflow now
+reconstructs and compares it. This is actual pure compilation/review evidence,
+not an executed read/disclosure or new provider qualification.
+
+The private demonstration plan advances directly to `/2`; old disposable plans
+are refused rather than read through compatibility fallbacks.
+
+Installed Python and TypeScript clients each submit a separately authorized
+acquisition. A separate complete native owner review gates release to a pinned
+local recipient. The native CLI runs as the application UID and owns recipient
+identity, channel authentication, exact binding/bytes and ACK. The browser shows
+native acquisition/ACK facts and preserves the difference between sending an ACK
+and the gateway recording it. Authorized recipient output is confined to recipient-private
+files; public history does not return it. The actor is the same native agent for
+read, disclosure and write. The development proposal simulator retains a fixed
+root-private actor-key copy before app ownership changes, never loads a mutable
+app signer configuration as root, and remains explicitly separate from exact
+reviewer keys. A thin testkit seed import calls the existing native Ed25519
+implementation; no Python signing/hash/ACK or admission semantics are added.
+
+The source-free browser scenario is expanded to assert actual provider counters,
+review-before-entry, both installed language acquisitions, no content release on
+acquisition, separate disclosure consent, native recorded ACK, private0600 files,
+public sentinel exclusion and replay without new calls or files. It then performs
+the reviewed write, independently authorized observation and a distinct real
+response-loss/unknown control with no reentry. These new runtime/browser/SDK cases
+are authored and have not executed locally or hosted. Exact-head hosted results,
+remaining negative/containment scope, file/PostgreSQL adverse schedules, generated
+concurrent histories, rollback floors and bounded performance remain mandatory.
+AP070 remains independent and AP073 untouched.
+
+Semantic metadata construction advances freeze413 and only the generator-reported
+identity157, portable-ABI126, mechanism-profile13, public-SDK154,
+simplified-waist20 and public-surface413 identities. The gateway Rust source
+closure remains the repaired epoch commitment; the formal translation source
+closure remains a002. These metadata updates do not execute the new browser/SDK
+cases and are not a fresh formal proof.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
 | --- | --- | --- |
 | P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
-| P1 | Binding, approval and native review contract wired | Installed authenticated approval journey, frontend rendering and integration evidence |
+| P1 | Binding, approval and native review contract wired; installed write/recovery owner UI executed on74ce | New complete content journey and remaining adversarial review/binding parity evidence |
 | P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition/disclosure runtime, call authoring and CLI process composition wired | Installed managed bindings/authenticated UI and full native read/release evidence; AP070 stays independent |
+| P3 | Acquisition/disclosure runtime, call authoring and CLI composition wired; installed Python/TypeScript acquisitions and native recipient UI authored | New exact-head installed journey execution and remaining native adverse read/release cases; AP070 stays independent |
 | P4 | Partial CLI process journey | Differential, full faults/adapters, installed bindings/UI, formal/performance links and CI |
 
 ## Acceptance ledger
@@ -2996,7 +3051,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / independent mutation and post-authorization information comparisons against unchanged references / hosted74ce mutation 28 requests + 26 responses, information 22 pairs across both adapters and 104 source/parser controls passed | Named A19 contracts audited in the differential-contracts document; final-head confirmation remains required, with AP070 independence and divergent claims retained |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
 | A21 | Tombstones, stale state, supported rollback floors | Partial / bounded maintenance/shared clock and one active epoch control per partition / hosted74ce six native read/release cleanup histories passed; two new file/TLS PostgreSQL epoch histories constructed locally preserve replay and lifetime slots | New-head hosted epoch verification, reserved/mutation retention, concurrent epoch/configuration schedules and supported rollback-floor evidence remain required |
-| A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
+| A22 | Installed single-human/single-agent full journey/UI | Partial / native daemon/CLI journey executed; installed authenticated write/recovery UI passed74ce; full same-actor Python/TypeScript acquisition/native disclosure/write/observation/unknown journey now authored | Execute the expanded source-free browser/package journey on the new head; complete hostile interface inventory and remaining adverse/negative integration evidence |
 
 ## Deployment assumptions retained
 

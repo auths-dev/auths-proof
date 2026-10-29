@@ -131,6 +131,20 @@ times or create an entry permit. This remains a simulation demonstration with
 hosted tests authored; complete installed acquisition/disclosure UI, broader
 containment and exact-head evidence remain required.
 
+The installed local owner journey now composes an additional data-only reviewed
+recipe with the existing content capability. It uses one native control/journal
+for acquisitions, separate recipient release and writes, and the same native
+agent actor. Python and TypeScript submit native acquisition inputs; the native
+recipient CLI owns the authenticated channel, exact byte check and ACK. The
+application stores authorized plaintext only in recipient-private files and
+shows the gateway's retained facts. No Python/TypeScript effect hash, permit,
+accounting decision, ACK codec or second admission owner is introduced. The
+root-private development actor simulator uses a fixed copy created before app
+file ownership changes; it never opens an app-writable signer configuration as
+root. Local recipe selection is an explicit capability choice, with no legacy
+reader or alternate runtime implementation. Exact-head hosted execution and
+broader containment/adverse-path obligations remain required.
+
 Recovery exposes bounded observation work, retained charges and escalation.
 Administrative annotations are not provider evidence; no administrative path can
 convert post-grant uncertainty into non-entry or silently release capacity.

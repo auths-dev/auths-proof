@@ -268,3 +268,36 @@ Protected AWS custody, PostgreSQL/TLS, two genuine rotation PATs, verified exclu
 base access, current signed qualification, full crash/canary/lifecycle corpus,
 independent security/human review and an actual GitHub-release installation
 remain separate gates in AP-SPEC-066 and [AP-SPEC-068](../../docs/specs/0068-airtable-general-gateway-demo.md).
+
+## Managed read, recipient release and write journey
+
+The optional authenticated owner UI selects `managed-recipe.json` for the local
+simulation. Its mutation declaration matches the maintained record-update recipe;
+an additional bounded GET can retain at most 512 UTF-8 bytes from a response
+bounded to 1,024 bytes. `managed-review.json` is the actual native recipe review,
+reconstructed and compared by CI. The original recipe remains the live/reference
+recipe. This local variant grants no managed Google or live-provider claim.
+
+After logging into the separate owner origin, choose the Python acquisition,
+then the TypeScript acquisition. Each installed client submits a separate native
+proof and exact approval. Acquisition returns redacted history and leaves content
+private. Choose disclosure next: inspect and approve its separate complete native
+review, including the exact recipient/channel/instance and source. The native
+recipient process runs under the application UID, receives into private `0600`
+files and signs the native ACK. The browser displays the gateway's retained ACK
+fact after it is recorded; an ACK-send result alone is not displayed as delivery
+evidence. History/replay choices never authorize another GET or release.
+
+The same native agent actor acquires, discloses and writes. The development
+proposal simulator retains a fixed root-private copy of that actor's development
+key before handing application files over, so the operator never loads an
+application-writable signer configuration. Exact-effect reviewer keys remain
+separate. This is explicit software simulation custody, not exclusive actor-key
+custody, independent-human attention or production qualification.
+
+The packaged browser scenario exercises both installed SDKs, real native
+HTTP/Unix transport, recipient files, external provider counters, complete
+owner review, exact write and independent observation. It also exercises actual
+response loss and retained unknown without reentry. Assertions check that
+private sentinel content stays out of public HTTP/history. New scenarios remain
+authored until their exact-head hosted result is recorded in the AP074 ledger.

@@ -826,3 +826,29 @@ exact approval, preserve both histories and all replay charges, and assert sourc
 lifetime allocation slots `[0, 1]` across epochs. They do not establish every
 race schedule, hostile-process containment, or an independent rollback anchor.
 No new semantic abstraction, provider branch or admission journal is added.
+
+### Installed owner/agent content composition
+
+The local Airtable owner demonstration consumes the already admitted content
+capability through a separate data-only `managed-recipe.json`. Its fixed-record
+GET shares the native partition/control/journal with the reviewed PATCH; it does
+not turn the independent reference into managed execution or change that
+reference's recipe. Native recipe review construction bounds response/content
+to 1,024/512 bytes. No new shared semantic extraction is proposed.
+
+Public SDK frozen dataclasses represent native-authored content/release calls;
+they do not interpret provider fields or select lifecycle transitions. Both
+installed language clients call native acquisition. The native recipient CLI
+receives into app-UID private files and owns key authentication, channel, binding,
+exact bytes and ACK. History polling distinguishes ACK sent from ACK retained,
+performs no external I/O and cannot issue another permit. Public HTTP exports
+only native redacted facts and the already reviewed proposal.
+
+The browser scenario authors same-actor acquisition/disclosure/write, separate
+authenticated owner consent, real provider counters and native Unix delivery,
+private sentinel checks, replay without new calls/files, independent recovery
+and actual unknown response-loss presentation. It is not yet hosted evidence.
+The development simulator retains a fixed actor key copy before app ownership
+changes, separately from exact reviewer keys; production/exclusive signing
+custody, human attention and hostile-OS claims remain excluded. The maintained
+AP070 reference and every remaining AP074 gate are unchanged.

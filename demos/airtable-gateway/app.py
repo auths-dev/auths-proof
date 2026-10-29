@@ -24,6 +24,7 @@ from auths.self_hosted import load_signer_file
 
 from demo_common import Refusal, b64, canonical, decode, read, require, unb64, write
 from generated import CONTRACT, SetDemoStatus, FIELDS
+from managed_content import EXPERIMENTS as CONTENT_EXPERIMENTS
 
 HERE = Path(__file__).resolve().parent
 LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-injection',
@@ -32,7 +33,7 @@ LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-
           'malformed-response', 'oversized-response', 'encoded-segment', 'typescript-positive',
           'crash-before', 'crash-after', 'approval-insufficient')
 EXPERIMENTS = tuple('recover-' + label for label in LABELS) + LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
-EXPERIMENTS += ('approval-duplicate',)
+EXPERIMENTS += ('approval-duplicate',) + CONTENT_EXPERIMENTS
 FAULTS = ('lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response')
 OPERATOR_CASES = ('crash-before', 'crash-after')
@@ -70,7 +71,10 @@ class Application:
     def __init__(self, directory, sockets):
         self.directory = Path(directory)
         self.plan = decode(read(self.directory / 'application.json'))
-        require(self.plan['schema'] == 'auths.airtable-gateway-demo/1', 'demo.invalid-plan')
+        require(self.plan['schema'] == 'auths.airtable-gateway-demo/2', 'demo.invalid-plan')
+        require(type(self.plan.get('managed_content')) is bool
+                and type(self.plan.get('recipe_source_b64')) is str
+                and 0 < len(unb64(self.plan['recipe_source_b64'])) <= 65536, 'demo.invalid-plan')
         require(set(self.plan['cases']) == set(LABELS), 'demo.invalid-cases')
         self.sockets = [Path(path) for path in sockets]
         self.clients = [GatewayClient(GatewayEndpoint(path)) for path in self.sockets]
@@ -105,7 +109,9 @@ class Application:
                 'provider_credential_model': self.plan['provider_credential_model'],
                 'effect': 'Set DemoStatus and action-derived auths_echo; no compare-and-swap',
                 'grant_limits': {'budgets': 'No numeric budget capability in this reviewed profile'},
-                'experiments': [value for value in EXPERIMENTS if value not in OPERATOR_CASES],
+                'experiments': [value for value in EXPERIMENTS if value not in OPERATOR_CASES
+                    and (self.plan.get('managed_content') or value not in CONTENT_EXPERIMENTS)],
+                'managed_content': self.plan.get('managed_content') is True,
                 'approval': self.plan['approval'], 'effect_review': self.plan['effect_review'],
                 'sdk_version': importlib.metadata.version('auths'),
                 'proposals': {label: case['arguments'] for label, case in self.plan['cases'].items()},
@@ -265,6 +271,17 @@ class Application:
 
     async def execute(self, experiment):
         require(experiment in EXPERIMENTS, 'demo.unknown-experiment')
+        if experiment in CONTENT_EXPERIMENTS:
+            from managed_content import execute as content_execute
+            record = await content_execute(self, experiment)
+            result = {'schema': 'auths.airtable-gateway-demo-result/1', 'experiment': experiment,
+                'action': {'operation_id': record['operation_id']}, 'records': [record],
+                'decided_by': 'gateway' if record['result']['outcome'] != 'not-submitted' else 'operator-review',
+                'production_qualified': False, 'display_signature': 'unsigned', 'recorded_at': int(time.time())}
+            require(len(self.records) < 256, 'demo.session-full')
+            self.records.append(result)
+            write(self.directory / 'results.json', canonical(self.records))
+            return result
         if experiment.startswith('recover-'):
             source = experiment[len('recover-'):]
             source = {'loss': 'lost-response', 'competing': 'competing-writer'}.get(source, source)
@@ -325,7 +342,7 @@ class Application:
 
     def audit(self):
         return {'schema': 'auths.gateway-audit-bundle/2',
-                'recipe_b64': b64(read(HERE / 'recipe.json')),
+                'recipe_b64': self.plan['recipe_source_b64'],
                 'profile_lock_b64': b64(read(HERE / 'profile.lock.json')),
                 'trusted_context_b64': self.plan['contexts'][0],
                 'entries': list(self.entries.values()),

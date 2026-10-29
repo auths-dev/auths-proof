@@ -28,12 +28,99 @@ def native_review(name):
     return json.loads(private_file('/run/demo/private/' + name + '/literal-review.json'))
 
 
+def provider_counts():
+    entries = [json.loads(line) for line in private_file('/run/demo/provider.jsonl').splitlines()]
+    return {kind: sum(entry['kind'] == kind for entry in entries) for kind in ('read', 'write')}
+
+
+def recipient_files():
+    # Inspect the actual authorized recipient account, not an HTTP export.
+    code = """import json,stat
+from pathlib import Path
+files=list(Path('/run/demo/app/managed-content').glob('*.content'))
+for path in files:
+ assert stat.S_IMODE(path.stat().st_mode)==0o600
+ assert json.loads(path.read_bytes())['fields']['PrivateNote']=='PRIVATE-MANAGED-CONTENT-SENTINEL'
+print(json.dumps({'files':len(files),'private_mode':'0600'}))
+"""
+    return json.loads(subprocess.check_output(['docker', 'exec', '--user', '62004:62005', CONTAINER,
+        '/opt/consumer/bin/python', '-c', code]))
+
+
+def managed_journey(owner, agent, before):
+    baseline = provider_counts()
+    assert recipient_files()['files'] == 0
+    reviews = []
+    for experiment, operation, language in [
+            ('managed-acquire', 'managed-read-python', 'python'),
+            ('managed-acquire-typescript', 'managed-read-typescript', 'typescript')]:
+        prior = witness()
+        agent.locator('#experiment').select_option(experiment)
+        agent.locator('#submit').click()
+        expect(owner.locator('#review')).to_be_visible(timeout=45000)
+        native = native_review(operation)
+        assert owner.locator('#literal').text_content() == native['literal_review']
+        literal = json.loads(native['literal_review'])
+        assert literal['native']['protocol'] == 'acquisition'
+        assert literal['native']['method'] == 'GET'
+        assert literal['binding']['operation'] == operation
+        assert witness() == prior, 'content review entered custody or transport'
+        assert recipient_files()['files'] == 0, 'acquisition disclosed without independent consent'
+        owner.locator('#approve').click()
+        expect(agent.locator('#outcome')).to_have_text('ACQUISITION · RESPONSE-RECORDED', timeout=45000)
+        result = json.loads(agent.locator('#result-json').text_content())
+        assert result['records'][0]['language'] == language
+        snapshot = result['records'][0]['result']['native']['history']['snapshot']
+        assert snapshot['reserved_calls'] == 1 and snapshot['reserved_bytes'] == 1024
+        assert snapshot['content_projection']['kind'] == 'ready'
+        assert witness()['read_transport_entries'] == prior['read_transport_entries'] + 1
+        assert recipient_files()['files'] == 0
+        reviews.append(literal)
+    after_acquisitions = witness()
+    counts = provider_counts()
+    assert counts == {'read': baseline['read'] + 2, 'write': baseline['write']}
+    agent.locator('#experiment').select_option('managed-disclose')
+    agent.locator('#submit').click()
+    expect(owner.locator('#review')).to_be_visible(timeout=45000)
+    native = native_review('managed-disclosure')
+    assert owner.locator('#literal').text_content() == native['literal_review']
+    disclosure = json.loads(native['literal_review'])
+    assert disclosure['native']['protocol'] == 'disclosure'
+    assert disclosure['binding']['operation'] == 'managed-disclosure'
+    assert witness() == after_acquisitions and provider_counts() == counts
+    assert recipient_files()['files'] == 0
+    owner.locator('#approve').click()
+    expect(agent.locator('#outcome')).to_have_text('DISCLOSURE · ACKNOWLEDGED', timeout=45000)
+    assert recipient_files() == {'files': 1, 'private_mode': '0600'}
+    assert provider_counts() == counts, 'recipient release refetched or mutated provider data'
+    after = witness()
+    for experiment, outcome in [('managed-content-history', 'ACQUISITION · RESPONSE-RECORDED'),
+                                ('managed-release-history', 'DISCLOSURE · ACKNOWLEDGED'),
+                                ('managed-acquire', 'ACQUISITION · RESPONSE-RECORDED'),
+                                ('managed-disclose', 'DISCLOSURE · ACKNOWLEDGED')]:
+        agent.locator('#experiment').select_option(experiment)
+        agent.locator('#submit').click()
+        expect(agent.locator('#outcome')).to_have_text(outcome, timeout=45000)
+        expect(agent.locator('#submit')).to_be_enabled()
+        assert witness() == after and provider_counts() == counts
+        assert recipient_files()['files'] == 1, 'retained history redelivered content'
+    for endpoint in ('/api/status', '/api/audit'):
+        with urllib.request.urlopen(APP + endpoint) as response:
+            assert b'PRIVATE-MANAGED-CONTENT-SENTINEL' not in response.read()
+    assert 'PRIVATE-MANAGED-CONTENT-SENTINEL' not in agent.locator('body').text_content()
+    assert after['write_transport_entries'] == before['write_transport_entries']
+    return after, reviews, disclosure
+
+
 def test_installed_authenticated_owner_review_and_native_recovery():
     # Read through the trusted operator account, never an application endpoint.
     credential = private_file('/run/demo/private/owner-login').decode()
-    denied = subprocess.run(['docker', 'exec', '--user', '62004:62005', CONTAINER,
-        'cat', '/run/demo/private/owner-login'], capture_output=True)
-    assert denied.returncode != 0 and not denied.stdout
+    for path in ('/run/demo/private/owner-login', '/run/demo/private/content-actor.seed',
+                 '/run/demo/private/root.seed'):
+        subprocess.run(['docker', 'exec', CONTAINER, 'test', '-f', path], check=True)
+        denied = subprocess.run(['docker', 'exec', '--user', '62004:62005', CONTAINER,
+            'cat', path], capture_output=True)
+        assert denied.returncode != 0 and not denied.stdout
     plan = json.loads(private_file('/run/demo/app/application.json'))
     assert plan['effect_approvals'] == {}, 'the agent received a preapproved effect'
     try:
@@ -70,6 +157,8 @@ def test_installed_authenticated_owner_review_and_native_recovery():
         expect(agent.locator('#outcome')).to_have_text('NOT-SUBMITTED', timeout=45000)
         assert witness() == before, 'declined effect entered the native runtime'
 
+        before, managed_reviews, disclosure_review = managed_journey(owner, agent, before)
+
         agent.locator('#experiment').select_option('exact')
         agent.locator('#submit').click()
         expect(owner.locator('#review')).to_be_visible(timeout=45000)
@@ -77,6 +166,9 @@ def test_installed_authenticated_owner_review_and_native_recovery():
         native = native_review('owner-mutation-exact')
         assert owner.locator('#literal').text_content() == native['literal_review'], 'review changed or truncated'
         effect_id = json.loads(native['literal_review'])['effect_id_hex']
+        assert all(review['native']['actors'] == json.loads(native['literal_review'])['native']['actors']
+                   for review in managed_reviews), 'managed content used a different agent actor'
+        assert disclosure_review['native']['actors'] == managed_reviews[0]['native']['actors']
         assert witness() == before
         status = owner.evaluate('''async () => (await fetch('/api/decision', {
             method:'POST',headers:{'Content-Type':'application/json',
@@ -121,6 +213,24 @@ def test_installed_authenticated_owner_review_and_native_recovery():
             '/opt/consumer/bin/python', '/opt/demo/app.py', 'submit', '--experiment', 'replay'])
         assert json.loads(fresh)['records'][0]['result']['outcome'] == 'observed-by-provider'
         assert witness() == after_read, 'fresh client replay recreated execution'
+        # A distinct, consented operation loses its actual provider response.
+        # The UI must retain unknown and an explicit replay must not send again.
+        loss_before, counts_before = witness(), provider_counts()
+        agent.locator('#experiment').select_option('lost-response')
+        agent.locator('#submit').click()
+        expect(owner.locator('#review')).to_be_visible(timeout=45000)
+        assert witness() == loss_before and provider_counts() == counts_before
+        owner.locator('#approve').click()
+        expect(agent.locator('#outcome')).to_have_text('UNKNOWN', timeout=45000)
+        expect(agent.locator('#submit')).to_be_enabled()
+        expect(agent.locator('#explanation')).to_contain_text('no automatic retry')
+        loss_after, counts_after = witness(), provider_counts()
+        assert loss_after['write_transport_entries'] == loss_before['write_transport_entries'] + 1
+        assert counts_after['write'] == counts_before['write'] + 1
+        agent.locator('#submit').click()
+        expect(agent.locator('#outcome')).to_have_text('UNKNOWN', timeout=45000)
+        expect(agent.locator('#submit')).to_be_enabled()
+        assert witness() == loss_after and provider_counts() == counts_after
         agent.screenshot(path='/evidence/owner-journey.png', full_page=True)
         assert all('authorization' not in h and 'cookie' not in h for h in app_headers)
         browser.close()
@@ -132,9 +242,13 @@ def test_installed_authenticated_owner_review_and_native_recovery():
         'substituted_review_refused': True, 'application_cannot_read_owner_credential': True,
         'owner_auth_not_sent_to_application': True, 'one_exact_write': True,
         'independent_exact_read': True, 'replay_no_extra_execution': True,
+        'installed_python_and_typescript_acquisition': True, 'independent_disclosure_consent': True,
+        'native_recipient_ack_retained': True, 'recipient_content_mode': '0600',
+        'public_http_excludes_private_content': True, 'one_disclosure_no_replay_redelivery': True,
+        'same_agent_actor_read_disclosure_write': True, 'unknown_response_loss_no_reentry': True,
         'fresh_process_replay_no_new_consent_or_execution': True,
         'scope': 'installed packages and native runtime; browser-simulated authenticated owner; local provider',
-        'excluded': ['content acquisition/disclosure journey', 'human attention', 'production custody',
+        'excluded': ['human attention', 'production custody',
                      'live provider qualification', 'hostile operating system']}, indent=2))
 
 

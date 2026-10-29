@@ -79,7 +79,7 @@ def gateway(binary, *arguments):
     return child([binary, *arguments]).stdout
 
 
-async def authority(binary, resources, directory, mode):
+async def authority(binary, resources, directory, mode, recipe_path):
     app = directory / 'app'
     private = directory / 'private'
     app.mkdir(mode=0o700)
@@ -93,13 +93,17 @@ async def authority(binary, resources, directory, mode):
     root = load_signer_file(private / 'root.json').signer
     actor = load_signer_file(app / 'actor.json').signer
     managers = {name: load_signer_file(private / (name + '.json')).signer for name in MANAGERS}
-    review = decode(gateway(binary, 'review', '--recipe', HERE / 'recipe.json',
+    review = decode(gateway(binary, 'review', '--recipe', recipe_path,
                             '--profile-lock', HERE / 'profile.lock.json'))
     now, expires = int(time.time()), int(time.time()) + 3600
     audience = 'mcp://airtable-gateway-demo'
     permission = Permission('tools/call', audience + '/tools/set_demo_status_v1')
     permissions = (permission,) + tuple(Permission('tools/call', audience + '/tools/' + tool)
                                         for tool in READ_TOOLS)
+    managed = recipe_path.name == 'managed-recipe.json'
+    if managed:
+        from managed_content import CONTENT_TOOLS
+        permissions += tuple(Permission('tools/call', audience + '/tools/' + tool) for tool in CONTENT_TOOLS)
     policy = AssurancePolicy('raw-key-baseline', tuple(AssuranceRequirement(*row) for row in [
         ('root', 'every', 'self-certifying-identifier'),
         ('actor', 'every', 'self-certifying-identifier'),
@@ -113,6 +117,20 @@ async def authority(binary, resources, directory, mode):
         grants['default'] = {'bytes': b64(grant.signed_grant), 'evidence': [
             {'type': item.evidence_type, 'media_type': item.media_type, 'bytes': b64(item.bytes)}
             for item in grant.evidence]}
+        if managed:
+            # The development proposal simulator retains this fixed actor key
+            # before handing files to the app. Never open an app-writable signer
+            # configuration from the root operator process.
+            write(private / 'content-actor.seed', read(app / 'actor.seed'), new=True)
+            write(private / 'content-actor.json', canonical({'schema': 'auths.approval-signer/1',
+                'custody': 'development-ed25519', 'seed_file': 'content-actor.seed'}), new=True)
+            content_grant = await author_root_grant(signer=root, subject=actor.descriptor.principal,
+                profile=Profile('auths.mcp', 2), permissions=permissions[3:], audiences=[audience],
+                not_before=now - 3600, expires_at=expires, remaining_depth=0,
+                assurance_floor='raw-key-baseline', requested_at=now)
+            grants['content'] = {'bytes': b64(content_grant.signed_grant), 'evidence': [
+                {'type': item.evidence_type, 'media_type': item.media_type, 'bytes': b64(item.bytes)}
+                for item in content_grant.evidence]}
         anchors = [TrustAnchor('operator-root', root.descriptor.principal, ('raw-key-v1',),
                    (Profile('auths.mcp', 2),), permissions, (audience,), (audience,),
                    now - 3600, expires, 1, 'raw-key-baseline')]
@@ -127,7 +145,7 @@ async def authority(binary, resources, directory, mode):
         reader = load_signer_file(private / 'reader.json').signer
         try:
             read_grant = await author_root_grant(signer=root, subject=reader.descriptor.principal,
-                profile=Profile('auths.mcp', 2), permissions=permissions[1:], audiences=[audience],
+                profile=Profile('auths.mcp', 2), permissions=permissions[1:3], audiences=[audience],
                 not_before=now - 3600, expires_at=expires, remaining_depth=0,
                 assurance_floor='raw-key-baseline', requested_at=now)
             write(private / 'read-grant.json', canonical({'bytes': b64(read_grant.signed_grant),
@@ -180,7 +198,7 @@ async def authority(binary, resources, directory, mode):
 
         approvals = {label: await approval_bundle(label) for label in LABELS}
         approvals['exact:fresh'] = await approval_bundle('exact', fresh=True)
-        plan = {'schema': 'auths.airtable-gateway-demo/1', 'mode': mode,
+        plan = {'schema': 'auths.airtable-gateway-demo/2', 'mode': mode,
                 'trust': 'separate operator-issued development root and actor; no production trust claim',
                 'expires_at': expires, 'recipe_digest': review['recipe_digest'],
                 'base': resources['base'], 'table': resources['table'], 'view': resources['view'], 'grants': grants,
@@ -193,6 +211,12 @@ async def authority(binary, resources, directory, mode):
                     'reviews': {label: value['review'] for label, value in approvals.items()
                                 if not label.endswith(':fresh')}},
                 'approvals': approvals}
+        plan['managed_content'] = managed
+        plan['recipe_source_b64'] = b64(read(recipe_path))
+        if managed:
+            recipient_seed = secrets.token_bytes(32)
+            write(app / 'recipient.seed', recipient_seed, new=True)
+            plan['recipient_public_key'] = list(development_ed25519_identity_key(recipient_seed).public_key)
         write(app / 'application.json', canonical(plan), new=True)
         for index, context in enumerate(contexts):
             write(private / ('context-' + str(index) + '.cbor'), context, new=True)
@@ -280,6 +304,7 @@ def operator_consent(directory, name):
 class Operator:
     def __init__(self, mode, owner_ui_port=None):
         require(os.getuid() == 0, 'demo.operator-root-required')
+        require(owner_ui_port is None or mode == 'simulation', 'demo.managed-local-simulation-required')
         require(not HOME.exists(), 'demo.fresh-container-required')
         HOME.mkdir(mode=0o755)
         PRIVATE.mkdir(mode=0o700)
@@ -290,6 +315,8 @@ class Operator:
         os.chown(self.sockets, 0, APP_GID)
         self.port = None
         self.effect_reviewer = development_ed25519_identity_key()
+        self.recipe = HERE / ('managed-recipe.json' if owner_ui_port is not None else 'recipe.json')
+        self.managed_private, self.managed_state = PRIVATE, HOME / 'gateway0'
         self.owner_review = None
         if owner_ui_port is not None:
             from owner_review import OwnerReviewServer
@@ -357,7 +384,17 @@ class Operator:
                                 self.keys['runtime'])
                 require(value.get('id') == record and value.get('fields', {}).get('DemoStatus') == 'Pending',
                         'demo.runtime-resource-access-refused')
-        plan = asyncio.run(authority(self.binary, resources, HOME, self.mode))
+        plan = asyncio.run(authority(self.binary, resources, HOME, self.mode, self.recipe))
+        if self.owner_review is not None:
+            from managed_content import SOURCE
+            # A real local response contains a sentinel. It may reach only the
+            # separately approved recipient's private files, never public HTTP.
+            self.fixture.records[resources['records'][0]]['PrivateNote'] = 'PRIVATE-MANAGED-CONTENT-SENTINEL'
+            write(PRIVATE / 'managed-target.json', canonical({
+                'source_operation': SOURCE, 'recipient_key': plan['recipient_public_key'],
+                'channel': {'schema': 'auths.gateway-unix-disclosure-channel/1',
+                    'gateway_uid': 0, 'recipient_uid': APP_UID, 'channel_id': list(secrets.token_bytes(32))},
+                'delivery_instance': list(secrets.token_bytes(32))}), new=True)
         attempts = HOME / 'attempts'
         attempts.mkdir(mode=0o700)
         effect_policy = PRIVATE / 'effect-policy.json'
@@ -365,7 +402,7 @@ class Operator:
             '--epoch', '1', '--approver-public-key', self.effect_reviewer.public_key.hex()), new=True)
         for host in range(3):
             state = HOME / ('gateway' + str(host))
-            args = [self.binary, 'install', '--state-dir', state, '--recipe', HERE / 'recipe.json',
+            args = [self.binary, 'install', '--state-dir', state, '--recipe', self.recipe,
                     '--profile-lock', HERE / 'profile.lock.json', '--trusted-context',
                     PRIVATE / 'context-0.cbor', '--effect-policy', effect_policy,
                     '--approve-digest', plan['recipe_digest'], '--provider', 'airtable',
@@ -407,11 +444,17 @@ class Operator:
         self.start_recovery_reviews(plan)
         return plan
 
-    async def read_packet(self, call, plan):
+    async def read_packet(self, call, plan, *, content=False):
         """Managers simulate separately authorizing a native-authored read call."""
-        contract, command = read_contract(call)
-        grant = decode(read(PRIVATE / 'read-grant.json'))
-        reader = load_signer_file(PRIVATE / 'reader.json').signer
+        if content:
+            from managed_content import contract as content_contract
+            contract, command = content_contract(call)
+            grant = plan['grants']['content']
+            reader = load_signer_file(PRIVATE / 'content-actor.json').signer
+        else:
+            contract, command = read_contract(call)
+            grant = decode(read(PRIVATE / 'read-grant.json'))
+            reader = load_signer_file(PRIVATE / 'reader.json').signer
         managers = [load_signer_file(PRIVATE / (name + '.json')).signer for name in MANAGERS]
         try:
             proposal = propose_mcp_approval(contract=contract, command=command,
@@ -447,6 +490,7 @@ class Operator:
         output = child([self.binary, 'effect-review', '--state-dir', state,
             '--proof', proof_path, '--action', action_path, '--not-before', str(now - 1),
             '--expires-at', str(now + ACTION_VALIDITY_SECONDS), '--request-out', request,
+            '--binding-out', directory / 'binding',
             *mode], check=False)
         if output.returncode != 0:
             return None
@@ -558,6 +602,18 @@ class Operator:
                         require(approved is not None, 'demo.owner-review-refused')
                         response = {'proof': b64(proof), 'action': b64(action), 'approval': b64(read(approved[2])),
                             'literal_review': decode(read(approved[2].parent / 'literal-review.json'))['literal_review']}
+                        raw = canonical(response)
+                        require(len(raw) <= 4 * 1024 * 1024, 'demo.review-response-bound')
+                        self.request.sendall(struct.pack('>I', len(raw)) + raw)
+                        return
+                    if set(request) == {'content'}:
+                        from managed_content import EXPERIMENTS as CONTENT_EXPERIMENTS, prepare
+                        kind = request['content']
+                        require(type(kind) is str and kind in CONTENT_EXPERIMENTS[:3]
+                                and operator.owner_review is not None, 'demo.managed-owner-review-required')
+                        require(not counts.get('content:' + kind), 'demo.review-attempt-limit')
+                        counts['content:' + kind] = 1
+                        response = prepare(operator, kind, plan, gateway)
                         raw = canonical(response)
                         require(len(raw) <= 4 * 1024 * 1024, 'demo.review-response-bound')
                         self.request.sendall(struct.pack('>I', len(raw)) + raw)
