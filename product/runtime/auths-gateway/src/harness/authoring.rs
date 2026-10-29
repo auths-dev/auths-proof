@@ -1,15 +1,18 @@
 //! Fixed-key native authoring for installed-process tests. This module is
 //! available only in testkit builds. None of its public seeds are credentials.
 
-use super::{HarnessError, Signer, audience, context_for_tool, fixture, grant_for_tool, window};
+use super::{
+    HarnessError, Signer, audience, context_for_tool, fixture, grant_for_tool,
+    grant_for_tool_with_extensions, window,
+};
 use auths_codec::{
     action_id, action_signing_preimage, body_digest, encode_bundle, encode_canonical_action,
     encode_verifier_context, grant_id, plan_id,
 };
 use auths_model::{
     ActionEnvelope, AuthorizationPlan, BundleHeader, Challenge, ChannelBindingId, ControlBinding,
-    CriticalExtensions, EvidenceObject, ProofBundle, ProofRef, SignatureEnvelope, SignedAction,
-    StatementRef,
+    CriticalExtension, CriticalExtensions, EvidenceObject, ExtensionId, ProofBundle, ProofRef,
+    SignatureEnvelope, SignedAction, StatementRef,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -45,6 +48,17 @@ pub(crate) fn tool_fixture_until(
     now: u64,
     until: u64,
 ) -> Result<ToolFixture, HarnessError> {
+    tool_fixture_using_policy(call, now, until, None)
+}
+
+/// Signs a native bounded grant for a test tool. Policy and permission are
+/// verified by the ordinary native compiler; no admission fact is created.
+pub(crate) fn tool_fixture_using_policy(
+    call: &McpToolCall,
+    now: u64,
+    until: u64,
+    policy: Option<&crate::ArgumentCeilingPolicy>,
+) -> Result<ToolFixture, HarnessError> {
     let root = Signer::new(0x11);
     let actor = Signer::new(0x22);
     let observer = Signer::new(0x33);
@@ -52,7 +66,27 @@ pub(crate) fn tool_fixture_until(
         .checked_sub(86_400)
         .ok_or(HarnessError::Fixture("time"))?;
     let context = context_for_tool(&root, &observer.principal, now, call)?;
-    let grant = grant_for_tool(&root, &actor.principal, None, window(from, until)?, call)?;
+    let grant = if let Some(policy) = policy {
+        let extension = fixture(
+            CriticalExtension::new(
+                fixture(
+                    ExtensionId::parse(auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1),
+                    "extension ID",
+                )?,
+                fixture(policy.extension_body(None), "bounded policy")?,
+            ),
+            "policy extension",
+        )?;
+        grant_for_tool_with_extensions(
+            &root,
+            &actor.principal,
+            window(from, until)?,
+            call,
+            fixture(CriticalExtensions::new(vec![extension]), "extensions")?,
+        )?
+    } else {
+        grant_for_tool(&root, &actor.principal, None, window(from, until)?, call)?
+    };
     let canonical = fixture(
         McpProfile.canonicalize(&fixture(call.canonical_bytes(), "call")?),
         "canonical action",

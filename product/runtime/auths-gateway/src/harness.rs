@@ -601,6 +601,16 @@ pub(crate) fn grant_for_tool(
             )?
         }
     };
+    grant_for_tool_with_extensions(root, subject, validity, unbound, extensions)
+}
+
+pub(crate) fn grant_for_tool_with_extensions(
+    root: &Signer,
+    subject: &PrincipalId,
+    validity: ValidityWindow,
+    unbound: &McpToolCall,
+    extensions: CriticalExtensions,
+) -> Result<SignedGrant, HarnessError> {
     let statement = GrantStatement::new(
         root.principal.clone(),
         subject.clone(),

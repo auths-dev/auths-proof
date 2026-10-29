@@ -704,6 +704,16 @@ valid entry records the time after waiting. These cases establish acquisition
 ordering under the stated test deployment, not observer-evidence expiry,
 threshold-selection changes or complete mutation/disclosure dependency races.
 
+`native-window-capacity-{file,postgres}.json` separately exercises native
+bounded resource grants and exact approvals across independent worker processes.
+After a prefix acquisition, two new operations contend for the last count slot,
+byte-sum allowance or both within the same fixed window. The loser retains an
+uncharged not-entered record; the winner retains the original full response
+ceiling. Native slot witnesses and reopened history preserve window, cumulative
+charges and exact record bytes without another lease or HTTP request. These
+acquisition cases do not replace mutation/disclosure fixed-window evidence,
+cross-window expiry, partial-batch faults or the other A04/A06 requirements.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

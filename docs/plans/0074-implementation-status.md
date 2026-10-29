@@ -1958,6 +1958,47 @@ closure regeneration passed after that correction (one artifact-generation test)
   record reviewed source changes; they do not establish completed formal proofs
   or close an acceptance gate.
 
+## Native fixed-window capacity checkpoint
+
+- `native_budget_tests.rs` adds three full native acquisition histories per
+  adapter: count-only exhaustion, response-byte sum exhaustion with count
+  headroom, and simultaneous count/byte limits. A real bounded extension is
+  signed into each resource grant and passes the ordinary native compiler and
+  entry checks; exact human approval remains a separate signed fact. This
+  test-only authoring extension constructs no admission fact or entry permit.
+- After one prefix request reserves a count slot and the entire 1,024-byte
+  response ceiling, two independent worker OS processes with separate local
+  custody contend for the remaining allowance in the same fixed 3,600-second
+  window. Exactly one receives a grant and sends HTTP. The other retains a
+  not-entered record with the precise window/sum refusal, no allocation, no
+  counter slot and zero call/byte charge. The successful pair retains two
+  call charges and 2,048 reserved bytes despite only 21 response bytes each.
+- Assertions load the native count/sum slots through their recorded counter
+  witnesses and verify the original window index/end, operation ownership and
+  cumulative byte ceiling. No third slot exists. A reopened native engine
+  returns all original snapshots and preserves every inspected attempt/counter
+  byte, execution witness and provider count. These cases use actual adapter
+  transactions and local HTTP, with fixed public test keys/clock; they do not
+  establish mutation/disclosure fixed-window contention, cross-window expiry,
+  clock rollback, partial-batch/durability faults, human review or isolation.
+- Initial artifact generation passed the file matrix (1.28 seconds) and TLS
+  PostgreSQL matrix (2.60 seconds), each containing three histories. The strict
+  gateway library/test lint reproduction passed after the complete test helper
+  factoring, without suppressions. Exact feature-gated CI commands and consumer
+  evidence anchors include both adapters. A04 remains partial.
+- Final source-closure generation and rebuild verified the two new budget
+  artifacts together with both native capacity, crash and dependency matrices,
+  the three no-input peer helpers and the closure without update mode: all
+  twelve tests passed in 4.69 seconds. Existing unbounded authoring/capacity/
+  crash/dependency artifacts stayed byte-identical after the bounded-grant helper
+  factoring. The dedicated TLS fixture's containers, network and volume were
+  stopped/removed afterward. Fresh exact-head hosted verification remains open.
+
+- Release freeze397 advances the reported identity protocol143, public SDK
+  contract140 and public surface397 subjects for this bounded-authoring/test
+  inventory update. No portable wire change, new formal proof or completed
+  acceptance claim follows from these source identity updates.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1979,7 +2020,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / two-daemon file and full native engine processes on file/TLS PostgreSQL / final source lifetime count/bytes, durable grants and reopened replay executed | Managed fixed-window count/sum and complete adverse schedules still required |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
 | A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |

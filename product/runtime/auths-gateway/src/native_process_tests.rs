@@ -4,7 +4,9 @@
 #![cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
 
 use crate::effect::{CONTENT_READ_TOOL, ExactEffectApproval, fixture_policy};
-use crate::harness::authoring::{tool_fixture_until, tools_context};
+use crate::harness::authoring::{
+    ToolFixture, tool_fixture_until, tool_fixture_using_policy, tools_context,
+};
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::{
     AcquisitionSnapshot, AcquisitionStage, CompiledRecipe, GatewayAttempts, GatewayEngine,
@@ -177,6 +179,31 @@ pub(super) async fn authorize_bounded(
         .await
         .expect("native call");
     let signed = tool_fixture_until(&call, NOW, authority_until).expect("native authority");
+    save_authorization(engine, root, operation, signed, approval_until).await;
+}
+
+pub(super) async fn authorize_policy(
+    engine: &GatewayEngine,
+    root: &Path,
+    operation: &str,
+    policy: &crate::ArgumentCeilingPolicy,
+) {
+    let call = engine
+        .content_authorization_call(br#"{"record_id":"recTEST0000000001"}"#, operation)
+        .await
+        .expect("native call");
+    let signed = tool_fixture_using_policy(&call, NOW, NOW + 86_400, Some(policy))
+        .expect("native bounded authority");
+    save_authorization(engine, root, operation, signed, NOW + 300).await;
+}
+
+async fn save_authorization(
+    engine: &GatewayEngine,
+    root: &Path,
+    operation: &str,
+    signed: ToolFixture,
+    approval_until: u64,
+) {
     assert_eq!(signed.context, trust(&recipe()));
     let effect = engine
         .compile_content_action(&signed.proof, &signed.action)
@@ -297,7 +324,12 @@ impl Drop for Provider {
         }
     }
 }
-struct Peer(Child);
+pub(super) struct Peer(Child);
+impl Peer {
+    pub(super) fn id(&self) -> u32 {
+        self.0.id()
+    }
+}
 impl Drop for Peer {
     fn drop(&mut self) {
         let _ = self.0.kill();
@@ -334,7 +366,7 @@ fn native_capacity_peer() {
     );
 }
 
-fn start_peer(input: &Path, operation: &str) -> Peer {
+pub(super) fn start_peer(input: &Path, operation: &str) -> Peer {
     Peer(
         Command::new(std::env::current_exe().expect("test binary"))
             .args([
@@ -351,7 +383,7 @@ fn start_peer(input: &Path, operation: &str) -> Peer {
             .expect("peer"),
     )
 }
-fn finish_peer(peer: &mut Peer) {
+pub(super) fn finish_peer(peer: &mut Peer) {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         if let Some(status) = peer.0.try_wait().expect("peer status") {
