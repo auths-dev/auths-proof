@@ -977,6 +977,15 @@ Re-run the full native verifier, or use a mechanically justified equivalent depe
 
 Connection, trust, recipe, policy, qualification and admission epoch changes must be ordered with entry or fenced under a demonstrated version protocol. A mutable value checked before waiting for the lock is insufficient. Exact human approval must remain eligible at entry. If durable consent has a distinct validity/revocation contract, make that a separate mode with explicit evidence; never discard approval dependencies accidentally.
 
+Each operator namespace/partition has one active configuration control across
+epochs. Its key must not create a second authority when the epoch changes.
+Explicit operator activation advances the epoch under the same writer fence;
+a stale host or a fresh review token for a lower epoch cannot reactivate it.
+Historical operation keys remain epoch-scoped, and retained facts can be read
+without creating new entry authority. Advancing epochs must preserve permanent
+revocation memory and source lifetime capacity. This monotonic control assumes
+the declared trusted durable store; it is not an independent rollback anchor.
+
 Initial admission also orders fresh native authority, approval, configuration,
 connection and qualification with publication of the claim and its charges.
 The file and PostgreSQL adapters use the common writer fence for one insert

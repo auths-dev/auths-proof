@@ -808,3 +808,21 @@ Native acquisition/disclosure, full installed managed journey/UI, two mutation
 recipe differentials, every file/PostgreSQL concurrency/crash/fault case and all
 formal/performance/hosted gates remain mandatory. Google metadata, OAuth refresh
 and migration are deferred until explicitly productizing managed Google access.
+
+### One active epoch per managed partition
+
+Epoch activation reuses the existing canonical configuration record, operator
+review token and bounded writer-fence CAS. Configuration key `/2` excludes epoch,
+so changing an epoch cannot create a second independently active control for
+the same namespace/partition. Record `/2` binds the active epoch and rejects a
+lower candidate even with a fresh review token. Permanent qualification memory
+is retained; operation replay keys remain epoch-scoped. Private manifest `/7`
+rejects obsolete disposable installations without compatibility readers.
+
+The native file and TLS PostgreSQL constructors exercise the same signed proof
+across epoch activation with two engine/store instances and real HTTP. They
+refuse cached old-host entry and old approval under the new epoch, accept a new
+exact approval, preserve both histories and all replay charges, and assert source
+lifetime allocation slots `[0, 1]` across epochs. They do not establish every
+race schedule, hostile-process containment, or an independent rollback anchor.
+No new semantic abstraction, provider branch or admission journal is added.

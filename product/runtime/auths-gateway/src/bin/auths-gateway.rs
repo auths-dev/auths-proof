@@ -76,7 +76,7 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/6";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/7";
     /// The directory of the state directory that holds the signed
     /// qualification inputs the operator imported.
     const QUALIFICATION_DIRECTORY: &str = "qualification";

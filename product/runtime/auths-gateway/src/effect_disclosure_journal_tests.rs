@@ -107,6 +107,7 @@ pub(super) async fn corpus(
         Arc::clone(store),
         policy.configuration_key(recipe.namespace()).expect("key"),
         [12; 32],
+        policy.epoch(),
     );
     let validation = |now| {
         let qualification = Arc::new(crate::QualificationGate::new(

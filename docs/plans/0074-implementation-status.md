@@ -2894,6 +2894,69 @@ run must confirm them before current-head closure. Broader language/containment
 gates remain independently mandatory under A17/A18/A22 rather than disappearing
 from the full objective.
 
+## Native epoch control and exact-head evidence audit
+
+On published `74ce9f753faa6bf3f1cb065bc369f655e6c0b236`, PostgreSQL job
+123745460518 executed all 24 explicit native selectors with one matched,
+nonignored passing test each, then passed the independent information comparison
+(22 pairs across both adapters) and physical/WAL restore controls. Python source
+job123745459370 passed the native mutation generator and independent comparison
+(28 request / 26 response cases); source-only reference job123745461358 passed
+104 tests, including parser/contract adversarial controls. Artifact checksums and
+merge-tree provenance belong in the cohort report. These are executed evidence
+for that published revision, not verification of subsequent epoch changes.
+
+The current epoch regression first failed against the prior implementation:
+configuration keys included epoch, so a new epoch selected a separate active
+control. The fix keeps one control per namespace/partition, stores its active
+epoch and permits only nondecreasing explicit operator activation under the
+existing writer fence. Cached old hosts and old exact approvals cannot authorize
+new entry after activation. Historical operation keys remain epoch-scoped;
+retained facts confer no permit. Private configuration/key `/2` and installation
+manifest `/7` directly reject obsolete disposable state without migration.
+
+Both new native artifact constructors passed locally against file and TLS
+PostgreSQL (one test, zero failed/ignored each, 0.33s and 0.40s respectively).
+They use actual signed proofs, exact approvals, real HTTP and two engine/store
+instances, reject old-host entry and fresh-token epoch downgrade, preserve both
+epochs' histories and assert lifetime allocation slots `[0, 1]`. They establish
+this concrete activation order, not every concurrent schedule or malicious
+store-rollback detection. The unchanged trusted-store assumption and independent
+rollback-anchor exclusion remain explicit. Shared configuration conformance now
+also authors epoch advancement, retained revocations and lower-epoch refusal;
+its new behavior awaits hosted execution. Canonical configuration construction
+passed with obsolete-schema, missing/null/zero/out-of-range epoch refusals.
+
+The differential coverage audit confirms that the hosted A19 corpus exercises
+two mutation recipes with distinct recovery capabilities plus the declared
+acquisition/disclosure overlap. All twelve generator/reference/comparator source
+hashes in the downloaded information and mutation reports match the current
+checkout. The contracts document now distinguishes executed74ce evidence from
+pending subsequent/final-head verification instead of calling that runner unrun.
+
+The PostgreSQL workflow now explicitly selects both new epoch constructors in
+addition to the prior 24. Existing selectors and independent comparison parser
+requirements are preserved. The exact hosted strict-clippy failure reproduction
+passed after factoring the longer test history into focused helpers; no lint
+allowance or acceptance predicate was weakened. The stale gateway semantic
+closure was regenerated and passed a rebuilt non-update verification; this
+repairs the previous cohort's sole implementation root. This gateway closure is
+distinct from the formal translation source closure and proves no new theorem.
+
+Staged Gitleaks v8.28.0 found two public configuration digests. The fixture
+generator now uses explicit `sha256:` values and digest field names under private
+fixture schema `/2`; regeneration and the repeated staged scan pass without a
+new ignore. Semantic metadata construction advances freeze412 and only reported
+identity156/public-SDK153/public-surface412. Formal translation source closure
+remains unchanged; metadata generation is not fresh proof execution.
+
+Full AP074 completion remains open: installed authenticated managed UI/language
+journeys, remaining mutation/disclosure concurrency and adverse durability cases,
+complete negative/containment inventories, reconciliation limits and escalation,
+generated durable histories/formal linkage, supported rollback floors, bounded
+performance and all required hosted checks on the final completed head. AP070
+and the paused AP073 checkout remain unchanged by this batch.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2930,9 +2993,9 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
-| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / mutation reference comparison constructed; 22 paired post-authorization information comparisons authored against unchanged AP070 and native file/PostgreSQL histories / 28 request and 26 response mutation cases constructed locally, including valid JSON at/above both byte bounds; information comparison unrun | Execute new independent information runner and parser controls plus exact-head hosted mutation corpus; complete coverage audit; AP070 source stays independent without managed guarantees |
+| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / independent mutation and post-authorization information comparisons against unchanged references / hosted74ce mutation 28 requests + 26 responses, information 22 pairs across both adapters and 104 source/parser controls passed | Named A19 contracts audited in the differential-contracts document; final-head confirmation remains required, with AP070 independence and divergent claims retained |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
-| A21 | Tombstones, stale state, supported rollback floors | Partial / bounded file maintenance and shared effect clock; native read/release expiry cleanup / six file/TLS PostgreSQL histories constructed, with retained replay and unchanged recorded charges after cleanup/reopen | Hosted execution, reserved/mutation retention, epoch/stale configuration and supported rollback-floor evidence remain required |
+| A21 | Tombstones, stale state, supported rollback floors | Partial / bounded maintenance/shared clock and one active epoch control per partition / hosted74ce six native read/release cleanup histories passed; two new file/TLS PostgreSQL epoch histories constructed locally preserve replay and lifetime slots | New-head hosted epoch verification, reserved/mutation retention, concurrent epoch/configuration schedules and supported rollback-floor evidence remain required |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
 
 ## Deployment assumptions retained

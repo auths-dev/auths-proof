@@ -29,6 +29,9 @@ const RELEASE: &str = "retained-release";
 #[path = "native_retention_tests.rs"]
 mod retention_tests;
 
+#[path = "native_epoch_tests.rs"]
+mod epoch_tests;
+
 #[derive(Clone, Copy, Debug)]
 enum Protocol {
     Acquisition,

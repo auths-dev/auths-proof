@@ -578,6 +578,7 @@ async fn native_content_journal_fixture_is_current() {
         Arc::clone(&store),
         policy.configuration_key(recipe.namespace()).expect("key"),
         installed.configuration,
+        policy.epoch(),
     );
     configuration
         .initialize(&qualification)

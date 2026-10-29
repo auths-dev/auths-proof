@@ -240,8 +240,12 @@ not claim this final-entry guarantee.
 ## Shared installed configuration and permanent qualification memory
 
 The sixth closed gateway record kind, `effect-configuration`, is non-expiring.
-Its key commits to namespace, partition and epoch independently of the candidate
-configuration. The installed pin commits to recipe, native verifier trust,
+Its key commits to namespace and partition independently of the candidate
+configuration and epoch. Configuration schema `/2` stores the active epoch;
+configuration-key domain `/2` makes old and new hosts contend on one control.
+Operator activation cannot decrease that epoch, including with a fresh review
+token. Installation manifest `/7` rejects obsolete disposable installations;
+there is no old-schema reader or migration path. The installed pin commits to recipe, native verifier trust,
 operator effect policy, connection identity, workload, profile, qualification
 contract and gateway semantic closure. Bound-effect `/2` includes that pin;
 compiler identity `/2` rejects approvals over the earlier binding format.

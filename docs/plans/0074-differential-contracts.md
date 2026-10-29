@@ -43,7 +43,7 @@ both artifacts. The report hashes the exact native corpus and relevant source
 files. A checked-in report alone is not fresh execution evidence. Required
 hosted results must identify the actual tested source/PR-merge revision and run.
 
-## Acquisition/disclosure comparison (authored; hosted execution pending)
+## Acquisition/disclosure comparison (hosted execution on 74ce9f75)
 
 AP070 remains an independently implemented application-owned Python/SQLite
 reference. `ap074_information_differential.py` executes its unchanged admission,
@@ -75,8 +75,21 @@ Missing, duplicated, ignored and zero-pass results refuse comparison; parser
 controls use explicitly synthetic logs and make no runtime claim themselves.
 The report records tested commit/run, native log/artifact hashes, unchanged
 reference source hashes and 22 paired comparisons. This avoids rerunning the
-native matrices merely to perform the independent comparison. The new runner
-and parser test have not yet executed; the hosted report is required evidence.
+native matrices merely to perform the independent comparison. On published `74ce9f753faa6bf3f1cb065bc369f655e6c0b236`,
+[PG job123745460518](https://github.com/auths-dev/auths-proof/actions/runs/40958689260/job/123745460518)
+passed the required native selectors and all 22 information comparisons. Its
+report identifies actual PR merge `df0cc98e6eae440db67038c4f552b74e1d64b90f`,
+whose tree matches the published source. Artifact12934958430 was downloaded and
+its ZIP SHA256 verified as
+`c7af0195a0a6645e2cc6fa58f6b0ada451b46692c98649edfac35d4b551b08c0`.
+All five recorded reference/comparator source hashes still match this checkout.
+Source-only reference job123745461358 passed 104 tests including the parser
+refusal controls. Python source job123745459370 separately passed native mutation
+construction and the 28/26 independent comparison; artifact12933979778 has ZIP
+SHA256 `3437045757e96a2f1020cb729935e280a2ad8758c125646608f9f766ec1143e0`.
+Its seven recorded generator/reference/comparator source hashes also match this
+checkout. These observations establish execution on that head; subsequent source
+changes and the final completed PR head require their own hosted confirmation.
 
 Comparisons must preserve these differences:
 
@@ -95,5 +108,9 @@ Comparisons must preserve these differences:
 
 Native current-authority gates and AP070 task expiry/revision are compared only
 on the shared fail-closed state property; their authority models are different.
-All remaining A19 requirements stay open until actual hosted execution and
-coverage audit establish them. No managed guarantee is claimed for AP070.
+The executed corpus covers the named A19 overlap: two mutation recipes with
+distinct locator/recovery capabilities, plus acquisition/disclosure state,
+capacity, crash and replay contracts. Differences above are required assertions,
+not unexplained drift. Final-head confirmation remains mandatory. Broader native
+guard/fault schedules and installed journeys remain separately required by their
+acceptance rows. No managed guarantee is claimed for AP070.

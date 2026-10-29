@@ -329,7 +329,7 @@ async fn rotation_installation(
         private(&root.join(name), bytes);
     }
     private(&root.join("installation.json"), &serde_json_canonicalizer::to_vec(&json!({
-        "schema": "auths.gateway-installation/6", "recipe_digest": recipe.digest_hex(),
+        "schema": "auths.gateway-installation/7", "recipe_digest": recipe.digest_hex(),
         "profile_lock_sha256": hex::encode(Sha256::digest(lock)), "trusted_context_sha256": hex::encode(Sha256::digest(trust)),
         "effect_policy": policy, "provider": "stripe", "alias": "synthetic", "deployment": "development",
         "operator_attestation_sha256": null, "attempt_store": root.join("attempts"),

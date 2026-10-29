@@ -14,7 +14,7 @@ use auths_recipe_qualification::{
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, sync::Arc};
 
-const SCHEMA: &str = "auths.effect-configuration/1";
+const SCHEMA: &str = "auths.effect-configuration/2";
 const MAX_BYTES: usize = 131_072;
 const MAX_INTEGER: u64 = (1 << 53) - 1;
 const UNAVAILABLE: &str = "gateway.configuration.unavailable";
@@ -96,6 +96,7 @@ pub(crate) struct QualificationSnapshot {
 struct Record {
     schema: String,
     installation: [u8; 32],
+    epoch: u64,
     revision: u64,
     qualification: QualificationSnapshot,
 }
@@ -114,6 +115,7 @@ fn decode_record(bytes: &[u8]) -> Result<Record, &'static str> {
     }
     let record: Record = serde_json::from_slice(bytes).map_err(|_| UNAVAILABLE)?;
     if record.schema != SCHEMA
+        || !(1..=MAX_INTEGER).contains(&record.epoch)
         || !(1..=MAX_INTEGER).contains(&record.revision)
         || !record.qualification.memory.valid()
         || encode(&record)? != bytes
@@ -123,9 +125,9 @@ fn decode_record(bytes: &[u8]) -> Result<Record, &'static str> {
     Ok(record)
 }
 
-fn decode(bytes: &[u8], installation: &[u8; 32]) -> Result<Record, &'static str> {
+fn decode(bytes: &[u8], installation: &[u8; 32], epoch: u64) -> Result<Record, &'static str> {
     let record = decode_record(bytes)?;
-    if &record.installation != installation {
+    if &record.installation != installation || record.epoch != epoch {
         return Err(CHANGED);
     }
     Ok(record)
@@ -147,6 +149,7 @@ pub(crate) struct SharedConfiguration {
     store: Arc<dyn GatewayAttemptStore>,
     key: GatewayAttemptKey,
     installation: [u8; 32],
+    epoch: u64,
 }
 
 impl SharedConfiguration {
@@ -154,11 +157,13 @@ impl SharedConfiguration {
         store: Arc<dyn GatewayAttemptStore>,
         key: [u8; 32],
         installation: [u8; 32],
+        epoch: u64,
     ) -> Self {
         Self {
             store,
             key: GatewayAttemptKey::from_bytes(key),
             installation,
+            epoch,
         }
     }
 
@@ -175,6 +180,7 @@ impl SharedConfiguration {
         let record = Record {
             schema: SCHEMA.to_owned(),
             installation: self.installation,
+            epoch: self.epoch,
             revision: 1,
             qualification: gate.shared_snapshot(&QualificationMemory::default()),
         };
@@ -202,10 +208,11 @@ impl SharedConfiguration {
                     let current = snapshots[0]
                         .as_deref()
                         .ok_or(GatewayAttemptError::Corrupt)?;
-                    let mut record = decode(current, &self.installation).map_err(|code| {
-                        refusal = code;
-                        GatewayAttemptError::Corrupt
-                    })?;
+                    let mut record =
+                        decode(current, &self.installation, self.epoch).map_err(|code| {
+                            refusal = code;
+                            GatewayAttemptError::Corrupt
+                        })?;
                     let mut next = gate.shared_snapshot(&record.qualification.memory);
                     if next == record.qualification {
                         return Ok(current.to_vec());
@@ -258,10 +265,14 @@ impl SharedConfiguration {
                         return Err(GatewayAttemptError::Conflict);
                     }
                     // A saturated record cannot be reactivated by a new configuration.
-                    if record.revision == MAX_INTEGER || record.qualification.memory.blocked {
+                    if record.revision == MAX_INTEGER
+                        || record.qualification.memory.blocked
+                        || self.epoch < record.epoch
+                    {
                         return Err(GatewayAttemptError::InvalidTransition);
                     }
                     record.installation = self.installation;
+                    record.epoch = self.epoch;
                     record.revision += 1;
                     record.qualification = gate.shared_snapshot(&record.qualification.memory);
                     encode(&record).map_err(|_| GatewayAttemptError::Corrupt)
@@ -275,7 +286,7 @@ impl SharedConfiguration {
         bytes: &[u8],
         gate: &QualificationGate,
     ) -> Result<crate::qualification::FencedQualification, &'static str> {
-        let record = decode(bytes, &self.installation)?;
+        let record = decode(bytes, &self.installation, self.epoch)?;
         gate.entry_snapshot(&record.qualification)
     }
 
@@ -285,7 +296,7 @@ impl SharedConfiguration {
         bytes: &[u8],
         gate: &QualificationGate,
     ) -> Result<(), &'static str> {
-        let record = decode(bytes, &self.installation)?;
+        let record = decode(bytes, &self.installation, self.epoch)?;
         gate.accept_shared(&record.qualification)
     }
 
@@ -325,22 +336,45 @@ mod tests {
         let record = Record {
             schema: SCHEMA.to_owned(),
             installation: [11; 32],
+            epoch: 1,
             revision: 1,
             qualification: gate(VerifierState::default())
                 .shared_snapshot(&QualificationMemory::default()),
         };
         let canonical = encode(&record).expect("record");
-        assert_eq!(decode(&canonical, &[11; 32]).expect("decode").revision, 1);
-        assert!(decode(&canonical, &[12; 32]).is_err());
+        assert_eq!(
+            decode(&canonical, &[11; 32], 1).expect("decode").revision,
+            1
+        );
+        assert!(decode(&canonical, &[12; 32], 1).is_err());
+        assert!(decode(&canonical, &[11; 32], 2).is_err());
+        let value: serde_json::Value = serde_json::from_slice(&canonical).expect("record");
+        for epoch in [serde_json::Value::Null, 0.into(), (MAX_INTEGER + 1).into()] {
+            let mut invalid = value.clone();
+            invalid["epoch"] = epoch;
+            assert!(
+                decode_record(&serde_json_canonicalizer::to_vec(&invalid).expect("bytes")).is_err()
+            );
+        }
+        let mut obsolete = value.clone();
+        obsolete["schema"] = "auths.effect-configuration/1".into();
+        assert!(
+            decode_record(&serde_json_canonicalizer::to_vec(&obsolete).expect("bytes")).is_err()
+        );
+        let mut missing = value;
+        missing.as_object_mut().expect("object").remove("epoch");
+        assert!(
+            decode_record(&serde_json_canonicalizer::to_vec(&missing).expect("bytes")).is_err()
+        );
         let mut padded = canonical.clone();
         padded.push(b' ');
-        assert!(decode(&padded, &[11; 32]).is_err());
+        assert!(decode(&padded, &[11; 32], 1).is_err());
         let fixture = serde_json::to_vec_pretty(&serde_json::json!({
-            "schema": "auths.effect-configuration-fixture/1",
+            "schema": "auths.effect-configuration-fixture/2",
             "scope": "native configuration encoding and revision identity; no entry claim",
-            "key_hex": hex::encode(key),
+            "configuration_key_sha256": format!("sha256:{}", hex::encode(key)),
             "record_canonical": String::from_utf8(canonical).expect("UTF-8"),
-            "revision_token_hex": hex::encode(digest("auths.effect-configuration-revision/1", &record).expect("revision")),
+            "revision_token_sha256": format!("sha256:{}", hex::encode(digest("auths.effect-configuration-revision/1", &record).expect("revision"))),
         })).expect("fixture");
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../bindings/fixtures/gateway/effect-configuration.json");
@@ -348,6 +382,45 @@ mod tests {
             std::fs::write(&path, &fixture).expect("write native fixture");
         }
         assert_eq!(std::fs::read(path).expect("fixture"), fixture);
+    }
+
+    fn assert_saturation_persists(candidate: &SharedConfiguration, retained: &QualificationGate) {
+        let saturated = VerifierState {
+            revoked_signers: (0..=MAX_REVOKED_SIGNERS)
+                .map(|n| {
+                    QualificationSignerId::parse(format!("synthetic-signer-{n}")).expect("signer")
+                })
+                .collect(),
+            ..VerifierState::default()
+        };
+        candidate
+            .publish(&gate(saturated))
+            .expect("durable saturated denial");
+        assert!(candidate.check(retained).is_err());
+        candidate
+            .publish(&gate(VerifierState::default()))
+            .expect("still saturated");
+        assert!(
+            candidate.check(retained).is_err(),
+            "publishing cannot forget saturation"
+        );
+        assert!(
+            candidate
+                .activate(candidate.current_revision().expect("revision"), retained)
+                .is_err(),
+            "activation cannot reset permanent memory"
+        );
+        assert_eq!(
+            candidate
+                .store
+                .sweep_expired(u64::MAX / 2, 64)
+                .expect("sweep"),
+            0
+        );
+        assert!(
+            candidate.current_revision().is_ok(),
+            "configuration never expires"
+        );
     }
 
     async fn shared_configuration_conformance(backend: Backend) {
@@ -360,8 +433,8 @@ mod tests {
                     &crate::OperatorNamespace::parse("shared-config").expect("namespace"),
                 )
                 .expect("key");
-            let original = SharedConfiguration::new(first, key, [11; 32]);
-            let candidate = SharedConfiguration::new(second, key, [12; 32]);
+            let original = SharedConfiguration::new(first, key, [11; 32], 1);
+            let candidate = SharedConfiguration::new(second, key, [12; 32], 1);
             let old_gate = gate(VerifierState::default());
             assert!(
                 original.check(&old_gate).is_err(),
@@ -407,43 +480,32 @@ mod tests {
             let retained = gate(VerifierState::default());
             candidate.check(&retained).expect("retained shared memory");
             assert!(retained.verifier_state().revoked_signers.contains(&signer));
-            let saturated = VerifierState {
-                revoked_signers: (0..=MAX_REVOKED_SIGNERS)
-                    .map(|n| {
-                        QualificationSignerId::parse(format!("synthetic-signer-{n}"))
-                            .expect("signer")
-                    })
-                    .collect(),
-                ..VerifierState::default()
-            };
-            candidate
-                .publish(&gate(saturated))
-                .expect("durable saturated denial");
-            assert!(candidate.check(&retained).is_err());
-            candidate
-                .publish(&gate(VerifierState::default()))
-                .expect("still saturated");
-            assert!(
-                candidate.check(&retained).is_err(),
-                "publishing cannot forget saturation"
-            );
+            let advanced = SharedConfiguration::new(candidate.store.clone(), key, [13; 32], 2);
+            assert!(advanced.initialize(&retained).is_err());
+            advanced
+                .activate(
+                    candidate.current_revision().expect("review epoch"),
+                    &retained,
+                )
+                .expect("advance epoch under same fence");
+            assert_eq!(candidate.check(&retained), Err(CHANGED));
             assert!(
                 candidate
-                    .activate(candidate.current_revision().expect("revision"), &retained)
+                    .activate(
+                        advanced.current_revision().expect("fresh review"),
+                        &retained
+                    )
                     .is_err(),
-                "activation cannot reset permanent memory"
+                "a current review cannot authorize an epoch downgrade"
             );
-            assert_eq!(
-                candidate
-                    .store
-                    .sweep_expired(u64::MAX / 2, 64)
-                    .expect("sweep"),
-                0
-            );
-            assert!(
-                candidate.current_revision().is_ok(),
-                "configuration never expires"
-            );
+            let candidate = advanced;
+            let retained = gate(VerifierState::default());
+            candidate
+                .check(&retained)
+                .expect("new epoch retains memory");
+            assert!(retained.verifier_state().revoked_signers.contains(&signer));
+            assert_eq!(retained.verifier_state().accepted_revocation_sequence, 3);
+            assert_saturation_persists(&candidate, &retained);
         })
         .await
         .expect("shared configuration conformance");

@@ -119,9 +119,13 @@ impl EffectPolicy {
     ) -> Result<[u8; 32], EffectBindingError> {
         self.validate()?;
         commitment(
-            "auths.effect-configuration-key/1",
-            &canonical(&(namespace.as_str(), &self.partition, self.epoch))?,
+            "auths.effect-configuration-key/2",
+            &canonical(&(namespace.as_str(), &self.partition))?,
         )
+    }
+
+    pub(crate) const fn epoch(&self) -> u64 {
+        self.epoch
     }
 
     pub(crate) fn contains(&self, binding: &EffectBinding) -> bool {

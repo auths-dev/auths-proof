@@ -649,6 +649,7 @@ async fn candidate_journal(
                 .configuration_key(installed.recipe.namespace())
                 .expect("key"),
             installed.configuration,
+            policy.epoch(),
         );
         configuration
             .initialize(&qualification)
@@ -857,6 +858,7 @@ async fn candidate_journal(
                         .configuration_key(installed.recipe.namespace())
                         .expect("key"),
                     [99; 32],
+                    policy.epoch(),
                 );
                 changed
                     .activate(
