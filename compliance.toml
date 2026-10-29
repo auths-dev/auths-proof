@@ -1806,6 +1806,8 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/native_process_tests.rs#postgres_native_process_capacity_fixture_is_current",
   "product/runtime/auths-gateway/src/native_crash_tests.rs#native_file_process_crash_fixture_is_current",
   "product/runtime/auths-gateway/src/native_crash_tests.rs#postgres_native_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_crash_tests.rs#native_file_mutation_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_crash_tests.rs#postgres_native_mutation_process_crash_fixture_is_current",
   "product/runtime/auths-gateway/src/native_dependency_tests.rs#native_file_dependency_order_fixture_is_current",
   "product/runtime/auths-gateway/src/native_dependency_tests.rs#postgres_native_dependency_order_fixture_is_current",
   "product/runtime/auths-gateway/src/native_budget_tests.rs#native_file_window_capacity_fixture_is_current",

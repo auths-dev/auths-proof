@@ -410,7 +410,7 @@ impl GatewayEngine {
         .await;
         let (approved, now) = match current {
             Ok(current) => current,
-            Err(result) => return retained.map_or(Err(result), Ok),
+            Err(result) => return retained.ok_or(result),
         };
         if let Some(snapshot) = self
             .attempts

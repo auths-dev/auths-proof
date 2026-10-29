@@ -21,7 +21,7 @@ use std::{
     path::Path,
     sync::{Arc, atomic::Ordering},
 };
-use tokio::net::UnixStream;
+use tokio::{io::AsyncReadExt as _, net::UnixStream};
 
 const SOURCE: &str = "retained-read";
 const RELEASE: &str = "retained-release";
@@ -67,7 +67,7 @@ struct Input {
     approval: ExactEffectApproval,
 }
 impl Input {
-    fn approval(effect: crate::effect::BoundEffect, change: Change) -> ExactEffectApproval {
+    fn approval(effect: &crate::effect::BoundEffect, change: Change) -> ExactEffectApproval {
         let until = if matches!(change, Change::ApprovalExpiry) {
             NOW + 5
         } else {
@@ -100,7 +100,7 @@ impl Input {
         Self {
             proof: signed.proof,
             action: signed.action,
-            approval: Self::approval(effect, change),
+            approval: Self::approval(&effect, change),
         }
     }
     async fn disclosure(
@@ -121,7 +121,7 @@ impl Input {
         Self {
             proof: signed.proof,
             action: signed.action,
-            approval: Self::approval(effect, change),
+            approval: Self::approval(&effect, change),
         }
     }
 }
@@ -369,7 +369,6 @@ async fn replay_release(engine: &GatewayEngine, history: &ReleaseHistory) -> Val
         .await
         .expect("retained release");
     assert_eq!(&replay, snapshot);
-    use tokio::io::AsyncReadExt as _;
     let mut byte = [0];
     assert_eq!(
         client.read(&mut byte).await.expect("closed replay"),

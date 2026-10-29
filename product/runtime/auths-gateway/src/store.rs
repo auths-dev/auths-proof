@@ -3061,7 +3061,7 @@ pub enum ContentHistory {
 
 /// Stored facts only. No variant contains an entry permit or current authority.
 pub(crate) enum RetainedSubmission {
-    Mutation(GatewayAttemptSnapshot),
+    Mutation(Box<GatewayAttemptSnapshot>),
     Acquisition(AcquisitionSnapshot),
     Disclosure(DisclosureSnapshot),
 }
@@ -3092,17 +3092,22 @@ impl GatewayAttempts {
             || record.namespace != namespace.as_str()
             || record.operation_id != operation.as_str()
             || record.recipe_digest != hex::encode(recipe)
-            || !record.native_authority()?.matches_inputs(proof, action)
         {
             return Err(GatewayAttemptError::BindingConflict);
+        }
+        // A different offered input is not a historical match. It must still
+        // pass current native verification before admission can report a
+        // changed-binding conflict; the lookup hint itself grants no authority.
+        if !record.native_authority()?.matches_inputs(proof, action) {
+            return Ok(None);
         }
         binding
             .validate_historical_approval(approval)
             .map_err(|_| GatewayAttemptError::BindingConflict)?;
         match &record.state {
-            ProtocolState::Mutation(_) => Ok(Some(RetainedSubmission::Mutation(
+            ProtocolState::Mutation(_) => Ok(Some(RetainedSubmission::Mutation(Box::new(
                 record.map_state(MutationState::extract)?.snapshot(true)?,
-            ))),
+            )))),
             ProtocolState::Acquisition(_) => Ok(Some(RetainedSubmission::Acquisition(
                 record
                     .map_state(acquisition::AcquisitionState::extract)?

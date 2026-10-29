@@ -2323,6 +2323,100 @@ closure regeneration passed after that correction (one artifact-generation test)
   source still requires exact published-head hosted verification. Final formal
   evidence on `ab36` does not attest to subsequent replay sources or journal `/16`.
 
+## Native mutation SIGKILL and reserved-continuation checkpoint
+
+- `native_mutation_crash_tests.rs` exercises the real native mutation engine in
+  a separate OS worker with independently opened custody and the maintained
+  file/TLS PostgreSQL stores. A transparent test-only adapter wrapper pauses at
+  actual before/after reservation, entry and response commit boundaries. A real
+  local HTTP server pauses after a partial response. The parent sends SIGKILL,
+  verifies signal 9 and absence of a caller result, then reopens native history.
+  No native verifier result, decision closure, durable ACK or permit is replaced.
+- The matrix includes the maintained Airtable recipe and the closed
+  `stripe-plain` recipe in the maintained hostile-recipe corpus. Stripe authority
+  carries native count and sum commitments: one invocation and 500 minor units are
+  held in slot 0, with no slot 1 allocation, refund or second charge after restart.
+  Initial admission/slot existence is all-or-none. Every observed write body and
+  declared idempotency header equals the original native review. The provider
+  counts all requests and performs no idempotency deduplication.
+- Seven interruption points for each recipe and adapter give 28 crash histories.
+  A committed grant projects Unknown even when the provider received zero writes.
+  Loss during/before response persistence remains Unknown with the actual request
+  count retained; a committed response returns its HTTP 200 fact after caller loss.
+  Only absent or reserved operations with no prior grant may enter after full
+  fresh native authorization. A second replay changes neither journal/slots nor
+  the same native execution witness and performs no implicit observation.
+- Another 32 histories kill workers after reservation or before entry, then
+  independently expire approval/resource authority, revoke the native connection
+  or activate changed native configuration before reopening. All retain Reserved
+  and the exact original charges/revision; no fresh custody, write or read occurs.
+  Original proof/action/approval bytes and admission event times are not renewed.
+- The test authoring helper now accepts an explicit signed validity interval.
+  Existing callers retain their original intervals. New Stripe proofs are signed
+  from `NOW - 10` through `NOW + 3600` (or `NOW + 5` for isolated authority expiry), within the
+  recipe's declared idempotency retention. The initial long-lived fixture was
+  correctly refused with `gateway.idempotency.window-exceeds-retention`; no
+  verifier clock, retention rule, deadline or installed trust was changed to make
+  the positive control pass.
+- Required generator execution passed 4/4, zero ignored, in 12.01 seconds: the two
+  new adapter matrices plus the two existing acquisition crash generators. The
+  new matrices contain 60 histories; all fourteen earlier acquisition histories
+  and their committed artifacts stayed unchanged after sharing the transparent
+  test pause/process helper. PostgreSQL uses the independent canonical TLS
+  fixture on port 55451 with CA/server-name verification and synchronous commit.
+- Both new ignored PostgreSQL/file cases are explicitly registered in the hosted
+  workflow and compliance inventory. These are source/artifact-construction
+  results; exact new-head hosted verification remains required. Full Stripe
+  guard/prerequisite and disclosure interruption schedules, partial upload and
+  device/power failure, broad fault/concurrency histories, installed human UI,
+  differential/performance and the remaining A01–A22 gates remain open. Fixed
+  public test keys, maintained clock, trusted stores, local HTTP and same-UID
+  process assumptions are explicit; no live-provider or hostile-host claim follows.
+
+## Holistic CI repair after retained replay publication
+
+- The exact published revision `9ae2e2c7` finished with 64 successful checks,
+  thirteen failures and nineteen skips across all fourteen workflows. Two source
+  roots caused three failed jobs and ten fail-closed rollups: strict Clippy
+  diagnostics, and the same substituted-challenge assertion in both installed
+  Stripe/Airtable demos. Fast Lean feedback passed; required qualified formal
+  translation/Kani/Lean/evidence were preflight-skipped, not new passes.
+- The CI agent's single source batch `7ad003e423c6290599dee44842883f8dff210df0`
+  is integrated into this combined change. A differing offered native proof or
+  action is now an advisory history miss, allowing ordinary native verification
+  to preserve the existing `denied / challenge-mismatch` result. Matching history
+  still requires both digests and the retained exact approval signature. Corrupt,
+  unavailable, foreign or invalidly signed retained state remains a hard refusal.
+  No existing demo assertion, security deadline, tool pin or invariant changed.
+- New replay controls are stronger: each changed native proof/action is compiled
+  and independently exactly approved before the original entry. Live changed
+  bindings must reach durable operation conflict; current expiry, revocation or
+  configuration refusal has its explicit expected code. Reusing the original
+  approval on a different effect still fails before custody, with exact journal,
+  provider count/body and native execution witness preserved throughout.
+- The agent reproduced the actual failing full workspace strict Clippy command
+  successfully, and passed four retained replay matrices on file/TLS PostgreSQL,
+  the native header-corruption test and unchanged demo diagnostics: Stripe 23,
+  Airtable 34 semantic plus 2 crash cases. The demo diagnostic uses existing installed
+  artifacts and same-UID execution; it is not fresh Docker/SDK/isolation evidence.
+  Detailed report: `/tmp/ap074-ci-9ae2-report.md`; machine matrix:
+  `/tmp/ap074-ci-9ae2-evidence.json`.
+- Published PostgreSQL job `123481020880` in run `40883517998` actually passed all
+  sixteen explicit native cases, zero ignored in each, plus thirty existing
+  gateway PostgreSQL tests. The actual producer revision is PR merge
+  `d842ec5607c0d0c4fa915a732df78d5720b3aad7`, whose verified tree
+  `101b09d359ecba54d666b61d92f3b79d886c6ca8` equals the published source tree.
+  Preserve that producer identity; do not relabel it as literal source head.
+- The combined gateway library/tests also passed strict all-feature Clippy in
+  12.59 seconds after repairing three new test-style diagnostics with equivalent
+  patterns/borrowing. No lint allowance was added and every assertion remains.
+- The combined source includes the sixty new mutation crash/continuation
+  histories, so fresh exact-head hosted verification is still required. Release
+  freeze 404 advances only the reported identity protocol 148, SDK contract 145 and
+  public surface 404 subjects. Journal schema remains `/16`; canonical effect
+  identity and existing native fixture bytes remain unchanged. AP074 is not
+  complete and no acceptance gate is waived by this source repair.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2345,7 +2439,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A02 | Independent mutation of every binding dimension | Partial / bound-effect corpus and native retained-input controls / distinct valid proof/action, damaged approval, changed resource and changed recipient rejected during file/TLS PostgreSQL replay | Complete independent substitutions for every binding dimension and installed surface remain required |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
-| A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
+| A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file, daemon/recipient process and native file/TLS PostgreSQL history corpora / both peers killed before ACK in the process corpus; native lost-ACK history retained across expiry, revocation, configuration replacement and engine reopen on both stores | Remaining crash/persistence boundaries and complete late-ACK PostgreSQL schedules pending |

@@ -31,7 +31,7 @@ const OPERATION: &str = "crash-read";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Point {
+pub(super) enum Point {
     BeforeReservationCommit,
     AfterReservationCommit,
     BeforeEntryCommit,
@@ -41,7 +41,7 @@ enum Point {
     AfterResponseCommit,
 }
 impl Point {
-    const ALL: [Self; 7] = [
+    pub(super) const ALL: [Self; 7] = [
         Self::BeforeReservationCommit,
         Self::AfterReservationCommit,
         Self::BeforeEntryCommit,
@@ -50,7 +50,7 @@ impl Point {
         Self::BeforeResponseCommit,
         Self::AfterResponseCommit,
     ];
-    const fn resumable(self) -> bool {
+    pub(super) const fn resumable(self) -> bool {
         matches!(
             self,
             Self::BeforeReservationCommit | Self::AfterReservationCommit | Self::BeforeEntryCommit
@@ -66,7 +66,7 @@ impl Point {
             Self::AfterResponseCommit => Some("content-response-recorded"),
         }
     }
-    const fn provider_calls(self) -> usize {
+    pub(super) const fn provider_calls(self) -> usize {
         match self {
             Self::DuringResponse | Self::BeforeResponseCommit | Self::AfterResponseCommit => 1,
             _ => 0,
@@ -82,9 +82,13 @@ impl Point {
                 | (
                     Self::BeforeResponseCommit,
                     false,
-                    "content-response-recorded"
+                    "content-response-recorded" | "response-recorded"
                 )
-                | (Self::AfterResponseCommit, true, "content-response-recorded")
+                | (
+                    Self::AfterResponseCommit,
+                    true,
+                    "content-response-recorded" | "response-recorded"
+                )
         )
     }
 }
@@ -96,7 +100,7 @@ struct CrashSetup {
     point: Point,
 }
 
-fn pause_at(port: u16) {
+pub(super) fn pause_at(port: u16) {
     let mut channel = TcpStream::connect(("127.0.0.1", port)).expect("crash control");
     channel
         .set_read_timeout(Some(Duration::from_secs(20)))
@@ -112,7 +116,15 @@ fn pause_at(port: u16) {
 /// A transparent proxy around the actual adapter. Native closures are never
 /// replaced or rerun: the adapter invokes them at most once under its fence,
 /// and receives their bytes unchanged.
-struct PausedStore {
+#[derive(Clone, Copy)]
+pub(super) enum CrashProtocol {
+    Acquisition,
+    Mutation,
+}
+
+pub(super) struct PausedStore {
+    operation: &'static str,
+    protocol: CrashProtocol,
     inner: Arc<dyn GatewayAttemptStore>,
     key: GatewayAttemptKey,
     point: Point,
@@ -120,17 +132,45 @@ struct PausedStore {
     fired: AtomicBool,
 }
 impl PausedStore {
+    pub(super) fn new(
+        inner: Arc<dyn GatewayAttemptStore>,
+        key: GatewayAttemptKey,
+        operation: &'static str,
+        protocol: CrashProtocol,
+        point: Point,
+        port: u16,
+    ) -> Self {
+        Self {
+            inner,
+            key,
+            operation,
+            protocol,
+            point,
+            port,
+            fired: AtomicBool::new(false),
+        }
+    }
+
     fn target(&self, kind: GatewayRecordKind, key: GatewayAttemptKey) -> bool {
         kind == GatewayRecordKind::Attempt && key == self.key
     }
-    fn phase(bytes: &[u8]) -> String {
+    fn phase(&self, bytes: &[u8]) -> String {
+        Self::phase_for(self.protocol, self.operation, bytes)
+    }
+    pub(super) fn phase_for(protocol: CrashProtocol, operation: &str, bytes: &[u8]) -> String {
         let value: Value = serde_json::from_slice(bytes).expect("native record");
-        assert_eq!(value["operation_id"], OPERATION);
-        assert_eq!(value["state"]["protocol"], "acquisition");
-        value["state"]["facts"]["phase"]["stage"]
-            .as_str()
-            .expect("native phase")
-            .to_owned()
+        assert_eq!(value["operation_id"], operation);
+        let stage = match protocol {
+            CrashProtocol::Acquisition => {
+                assert_eq!(value["state"]["protocol"], "acquisition");
+                &value["state"]["facts"]["phase"]["stage"]
+            }
+            CrashProtocol::Mutation => {
+                assert_eq!(value["state"]["protocol"], "mutation");
+                &value["state"]["facts"]["stage"]
+            }
+        };
+        stage.as_str().expect("native phase").to_owned()
     }
     fn pause(&self, after: bool, phase: &str) {
         if self.point.matches(after, phase) && !self.fired.swap(true, Ordering::SeqCst) {
@@ -156,7 +196,7 @@ impl GatewayAttemptStore for PausedStore {
             .inner
             .fenced_insert_all(entries, dependencies, &mut |snapshots| {
                 let next = decide(snapshots)?;
-                let current = Self::phase(&next);
+                let current = self.phase(&next);
                 self.pause(false, &current);
                 phase = Some(current);
                 Ok(next)
@@ -180,7 +220,7 @@ impl GatewayAttemptStore for PausedStore {
         let mut phase = None;
         let result = self.inner.fenced_replace(keys, &mut |snapshots| {
             let next = decide(snapshots)?;
-            let current = Self::phase(&next);
+            let current = self.phase(&next);
             self.pause(false, &current);
             phase = Some(current);
             Ok(next)
@@ -200,7 +240,7 @@ impl GatewayAttemptStore for PausedStore {
         if !self.target(kind, *key) {
             return self.inner.replace(kind, key, current, next);
         }
-        let phase = Self::phase(next);
+        let phase = self.phase(next);
         self.pause(false, &phase);
         let result = self.inner.replace(kind, key, current, next);
         if result.is_ok() {
@@ -249,13 +289,14 @@ fn native_crash_peer() {
         Backend::parse(&setup.installation.backend),
         &setup.installation.location,
     );
-    let wrapped = Arc::new(PausedStore {
-        inner: attached.raw(),
-        key: operation_key(),
-        point: setup.point,
-        port: setup.installation.barrier_port,
-        fired: AtomicBool::new(false),
-    });
+    let wrapped = Arc::new(PausedStore::new(
+        attached.raw(),
+        operation_key(),
+        OPERATION,
+        CrashProtocol::Acquisition,
+        setup.point,
+        setup.installation.barrier_port,
+    ));
     let attempts = GatewayAttempts::new(wrapped, crate::effect::fixture_policy().expect("policy"))
         .expect("attempts");
     let runtime = runtime();
@@ -267,17 +308,13 @@ fn native_crash_peer() {
     );
 }
 
-struct Peer(Child);
+pub(super) struct Peer(Child);
 impl Peer {
-    fn start(input: &Path) -> Self {
+    pub(super) fn start(input: &Path, selector: &str, environment: &str) -> Self {
         Self(
             Command::new(std::env::current_exe().expect("test executable"))
-                .args([
-                    "--exact",
-                    "native_crash_tests::native_crash_peer",
-                    "--nocapture",
-                ])
-                .env("AUTHS_AP074_CRASH_PEER", input)
+                .args(["--exact", selector, "--nocapture"])
+                .env(environment, input)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
@@ -285,7 +322,7 @@ impl Peer {
                 .expect("native child"),
         )
     }
-    fn await_pause(&mut self, listener: &TcpListener) -> TcpStream {
+    pub(super) fn await_pause(&mut self, listener: &TcpListener) -> TcpStream {
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
             if let Some(status) = self.0.try_wait().expect("child status") {
@@ -317,7 +354,7 @@ impl Peer {
             }
         }
     }
-    fn kill(&mut self) {
+    pub(super) fn kill(&mut self) {
         self.0.kill().expect("SIGKILL");
         assert_eq!(self.0.wait().expect("child exit").signal(), Some(9));
     }
@@ -391,7 +428,11 @@ impl Case {
     fn crash(&self) {
         let input = self.setup.installation.root.join("crash-setup.json");
         private(&input, &serde_json::to_vec(&self.setup).expect("setup"));
-        let mut peer = Peer::start(&input);
+        let mut peer = Peer::start(
+            &input,
+            "native_crash_tests::native_crash_peer",
+            "AUTHS_AP074_CRASH_PEER",
+        );
         let mut paused = peer.await_pause(&self.listener);
         assert!(
             !self
@@ -419,7 +460,8 @@ impl Case {
             .expect("native record")
     }
     fn pre_crash_phase(&self, bytes: Option<&[u8]>) {
-        let phase = bytes.map(PausedStore::phase);
+        let phase =
+            bytes.map(|bytes| PausedStore::phase_for(CrashProtocol::Acquisition, OPERATION, bytes));
         assert_eq!(phase.as_deref(), self.setup.point.expected_phase());
         if let Some(bytes) = bytes {
             let value: Value = serde_json::from_slice(bytes).expect("native record");

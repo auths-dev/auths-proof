@@ -59,12 +59,25 @@ pub(crate) fn tool_fixture_using_policy(
     until: u64,
     policy: Option<&crate::ArgumentCeilingPolicy>,
 ) -> Result<ToolFixture, HarnessError> {
-    let root = Signer::new(0x11);
-    let actor = Signer::new(0x22);
-    let observer = Signer::new(0x33);
     let from = now
         .checked_sub(86_400)
         .ok_or(HarnessError::Fixture("time"))?;
+    tool_fixture_in_window(call, now, from, until, policy)
+}
+
+/// Authors the requested signed validity interval without changing the verifier
+/// clock or installed trust. This permits positive controls for recipes whose
+/// declared provider idempotency retention requires a shorter action interval.
+pub(crate) fn tool_fixture_in_window(
+    call: &McpToolCall,
+    now: u64,
+    from: u64,
+    until: u64,
+    policy: Option<&crate::ArgumentCeilingPolicy>,
+) -> Result<ToolFixture, HarnessError> {
+    let root = Signer::new(0x11);
+    let actor = Signer::new(0x22);
+    let observer = Signer::new(0x33);
     let context = context_for_tool(&root, &observer.principal, now, call)?;
     let grant = if let Some(policy) = policy {
         let extension = fixture(

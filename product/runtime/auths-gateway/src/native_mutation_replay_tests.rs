@@ -9,6 +9,7 @@ use crate::{
     GatewaySubmitResult, LogicalOperationId, SharedConnection,
 };
 use auths_profile_mcp::McpToolCall;
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Value, json};
 use std::{
@@ -166,7 +167,23 @@ struct Input {
     action: Vec<u8>,
     approval: crate::effect::ExactEffectApproval,
     body: Vec<u8>,
-    changed: Vec<crate::harness::authoring::ToolFixture>,
+    changed: Vec<ChangedInput>,
+}
+struct ChangedInput {
+    signed: crate::harness::authoring::ToolFixture,
+    approval: crate::effect::ExactEffectApproval,
+}
+fn approval(
+    effect: &crate::effect::BoundEffect,
+    expires: u64,
+) -> crate::effect::ExactEffectApproval {
+    let request = effect
+        .approval_request(NOW, expires)
+        .expect("approval request");
+    let signature = SigningKey::from_bytes(&[29; 32])
+        .sign(&request.signing_message().expect("preimage"))
+        .to_bytes();
+    request.with_signature(signature)
 }
 impl Input {
     async fn author(engine: &GatewayEngine, change: Change) -> Self {
@@ -200,38 +217,37 @@ impl Input {
             changed_call,
         )
         .expect("changed call");
-        let changed = vec![
+        let expires = if matches!(change, Change::ApprovalExpiry) {
+            NOW + 5
+        } else {
+            NOW + 300
+        };
+        let alternatives = [
             tool_fixture_until(&call, NOW, NOW + 86_399).expect("different valid native proof"),
             tool_fixture_until(&changed_call, NOW, NOW + 86_400)
                 .expect("different valid native action"),
         ];
-        for alternative in &changed {
+        let mut changed = Vec::new();
+        for alternative in alternatives {
             let compiled = engine
                 .compile_effect(&alternative.proof, &alternative.action)
                 .await
                 .expect("positive native changed-input control");
             assert_ne!(compiled.binding().id(), effect.binding().id());
+            changed.push(ChangedInput {
+                signed: alternative,
+                approval: approval(&compiled, expires),
+            });
         }
         let body = effect
             .private_request()
             .expect("mutation request")
             .body()
             .to_vec();
-        let expires = if matches!(change, Change::ApprovalExpiry) {
-            NOW + 5
-        } else {
-            NOW + 300
-        };
-        let request = effect
-            .approval_request(NOW, expires)
-            .expect("approval request");
-        let signature = SigningKey::from_bytes(&[29; 32])
-            .sign(&request.signing_message().expect("preimage"))
-            .to_bytes();
         Self {
             proof: signed.proof,
             action: signed.action,
-            approval: request.with_signature(signature),
+            approval: approval(&effect, expires),
             body,
             changed,
         }
@@ -392,6 +408,7 @@ fn reopened_engine(
     reopened
 }
 
+#[derive(Clone, Copy)]
 struct ReplayCheck<'a> {
     runtime: &'a tokio::runtime::Runtime,
     engine: &'a GatewayEngine,
@@ -421,22 +438,48 @@ fn assert_replay(check: ReplayCheck<'_>) -> Value {
     let operation = LogicalOperationId::parse(OPERATION).expect("operation");
     let witness = engine.execution_witness();
     for alternative in &input.changed {
-        let result = runtime.block_on(engine.submit(
-            &alternative.proof,
-            &alternative.action,
+        // Foreign inputs do not retrieve history. The original approval cannot
+        // authorize them; their own real approval reaches the durable conflict
+        // only while current execution authority is still valid.
+        let stale_approval = runtime.block_on(engine.submit(
+            &alternative.signed.proof,
+            &alternative.signed.action,
             input.approval.clone(),
+        ));
+        assert_eq!(
+            stale_approval,
+            GatewaySubmitResult::NotEntered {
+                code: if matches!(change, Change::ConnectionRevoked) {
+                    "gateway.connection.unavailable"
+                } else {
+                    "gateway.effect.approval"
+                }
+                .to_owned()
+            }
+        );
+        let result = runtime.block_on(engine.submit(
+            &alternative.signed.proof,
+            &alternative.signed.action,
+            alternative.approval.clone(),
         ));
         assert_eq!(
             result,
             GatewaySubmitResult::NotEntered {
-                code: "gateway.effect.operation-conflict".to_owned()
+                code: match change {
+                    // These alternative proofs deliberately remain live even
+                    // when the original source's authority has expired.
+                    Change::None | Change::AuthorityExpiry => "gateway.effect.operation-conflict",
+                    Change::ApprovalExpiry | Change::ConfigurationReplaced =>
+                        "gateway.effect.approval",
+                    Change::ConnectionRevoked => "gateway.connection.unavailable",
+                }
+                .to_owned()
             }
         );
     }
     let mut invalid: Value =
         serde_json::from_slice(&input.approval.to_private_bytes().expect("approval"))
             .expect("shape");
-    use base64ct::{Base64UrlUnpadded, Encoding as _};
     let mut signature =
         Base64UrlUnpadded::decode_vec(invalid["signature_b64"].as_str().expect("signature"))
             .expect("base64");
