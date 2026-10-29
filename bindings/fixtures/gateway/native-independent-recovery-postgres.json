@@ -1,0 +1,265 @@
+{
+  "schema": "auths.native-independent-recovery/1",
+  "adapter": "postgres",
+  "scope": "real native writer and separate reader OS processes; exact approvals; operator trust activation withdraws writer root while retaining independent reader; maintained durable stores and local actual HTTP",
+  "assumptions": [
+    "fixed public test keys and maintained clock",
+    "trusted operator/host/stores and same UID",
+    "provider double with no request deduplication"
+  ],
+  "excluded": [
+    "signed principal/grant status service revocation",
+    "production provider or human-presence qualification",
+    "hostile OS containment and whole-store rollback"
+  ],
+  "cases": [
+    {
+      "outcome": "response-echo",
+      "writer_root_withdrawn_by_operator": true,
+      "source_stage_before_recovery": "response-recorded",
+      "writer_current_denial": "untrusted-root",
+      "writer_actor": "key:sha256:YqztR9B8IBG4DgX4fH9SsnfiTJmaoFToFcgkEqz1aXw",
+      "reader_actor": "key:sha256:kVKFu9-uSgReZDOOhTO53camoLea6CuzkC8igs2fTIE",
+      "writer_proof_and_approval_still_in_time": true,
+      "exact_reviewed_write_received": true,
+      "provider_writes": 1,
+      "provider_reads": 1,
+      "source_identity_entry_charges_unchanged": true,
+      "original_signed_bytes_unchanged": true,
+      "recovery": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "observed-by-provider",
+          "revision": 4,
+          "response_status": 200,
+          "observation_match": null,
+          "provider_linked": true,
+          "recovery_received_at": 1790000001
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 125,
+          "response_version_ok": true
+        },
+        "disposition": "recorded"
+      },
+      "replay": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "observed-by-provider",
+          "revision": 4,
+          "response_status": 200,
+          "observation_match": null,
+          "provider_linked": true,
+          "recovery_received_at": 1790000001
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 125,
+          "response_version_ok": true
+        },
+        "disposition": "already-recorded"
+      },
+      "historical_writer_replay_stage": "observed-by-provider",
+      "replay_journals_and_execution_unchanged": true
+    },
+    {
+      "outcome": "response-state",
+      "writer_root_withdrawn_by_operator": true,
+      "source_stage_before_recovery": "response-recorded",
+      "writer_current_denial": "untrusted-root",
+      "writer_actor": "key:sha256:YqztR9B8IBG4DgX4fH9SsnfiTJmaoFToFcgkEqz1aXw",
+      "reader_actor": "key:sha256:kVKFu9-uSgReZDOOhTO53camoLea6CuzkC8igs2fTIE",
+      "writer_proof_and_approval_still_in_time": true,
+      "exact_reviewed_write_received": true,
+      "provider_writes": 1,
+      "provider_reads": 1,
+      "source_identity_entry_charges_unchanged": true,
+      "original_signed_bytes_unchanged": true,
+      "recovery": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "observed",
+          "revision": 4,
+          "response_status": 200,
+          "observation_match": true,
+          "provider_linked": false,
+          "recovery_received_at": 1790000001
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 36,
+          "response_version_ok": true
+        },
+        "disposition": "recorded"
+      },
+      "replay": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "observed",
+          "revision": 4,
+          "response_status": 200,
+          "observation_match": true,
+          "provider_linked": false,
+          "recovery_received_at": 1790000001
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 36,
+          "response_version_ok": true
+        },
+        "disposition": "already-recorded"
+      },
+      "historical_writer_replay_stage": "observed",
+      "replay_journals_and_execution_unchanged": true
+    },
+    {
+      "outcome": "lost-echo",
+      "writer_root_withdrawn_by_operator": true,
+      "source_stage_before_recovery": "unknown",
+      "writer_current_denial": "untrusted-root",
+      "writer_actor": "key:sha256:YqztR9B8IBG4DgX4fH9SsnfiTJmaoFToFcgkEqz1aXw",
+      "reader_actor": "key:sha256:kVKFu9-uSgReZDOOhTO53camoLea6CuzkC8igs2fTIE",
+      "writer_proof_and_approval_still_in_time": true,
+      "exact_reviewed_write_received": true,
+      "provider_writes": 1,
+      "provider_reads": 1,
+      "source_identity_entry_charges_unchanged": true,
+      "original_signed_bytes_unchanged": true,
+      "recovery": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "observed-by-provider",
+          "revision": 4,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": true,
+          "recovery_received_at": 1790000001
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 125,
+          "response_version_ok": true
+        },
+        "disposition": "recorded"
+      },
+      "replay": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "observed-by-provider",
+          "revision": 4,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": true,
+          "recovery_received_at": 1790000001
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 125,
+          "response_version_ok": true
+        },
+        "disposition": "already-recorded"
+      },
+      "historical_writer_replay_stage": "observed-by-provider",
+      "replay_journals_and_execution_unchanged": true
+    },
+    {
+      "outcome": "lost-state",
+      "writer_root_withdrawn_by_operator": true,
+      "source_stage_before_recovery": "unknown",
+      "writer_current_denial": "untrusted-root",
+      "writer_actor": "key:sha256:YqztR9B8IBG4DgX4fH9SsnfiTJmaoFToFcgkEqz1aXw",
+      "reader_actor": "key:sha256:kVKFu9-uSgReZDOOhTO53camoLea6CuzkC8igs2fTIE",
+      "writer_proof_and_approval_still_in_time": true,
+      "exact_reviewed_write_received": true,
+      "provider_writes": 1,
+      "provider_reads": 1,
+      "source_identity_entry_charges_unchanged": true,
+      "original_signed_bytes_unchanged": true,
+      "recovery": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "unknown",
+          "revision": 3,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 36,
+          "response_version_ok": true
+        },
+        "disposition": "inconclusive"
+      },
+      "replay": {
+        "schema": "auths.gateway-recovery/1",
+        "source": {
+          "stage": "unknown",
+          "revision": 3,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 36,
+          "response_version_ok": true
+        },
+        "disposition": "inconclusive"
+      },
+      "historical_writer_replay_stage": "unknown",
+      "replay_journals_and_execution_unchanged": true
+    }
+  ]
+}

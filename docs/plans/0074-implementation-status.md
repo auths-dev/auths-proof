@@ -2537,6 +2537,60 @@ closure regeneration passed after that correction (one artifact-generation test)
   native test authoring/evidence and documentation, with no shipping behavior,
   journal schema, clock rule, approval rule or verification limit change.
 
+## Native independent recovery actor checkpoint
+
+- New `native-independent-recovery-{file,postgres}.json` contains four histories
+  per adapter, with actual native writer and separate recovery-reader OS
+  processes and real local PATCH/GET transport. The operator activates a native
+  trust configuration withdrawing the writer root while retaining an independent
+  reader root and actor. No post-verification oracle, substituted record,
+  provider response injection or reconstructed permit is used.
+- The original writer proof and exact approval remain in time at the recovery
+  clock. Previously valid, exactly approved new write/read submissions are
+  refused with native `untrusted-root` after activation, without admission,
+  custody or HTTP entry. Their initial native positive controls passed before
+  withdrawal. The reader's distinct principal, native read proof, current exact
+  approval and binding to the original source effect are checked. Source write
+  approval is independently rejected as recovery consent.
+- Four outcomes distinguish recorded/lost write response and state equality/
+  declared echo linkage. The provider receives the exact reviewed PATCH body
+  once, records that state, and answers exactly one bodyless GET. A matching
+  value without a link leaves lost-response history Unknown/Inconclusive. A
+  supported link may add provider-linked evidence while original response status
+  remains absent. A recorded response with equality alone projects Observed
+  without provider linkage; these facts are never collapsed into one success.
+- Recovery preserves every source field except the sole reducer's supported
+  recovery facts/revision, including original identity, actor/proof/approval,
+  connection/configuration attribution, entry audit and charges. Both signed
+  input sets stay unchanged. Recovery replay preserves source/read snapshots and
+  execution witnesses; reopened historical writer replay preserves both journals
+  with zero lease/read/write calls even after current authority is withdrawn.
+- Required construction passed both adapter generators (2/2, zero ignored,
+  2.36 seconds), and no-update verification passed (2/2, zero ignored,
+  2.45 seconds). Combined strict all-feature gateway library/test Clippy passed
+  in 13.13 seconds without lint allowances or relaxed assertions. The provider
+  helper explicitly restores blocking mode on
+  accepted sockets; its existing three-second I/O deadlines remain unchanged.
+  This fixes inherited nonblocking behavior in the new test helper, without
+  changing any native deadline or assertion. Both explicit tests are registered
+  in the hosted PostgreSQL workflow and compliance inventory.
+- This is operator root withdrawal, not signed principal/grant status-service
+  revocation evidence. Fixed public keys, simulated reviewer signatures,
+  maintained clock, trusted operator/host/stores, same UID and local provider
+  assumptions remain explicit. Installed authenticated UI/language paths, other
+  revocation scopes, isolation and live-provider qualification remain separate
+  gates. AP070 remains independent and AP073 remains untouched.
+- The required gateway source closure is regenerated. Freeze 406 advances only
+  the generator-reported compliance-bound identity protocol 150, public SDK 147
+  and public surface 406 subjects. Journal schema `/16`, effect schema `/3`,
+  compiler `/8`, all native clocks/deadlines and shipping semantics remain
+  unchanged. This batch and local threshold commit `0e20c5f8` require fresh
+  exact-head hosted verification after publication. The live authoritative Lean
+  job `123552204257` for published `ce9d6cf5` is preserved; its twenty explicit
+  native PostgreSQL workflow cases passed with none ignored, including the newly
+  published disclosure matrices. That evidence does not attest to these later
+  unpublished sources or close complete AP074 acceptance.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2564,12 +2618,12 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient and full native file/TLS PostgreSQL crash corpora / fifty-six release histories include partial sends, both peers killed before ACK, caller loss after ACK commit, current-authority gates, late and repeated ACKs with conserved allocations/slots | Remaining I/O-error/ambiguous-commit races and full installed boundary evidence pending |
 | A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
-| A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
+| A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP and independent native recovery histories / six candidate process histories plus eight file/TLS PostgreSQL histories distinguish denial, lost/recorded response, state equality and declared echo linkage | Complete installed mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate plus full native acquisition worker/operator histories / sixteen file/TLS PostgreSQL histories executed | Complete mutation/disclosure races remain required |
 | A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and native independent-process approval/authority/observer lock-wait cases / file/TLS PostgreSQL positive/stale observer controls executed at the exact freshness boundary and one second beyond | Full mutation/disclosure and installed/adverse evidence remain required |
 | A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls / four file/TLS PostgreSQL histories execute unchanged/changed selection; proof remains Authorized but changed authority invalidates the old still-current exact approval before grant | Complete installed language/UI and mutation/disclosure parity remain required |
-| A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
+| A15 | Recovery actor differs; original authority revoked | Partial / native independent writer/reader OS-process journey / eight file/TLS PostgreSQL histories execute after operator withdrawal of writer root, with original entry/identity/charges preserved and fresh independent reader approval | Other revocation scopes and full installed language/authenticated UI evidence remain required |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |

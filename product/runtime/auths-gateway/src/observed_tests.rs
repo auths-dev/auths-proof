@@ -58,6 +58,10 @@ mod effect_native_tests;
 #[path = "native_threshold_testkit.rs"]
 pub(crate) mod threshold_testkit;
 
+#[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+#[path = "native_recovery_authoring.rs"]
+pub(crate) mod recovery_authoring;
+
 fn window(from: u64, until: u64) -> ValidityWindow {
     h::window(from, until).expect("window")
 }

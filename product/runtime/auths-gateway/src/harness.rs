@@ -425,6 +425,26 @@ pub(crate) fn context_for_tools(
     )
 }
 
+/// Native test trust for explicit independent roots and closed tool permissions.
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+pub(crate) fn context_for_tools_with_roots(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    now: u64,
+    tools: &[McpToolCall],
+) -> Result<TrustedContext, HarnessError> {
+    context_for(
+        roots,
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        tools,
+    )
+}
+
 #[allow(
     clippy::too_many_arguments,
     reason = "test trust fixture keeps each explicit bound visible"

@@ -324,6 +324,24 @@ fn native_crash_peer() {
 
 pub(super) struct Peer(Child);
 impl Peer {
+    pub(super) fn finish(&mut self) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            if let Some(status) = self.0.try_wait().expect("child status") {
+                let mut diagnostic = String::new();
+                self.0
+                    .stderr
+                    .take()
+                    .expect("stderr")
+                    .read_to_string(&mut diagnostic)
+                    .expect("diagnostic");
+                assert!(status.success(), "native peer failed: {diagnostic}");
+                return;
+            }
+            assert!(Instant::now() < deadline, "native peer completion timeout");
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
     pub(super) fn start(input: &Path, selector: &str, environment: &str) -> Self {
         Self(
             Command::new(std::env::current_exe().expect("test executable"))

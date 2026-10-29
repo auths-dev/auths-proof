@@ -715,6 +715,30 @@ acquisition ordering under the stated test deployment. Complete mutation/
 disclosure dependency races and installed language/human UI evidence remain
 separate requirements.
 
+`native-independent-recovery-{file,postgres}.json` exercises four outcomes per
+adapter using separate native writer and recovery-reader OS processes. A real
+operator configuration activation withdraws the writer root while retaining an
+independent reader root/actor. Previously valid, exactly approved new write and
+recovery-read submissions from the writer then fail native `untrusted-root`
+verification without admission, custody or provider entry. The original proof
+and approval remain within their signed validity windows; this is authority
+withdrawal rather than expiry. The current reader obtains its own native read
+proof and exact approval bound to the original source effect. Source approval
+cannot stand in for recovery approval.
+
+Actual local PATCH/GET exchanges distinguish a recorded response, a lost response,
+matching state and recipe-declared echo linkage. Matching state without that
+link leaves a lost-response source Unknown and the recovery Inconclusive. A
+supported echo link records provider-linked evidence with the original response
+status still absent; it does not invent a write response. Recovery preserves
+source identity, actor attribution, signed evidence, entry audit and charges.
+Reopened replay preserves both journals and performs no new lease or HTTP call;
+retained writer history remains readable after current authority is withdrawn.
+These are native file/TLS PostgreSQL observations with public test keys, a
+maintained clock and trusted host/operator/stores. Signed principal/grant status
+service revocation, installed human UI/language paths, hostile-process isolation
+and live-provider qualification remain separate evidence requirements.
+
 `native-window-capacity-{file,postgres}.json` separately exercises native
 bounded resource grants and exact approvals across independent worker processes.
 After a prefix acquisition, two new operations contend for the last count slot,
