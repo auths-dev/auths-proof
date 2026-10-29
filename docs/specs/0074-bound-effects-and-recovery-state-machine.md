@@ -252,6 +252,36 @@ must preserve that contract and associate its displayed result with the exact
 signing request. Native fixture parity alone does not close the installed
 approval-channel or human-journey acceptance gate.
 
+The managed Airtable demo now has an optional simulation-only owner interface
+on a separate loopback origin. In this mode the application receives no exact
+effect approvals at startup. A private operator login file authenticates the
+owner to the installed approver boundary. One opaque pending-review identity
+links the complete native literal projection and signing request to the owner's
+approve/decline decision; unsupported, truncated or mismatched review envelopes
+cannot enter that channel. Only the operator then signs the retained native
+request. The application cannot supply review text, signing bytes or a consent
+decision. Native proof, binding, approval, admission and recovery checks remain
+the sole execution authority.
+
+The owner page uses explicit same-origin bearer headers held only in page
+memory. It uses no cookies or browser storage: cookies would cross localhost
+ports and reach the application's origin. Host/origin, session and CSRF checks,
+one pending review, eight handlers, 1,024-byte commands, the native 131,072-byte
+review envelope, five-second HTTP I/O, fifteen-minute session and ten-minute
+consent bounds are explicit. These UI limits never refresh native signed times
+or evidence. Existing source-only review RPCs retain their 1,024-byte bound;
+new proof/action proposals use a separate bounded operator socket.
+
+Hosted tests are authored for authentication/refusal, complete unmodified
+presentation, withheld approvals, declined effects with no native entry, a
+substituted review, one exact write, separately approved recovery and replay
+without new execution. The source-free installed browser journey simulates owner
+actions and retains screenshots/provenance. It does not establish human
+attention, live-provider qualification, the complete content acquisition/
+disclosure UI or hostile-host containment. The default simulator and live
+operator channel keep their existing narrower claims. A22 remains open until
+the complete installed journey and required exact-head evidence pass.
+
 ### 4.3 Closed transport and custody
 
 The private bound value contains the exact method, origin/path/query, noncredential headers, media type, body and closed observation plan. Transport accepts a stage-sealed effect capability, not a second set of URL/body/recipient parameters. Credential injection may fill only the approved credential slot for the bound connection/account/generation. Credentials themselves never enter effect serialization, public commitments, receipts, bindings or agent memory.

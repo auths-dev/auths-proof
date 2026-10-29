@@ -278,7 +278,7 @@ def operator_consent(directory, name):
 
 
 class Operator:
-    def __init__(self, mode):
+    def __init__(self, mode, owner_ui_port=None):
         require(os.getuid() == 0, 'demo.operator-root-required')
         require(not HOME.exists(), 'demo.fresh-container-required')
         HOME.mkdir(mode=0o755)
@@ -290,6 +290,10 @@ class Operator:
         os.chown(self.sockets, 0, APP_GID)
         self.port = None
         self.effect_reviewer = development_ed25519_identity_key()
+        self.owner_review = None
+        if owner_ui_port is not None:
+            from owner_review import OwnerReviewServer
+            self.owner_review = OwnerReviewServer(PRIVATE, owner_ui_port)
 
     def start_gateway(self, host):
         socket_path = self.sockets / ('app' + str(host) + '.sock')
@@ -431,8 +435,8 @@ class Operator:
             for signer in managers:
                 await signer.aclose()
 
-    def exact_approval(self, state, name, proof, action, *mode):
-        """Scripted reviewer over complete native literal output; no human-trial claim."""
+    def exact_approval(self, state, name, proof, action, *mode, review_only=False, owner_consent=False):
+        """Native review plus explicit owner consent, or the labeled simulator."""
         directory = PRIVATE / name
         directory.mkdir(mode=0o700)
         proof_path, action_path = directory / 'proof', directory / 'action'
@@ -453,7 +457,12 @@ class Operator:
                 'demo.native-effect-review-required')
         write(directory / 'literal-review.json', output.stdout, new=True)
         write(directory / 'literal-review.txt', review['literal_review'].encode('utf-8'), new=True)
-        if self.mode == 'live':
+        if review_only:
+            return proof_path, action_path, None
+        if owner_consent:
+            require(self.owner_review is not None, 'demo.owner-review-unavailable')
+            self.owner_review.request(review)
+        elif self.mode == 'live':
             operator_consent(directory, name)
         signature = self.effect_reviewer.sign(bytes.fromhex(review['signing_message_hex']))
         write(approval, gateway(self.binary, 'effect-approval', '--request', request,
@@ -467,20 +476,25 @@ class Operator:
         values, reviews = {}, {}
         for label in LABELS:
             proof, action, _ = asyncio.run(application.packet(label))
-            result = self.exact_approval(HOME / 'gateway0', 'effect-' + label, proof, action)
+            result = self.exact_approval(HOME / 'gateway0', 'effect-' + label, proof, action,
+                                         review_only=self.owner_review is not None)
             if result is not None:
-                values[label] = b64(read(result[2]))
-                review = decode(read(result[2].parent / 'literal-review.json'))
+                if result[2] is not None:
+                    values[label] = b64(read(result[2]))
+                review = decode(read(result[0].parent / 'literal-review.json'))
                 reviews[label] = review['literal_review']
-        require('exact' in values, 'demo.exact-effect-approval-unavailable')
-        for label in LABELS:
-            # A malformed/unauthorized action cannot be reviewed. Sending an
-            # approval for another effect is an adversarial binding substitution,
-            # never an application-created authority or a bypass.
-            values.setdefault(label, values['exact'])
-        values['exact:fresh'] = values['exact']
+        if self.owner_review is None:
+            require('exact' in values, 'demo.exact-effect-approval-unavailable')
+            for label in LABELS:
+                # An approval for another effect is an adversarial substitution,
+                # never an application-created authority or a bypass.
+                values.setdefault(label, values['exact'])
+            values['exact:fresh'] = values['exact']
+        else:
+            require('exact' in reviews, 'demo.exact-effect-review-unavailable')
         plan['effect_approvals'] = values
-        plan['effect_review'] = {'mode': ('scripted operator reviewer; not an independent human trial'
+        plan['effect_review'] = {'mode': ('authenticated owner review required' if self.owner_review is not None
+            else 'scripted operator reviewer; not an independent human trial'
             if self.mode == 'simulation' else 'separate private operator consent; development signing custody'),
                                  'renderer': 'auths.literal-complete-review/1', 'reviews': reviews}
         write(HOME / 'app/application.json', canonical(plan))
@@ -494,7 +508,7 @@ class Operator:
             '--source-operation', source, '--recovery-operation', operation))
         proof, action = asyncio.run(self.read_packet(call, plan))
         approved = self.exact_approval(HOME / 'gateway0', operation, proof, action,
-                                        '--recovery-of', source)
+                                        '--recovery-of', source, owner_consent=self.owner_review is not None)
         require(approved is not None, 'demo.recovery-review-refused')
         return {'proof': b64(proof), 'action': b64(action), 'approval': b64(read(approved[2])),
                 'literal_review': decode(read(approved[2].parent / 'literal-review.json'))['literal_review']}
@@ -510,7 +524,7 @@ class Operator:
 
         class Handler(socketserver.BaseRequestHandler):
             def handle(self):
-                self.request.settimeout(660 if operator.mode == 'live' else 30)
+                self.request.settimeout(660 if operator.mode == 'live' or operator.owner_review is not None else 30)
                 def receive(length):
                     output = b''
                     while len(output) < length:
@@ -520,8 +534,34 @@ class Operator:
                     return output
                 try:
                     length = struct.unpack('>I', receive(4))[0]
-                    require(0 < length <= 1024, 'demo.review-request-bound')
+                    maximum = 4 * 1024 * 1024 if self.server.mutation_route else 1024
+                    require(0 < length <= maximum, 'demo.review-request-bound')
                     request = decode(receive(length))
+                    require(type(request) is dict, 'demo.review-request-refused')
+                    if self.server.mutation_route:
+                        require(set(request) == {'mutation', 'proof', 'action'}, 'demo.review-request-refused')
+                        label = request['mutation']
+                        require(type(label) is str and label in plan['cases'], 'demo.review-source-refused')
+                        proof, action = unb64(request['proof']), unb64(request['action'])
+                        if counts.get('mutation:' + label, 0):
+                            directory = PRIVATE / ('owner-mutation-' + label)
+                            require((directory / 'approval').is_file()
+                                    and read(directory / 'proof') == proof and read(directory / 'action') == action,
+                                    'demo.review-attempt-limit')
+                            # Redeliver only the original signed envelope. This
+                            # creates no new consent/signature or native permit.
+                            approved = directory / 'proof', directory / 'action', directory / 'approval'
+                        else:
+                            counts['mutation:' + label] = 1
+                            approved = operator.exact_approval(HOME / 'gateway0', 'owner-mutation-' + label,
+                                proof, action, owner_consent=True)
+                        require(approved is not None, 'demo.owner-review-refused')
+                        response = {'proof': b64(proof), 'action': b64(action), 'approval': b64(read(approved[2])),
+                            'literal_review': decode(read(approved[2].parent / 'literal-review.json'))['literal_review']}
+                        raw = canonical(response)
+                        require(len(raw) <= 4 * 1024 * 1024, 'demo.review-response-bound')
+                        self.request.sendall(struct.pack('>I', len(raw)) + raw)
+                        return
                     require(type(request) is dict and set(request) == {'source'}
                             and type(request['source']) is str
                             and request['source'] in plan['cases'], 'demo.review-source-refused')
@@ -536,13 +576,16 @@ class Operator:
                 require(len(raw) <= 4 * 1024 * 1024, 'demo.review-response-bound')
                 self.request.sendall(struct.pack('>I', len(raw)) + raw)
 
-        path = self.sockets / 'review.sock'
-        server = socketserver.UnixStreamServer(str(path), Handler)
-        os.chown(path, 0, APP_GID)
-        os.chmod(path, 0o660)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        self.review_server, self.review_thread = server, thread
+        self.review_servers = []
+        for mutation_route in ([False, True] if self.owner_review is not None else [False]):
+            path = self.sockets / ('owner-review.sock' if mutation_route else 'review.sock')
+            server = socketserver.UnixStreamServer(str(path), Handler)
+            server.mutation_route = mutation_route
+            os.chown(path, 0, APP_GID)
+            os.chmod(path, 0o660)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            self.review_servers.append((server, thread))
 
     def application(self, *arguments):
         return subprocess.run(['/opt/consumer/bin/python', str(HERE / 'app.py'), *arguments],
@@ -559,10 +602,12 @@ class Operator:
         return values
 
     def stop(self):
-        if hasattr(self, 'review_server'):
-            self.review_server.shutdown()
-            self.review_server.server_close()
-            self.review_thread.join(timeout=5)
+        if self.owner_review is not None:
+            self.owner_review.stop()
+        for server, thread in getattr(self, 'review_servers', []):
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
         for process, log, _ in self.processes:
             if process.poll() is None:
                 process.terminate()
@@ -585,13 +630,17 @@ def main():
     parser.add_argument('--port', type=int, default=8081)
     parser.add_argument('--selftest', action='store_true')
     parser.add_argument('--cleanup', action='store_true')
+    parser.add_argument('--owner-ui-port', type=int, help='Separate authenticated owner UI for local simulation')
     args = parser.parse_args()
+    require(args.owner_ui_port is None or (not args.live and not args.selftest and not args.cleanup
+            and 1024 <= args.owner_ui_port <= 65535 and args.owner_ui_port != args.port),
+            'demo.owner-ui-simulation-and-separate-port-required')
     if args.cleanup:
         require(args.live and not args.selftest, 'demo.live-cleanup-required')
         cleanup_existing()
         return
     require(not args.selftest or not args.live, 'demo.selftest-simulation-only')
-    operator = Operator('live' if args.live else 'simulation')
+    operator = Operator('live' if args.live else 'simulation', args.owner_ui_port)
     def interrupted(*_):
         raise Refusal('demo.interrupted')
     signal.signal(signal.SIGTERM, interrupted)

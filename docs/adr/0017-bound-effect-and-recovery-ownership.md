@@ -119,6 +119,18 @@ an effect digest alone does not establish complete presentation. Domain profiles
 own the meanings and units of mandatory fields. Faithful presentation makes no
 claim about human comprehension.
 
+The managed Airtable demo's optional owner HTTP interface is consent transport,
+not a second semantic owner. The operator retains the complete native review and
+request, authenticates the owner through a private bootstrap credential, and
+signs only after an exact pending-review decision. The application receives no
+preissued exact approvals in this mode. Native code still owns approval bytes,
+resource authority, the immutable effect and every durable transition. Owner
+authentication stays in explicit origin-bound headers rather than cookies that
+cross localhost ports. Session/consent time limits never refresh native signed
+times or create an entry permit. This remains a simulation demonstration with
+hosted tests authored; complete installed acquisition/disclosure UI, broader
+containment and exact-head evidence remain required.
+
 Recovery exposes bounded observation work, retained charges and escalation.
 Administrative annotations are not provider evidence; no administrative path can
 convert post-grant uncertainty into non-entry or silently release capacity.

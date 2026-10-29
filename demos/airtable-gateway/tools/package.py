@@ -21,7 +21,7 @@ def main():
     source = Path(__file__).resolve().parents[1]
     repository = source.parents[1]
     files = {}
-    for name in ['app.py', 'operate.py', 'demo_common.py', 'double.py', 'selftest.py', 'generated.py',
+    for name in ['app.py', 'operate.py', 'owner_review.py', 'demo_common.py', 'double.py', 'selftest.py', 'generated.py',
                  'profile.toml', 'profile.lock.json', 'recipe.json', 'vectors.json',
                  'Dockerfile', 'README.md', 'package.json', 'contract.json', 'launch.py']:
         files[name] = ((source / name).read_bytes(), 0o644)

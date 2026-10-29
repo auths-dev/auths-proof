@@ -210,6 +210,52 @@ session. Do not overwrite a dirty journal or use forced kill as normal cleanup.
 
 ## Evidence boundaries
 
+### Authenticated owner review in local simulation
+
+The optional owner interface withholds all application exact-effect approvals
+until a separately authenticated owner reviews and approves the complete native
+literal projection. The application keeps its own proposal interface; it cannot
+read the owner login file or exact approver key. Native authorization, request
+compilation, admission and recovery still run in the gateway.
+
+```sh
+python launch.py --name airtable-owner-workbench --port 8181 --owner-ui-port 8182
+```
+
+Open the application at `http://localhost:8181` and owner review at
+`http://localhost:8182`. Retrieve `/run/demo/private/owner-login` through the
+trusted container operator account and enter it only in the owner interface.
+Choose a closed application experiment, inspect the entire native review on the
+owner page, and approve or decline that exact pending effect. Recovery requires
+its own review and approval. A cached approval permits only the same native
+effect; replay remains subject to the gateway's conservative history rules.
+Each closed mutation label permits one new consent attempt per fresh run. An
+identical proof/action may retrieve its original signed approval after a client
+restart; this neither refreshes consent nor recreates a native entry permit.
+
+The browser keeps its short-lived owner bearer only in the owner page's memory
+and explicit same-origin headers. Cookies are deliberately absent: localhost
+cookies cross ports and would reach the untrusted application. The private
+credential file and approver key remain in the operator boundary. This assumes
+a trusted operator, browser and host, with the application UID unable to read
+operator state. Expose both Docker ports on host loopback only, as the launcher
+does. This mode is available only for simulation; live consent retains its
+existing private operator channel.
+
+Bounds are one pending review, eight HTTP handlers, a 1,024-byte command,
+131,072-byte native review envelope, five-second HTTP I/O, fifteen-minute owner
+session and ten-minute consent wait. Session/consent limits do not refresh native
+proofs, approvals or evidence. Native deadlines and final authority checks still
+apply. Initial simulation commissioning and organizational proof approvals stay
+explicitly scripted; the owner interface controls application exact effects.
+
+The hosted installed browser test exercises authenticated decline, refusal of a
+substituted review, unchanged full native presentation, one exact write,
+separately approved recovery and replay without further execution. Browser
+actions simulate the owner; no human-attention or production qualification claim
+follows. Complete managed content acquisition/disclosure through the installed
+UI and the remaining AP074 acceptance evidence are still required.
+
 The workflow packages and verifies exact payload digests outside the checkout,
 installs both SDK artifacts, measures native verification/replay/race/recovery,
 independent wire/read-back, competing-writer traffic, error bounds, UID isolation,

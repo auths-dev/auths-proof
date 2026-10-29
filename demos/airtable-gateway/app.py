@@ -80,6 +80,7 @@ class Application:
                 'demo.app-credential-environment')
         self.lock = threading.Lock()
         self.packets = {}
+        self.owner_approvals = {}
         self.records = []
         self.entries = {}
         self.approval_responses = []
@@ -165,7 +166,20 @@ class Application:
 
     async def exchange(self, packet, host=0, *, typescript=False):
         proof, action, operation = packet
-        approval = unb64(self.plan['effect_approvals'][operation])
+        if self.plan['effect_review']['mode'] == 'authenticated owner review required':
+            key = (proof, action)
+            if key not in self.owner_approvals:
+                reviewed = await self.request_review({'mutation': operation, 'proof': b64(proof), 'action': b64(action)})
+                if set(reviewed) == {'code'}:
+                    return {'operation_id': operation, 'language': 'python', 'result': {
+                        'outcome': 'not-submitted', 'code': 'demo.operator-effect-review-refused'}}
+                require(set(reviewed) == {'proof', 'action', 'approval', 'literal_review'}
+                        and unb64(reviewed['proof']) == proof and unb64(reviewed['action']) == action,
+                        'demo.operator-effect-review-mismatch')
+                self.owner_approvals[key] = unb64(reviewed['approval'])
+            approval = self.owner_approvals[key]
+        else:
+            approval = unb64(self.plan['effect_approvals'][operation])
         if typescript:
             completed = await asyncio.create_subprocess_exec(
                 '/usr/local/bin/node', str(HERE / 'submit.mjs'),
@@ -211,14 +225,13 @@ class Application:
                     self.approval_responses.append({'operation_id': operation, 'response': response})
                     recorded.add((operation, response))
 
-    async def recover(self, source):
-        """Request independent operator consent, then submit its native read proof."""
-        require(source in self.plan['cases'], 'demo.unknown-recovery-source')
+    async def request_review(self, request):
+        """Carry closed proposals to the separate operator; never sign consent."""
         def request_review():
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
-                channel.settimeout(660 if self.plan['mode'] == 'live' else 90)
-                channel.connect(str(self.sockets[0].parent / 'review.sock'))
-                payload = canonical({'source': source})
+                channel.settimeout(660 if self.plan['mode'] == 'live' or self.plan['effect_review']['mode'] == 'authenticated owner review required' else 90)
+                channel.connect(str(self.sockets[0].parent / ('owner-review.sock' if 'mutation' in request else 'review.sock')))
+                payload = canonical(request)
                 channel.sendall(struct.pack('>I', len(payload)) + payload)
                 def receive(length):
                     output = b''
@@ -230,7 +243,12 @@ class Application:
                 length = struct.unpack('>I', receive(4))[0]
                 require(0 < length <= 4 * 1024 * 1024, 'demo.review-response-bound')
                 return decode(receive(length))
-        approved = await asyncio.to_thread(request_review)
+        return await asyncio.to_thread(request_review)
+
+    async def recover(self, source):
+        """Request independent operator consent, then submit its native read proof."""
+        require(source in self.plan['cases'], 'demo.unknown-recovery-source')
+        approved = await self.request_review({'source': source})
         if set(approved) == {'code'}:
             return {'operation_id': source, 'language': 'python', 'result': {
                 'outcome': 'not-submitted', 'code': 'demo.operator-recovery-review-refused'}}

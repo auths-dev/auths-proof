@@ -19,6 +19,7 @@ Owner: product gateway/kernel, per [ADR 0017](../../../adr/0017-bound-effect-and
 | AP070 `AdmissionStore` / `ProviderAttemptLedger` | Application-owned SQLite task counters, challenge/release decisions, per-GET records | Retain independent reference and narrower claims; never authorize managed gateway effects |
 | AP070 `execute_read` / `ReceiptStore` | Application-owned fetch, release orchestration and receipt claims | Preserve broker/reference; do not promote its facts to managed entry/recovery evidence |
 | TS `gateway.ts`, Python native runtime, gateway app/admin | Socket/binding routes and views | Expose native construction and state; no local effect hashes |
+| Managed Airtable owner interface | Authenticated complete native presentation and exact pending consent; separate operator/app origins and UIDs | Demo-only consent transport; no effect hash, signature codec, native decision or lifecycle owner. Exact signing remains operator-held and native admission remains mandatory |
 | AP070 Drive adapter | Application-owned metadata/content GETs and provenance checks | Retain independent reference; any future managed Google integration needs separately reviewed native capabilities |
 | Gateway observer / audit / harness / commissioning | Signed observations, audit facts, local fixtures, bounded operator authority | Update identities and stages atomically; do not bypass commissioning bounds |
 
@@ -77,6 +78,8 @@ that lookup. Optional task-free scope has an explicit tag distinct from task sco
 | Exact human approval | 4,096 canonical bytes; at most 3,600 seconds, with exclusive expiry |
 | Installed effect policy | `MAX_EFFECT_POLICY_BYTES`: 4,096 canonical bytes before decoding; partition at most 512 bytes; explicit nonzero safe-integer epoch; valid nonweak Ed25519 approver |
 | Private human review | 131,072 bytes including exact request and binding; never a public receipt |
+| Demo owner HTTP interface | One pending review; eight handlers; 1,024-byte commands; native 131,072-byte envelope; five-second I/O, 900-second session and 600-second consent wait; no native expiry extension |
+| Demo private review sockets | Existing source-only requests remain 1,024 bytes; separate mutation proof/action frame at most 4 MiB, followed by native proof/action limits; finite closed labels/attempt counts |
 | Observation attempts | At most 16 explicitly admitted linked operations |
 | Transaction lock deadline | 5 seconds; sample time after lock; refuse on deadline |
 | Native verification work | Native configured work-unit limit plus transaction deadline |

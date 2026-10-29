@@ -2591,6 +2591,48 @@ closure regeneration passed after that correction (one artifact-generation test)
   published disclosure matrices. That evidence does not attest to these later
   unpublished sources or close complete AP074 acceptance.
 
+## Authenticated owner review UI checkpoint (authored; hosted execution pending)
+
+- The managed Airtable demo has an opt-in simulation-only owner origin. It
+  withholds all application exact approvals at startup, renders the complete
+  native literal output and signing request, and requires authenticated explicit
+  approve/decline before the operator signs that exact pending native request.
+  Native code still owns identity, verification, approval encoding, admission,
+  execution and recovery. No presenter hashes, reconstructs or authorizes effects.
+- A root-private per-run login file maps the owner to the installed approver.
+  The approver key remains in operator memory outside the application's UID.
+  Owner bearer/CSRF values stay only in owner-page memory and explicit same-origin
+  headers. Cookies are absent because localhost cookies cross ports and would
+  reach the untrusted application. No private authentication value enters URLs,
+  logs, application status, browser storage or source-controlled evidence.
+- The new channel fails closed on host/origin/session/CSRF mismatch, stale or
+  substituted pending IDs, unsupported renderer/envelope, truncated/mismatched
+  native projection, duplicate/malformed/oversized commands and declined/expired
+  consent. One pending review, eight HTTP handlers, bounded input/complete native
+  output, HTTP deadlines and separate session/consent limits are explicit.
+  Existing 1,024-byte recovery-source RPCs retain that bound; mutation proof/action
+  proposals use a separate bounded socket. Native clocks and final checks do not
+  change. Default simulation/live channels retain their previous behavior/claims.
+- Unit transport tests and a source-free installed browser/native journey are
+  authored and registered in hosted CI/compliance. The latter checks application
+  UID denial on the owner login file, empty startup exact approvals, no owner
+  authentication on the app origin in a shared browser context, exact complete
+  native display, decline/substitution with no entry, one approved write,
+  independently approved recovery and replay with unchanged execution witnesses.
+  Screenshots and a bounded manifest-linked JSON report are hosted outputs.
+- Per GitHub-first policy, new local unit/browser/build/lint gates have not run.
+  This is authored implementation and CI coverage, not passed hosted evidence.
+  Resource-proof manager approvals and initial simulation commissioning remain
+  labeled scripted setup; browser owner actions simulate consent and establish
+  no human-attention/production claim. Full managed acquisition/disclosure through
+  installed UI/language consumers, broader isolation/negative parity and all
+  other A01–A22 requirements remain open. AP070 remains independent.
+- P0's owner/consumer and finite-bound inventories include this demo consent
+  transport. Required release generation updates freeze 407 and only its reported
+  identity protocol 151, public SDK 148 and public surface 407 subjects. No Rust
+  runtime, gateway source closure, native schemas, formal predicates or tool pins
+  change in this UI batch.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |

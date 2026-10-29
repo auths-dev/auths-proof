@@ -2170,15 +2170,15 @@ kind = "npm"
 layer = "demos"
 path = "demos/airtable-gateway"
 core_apis = []
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3", "auths.exact-effect-approval/1", "auths.gateway-recover/1"]
+protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3", "auths.exact-effect-approval/1", "auths.gateway-recover/1", "auths.private-effect-review/2", "auths.private-effect-signing/2"]
 wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle", "ExactEffectApproval", "GatewayRecoveryReport"]
 fixture_suites = ["demos/airtable-gateway", "bindings/fixtures/gateway/airtable"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2", "airtable-record-update-v1"]
-transports = ["unix", "http-local-demo", "https-provider-disposable-table"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket", "native-effect-policy", "private-operator-consent-channel"]
-security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history", "private-read-actor-grant", "finite-scripted-recovery-reviews", "candidate-acquisition-history"]
+transports = ["unix", "http-local-demo", "https-provider-disposable-table", "owner-review-http-local"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket", "native-effect-policy", "private-operator-consent-channel", "owner-loopback-origin", "private-owner-login-file", "native-review-renderer"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history", "private-read-actor-grant", "finite-scripted-recovery-reviews", "candidate-acquisition-history", "authenticated-owner-session", "withheld-exact-approval", "pending-owner-review"]
 
 [packages.auths-airtable-gateway-demo.claims]
 demo-conformance-fixture = ["demos/airtable-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
@@ -2186,6 +2186,11 @@ runtime-enforcement-boundary = [
   "demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit",
   "demos/airtable-gateway/selftest.py#test_private_reviewer_refuses_unlisted_inputs",
   "demos/airtable-gateway/selftest.py#test_exact_operator_consent_binding",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_owner_channel_refuses_unauthenticated_and_cross_origin_decisions",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_complete_review_is_unchanged_and_only_its_decision_releases_the_waiter",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_expired_replaced_and_cookie_only_sessions_cannot_read_private_reviews",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_unsupported_truncated_and_mismatched_review_cannot_be_presented",
+  "demos/airtable-gateway/tests/owner_browser.py#test_installed_authenticated_owner_review_and_native_recovery",
 ]
 receipt-producer-consumer = ["demos/airtable-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
 
