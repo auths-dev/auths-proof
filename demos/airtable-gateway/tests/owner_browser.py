@@ -94,10 +94,19 @@ def test_installed_authenticated_owner_review_and_native_recovery():
         agent.locator('#experiment').select_option('recover-exact')
         agent.locator('#submit').click()
         expect(owner.locator('#review')).to_be_visible(timeout=45000)
-        expect(owner.locator('#literal')).to_contain_text('auths_gateway_recovery_read_v1')
+        expect(owner.locator('#literal')).to_contain_text('"contract": "auths.gateway-recovery-read/1"')
         native_read = native_review('read-exact-1')
         assert owner.locator('#literal').text_content() == native_read['literal_review']
-        assert json.loads(native_read['literal_review'])['native']['recovery']['source_effect'] == effect_id
+        read_review = json.loads(native_read['literal_review'])
+        assert read_review['native']['protocol'] == 'acquisition'
+        assert read_review['native']['method'] == 'GET'
+        assert read_review['native']['recovery']['source_effect'] == effect_id
+        assert read_review['native']['recovery']['source_operation'] == 'exact'
+        assert read_review['binding']['operation'] == 'read-exact-1'
+        assert read_review['binding']['protocol']['kind'] == 'acquisition'
+        assert read_review['semantic']['contract'] == 'auths.gateway-recovery-read/1'
+        assert read_review['semantic']['recovery'] == read_review['native']['recovery']
+        assert read_review['native']['actors'] != json.loads(native['literal_review'])['native']['actors']
         assert witness() == after_write
         owner.locator('#approve').click()
         expect(agent.locator('#outcome')).to_have_text('RECOVERY-REPORT', timeout=45000)
