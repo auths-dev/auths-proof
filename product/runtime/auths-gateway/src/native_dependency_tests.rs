@@ -253,6 +253,8 @@ fn run_worker(race: &Race, store: &TestAttempts) {
     let controls = EngineControls {
         policy: crate::effect::fixture_policy().expect("policy"),
         clock,
+        recipe: None,
+        trust: None,
     };
     let runtime = runtime();
     let (engine, _) = runtime.block_on(load_controlled_engine(

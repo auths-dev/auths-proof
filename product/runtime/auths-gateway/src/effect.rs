@@ -11,13 +11,15 @@ use crate::{
     OperatorNamespace, QualificationPolicy,
 };
 use auths_connections::ConnectionRecord;
-use auths_model::{PortableVerificationResult, Timestamp, TrustedContext, VerificationResources};
+use auths_model::TrustedContext;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroizing;
 
+mod authority;
+pub(crate) use authority::NativeAuthority;
 mod acquisition;
 mod capacity;
 pub(crate) use capacity::SourceCapacity;
@@ -279,7 +281,7 @@ fn approve_driver_with_plan(
     let mut binding = store_binding_fixture(
         &command.request,
         recipe_digest,
-        command.native_authority,
+        command.native_authority.commitment(),
         &fixture_policy().map_err(|_| invalid())?,
     )
     .map_err(|_| invalid())?;
@@ -288,6 +290,7 @@ fn approve_driver_with_plan(
     };
     binding = EffectBinding::new(binding.wire).map_err(|_| invalid())?;
     let effect = BoundEffect {
+        authority: command.native_authority.clone(),
         review: serde_json::json!({"scope": "synthetic post-verification oracle; no human review claim"}),
         binding,
         command: CompiledEffect::Mutation(Box::new(VerifiedMutation {
@@ -601,6 +604,18 @@ impl EffectBinding {
         let ApprovalPolicy::Exact { approver } = self.wire.approval_policy;
         approval.verify(self.id(), &approver, at)
     }
+    pub(crate) fn validate_historical_approval(
+        &self,
+        approval: &ExactEffectApproval,
+    ) -> Result<(), EffectBindingError> {
+        let ApprovalPolicy::Exact { approver } = self.wire.approval_policy;
+        approval.verify_signature(self.id(), &approver)
+    }
+
+    pub(crate) fn matches_authority(&self, authority: &NativeAuthority) -> bool {
+        self.wire.native_authority == authority.commitment()
+    }
+
     fn new(wire: BindingWire) -> Result<Self, EffectBindingError> {
         validate(&wire)?;
         let bytes = canonical(&wire)?;
@@ -755,6 +770,7 @@ struct VerifiedMutation {
 /// exact immutable compiler output. There is no public constructor, clone or
 /// deserializer. Compiling this value does not approve it or grant entry.
 pub struct BoundEffect {
+    authority: NativeAuthority,
     review: serde_json::Value,
     binding: EffectBinding,
     command: CompiledEffect,
@@ -843,6 +859,10 @@ impl fmt::Debug for BoundEffect {
 }
 
 impl BoundEffect {
+    pub(crate) fn native_authority(&self) -> &NativeAuthority {
+        &self.authority
+    }
+
     /// Returns immutable audit/approval data, never entry authority.
     #[must_use]
     pub const fn binding(&self) -> &EffectBinding {
@@ -1112,11 +1132,21 @@ impl ExactEffectApproval {
         now: u64,
     ) -> Result<(), EffectBindingError> {
         self.request.validate()?;
-        if self.request.effect != *effect.as_bytes()
-            || self.request.approver != *installed
-            || now < self.request.not_before
-            || now >= self.request.expires_at
-        {
+        if now < self.request.not_before || now >= self.request.expires_at {
+            return Err(EffectBindingError::Invalid);
+        }
+        self.verify_signature(effect, installed)
+    }
+
+    /// Identifies private retained history only; this samples no clock, changes
+    /// no signed event time and cannot establish current execution permission.
+    fn verify_signature(
+        &self,
+        effect: EffectId,
+        installed: &[u8; 32],
+    ) -> Result<(), EffectBindingError> {
+        self.request.validate()?;
+        if self.request.effect != *effect.as_bytes() || self.request.approver != *installed {
             return Err(EffectBindingError::Invalid);
         }
         VerifyingKey::from_bytes(installed)
@@ -1437,7 +1467,7 @@ fn bind_mutation(
         epoch: installed.epoch,
         operation: request.operation_id().as_str().to_owned(),
         action: *request.action_commitment(),
-        native_authority: command.native_authority,
+        native_authority: command.native_authority.commitment(),
         scope: Scope::Unscoped,
         recipe: *installed.recipe.digest(),
         compiler: COMPILER.to_owned(),
@@ -1459,6 +1489,7 @@ fn bind_mutation(
         "uncertainty": "Approval does not establish provider entry or outcome. Unknown outcomes do not authorize blind retry or refund.",
     });
     let effect = BoundEffect {
+        authority: command.native_authority.clone(),
         review,
         binding,
         command: CompiledEffect::Mutation(Box::new(VerifiedMutation {
@@ -1475,47 +1506,6 @@ fn bind_mutation(
         .map_err(|_| EffectBindingError::Invalid)?
         .to_private_bytes()?;
     Ok(effect)
-}
-
-/// Preserve all selected branches and evidence through the existing native
-/// codec. Evaluation time and work counters are not authority identities: the
-/// full verifier is rerun at a new time, without changing signed event times.
-pub(crate) fn native_authority_commitment(
-    result: &PortableVerificationResult,
-    context: &TrustedContext,
-) -> Result<[u8; 32], EffectBindingError> {
-    let normalized = context
-        .for_request(
-            context.expected_audience().clone(),
-            context.expected_challenge(),
-            Timestamp::new(0),
-        )
-        .map_err(|_| EffectBindingError::Invalid)?;
-    let context_digest =
-        auths_codec::context_digest(&normalized).map_err(|_| EffectBindingError::Invalid)?;
-    let projection = PortableVerificationResult::new(
-        result.decision(),
-        result.stage(),
-        result.code(),
-        result.proof_digest(),
-        result.action_digest(),
-        context_digest,
-        result.plan_id(),
-        result.authorized_branches().to_vec(),
-        result.assurance().to_vec(),
-        result.assurance_satisfactions().to_vec(),
-        VerificationResources::new(0, 0, 0, 0, 0, 0, 0),
-        result.registry_manifest(),
-        result.required_configuration(),
-        result.local_configuration(),
-    )
-    .with_observation_satisfactions(result.observation_satisfactions().to_vec())
-    .with_approval_satisfactions(result.approval_satisfactions().to_vec());
-    let bytes = Zeroizing::new(
-        auths_codec::encode_verification_result(&projection)
-            .map_err(|_| EffectBindingError::Invalid)?,
-    );
-    commitment("auths.effect-native-authority/1", &bytes)
 }
 
 #[derive(Serialize)]

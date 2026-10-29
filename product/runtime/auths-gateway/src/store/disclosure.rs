@@ -89,6 +89,7 @@ impl JournalProtocol for DisclosureState {
             fixed: canonical(&(
                 &record.schema,
                 &record.binding_canonical,
+                &record.authority_canonical_b64,
                 &record.approval_canonical,
                 &record.namespace,
                 &record.operation_id,
@@ -346,6 +347,7 @@ impl GatewayAttempts {
             let base = Record::new(
                 admission.approved.effect().binding(),
                 admission.approved.approval(),
+                admission.approved.effect().native_authority(),
                 evaluated_at,
                 DisclosureState {
                     plan,

@@ -1,0 +1,62 @@
+{
+  "schema": "auths.native-mutation-retained-replay/1",
+  "adapter": "file",
+  "scope": "full native mutation engine, actual exact approval/proof, maintained durable adapter and real local HTTP; fixed public keys and maintained test clock; no current execution authority inferred from retained history",
+  "cases": [
+    {
+      "change": "unchanged",
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "actual_provider_writes": 1,
+      "same_request_body_as_review": true,
+      "retained_journal_and_execution_witness_unchanged": true,
+      "different_valid_proof_action_and_invalid_approval_refused": true
+    },
+    {
+      "change": "approval-expired",
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "actual_provider_writes": 1,
+      "same_request_body_as_review": true,
+      "retained_journal_and_execution_witness_unchanged": true,
+      "different_valid_proof_action_and_invalid_approval_refused": true
+    },
+    {
+      "change": "resource-authority-expired",
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "actual_provider_writes": 1,
+      "same_request_body_as_review": true,
+      "retained_journal_and_execution_witness_unchanged": true,
+      "different_valid_proof_action_and_invalid_approval_refused": true
+    },
+    {
+      "change": "connection-revoked",
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "actual_provider_writes": 1,
+      "same_request_body_as_review": true,
+      "retained_journal_and_execution_witness_unchanged": true,
+      "different_valid_proof_action_and_invalid_approval_refused": true
+    },
+    {
+      "change": "configuration-replaced",
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "actual_provider_writes": 1,
+      "same_request_body_as_review": true,
+      "retained_journal_and_execution_witness_unchanged": true,
+      "different_valid_proof_action_and_invalid_approval_refused": true
+    }
+  ]
+}

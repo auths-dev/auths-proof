@@ -97,6 +97,18 @@ Independent observation adds a typed fact without replacing response/ACK or
 original actor. Conserved capacity is available + held + consumed = allocated;
 unknown keeps charges. Pre-entry refusal only releases declared releasable units.
 
+Retained submission lookup is another shared mechanism across the three typed
+protocols. It uses the same canonical native authority projection and retained
+binding/approver pin, rather than recompiling expired authority before returning
+history. The exact proof and action digests are both required; each endpoint
+also binds any additional resource/source/recipient proposal to the historical
+action. The journal's canonical projection reconstructs the existing authority
+commitment and cannot mint a sealed effect or permit. These common checks do not
+merge mutation response, acquisition content and disclosure ACK facts. Reserved
+continuation still uses each protocol's full fresh native compilation and the
+shared writer fence. The direct journal schema cutover is `/16`, with a 65,536
+byte private authority projection limit and no reader for obsolete state.
+
 ## Cutover and evidence
 
 Replace affected formats and call sites in one bounded PR. No production

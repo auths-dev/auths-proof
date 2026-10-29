@@ -222,7 +222,7 @@ impl Prerequisites {
             (Some(read), Some(pointers)) => plan.push(
                 Purpose::PreEntry {
                     json_pointers: pointers.to_vec(),
-                    native_authority: command.native_authority,
+                    native_authority: command.native_authority.commitment(),
                 },
                 ClosedPrerequisiteRead::Action(read.clone()),
             )?,

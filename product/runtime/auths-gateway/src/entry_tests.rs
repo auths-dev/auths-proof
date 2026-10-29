@@ -32,6 +32,49 @@ fn approved() -> Arc<ApprovedEffect> {
     )
 }
 
+#[test]
+fn retained_native_authority_projection_is_required_and_bound() {
+    use base64ct::{Base64, Encoding as _};
+    let approved = approved();
+    let record = claim_record(
+        &approved.command().expect("mutation").request,
+        approved.effect().binding(),
+        approved.approval(),
+        approved.effect().native_authority(),
+        NOW,
+    )
+    .expect("native header");
+    let bytes = encode(&record).expect("encode");
+    assert!(decode(&bytes).is_ok());
+    let original: serde_json::Value = serde_json::from_slice(&bytes).expect("record JSON");
+    let evidence = approved.effect().native_authority().private_bytes();
+    let mut damaged = evidence.to_vec();
+    damaged[0] ^= 1;
+    for replacement in [
+        None,
+        Some("not-canonical-base64".to_owned()),
+        Some(Base64::encode_string(&damaged)),
+        Some(Base64::encode_string(
+            crate::effect::NativeAuthority::oracle([42; 32]).private_bytes(),
+        )),
+    ] {
+        let mut altered = original.clone();
+        match replacement {
+            Some(value) => altered["authority_canonical_b64"] = serde_json::json!(value),
+            None => {
+                altered
+                    .as_object_mut()
+                    .expect("object")
+                    .remove("authority_canonical_b64");
+            }
+        }
+        assert!(matches!(
+            decode(&serde_json::to_vec(&altered).expect("JSON")),
+            Err(GatewayAttemptError::Corrupt)
+        ));
+    }
+}
+
 fn bounded_approval() -> Arc<ApprovedEffect> {
     use ed25519_dalek::Signer as _;
     let recipes: serde_json::Value = serde_json::from_slice(include_bytes!(

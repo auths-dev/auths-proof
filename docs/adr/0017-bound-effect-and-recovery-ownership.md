@@ -42,6 +42,35 @@ identity after compilation; the signature is not an input to its own identity.
 The stored effect is data. Only a successful new durable entry transition yields
 a non-cloneable, non-deserializable, consumed transport capability.
 
+### Retained submission identity and current authorization
+
+Retrieving an admitted fact is independent of authorizing another entry. The
+native journal retains a bounded, canonical portable projection of the original
+native verification result, including its exact proof and action digests. Its
+normalized authority commitment must equal the immutable binding's existing
+native-authority commitment. The projection's portable self-digest is validated;
+the original commitment preimage is reconstructed with the native codec, keeping
+the existing binding identity unchanged. The private projection is at most
+65,536 bytes and is immutable under every protocol transition.
+
+The application action supplies bounded lookup hints only. Native history
+retrieval checks the partition/epoch, namespace, operation, recipe, both original
+input digests and a signature for the retained effect under its retained approver
+pin. Approval validity intervals and installed keys are current-entry conditions;
+an expired original approval can identify history without granting current
+authority. Additional API resource, recovery-source and disclosure-target inputs
+must still match the historical signed action. No credential lease, native
+reauthorization, peer authentication or provider/delivery request is needed to
+return already entered or terminal facts.
+
+A reserved operation may continue only through the existing full fresh native
+compilation, current exact approval and atomic writer fence. Failure to acquire
+current authority leaves its retained reservation visible; it does not rewrite
+history as a new non-entry fact. This history path returns only typed snapshots,
+never `BoundEffect`, `ApprovedEffect`, an authenticated channel or a permit.
+The journal cuts over directly to `auths.gateway-attempt/16`; obsolete disposable
+records are rejected. There is no legacy reader or second authority cache.
+
 Retain lifecycle identity/commitment helpers only where their exact contract
 matches. `PreparationBindingV1` is not reused as the effect: its optional
 connection/evidence and single principal do not encode disclosure/source/channel,

@@ -390,16 +390,28 @@ impl GatewayEngine {
         approval: ExactEffectApproval,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         let started = Instant::now();
-        let effect = self.compile_candidate_effect(target, proof, action).await?;
-        let now = self
-            .qualification
-            .effect_time()
-            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let approved = Arc::new(
-            effect
-                .approve(approval, self.effect_policy.approver(), now)
-                .map_err(|_| not_entered("gateway.effect.approval"))?,
-        );
+        let retained = self
+            .retained_acquisition(
+                proof,
+                action,
+                &approval,
+                super::RetainedRoute::Candidate(target),
+            )
+            .await?;
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self.compile_candidate_effect(target, proof, action).await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.map_or(Err(result), Ok),
+        };
         if let Some(snapshot) = self
             .attempts
             .read_acquisition(&approved)

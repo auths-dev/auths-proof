@@ -80,12 +80,16 @@ pub(super) fn runtime() -> tokio::runtime::Runtime {
 pub(super) struct EngineControls {
     pub(super) policy: crate::effect::EffectPolicy,
     pub(super) clock: Arc<crate::FixedClock>,
+    pub(super) recipe: Option<CompiledRecipe>,
+    pub(super) trust: Option<Vec<u8>>,
 }
 impl EngineControls {
     pub(super) fn baseline() -> Self {
         Self {
             policy: fixture_policy().expect("policy"),
             clock: Arc::new(crate::FixedClock::at(NOW)),
+            recipe: None,
+            trust: None,
         }
     }
 }
@@ -104,7 +108,8 @@ pub(super) async fn load_controlled_engine(
     attempts: GatewayAttempts,
     controls: EngineControls,
 ) -> (GatewayEngine, ConnectionRecord) {
-    let recipe = recipe();
+    let recipe = controls.recipe.unwrap_or_else(recipe);
+    let trust = controls.trust.unwrap_or_else(|| trust(&recipe));
     let initial = crate::harness::fixture_connection(&recipe).expect("connection template");
     let credentials = Arc::new(
         PersistentCredentialStore::open(setup.root.join(format!("custody-{label}.cbor")))
@@ -154,7 +159,7 @@ pub(super) async fn load_controlled_engine(
     let engine = GatewayEngine::new(
         recipe.clone(),
         *recipe.digest(),
-        &trust(&recipe),
+        &trust,
         controls.policy,
         record.provider_kind().clone(),
         record.alias().clone(),

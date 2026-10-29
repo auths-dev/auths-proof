@@ -355,7 +355,7 @@ read proof/approval. Custody is checked for the exact staged reference before
 publication; independently stored custody and connection state are not claimed
 to be one atomic transaction.
 
-The concrete journal encoding is `auths.gateway-attempt/15`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/16`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded
@@ -859,6 +859,18 @@ For this milestone, provider-entry and disclosure-entry permits are one-use, and
   Identical admitted/terminal replay returns stored facts with no credential
   lease, provider read or new observation credit. Reservation continuation is
   the separate fresh-authorization rule above.
+- Historical submission matching MUST use the retained native proof and action
+  commitments plus a valid signature for the retained binding under its retained
+  approval policy. Operation IDs or action bodies alone are insufficient. The
+  private journal retains the bounded canonical native authority projection
+  needed to validate those commitments; it is immutable under every protocol
+  transition and grants no execution authority. Current authority, approval
+  expiry, connection revocation or configuration replacement MUST NOT turn an
+  already entered fact into `not-entered`. Extra API resource/source/recipient
+  inputs remain bound to the historical signed action. The same retrieval rule
+  applies to mutation, acquisition and disclosure. A fresh authorization failure
+  for an unchanged pre-grant reservation returns the retained reservation without
+  continuing it, refunding charges or modifying the journal.
 - Provider idempotency may improve provider guarantees but does not override the default prohibition on Auths re-entry. Any future retry mode requires an explicit versioned protocol and evidence for key scope, retention, fencing and late requests.
 - Late valid response/ACK evidence can refine an unknown outcome. Revocation or expiry must not erase legitimate history or prevent recording a previously authorized delivery's exact ACK. Recording history confers no current execution authority.
 - Read-only recovery requires its own bounded authority and accounting. It cannot borrow a revoked writer's proof, use an expired approval as current authority, acquire broader credentials or change the original actor attribution.

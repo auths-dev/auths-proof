@@ -2247,26 +2247,81 @@ closure regeneration passed after that correction (one artifact-generation test)
   revision is not relabeled as ab36. Future final-head evidence must retain its
   actual source/producer attribution too.
 
-## Retained replay source audit
+## Retained replay correction and journal cutover
 
-- Source inspection shows execution methods compiling current authority and exact
-  approval before retained terminal lookup. A regression is required for original
-  requests after approval/resource expiry, connection revocation and configuration
-  replacement: retained grants must not be reported as NotEntered, replay must
-  not remint execution, and historical facts must remain queryable. This audit
-  is not yet behavioral evidence of a failure or a completed fix.
-- Any replay repair belongs to the native effect/journal owner. It must preserve
-  exact identity checks, reject changed actor/action/resource/recipient inputs,
-  keep pre-grant continuation subject to fresh native checks and keep historical
-  data separate from executable capabilities. No alternate binding, approval,
-  clock or fallback authority is authorized by this audit.
+- The native real-HTTP mutation regression reproduced the source-audited bug:
+  an original PATCH completed with HTTP 200, but its identical submission after
+  exact approval expiry returned `NotEntered gateway.effect.approval`. Stored
+  facts themselves remained retained. That projection did not satisfy §5.3.
+- `effect::NativeAuthority` now retains the bounded canonical native authority
+  projection that reconstructs the binding's existing normalized commitment.
+  It includes exact native proof/action digests, validates the portable
+  self-digest, stays private and is limited to 65,536 bytes. No new effect identity
+  algorithm or alternative verifier is introduced. The common journal validates
+  it against the binding and includes it in immutable fields for all protocols.
+- The native journal cuts over directly from `/15` to `/16`. Qualification
+  candidates, fixture generators, decoder fuzz seeds, compliance and the runbook
+  use the new schema; obsolete disposable records fail closed. There is no
+  migration/compatibility reader, runtime selector or second authority cache.
+- One native history matcher checks the partition/epoch, namespace, operation,
+  recipe, both committed inputs and the retained binding's exact approver
+  signature. Its historical signature check grants no current entry authority.
+  Mutation, content, recovery, candidate-check and disclosure entry APIs use
+  typed stored projections; additional resource/source/recipient inputs still
+  have to match the original signed action. Terminal replay requires no current
+  approval window, connection, credential lease or authenticated delivery.
+- Real native binding/signing fixtures stayed byte-identical under the retained
+  commitment algorithm. Post-verification reference commands now carry explicit
+  canonical oracle authority evidence instead of an all-zero digest; only those
+  synthetic IDs/signatures regenerate. No production path can use that oracle.
+- Historical approval matching verifies the original signature and binding
+  without sampling or inventing an evaluation time. Current-entry approval
+  verification still requires the signed window at the real sampled time.
+- A reserved operation can only continue through full current native compilation,
+  exact approval and the existing atomic writer fence. Current authorization
+  failure returns the unchanged retained reservation. A history value cannot
+  construct a sealed effect, approved effect, live channel or lost permit.
+- The four required fixture generators passed 4/4, zero ignored, in 4.90 seconds
+  against the real file store and independent TLS PostgreSQL fixture on port 55451.
+  They author 40 histories: ten mutation histories and thirty acquisition/disclosure
+  histories. Mutation checks run in the original and reopened native engines,
+  rejecting different valid proof/action inputs and a damaged approval. Read and
+  release histories reopen the native engine, preserve exact response/ACK/unknown
+  facts after expiry/revocation/configuration replacement, and reject changed
+  resource/recipient proposals. Actual provider counts, native execution witnesses
+  and journal bytes remain unchanged through replay. The release cases use real
+  authenticated Unix sockets and both exact ACK and lost-ACK outcomes.
+- The older required artifact generators passed 31/31, zero ignored, in 83.06 seconds
+  after the cutover, including both adapters' capacity, SIGKILL, dependency-order,
+  window-budget, real file I/O faults and real PostgreSQL failure/COMMIT reply-loss
+  matrices, plus native candidate/content/recovery/prerequisite/admission fixtures.
+  This is artifact-construction evidence, not a new complete hosted gate.
+- Assumptions remain explicit: fixed public test keys, maintained test clock,
+  local provider transport, same-UID recipient tests and trusted durable stores.
+  No human-presence, hostile-host, whole-store rollback, live-provider or managed
+  Google guarantee follows. Full A01–A22 acceptance and exact new-head CI remain
+  open. AP070 stays independent; AP073 remains untouched.
 
-- The combined gateway source closure was regenerated after integrating the
-  binary controls, and its rebuilt verification passed1/1 in0.06 seconds.
-  Release freeze402 advances only the generator-reported public
-  surface402 subject; no protocol/ABI meaning counter was advanced for test-only
-  repairs. The CI agent's formal final-head report and fresh publication are
-  still pending; these metadata changes do not turn the failed hosted root green.
+- Release freeze 403 advances the generator-reported identity protocol 147,
+  public SDK contract 144 and public surface 403 subjects. The gateway source
+  closure is regenerated. No kernel source, proof statement, tool pin, security
+  deadline or test assertion was relaxed. The additional retained-header test and
+  regenerated matrices passed in the final selected generator run (8/8, zero
+  ignored, 4.89 seconds); four commissioning-floor tests also matched that filter.
+
+## Published formal/CI batch resolution
+
+- The CI agent's final report is `/tmp/ap074-ci-ab36-report.md`. On the published
+  revision `ab36e4b76420a37912d00b2c5b1fac1ad6c556c5`, all 85 successful checks
+  include authoritative Lean and final formal evidence. The final formal job is
+  `123460599133` in run `40867724155`. Eight conditional skips establish no live
+  qualification. The three failed badges are the original authoritative CLI
+  fixture root and its two rollups, already repaired by local commit `d7eea272`.
+- That integrated repair's 24 focused checks passed. The broad workspace
+  reproduction did not pass; its load-sensitive file conformance case passed
+  only in isolation with original deadlines and assertions preserved. Combined
+  source still requires exact published-head hosted verification. Final formal
+  evidence on `ab36` does not attest to subsequent replay sources or journal `/16`.
 
 ## Phase gates
 
@@ -2286,14 +2341,14 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 
 | Case | Required evidence | Implementation / authored / executed | Limitation or next work |
 | --- | --- | --- | --- |
-| A01 | Same bound identity and exact request across review/approval/send | Partial / partial / native fixture only | Installed transport and review-completeness evidence pending |
-| A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
-| A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
+| A01 | Same bound identity and exact request across review/approval/send | Partial / native review/compiler and real mutation replay corpus / ten file/TLS PostgreSQL histories send the exact reviewed PATCH body | Full installed review-completeness and authenticated human/UI evidence pending |
+| A02 | Independent mutation of every binding dimension | Partial / bound-effect corpus and native retained-input controls / distinct valid proof/action, damaged approval, changed resource and changed recipient rejected during file/TLS PostgreSQL replay | Complete independent substitutions for every binding dimension and installed surface remain required |
+| A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
 | A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file, daemon/recipient process and native file/TLS PostgreSQL history corpora / both peers killed before ACK in the process corpus; native lost-ACK history retained across expiry, revocation, configuration replacement and engine reopen on both stores | Remaining crash/persistence boundaries and complete late-ACK PostgreSQL schedules pending |
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |

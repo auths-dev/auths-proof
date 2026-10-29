@@ -396,6 +396,56 @@ struct PreparedEntry {
     transport: GatewayHttpTransport,
 }
 
+/// Data-only endpoint constraints for retained history. Native compilation still
+/// owns all fresh authorization and grants; these checks bind extra API inputs
+/// to the exact historical action rather than trusting an operation-ID hint.
+enum RetainedRoute<'a> {
+    Mutation,
+    Content(Option<&'a Map<String, Value>>),
+    Recovery(&'a str),
+    Disclosure(&'a crate::effect::DisclosureTarget),
+    Candidate(&'a crate::effect::CandidateCredentialTarget),
+}
+
+impl RetainedRoute<'_> {
+    fn matches(
+        &self,
+        recipe: &CompiledRecipe,
+        operation: &crate::LogicalOperationId,
+        call: &auths_profile_mcp::McpToolCall,
+    ) -> bool {
+        if call.service() != recipe.review().service() {
+            return false;
+        }
+        match self {
+            Self::Mutation => call.name() == recipe.review().tool(),
+            Self::Content(arguments) => {
+                call.name() == crate::effect::CONTENT_READ_TOOL
+                    && arguments.is_none_or(|arguments| {
+                        call.arguments()
+                            .get("resource_arguments")
+                            .and_then(Value::as_object)
+                            == Some(arguments)
+                    })
+            }
+            Self::Recovery(source) => {
+                call.name() == crate::effect::RECOVERY_READ_TOOL
+                    && call
+                        .arguments()
+                        .get("source_operation")
+                        .and_then(Value::as_str)
+                        == Some(*source)
+            }
+            Self::Disclosure(target) => target
+                .authorization_call(recipe, operation)
+                .is_ok_and(|expected| &expected == call),
+            Self::Candidate(target) => target
+                .authorization_call(recipe, operation)
+                .is_ok_and(|expected| &expected == call),
+        }
+    }
+}
+
 impl GatewayEngine {
     /// Constructs an engine only for an exact operator-approved recipe digest.
     /// The caller must be the separately deployed gateway, never the app.
@@ -1385,6 +1435,12 @@ impl GatewayEngine {
         action: &[u8],
         approval: ExactEffectApproval,
     ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        if let Some(snapshot) = self
+            .retained_disclosure(target, proof, action, &approval)
+            .await?
+        {
+            return Ok(snapshot);
+        }
         let started = Instant::now();
         let effect = self
             .compile_disclosure_effect(target, proof, action)
@@ -1469,18 +1525,25 @@ impl GatewayEngine {
         connection: crate::disclosure_transport::DisclosureConnection,
     ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
         let started = Instant::now();
-        let effect = self
-            .compile_disclosure_effect(target, proof, action)
+        let retained = self
+            .retained_disclosure(target, proof, action, &approval)
             .await?;
-        let now = self
-            .qualification
-            .effect_time()
-            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let approved = Arc::new(
-            effect
-                .approve(approval, self.effect_policy.approver(), now)
-                .map_err(|_| not_entered("gateway.effect.approval"))?,
-        );
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::DisclosureStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self
+                .compile_disclosure_effect(target, proof, action)
+                .await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.map_or(Err(result), Ok),
+        };
         if let Some(snapshot) = self
             .attempts
             .read_disclosure(&approved)
@@ -1626,16 +1689,23 @@ impl GatewayEngine {
         approval: ExactEffectApproval,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         let started = Instant::now();
-        let effect = self.compile_content_action(proof, action).await?;
-        let now = self
-            .qualification
-            .effect_time()
-            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let approved = Arc::new(
-            effect
-                .approve(approval, self.effect_policy.approver(), now)
-                .map_err(|_| not_entered("gateway.effect.approval"))?,
-        );
+        let retained = self
+            .retained_acquisition(proof, action, &approval, RetainedRoute::Content(None))
+            .await?;
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self.compile_content_action(proof, action).await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.map_or(Err(result), Ok),
+        };
         self.acquire_read_approved(approved, now, started).await
     }
 
@@ -1723,18 +1793,30 @@ impl GatewayEngine {
         approval: ExactEffectApproval,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         let started = Instant::now();
-        let effect = self
-            .compile_content_effect(arguments, proof, action)
+        let retained = self
+            .retained_acquisition(
+                proof,
+                action,
+                &approval,
+                RetainedRoute::Content(Some(&arguments)),
+            )
             .await?;
-        let now = self
-            .qualification
-            .effect_time()
-            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let approved = Arc::new(
-            effect
-                .approve(approval, self.effect_policy.approver(), now)
-                .map_err(|_| not_entered("gateway.effect.approval"))?,
-        );
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self
+                .compile_content_effect(arguments, proof, action)
+                .await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.map_or(Err(result), Ok),
+        };
         self.acquire_read_approved(approved, now, started).await
     }
 
@@ -1786,18 +1868,30 @@ impl GatewayEngine {
         approval: ExactEffectApproval,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
         let started = Instant::now();
-        let effect = self
-            .compile_recovery_effect(source_operation, proof, action)
+        let retained = self
+            .retained_acquisition(
+                proof,
+                action,
+                &approval,
+                RetainedRoute::Recovery(source_operation),
+            )
             .await?;
-        let now = self
-            .qualification
-            .effect_time()
-            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let approved = Arc::new(
-            effect
-                .approve(approval, self.effect_policy.approver(), now)
-                .map_err(|_| not_entered("gateway.effect.approval"))?,
-        );
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self
+                .compile_recovery_effect(source_operation, proof, action)
+                .await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.map_or(Err(result), Ok),
+        };
         self.acquire_read_approved(approved, now, started).await
     }
 
@@ -2021,12 +2115,26 @@ impl GatewayEngine {
         action_cbor: &[u8],
         approval: ExactEffectApproval,
     ) -> GatewaySubmitResult {
+        let retained = match self
+            .retained_submission(proof_cbor, action_cbor, &approval, RetainedRoute::Mutation)
+            .await
+        {
+            Ok(Some(crate::store::RetainedSubmission::Mutation(snapshot))) => Some(snapshot),
+            Ok(None) => None,
+            Ok(Some(_)) => return not_entered("gateway.effect.operation-conflict"),
+            Err(result) => return result,
+        };
+        if let Some(snapshot) = &retained
+            && snapshot.stage() != crate::GatewayAttemptStage::Reserved
+        {
+            return stored_result(snapshot);
+        }
         let approved = match self
             .approve_submission(proof_cbor, action_cbor, approval)
             .await
         {
             Ok(approved) => approved,
-            Err(result) => return result,
+            Err(result) => return retained.as_ref().map_or(result, stored_result),
         };
         let io = EngineIo {
             engine: self,
@@ -2050,6 +2158,123 @@ impl GatewayEngine {
             &io,
         )
         .await
+    }
+
+    async fn retained_submission(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+        route: RetainedRoute<'_>,
+    ) -> Result<Option<crate::store::RetainedSubmission>, GatewaySubmitResult> {
+        if proof.is_empty()
+            || proof.len() > MAX_PROOF_BYTES
+            || action.is_empty()
+            || action.len() > MAX_ACTION_BYTES
+        {
+            return Err(GatewaySubmitResult::Indeterminate {
+                code: "gateway.submit.invalid-size".to_owned(),
+            });
+        }
+        // Data-only lookup hints, never a verified command. Hard decode bounds
+        // keep historical lookup independent of a newly installed trust policy.
+        // The journal must match the native committed proof AND action digests,
+        // complete binding and its own pinned approval key before exposing facts.
+        let Some(call) =
+            auths_codec::decode_canonical_action(action, &auths_model::VerifierLimits::hard())
+                .ok()
+                .and_then(|action| {
+                    auths_profile_mcp::McpToolCall::from_canonical_bytes(action.body()).ok()
+                })
+        else {
+            return Ok(None);
+        };
+        if call
+            .arguments()
+            .get("operator_namespace")
+            .and_then(Value::as_str)
+            != Some(self.recipe.namespace().as_str())
+        {
+            return Ok(None);
+        }
+        let Some(operation) = call
+            .arguments()
+            .get("operation_id")
+            .and_then(Value::as_str)
+            .and_then(|value| crate::LogicalOperationId::parse(value).ok())
+        else {
+            return Ok(None);
+        };
+        if !route.matches(&self.recipe, &operation, &call) {
+            return Ok(None);
+        }
+        self.attempts
+            .retained_submission(
+                self.recipe.namespace(),
+                &operation,
+                *self.recipe.digest(),
+                proof,
+                action,
+                approval,
+            )
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })
+    }
+
+    async fn retained_acquisition(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+        route: RetainedRoute<'_>,
+    ) -> Result<Option<crate::AcquisitionSnapshot>, GatewaySubmitResult> {
+        match self
+            .retained_submission(proof, action, approval, route)
+            .await?
+        {
+            Some(crate::store::RetainedSubmission::Acquisition(snapshot)) => Ok(Some(snapshot)),
+            None => Ok(None),
+            Some(_) => Err(not_entered("gateway.effect.operation-conflict")),
+        }
+    }
+
+    async fn retained_disclosure(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+    ) -> Result<Option<crate::DisclosureSnapshot>, GatewaySubmitResult> {
+        match self
+            .retained_submission(proof, action, approval, RetainedRoute::Disclosure(target))
+            .await?
+        {
+            Some(crate::store::RetainedSubmission::Disclosure(snapshot)) => Ok(Some(snapshot)),
+            None => Ok(None),
+            Some(_) => Err(not_entered("gateway.effect.operation-conflict")),
+        }
+    }
+
+    fn approve_current_effect(
+        &self,
+        effect: crate::effect::BoundEffect,
+        approval: ExactEffectApproval,
+    ) -> Result<(Arc<ApprovedEffect>, u64), GatewaySubmitResult> {
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = effect
+            .approve(approval, self.effect_policy.approver(), now)
+            .map_err(|_| not_entered("gateway.effect.approval"))?;
+        Ok((Arc::new(approved), now))
     }
 
     async fn approve_submission(
@@ -2552,7 +2777,7 @@ pub(crate) fn verify_command(
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
     /// Stable native branch/evidence selection and installed trust identity.
-    pub(crate) native_authority: [u8; 32],
+    pub(crate) native_authority: crate::effect::NativeAuthority,
     /// Exact actors of action IDs already sealed by the native verifier.
     #[cfg(unix)]
     pub(crate) actors: Vec<auths_model::PrincipalId>,
@@ -2652,7 +2877,7 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
-        native_authority: crate::effect::native_authority_commitment(sealed.portable(), context)
+        native_authority: crate::effect::NativeAuthority::verified(sealed.portable(), context)
             .map_err(|_| not_entered("gateway.effect.native-authority"))?,
         #[cfg(unix)]
         actors: branches.actors,

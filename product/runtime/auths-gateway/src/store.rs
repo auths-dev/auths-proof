@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/15`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/16`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -36,7 +36,7 @@ use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/15";
+const SCHEMA: &str = "auths.gateway-attempt/16";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -524,6 +524,7 @@ struct Record<S = MutationState> {
     revision: u64,
     schema: String,
     binding_canonical: String,
+    authority_canonical_b64: String,
     approval_canonical: String,
     namespace: String,
     operation_id: String,
@@ -539,6 +540,7 @@ impl<S> Record<S> {
     fn new(
         binding: &EffectBinding,
         approval: &ExactEffectApproval,
+        authority: &crate::effect::NativeAuthority,
         evaluated_at: u64,
         state: S,
     ) -> Result<Self, GatewayAttemptError> {
@@ -554,6 +556,7 @@ impl<S> Record<S> {
                     .to_vec(),
             )
             .map_err(|_| GatewayAttemptError::Corrupt)?,
+            authority_canonical_b64: Base64::encode_string(authority.private_bytes()),
             approval_canonical: String::from_utf8(
                 approval
                     .to_private_bytes()
@@ -572,9 +575,28 @@ impl<S> Record<S> {
         })
     }
 
+    fn native_authority(&self) -> Result<crate::effect::NativeAuthority, GatewayAttemptError> {
+        if self.authority_canonical_b64.len() > crate::effect::MAX_EFFECT_BYTES.div_ceil(3) * 4 {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let bytes = zeroize::Zeroizing::new(
+            Base64::decode_vec(&self.authority_canonical_b64)
+                .map_err(|_| GatewayAttemptError::Corrupt)?,
+        );
+        if Base64::encode_string(&bytes) != self.authority_canonical_b64 {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        crate::effect::NativeAuthority::from_private_bytes(&bytes)
+            .map_err(|_| GatewayAttemptError::Corrupt)
+    }
+
     fn validate_header(&self) -> Result<EffectBinding, GatewayAttemptError> {
         let binding = EffectBinding::from_private_bytes(self.binding_canonical.as_bytes())
             .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let authority = self.native_authority()?;
+        if !binding.matches_authority(&authority) {
+            return Err(GatewayAttemptError::Corrupt);
+        }
         let approval = ExactEffectApproval::from_private_bytes(self.approval_canonical.as_bytes())
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         binding
@@ -684,6 +706,7 @@ impl<S> Record<S> {
             revision: self.revision,
             schema: self.schema,
             binding_canonical: self.binding_canonical,
+            authority_canonical_b64: self.authority_canonical_b64,
             approval_canonical: self.approval_canonical,
             namespace: self.namespace,
             operation_id: self.operation_id,
@@ -799,6 +822,7 @@ struct EntryAudit {
 struct FixedFields<'a> {
     schema: &'a str,
     binding_canonical: &'a str,
+    authority_canonical_b64: &'a str,
     approval_canonical: &'a str,
     namespace: &'a str,
     operation_id: &'a str,
@@ -900,6 +924,7 @@ impl Record {
             fixed: canonical(&FixedFields {
                 schema: &self.schema,
                 binding_canonical: &self.binding_canonical,
+                authority_canonical_b64: &self.authority_canonical_b64,
                 approval_canonical: &self.approval_canonical,
                 namespace: &self.namespace,
                 operation_id: &self.operation_id,
@@ -2222,11 +2247,13 @@ fn claim_record(
     request: &ClosedProviderRequest,
     binding: &EffectBinding,
     approval: &ExactEffectApproval,
+    authority: &crate::effect::NativeAuthority,
     evaluated_at: u64,
 ) -> Result<Record, GatewayAttemptError> {
     let record = Record::new(
         binding,
         approval,
+        authority,
         evaluated_at,
         MutationState {
             counters: Vec::new(),
@@ -2296,9 +2323,13 @@ impl GatewayAttempts {
         recipe_digest: [u8; 32],
         evaluated_at: u64,
     ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
-        let binding =
-            crate::effect::store_binding_fixture(request, recipe_digest, [0; 32], &self.policy)
-                .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let binding = crate::effect::store_binding_fixture(
+            request,
+            recipe_digest,
+            crate::effect::NativeAuthority::oracle([0; 32]).commitment(),
+            &self.policy,
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
         let approval = crate::effect::approval_fixture(&binding, evaluated_at)
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         self.claim_binding(request, &binding, &approval, evaluated_at)
@@ -2317,7 +2348,13 @@ impl GatewayAttempts {
             return Err(GatewayAttemptError::BindingConflict);
         }
         let key = self.key(request.namespace(), request.operation_id())?;
-        let record = claim_record(request, binding, approval, evaluated_at)?;
+        let record = claim_record(
+            request,
+            binding,
+            approval,
+            &crate::effect::NativeAuthority::oracle([0; 32]),
+            evaluated_at,
+        )?;
         let stored = encode(&record)?;
         let store = Arc::clone(&self.store);
         let entry = GatewayRecordEntry {
@@ -3022,7 +3059,63 @@ pub enum ContentHistory {
     Disclosure(DisclosureSnapshot),
 }
 
+/// Stored facts only. No variant contains an entry permit or current authority.
+pub(crate) enum RetainedSubmission {
+    Mutation(GatewayAttemptSnapshot),
+    Acquisition(AcquisitionSnapshot),
+    Disclosure(DisclosureSnapshot),
+}
+
 impl GatewayAttempts {
+    /// Matches the native verifier's exact committed input digests and a signed
+    /// approval for that retained binding. Current approval windows and installed
+    /// keys govern new execution, not retrieval of already admitted facts.
+    pub(crate) async fn retained_submission(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+        recipe: [u8; 32],
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+    ) -> Result<Option<RetainedSubmission>, GatewayAttemptError> {
+        let key = self.key(namespace, operation)?;
+        let store = Arc::clone(&self.store);
+        let Some(bytes) = blocking(move || store.load(GatewayRecordKind::Attempt, &key)).await?
+        else {
+            return Ok(None);
+        };
+        let bytes = zeroize::Zeroizing::new(bytes);
+        let record = decode_protocol(&bytes)?;
+        let binding = record.validate_header()?;
+        if !self.policy.contains(&binding)
+            || record.namespace != namespace.as_str()
+            || record.operation_id != operation.as_str()
+            || record.recipe_digest != hex::encode(recipe)
+            || !record.native_authority()?.matches_inputs(proof, action)
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        binding
+            .validate_historical_approval(approval)
+            .map_err(|_| GatewayAttemptError::BindingConflict)?;
+        match &record.state {
+            ProtocolState::Mutation(_) => Ok(Some(RetainedSubmission::Mutation(
+                record.map_state(MutationState::extract)?.snapshot(true)?,
+            ))),
+            ProtocolState::Acquisition(_) => Ok(Some(RetainedSubmission::Acquisition(
+                record
+                    .map_state(acquisition::AcquisitionState::extract)?
+                    .snapshot()?,
+            ))),
+            ProtocolState::Disclosure(_) => Ok(Some(RetainedSubmission::Disclosure(
+                record
+                    .map_state(disclosure::DisclosureState::extract)?
+                    .disclosure_snapshot()?,
+            ))),
+        }
+    }
+
     /// Loads exact local content history without reconstructing any entry permit.
     ///
     /// # Errors
@@ -3426,6 +3519,7 @@ impl GatewayAttempts {
                     .request,
                 admission.approved.effect().binding(),
                 admission.approved.approval(),
+                admission.approved.effect().native_authority(),
                 evaluated_at,
             )?;
             let result = if let Some(bound) = &bound {

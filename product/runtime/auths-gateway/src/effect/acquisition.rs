@@ -6,9 +6,9 @@ use super::{
     ApprovalPolicy, BindingWire, BoundEffect, COMPILER, CompiledEffect, CompiledRecipe,
     Deserialize, EFFECT_BINDING_SCHEMA, EffectBinding, EffectBindingError, EffectInstallation,
     GatewayConnectionDescriptor, GatewaySubmitResult, LogicalOperationId, MAX_EFFECT_BYTES,
-    PrerequisitePlan, Prerequisites, Protocol, ReadWire, Reservation, ReservationWindow, Scope,
-    Serialize, SourceCapacity, Unit, Zeroizing, canonical, commitment, fmt, managed_reservations,
-    native_authority_commitment, not_entered,
+    NativeAuthority, PrerequisitePlan, Prerequisites, Protocol, ReadWire, Reservation,
+    ReservationWindow, Scope, Serialize, SourceCapacity, Unit, Zeroizing, canonical, commitment,
+    fmt, managed_reservations, not_entered,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -581,14 +581,14 @@ pub(super) fn compile_verified_acquisition(
         AcquisitionTarget::Candidate(target) => target.prerequisites().clone(),
     };
     let authority =
-        native_authority_commitment(sealed.portable(), installed.context).map_err(|_| invalid())?;
+        NativeAuthority::verified(sealed.portable(), installed.context).map_err(|_| invalid())?;
     let (binding, review) = match &target {
         AcquisitionTarget::Recovery(target) => (
             target.binding(
                 installed,
                 &operation,
                 action_commitment,
-                authority,
+                authority.commitment(),
                 bound.as_ref(),
                 &prerequisites,
             )?,
@@ -600,7 +600,7 @@ pub(super) fn compile_verified_acquisition(
                 installed,
                 &operation,
                 action_commitment,
-                authority,
+                authority.commitment(),
                 bound.as_ref(),
                 &prerequisites,
             )?,
@@ -612,7 +612,7 @@ pub(super) fn compile_verified_acquisition(
                 installed,
                 &operation,
                 action_commitment,
-                authority,
+                authority.commitment(),
                 bound.as_ref(),
             )?,
             json!({"contract": "auths.gateway-candidate-check/1", "candidate": target.contract(),
@@ -620,6 +620,7 @@ pub(super) fn compile_verified_acquisition(
         ),
     };
     let effect = BoundEffect {
+        authority,
         review,
         binding,
         command: CompiledEffect::Acquisition(Box::new(VerifiedAcquisition {

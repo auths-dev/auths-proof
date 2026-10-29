@@ -4,9 +4,9 @@ use super::{
     BoundEffect, CompiledEffect, CompiledRecipe, DISCLOSURE_ACK_SCHEMA, Deserialize,
     DisclosureAcknowledgementRequest, EffectBinding, EffectBindingError, EffectInstallation,
     GatewayConnectionDescriptor, GatewaySubmitResult, LogicalOperationId, MAX_EFFECT_BYTES,
-    Prerequisites, Protocol, Reservation, ReservationWindow, Scope, Serialize, SourceCapacity,
-    Unit, VerifyingKey, Zeroizing, acquisition, canonical, commitment, fmt, managed_reservations,
-    native_authority_commitment, not_entered,
+    NativeAuthority, Prerequisites, Protocol, Reservation, ReservationWindow, Scope, Serialize,
+    SourceCapacity, Unit, VerifyingKey, Zeroizing, acquisition, canonical, commitment, fmt,
+    managed_reservations, not_entered,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -242,7 +242,7 @@ pub fn compile_disclosure(
     let action_commitment =
         commitment("auths.canonical-action.v1", &canonical_action).map_err(|_| invalid())?;
     let authority =
-        native_authority_commitment(sealed.portable(), installed.context).map_err(|_| invalid())?;
+        NativeAuthority::verified(sealed.portable(), installed.context).map_err(|_| invalid())?;
     let mut reservations = target.reservations().map_err(|_| invalid())?;
     reservations.extend(managed_reservations(
         bound.as_ref(),
@@ -254,11 +254,12 @@ pub fn compile_disclosure(
         installed,
         &operation,
         action_commitment,
-        authority,
+        authority.commitment(),
         target.protocol(),
         reservations,
     )?;
     let effect = BoundEffect {
+        authority,
         review: json!({"contract": CONTRACT, "disclosure": target.contract(),
             "consequences": "Release the exact retained projection to this recipient and channel once. A grant makes delivery possible; only an exact authenticated ACK records the recipient assertion. Lost delivery or ACK never authorizes redelivery or refund."}),
         binding,
