@@ -33,23 +33,23 @@ use std::{
 
 const NOW: u64 = 1_790_000_000;
 const SECRET: &[u8] = b"public-native-process-fixture";
-const CONTENT: &[u8] = b"PUBLIC-NATIVE-CONTENT";
+pub(super) const CONTENT: &[u8] = b"PUBLIC-NATIVE-CONTENT";
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Setup {
-    backend: String,
-    location: String,
-    root: PathBuf,
-    provider_port: u16,
-    barrier_port: u16,
+pub(super) struct Setup {
+    pub(super) backend: String,
+    pub(super) location: String,
+    pub(super) root: PathBuf,
+    pub(super) provider_port: u16,
+    pub(super) barrier_port: u16,
 }
 
-fn private(path: &Path, bytes: &[u8]) {
+pub(super) fn private(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).expect("private input");
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).expect("private mode");
 }
-fn recipe() -> CompiledRecipe {
+pub(super) fn recipe() -> CompiledRecipe {
     CompiledRecipe::compile(
         include_bytes!("../../../../bindings/fixtures/gateway/content-only/recipe.json"),
         include_bytes!("../../../../bindings/fixtures/gateway/content-only/profile.lock.json"),
@@ -65,11 +65,11 @@ fn trust(recipe: &CompiledRecipe) -> Vec<u8> {
     .expect("tool");
     tools_context(&[call], NOW).expect("native trust")
 }
-fn runtime() -> tokio::runtime::Runtime {
+pub(super) fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Runtime::new().expect("runtime")
 }
 
-async fn load_engine(
+pub(super) async fn load_engine(
     setup: &Setup,
     label: &str,
     attempts: GatewayAttempts,
@@ -139,7 +139,7 @@ async fn load_engine(
     (engine, record)
 }
 
-async fn authorize(engine: &GatewayEngine, root: &Path, operation: &str) {
+pub(super) async fn authorize(engine: &GatewayEngine, root: &Path, operation: &str) {
     let call = engine
         .content_authorization_call(br#"{"record_id":"recTEST0000000001"}"#, operation)
         .await
@@ -169,7 +169,7 @@ async fn authorize(engine: &GatewayEngine, root: &Path, operation: &str) {
         private(&root.join(format!("{operation}.{suffix}")), &bytes);
     }
 }
-async fn acquire(
+pub(super) async fn acquire(
     engine: &GatewayEngine,
     root: &Path,
     operation: &str,
@@ -182,14 +182,17 @@ async fn acquire(
         .await
 }
 
-struct Provider {
-    port: u16,
-    calls: Arc<AtomicUsize>,
+pub(super) struct Provider {
+    pub(super) port: u16,
+    pub(super) calls: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
     thread: Option<thread::JoinHandle<()>>,
 }
 impl Provider {
     fn start() -> Self {
+        Self::controlled(None)
+    }
+    pub(super) fn controlled(mut pause: Option<Box<dyn FnOnce() + Send>>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("provider");
         let port = listener.local_addr().expect("address").port();
         listener.set_nonblocking(true).expect("nonblocking");
@@ -233,7 +236,14 @@ impl Provider {
                 );
                 observed.fetch_add(1, Ordering::SeqCst);
                 stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\nContent-Length: {}\r\n\r\n",CONTENT.len()).as_bytes()).expect("response headers");
-                stream.write_all(CONTENT).expect("response body");
+                if let Some(pause) = pause.take() {
+                    stream.write_all(&CONTENT[..1]).expect("partial response");
+                    pause();
+                    // The crash case deliberately kills the receiving process.
+                    let _ = stream.write_all(&CONTENT[1..]);
+                } else {
+                    stream.write_all(CONTENT).expect("response body");
+                }
             }
         });
         Self {

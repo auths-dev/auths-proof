@@ -1769,6 +1769,100 @@ closure regeneration passed after that correction (one artifact-generation test)
   explicitly advanced. Generated source/formal identities were not reclassified
   as proved by these inventory updates.
 
+## SDK example and generated-scaffold cutover checkpoint
+
+- Integrated hardened CI batch `a13e960f` as `8ab0136d`. Python, packed npm and
+  generated scaffold consumers now use native staged candidate acquisition and
+  publication, exact effect approvals, explicit configuration activation and
+  separately authorized recovery. Mutation HTTP response and the unchanged
+  native recovery report remain separate; positive recovery asserts the native
+  original source's provider link and observed stage, not a synthesized success.
+- A separately installed Python operator SDK authors reserved read proofs for
+  the TypeScript application. This is declared deployment tooling; the actual
+  application still uses installed npm GatewayClient, without claiming native
+  TypeScript read-proof authoring. One authored operator transport helper is
+  copied byte-for-byte into the scaffold, with a direct equality gate. It does
+  not interpret provider fields or decide native admission/recovery outcomes.
+- The operator channel accepts only closed bounded requests, canonical proof/
+  action base64url and source tokens, rejects duplicate/malformed JSON, applies
+  a five-second whole-frame deadline and sixty-second native command deadline,
+  and returns redacted typed refusals. Malformed or disconnected peers cannot
+  terminate the listener or consume its valid-review allowance. Native authority,
+  capacity and one-use entry remain enforced by the gateway, independently of
+  this finite development review channel.
+- Live exact signing requires separate owner-only FIFO consent after reading the
+  entire native literal-review.txt and signing-request.json. Simulation alone
+  uses the explicitly labeled finite scripted reviewer. Incomplete/unsupported
+  native reviews and declined live consent cannot reach the signer.
+- Actual isolated reproductions passed the Python journey (19.55 seconds),
+  packed npm journey (24.25 seconds), generated project's full native selftest,
+  and thirty scaffold/operator tests. The latter include real malformed Unix
+  peers followed by a healthy request, finite deadlines and refusal before any
+  signature. A real positive recovery packet was also authored/reviewed through
+  the hardened transport. These used current wrappers and repaired native gateway
+  source but c809-era local Python/WASM artifacts; fresh exact-head installed
+  artifacts, live-human behavior and Docker isolation remain hosted obligations.
+- Existing hostile manager/quorum/budget/provider cases, offline audit/tamper,
+  source-owned echo checks, idempotency state-loss demonstration, private key modes
+  and second-install zero-provider-I/O assertions were preserved. No AP070 source
+  or paused AP073 state was changed. These CI repairs do not close A01–A22.
+
+## Native acquisition process-crash checkpoint
+
+- `native_crash_tests.rs` executes the full native content acquisition engine in
+  separately spawned OS processes over each maintained adapter. It reuses native
+  call authoring, proof verification, exact approval, installed dependency fencing
+  and separate local custody. Fixed public keys, fixed deployment time and a
+  privileged test installation remain explicit assumptions; no EntryValidation
+  oracle replaces the gateway's checks.
+- A test-only transparent store proxy pauses unchanged native decisions under
+  the actual adapter fence, or pauses before forwarding actual durability
+  acknowledgement. The proxy never selects a transition, rewrites a record or
+  constructs a permit. Production builds contain no selectable failpoint.
+- Both file and TLS PostgreSQL exercise seven SIGKILL schedules: before
+  reservation commit; after reservation commit before acknowledgement; after
+  acknowledged reservation but before entry commit; after entry commit before
+  its acknowledgement/transport; while a real HTTP response is partial; after
+  complete response receipt before persistence; and after response commit before
+  return to the caller. The receiving process is confirmed killed by signal 9;
+  the separate HTTP double records actual requests. No caller result was written.
+- Reopening checks the protected native phase, durable grant and original
+  allocation, plus native public history/charge projections. Absence and reserved
+  state can resume only through current native proof/approval/entry checks, with
+  one original allocation and one GET. A lost grant remains charged Unknown
+  even when no HTTP request was sent, and cannot lease or fetch again. Lost
+  response persistence remains Unknown without reconstructible content. Durable
+  response persistence retains ready content despite caller-response loss.
+- Every terminal replay preserves private journal bytes, native boundary counters
+  and public snapshot. Each allocated invocation retains one call and the full
+  1,024-byte ceiling, including unknown; it is not refunded to actual response
+  size. There is no automatic refetch, redelivery, observation or write.
+- Required artifact generators `native_file_process_crash_fixture_is_current`
+  and `postgres_native_process_crash_fixture_is_current` generated reproducible
+  seven-case files under bindings/fixtures/gateway. Initial exact runs passed in
+  1.45 and 2.66 seconds respectively; final assertions additionally check the
+  native recovered stage, no post-grant custody lease and retained-content
+  projection. PostgreSQL used an independent canonical TLS fixture on port55451,
+  certificate/server-name verification and synchronous commits; schema isolation
+  and cleanup are provided by TestAttempts. The dedicated Docker containers,
+  network and volume were stopped/removed after final generation. Both explicit feature-gated commands
+  were added to PostgreSQL CI so normal default-feature discovery cannot omit them.
+- Final regeneration after the complete native assertions passed both adapter
+  generators in one invocation (two adapter tests and the no-input peer helper,
+  all three passed in 3.96 seconds). The source-closure generator passed in 0.06 seconds before rebuilding
+  that final test executable; its embedded-closure verification then passed
+  1/1 in 0.05 seconds. The known strict gateway lint reproduction passed
+  without suppressions after adding the instrumentation. Source closure and release metadata must match
+  the committed final source before publication. These are native acquisition
+  transaction-boundary/process-crash results, not injected sync/rename failures,
+  partial-batch fault schedules, ambiguous database commit delivery, power-loss,
+  hostile-process isolation or all mutation/disclosure crash boundaries. A05
+  remains partial and A06 remains open; no acceptance invariant was weakened.
+
+- Integrated release freeze 395 advances identity protocol 141, portable ABI
+  bindings 125, public SDK contract 138 and public surface 395 for the combined
+  source/inventory changes. It does not certify new formal or provider claims.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -1791,7 +1885,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A02 | Independent mutation of every binding dimension | Pending / no / no | Freeze canonical corpus |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / two-daemon file and full native engine processes on file/TLS PostgreSQL / final source lifetime count/bytes, durable grants and reopened replay executed | Managed fixed-window count/sum and complete adverse schedules still required |
-| A05 | Crash at every persistence/transport boundary | Partial / real daemon/recipient crash after receipt before ACK / charged unknown and exact late ACK executed | Remaining persistence/send boundaries and PostgreSQL |
+| A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |

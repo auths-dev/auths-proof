@@ -1460,6 +1460,11 @@ language-binding = [
   "bindings/python/tests/test_self_hosted_operator.py#test_root_grant_equals_the_native_path_and_carries_the_signer_evidence",
   "bindings/python/tests/test_enforcement_init.py#test_double_mode_hands_the_key_on_unchanged_and_writes_only_its_digest",
   "bindings/python/tests/test_enforcement_init.py#test_audit_passes_the_gateway_verdict_through_and_adds_no_option",
+  "bindings/python/tests/test_enforcement_init.py#test_native_operator_template_matches_reviewed_example",
+  "bindings/python/tests/test_enforcement_init.py#test_operator_never_signs_incomplete_native_review",
+  "bindings/python/tests/test_enforcement_init.py#test_live_operator_decline_prevents_exact_signature",
+  "bindings/python/tests/test_enforcement_init.py#test_operator_bad_peers_leave_listener_available",
+  "bindings/python/tests/test_enforcement_init.py#test_operator_peer_and_native_deadlines_are_finite",
 ]
 core-wire-consumer = [
   "bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer",
@@ -1799,6 +1804,8 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/tests/content_journey.rs#native_content_process_capacity_fixture_is_current",
   "product/runtime/auths-gateway/src/native_process_tests.rs#native_file_process_capacity_fixture_is_current",
   "product/runtime/auths-gateway/src/native_process_tests.rs#postgres_native_process_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_crash_tests.rs#native_file_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_crash_tests.rs#postgres_native_process_crash_fixture_is_current",
   "product/runtime/auths-gateway/src/prerequisite_race_tests.rs#file_in_flight_prerequisite_cannot_poison_shared_parent",
   "product/runtime/auths-gateway/src/prerequisite_race_tests.rs#postgres_in_flight_prerequisite_cannot_poison_shared_parent",
   "product/runtime/auths-gateway/src/effect_content_tests.rs#native_content_journal_fixture_is_current",
