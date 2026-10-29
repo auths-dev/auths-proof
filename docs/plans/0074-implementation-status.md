@@ -2477,9 +2477,28 @@ closure regeneration passed after that correction (one artifact-generation test)
 - Source identities are regenerated under freeze 405 (only generator-reported
   protocol 149, SDK 146 and public surface 405 subjects advanced). Journal schema
   remains `/16`; no normal transport, grant, ACK, clock or provider-retry contract
-  changes. Publication is deliberately held while the actual authoritative Lean
-  job `123512213089` and final evidence for published `9913d4c7` remain live; do not
-  cancel that work merely to publish another test fixture batch.
+  changes. Publication was held until the actual authoritative Lean job
+  `123512213089` and final evidence for published `9913d4c7` finished; no live
+  formal run was cancelled to publish another test fixture batch.
+
+## Published 9913d4c7 hosted verification checkpoint
+
+- Source `9913d4c702451c19de2b601cd634e397db20f951` is CI-qualified: all 96
+  checks finished, with 88 successful, eight conditional skips and zero failures.
+  All fourteen workflows are terminal: thirteen successful and custody-live
+  conditionally skipped. No repair or rerun was needed for this revision.
+- Authoritative clean Lean, 329-statement audit, four Rust refinement checks,
+  49 Kani harnesses, final formal evidence and CI-qualified passed. Pinned
+  translation used validated same-PR evidence reuse from `ab36e4b7`; it was not
+  freshly translated. All eighteen explicit native PostgreSQL workflow cases
+  actually ran with zero ignored; installed packages, demos and isolation passed.
+- The [durable hosted evidence report](0074-hosted-evidence-9913d4c7.md) records
+  every workflow, exact jobs, reused translation provenance and the actual PR
+  merge producer identity with a verified identical source tree. Conditional
+  skips do not establish live-provider, production or human-review qualification.
+- This closes the CI blocker for `9913d4c7` only. The following disclosure test
+  commit `a81943a7` and later revisions still need exact-head hosted checks. Full
+  AP074 acceptance remains open; the separate reference AP070 is not migrated.
 
 ## Phase gates
 
