@@ -714,6 +714,18 @@ charges and exact record bytes without another lease or HTTP request. These
 acquisition cases do not replace mutation/disclosure fixed-window evidence,
 cross-window expiry, partial-batch faults or the other A04/A06 requirements.
 
+The `native-file-io-faults.json` generator exercises fifteen injected file-adapter
+failure schedules in independent native worker processes. A test-only call-site
+hook returns an I/O failure at data sync, journal/target installation, record
+replacement or directory acknowledgement after the preceding real operations.
+The four-record bounded admission batch must recover all-or-none; a retained
+reservation can resume only through fresh native entry checks; a retained grant
+after a lost acknowledgement cannot mint another permit. Reopened terminal
+history must preserve all charges and journal bytes without a new lease or HTTP
+request. The failed I/O return is simulated, and production builds contain no
+selector. Actual device faults/power loss, PostgreSQL commit delivery and the
+complete mutation/disclosure fault matrix remain separate requirements.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

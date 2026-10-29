@@ -68,7 +68,13 @@ fn trust(recipe: &CompiledRecipe) -> Vec<u8> {
     tools_context(&[call], NOW).expect("native trust")
 }
 pub(super) fn runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Runtime::new().expect("runtime")
+    // Each case also creates independent OS workers. Bound test executor
+    // resources rather than multiplying the host's reported CPU count.
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("runtime")
 }
 
 pub(super) struct EngineControls {

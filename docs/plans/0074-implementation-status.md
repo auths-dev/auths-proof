@@ -1999,6 +1999,53 @@ closure regeneration passed after that correction (one artifact-generation test)
   inventory update. No portable wire change, new formal proof or completed
   acceptance claim follows from these source identity updates.
 
+## Native file I/O failure checkpoint
+
+- `FileGatewayAttemptStore` has private `cfg(test)` failure state and hooks at
+  its actual data-sync, rollback-journal installation, batch-target installation,
+  replacement and directory-sync call sites. Production builds contain no
+  selector/state, environment switch or selectable failure behavior. Native
+  record decisions and every preceding successful filesystem operation are
+  unchanged; the selected failing I/O return is simulated rather than produced
+  by an actual faulty kernel/device.
+- `native_file_fault_tests.rs` authors fifteen full native acquisition schedules
+  in independent worker OS processes, using signed bounded resource grants,
+  separate exact approvals/custody and real local HTTP. A transparent scheduling
+  wrapper arms the adapter only after the unmodified native decision under the
+  real writer fence. It cannot manufacture a reservation or entry permit.
+- The admission matrix covers sync/install of the rollback journal, each of
+  four target-install prefixes (attempt, lifetime allocation, count, byte sum),
+  and each of three directory acknowledgements. Entry and response each exercise
+  data sync, replacement and directory acknowledgement. Authoritative reopen,
+  native history, all-or-none charges, immutable signed inputs, actual provider
+  requests and execution witnesses distinguish rollback, resumable reservation,
+  charged lost-grant unknown and retained response evidence.
+- Authored assertions require a partial batch to leave no attempt/allocation/
+  count/sum targets; a committed reservation may progress only through native
+  fresh checks; a visible grant after failed acknowledgement cannot produce a
+  new permit. Unknown outcomes remain charged even when no HTTP request was
+  made. Terminal replay preserves every journal JSON byte and performs no new
+  lease or HTTP request. Required artifact generation passed all fifteen
+  schedules in 3.37 seconds. The first run encountered the local HTTP double's
+  existing two-second header deadline on a heavily contended host and correctly
+  projected Unknown; its positive-resume assertion failed. The test executor
+  pool is now bounded to two threads per process instead of multiplying the
+  host's CPU count. No native deadline, assertion or security invariant changed.
+  Strict gateway library/test lint passed without suppressions. After source
+  closure regeneration and rebuild, fourteen selected native artifact/helper/
+  closure tests passed without update mode in 6.37 seconds. The two adapter
+  lifetime/fixed-window capacity, crash and dependency matrices stayed byte-
+  identical with the bounded test executor. The dedicated TLS fixture's
+  containers/network/volume were stopped and removed after verification.
+- These schedules do not establish actual device EIO/power loss, PostgreSQL
+  partial-batch/ambiguous-commit delivery or the complete mutation/disclosure
+  fault matrices. No acceptance condition is waived, and A06 remains incomplete.
+
+- Release freeze398 advances identity protocol144, public SDK contract141 and
+  public surface398 for the generator-reported source/inventory changes. The
+  regenerated gateway closure includes the fault instrumentation and matrix.
+  Hosted exact-head verification and the complete A06 gate remain required.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2022,7 +2069,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter and candidate process cases / local candidate concurrency/restart executed | Complete mutation/conflict and PostgreSQL evidence |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
 | A05 | Crash at every persistence/transport boundary | Partial / daemon-recipient ACK loss plus seven full-native acquisition process points per adapter / fourteen file/TLS PostgreSQL SIGKILL schedules executed, truthful charged history and replay checks | Mutation/disclosure remaining boundaries, full ACK persistence and actual durability faults remain |
-| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Pending / no / no | Fault injection |
+| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O call-site failure matrix / fifteen independent native worker histories generated and executed | PostgreSQL transaction/commit delivery, complete mutation/disclosure schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / socket-file and daemon/recipient process corpus / both peers killed after receipt before ACK; charged unknown, no redelivery, late ACK executed | Remaining crash/persistence boundaries and PostgreSQL pending |
 | A09 | ACK substitution in every dimension | Partial / native signed ACK corpus / exact dimension and re-signed substitutions executed | Live Unix handshake now exercised; independent-process and complete delivery integration pending |

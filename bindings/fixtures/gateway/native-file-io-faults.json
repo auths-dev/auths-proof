@@ -1,0 +1,451 @@
+{
+  "schema": "auths.native-file-io-faults/1",
+  "scope": "full native acquisition engine in separate worker OS processes; actual maintained file writer fence, four-record admission batches, rollback/reopen, signed bounded grants, fixed-key exact approvals, separate local custody and real HTTP; failed I/O return is simulated at the native adapter call site",
+  "excluded": [
+    "actual kernel/device EIO or power loss",
+    "PostgreSQL partial batches and ambiguous commit delivery",
+    "mutation/disclosure fault matrices",
+    "whole-store rollback and hostile OS containment",
+    "live provider qualification or human review"
+  ],
+  "cases": [
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "data-sync",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "install-batch",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "install-target",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "install-target",
+        "skip": 1
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "install-target",
+        "skip": 2
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "install-target",
+        "skip": 3
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "directory-sync",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "directory-sync",
+        "skip": 1
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": null,
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "point": "directory-sync",
+        "skip": 2
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "reserved",
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "entry",
+        "point": "data-sync",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "reserved",
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "entry",
+        "point": "replace",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "reserved",
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": true,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "entry",
+        "point": "directory-sync",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "entry-granted",
+      "actual_reads_before_reopen": 0,
+      "new_native_execution_permitted": false,
+      "actual_reads_after_reopen": 0,
+      "native_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "response",
+        "point": "data-sync",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "entry-granted",
+      "actual_reads_before_reopen": 1,
+      "new_native_execution_permitted": false,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "response",
+        "point": "replace",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "entry-granted",
+      "actual_reads_before_reopen": 1,
+      "new_native_execution_permitted": false,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "response",
+        "point": "directory-sync",
+        "skip": 0
+      },
+      "injected_io_failures": 1,
+      "phase_after_failure": "content-response-recorded",
+      "actual_reads_before_reopen": 1,
+      "new_native_execution_permitted": false,
+      "actual_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_slot_and_sum_slot": true,
+      "terminal_replay_preserves_journal_and_execution_witness": true,
+      "signed_inputs_unchanged": true
+    }
+  ]
+}

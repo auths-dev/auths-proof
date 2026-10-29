@@ -1416,6 +1416,28 @@ pub trait GatewayAttemptStore: Send + Sync {
 /// batch never returned, so its targets are deleted.
 pub struct FileGatewayAttemptStore {
     root: PathBuf,
+    #[cfg(test)]
+    io_fault: std::sync::Mutex<FileIoFault>,
+}
+
+/// Private test-only failures at the actual adapter's I/O call sites. Shipping
+/// builds contain neither the selector nor mutable fault state.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum FileIoPoint {
+    DataSync,
+    InstallBatch,
+    InstallTarget,
+    Replace,
+    DirectorySync,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct FileIoFault {
+    pending: Option<(FileIoPoint, usize)>,
+    injected: usize,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1480,7 +1502,11 @@ impl FileGatewayAttemptStore {
             PrivateDirectoryError::Unavailable(_) => GatewayAttemptError::Unavailable,
             _ => GatewayAttemptError::UnsafeDirectory,
         })?;
-        let store = Self { root };
+        let store = Self {
+            root,
+            #[cfg(test)]
+            io_fault: std::sync::Mutex::default(),
+        };
         store.recover()?;
         Ok(store)
     }
@@ -1553,9 +1579,65 @@ impl FileGatewayAttemptStore {
             NamedTempFile::new_in(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?;
         pending
             .write_all(bytes)
-            .and_then(|()| pending.as_file().sync_all())
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::DataSync)?;
+        pending
+            .as_file()
+            .sync_all()
             .map_err(|_| GatewayAttemptError::Unavailable)?;
         Ok(pending)
+    }
+
+    fn sync_root(&self) -> Result<(), GatewayAttemptError> {
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::DirectorySync)?;
+        sync_directory(&self.root)
+    }
+
+    #[cfg(test)]
+    fn io_failure(&self, point: FileIoPoint) -> Result<(), GatewayAttemptError> {
+        let mut fault = self
+            .io_fault
+            .lock()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if let Some((selected, skip)) = &mut fault.pending
+            && *selected == point
+        {
+            if *skip > 0 {
+                *skip -= 1;
+            } else {
+                fault.pending = None;
+                fault.injected += 1;
+                return Err(GatewayAttemptError::Unavailable);
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn arm_io_failure(
+        &self,
+        point: FileIoPoint,
+        skip: usize,
+    ) -> Result<(), GatewayAttemptError> {
+        let mut fault = self
+            .io_fault
+            .lock()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if fault.pending.is_some() {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        fault.pending = Some((point, skip));
+        Ok(())
+    }
+
+    #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn injected_io_failures(&self) -> Result<usize, GatewayAttemptError> {
+        self.io_fault
+            .lock()
+            .map(|fault| fault.injected)
+            .map_err(|_| GatewayAttemptError::Unavailable)
     }
 
     fn load_locked(
@@ -1669,9 +1751,9 @@ impl FileGatewayAttemptStore {
                 fs::remove_file(&target_path).map_err(|_| GatewayAttemptError::Unavailable)?;
             }
         }
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         fs::remove_file(&path).map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)
+        self.sync_root()
     }
 
     fn insert_batch(
@@ -1717,31 +1799,37 @@ impl FileGatewayAttemptStore {
                 .collect(),
         })?;
         admission_deadline(started)?;
-        self.pending(&batch)?
+        let pending = self.pending(&batch)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::InstallBatch)?;
+        pending
             .persist_noclobber(self.root.join(BATCH_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         if crash == Some(BatchCrash::AfterBatchFile) {
             return Ok(GatewayInsert::Inserted);
         }
         for (index, (name, bytes)) in files.iter().enumerate() {
             if crash == Some(BatchCrash::AfterTargets(index)) {
-                sync_directory(&self.root)?;
+                self.sync_root()?;
                 return Ok(GatewayInsert::Inserted);
             }
             admission_deadline(started)?;
-            self.pending(bytes)?
+            let pending = self.pending(bytes)?;
+            #[cfg(test)]
+            self.io_failure(FileIoPoint::InstallTarget)?;
+            pending
                 .persist_noclobber(self.root.join(name))
                 .map_err(|_| GatewayAttemptError::Unavailable)?;
         }
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         if crash == Some(BatchCrash::BeforeBatchDelete) {
             return Ok(GatewayInsert::Inserted);
         }
         admission_deadline(started)?;
         fs::remove_file(self.root.join(BATCH_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         Ok(GatewayInsert::Inserted)
     }
 
@@ -1853,10 +1941,12 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
             return Err(GatewayAttemptError::Unavailable);
         }
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::Replace)?;
         pending
             .persist(self.path_for(keys[0].0, &keys[0].1))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)
+        self.sync_root()
     }
 
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
@@ -1874,11 +1964,11 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         validate_batch(std::slice::from_ref(entry))?;
         let bytes = Self::file_bytes(entry)?;
         let _lock = self.exclusive()?;
-        match self
-            .pending(&bytes)?
-            .persist_noclobber(self.path_for(entry.kind, &entry.key))
-        {
-            Ok(_) => sync_directory(&self.root),
+        let pending = self.pending(&bytes)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::InstallTarget)?;
+        match pending.persist_noclobber(self.path_for(entry.kind, &entry.key)) {
+            Ok(_) => self.sync_root(),
             Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
                 Err(GatewayAttemptError::Replay)
             }
@@ -1913,10 +2003,13 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         if Self::read_file(&path, MAX_RECORD_BYTES)?.as_deref() != Some(current) {
             return Err(GatewayAttemptError::Conflict);
         }
-        self.pending(next)?
+        let pending = self.pending(next)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::Replace)?;
+        pending
             .persist(&path)
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)
+        self.sync_root()
     }
 
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
@@ -1948,7 +2041,7 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
             }
         }
         if deleted > 0 {
-            sync_directory(&self.root)?;
+            self.sync_root()?;
         }
         Ok(deleted)
     }
