@@ -397,7 +397,7 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_gateway_kernel"
 translation_json = "formal/qualification/aeneas/generated/gateway/translation.json"
-local_functions = 123
+local_functions = 126
 external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
@@ -414,6 +414,12 @@ required_symbols = [
   "auths_gateway_kernel::order::after_ceiling",
   "auths_gateway_kernel::transition::valid_transition",
   "auths_gateway_kernel::transition::consistent",
+  "auths_gateway_kernel::transition::protocol_consistent",
+  "auths_gateway_kernel::transition::entry_kept",
+  "auths_gateway_kernel::transition::acknowledgement_kept",
+  "auths_gateway_kernel::transition::acknowledgement_stage",
+  "auths_gateway_kernel::transition::requires_entry",
+  "auths_gateway_kernel::transition::same_protocol",
   "auths_gateway_kernel::transition::stage_transition_allowed",
   "auths_gateway_kernel::ratio::relative_basis",
   "auths_gateway_kernel::ratio::relative_ceiling_admits",

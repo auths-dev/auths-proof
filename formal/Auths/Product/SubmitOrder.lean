@@ -22,13 +22,6 @@ namespace Auths.Product.SubmitOrder
 
 open Auths.Product.RelativeCeiling (admits)
 
-/-- Why a lease is taken. -/
-inductive Mode where
-  | entry
-  | readBack
-  | reobserve
-  deriving DecidableEq, Repr
-
 /-- The declarations the order depends on, fixed before the machine starts. -/
 structure Plan where
   accountScope : Bool
@@ -48,22 +41,21 @@ inductive Phase where
   | scope
   | prepare
   | claim
-  | resume
-  | reload (mode : Mode)
-  | lease (mode : Mode)
-  | prefixGuard (mode : Mode)
-  | account (mode : Mode)
-  | denied (mode : Mode) (index : Nat)
+  | reload
+  | lease
+  | prefixGuard
+  | account
+  | denied (index : Nat)
   | preEntry
   | ceiling
   | checkpoint
   | entryReload
   | deadline
+  | grant
   | send
   | recordResponse
   | recordUnknown
   | recordNotEntered
-  | readBack (mode : Mode)
   | done
   deriving DecidableEq, Repr
 
@@ -83,7 +75,7 @@ inductive Verification where
 
 /-- The claim result. -/
 inductive ClaimResult where
-  | inserted
+  | reserved
   | refused
   | replay
   | unavailable
@@ -118,7 +110,6 @@ inductive CeilingRead where
 
 /-- The provider write result. -/
 inductive WriteResult where
-  | notEntered
   | unknown
   | response
   deriving DecidableEq, Repr
@@ -126,7 +117,7 @@ inductive WriteResult where
 /-- The result of recording the response. -/
 inductive ResponseRecord where
   | failed
-  | recorded (observable : Bool)
+  | recorded
   deriving DecidableEq, Repr
 
 /-- The result of the action the previous decision named. -/
@@ -138,7 +129,6 @@ inductive Event where
   | scope (bound : Bool)
   | preparation (prepared : Bool)
   | claim (result : ClaimResult)
-  | resume (resumable : Bool)
   | reload (unchanged : Bool)
   | lease (leased : Bool)
   | prefixGuard (allowed : Bool)
@@ -148,6 +138,7 @@ inductive Event where
   | ceiling (read : CeilingRead)
   | recorded (stored : Bool)
   | deadline (within : Bool)
+  | granted (granted : Bool)
   | write (result : WriteResult)
   | response (record : ResponseRecord)
   deriving DecidableEq, Repr
@@ -178,8 +169,8 @@ inductive Stop where
   | notEntered
   | unknown
   | response
-  | observed
-  | replayRefused
+  | stored
+  | grantUnavailable
   | halted
   deriving DecidableEq, Repr
 
@@ -191,22 +182,21 @@ inductive Action where
   | bindScope
   | prepare
   | claim
-  | resume
-  | reload (mode : Mode)
-  | lease (mode : Mode)
-  | checkPrefix (mode : Mode)
-  | readAccount (mode : Mode)
-  | deniedRead (mode : Mode) (index : Nat)
+  | reload
+  | lease
+  | checkPrefix
+  | readAccount
+  | deniedRead (index : Nat)
   | preEntryRead
   | ceilingRead
   | recordCheckpoint
   | reloadBeforeEntry
   | checkDeadline
+  | grantEntry
   | send
   | recordResponse
   | recordUnknown
   | recordNotEntered (refusal : Refusal)
-  | readBack (mode : Mode)
   | stop (stop : Stop)
   deriving DecidableEq, Repr
 
@@ -232,12 +222,6 @@ def halt (state : State) : Decision := stop state .halted
 def notEntered (state : State) (refusal : Refusal) : Decision :=
   go state .recordNotEntered (.recordNotEntered refusal)
 
-def leaseFailed (state : State) (mode : Mode) (refusal : Refusal) : Decision :=
-  match mode with
-  | .entry => notEntered state refusal
-  | .readBack => stop state .response
-  | .reobserve => stop state .replayRefused
-
 def afterReads (state : State) : Decision :=
   if state.plan.preEntry || state.plan.relativeCeiling then
     go state .checkpoint .recordCheckpoint
@@ -250,21 +234,15 @@ def ceilingFrom (state : State) : Decision :=
 def preEntryFrom (state : State) : Decision :=
   if state.plan.preEntry then go state .preEntry .preEntryRead else ceilingFrom state
 
-def afterCredentials (state : State) (mode : Mode) : Decision :=
-  match mode with
-  | .entry => preEntryFrom state
-  | .readBack => go state (.readBack .readBack) (.readBack .readBack)
-  | .reobserve => go state (.readBack .reobserve) (.readBack .reobserve)
-
-def deniedFrom (state : State) (mode : Mode) (index : Nat) : Decision :=
+def deniedFrom (state : State) (index : Nat) : Decision :=
   if index < state.plan.deniedReads then
-    go state (.denied mode index) (.deniedRead mode index)
+    go state (.denied index) (.deniedRead index)
   else
-    afterCredentials state mode
+    preEntryFrom state
 
-def afterPrefix (state : State) (mode : Mode) : Decision :=
-  if state.plan.accountRead then go state (.account mode) (.readAccount mode)
-  else deniedFrom state mode 0
+def afterPrefix (state : State) : Decision :=
+  if state.plan.accountRead then go state .account .readAccount
+  else deniedFrom state 0
 
 def afterAdmission (state : State) : Decision :=
   if state.plan.accountScope then go state .scope .bindScope else go state .prepare .prepare
@@ -273,21 +251,21 @@ def preClaim (state : State) (passed : Bool) (next : Decision) : Decision :=
   if passed then next else stop state .refused
 
 def afterClaim (state : State) : ClaimResult → Decision
-  | .inserted => go state (.reload .entry) (.reload .entry)
+  | .reserved => go state .reload .reload
   | .refused => stop state .claimRefused
-  | .replay => go state .resume .resume
+  | .replay => stop state .stored
   | .unavailable => stop state .storeUnavailable
 
-def afterAccount (state : State) (mode : Mode) : AccountResult → Decision
-  | .equal => deniedFrom state mode 0
-  | .mismatch => leaseFailed state mode .accountMismatch
-  | .unavailable => leaseFailed state mode .accountUnavailable
+def afterAccount (state : State) : AccountResult → Decision
+  | .equal => deniedFrom state 0
+  | .mismatch => notEntered state .accountMismatch
+  | .unavailable => notEntered state .accountUnavailable
 
-def afterDenied (state : State) (mode : Mode) (index : Nat) : DeniedResult → Decision
+def afterDenied (state : State) (index : Nat) : DeniedResult → Decision
   | .refused =>
-      if index < state.plan.deniedReads then deniedFrom state mode (index + 1) else halt state
-  | .answered => leaseFailed state mode .capabilityExcess
-  | .unavailable => leaseFailed state mode .capabilityUnavailable
+      if index < state.plan.deniedReads then deniedFrom state (index + 1) else halt state
+  | .answered => notEntered state .capabilityExcess
+  | .unavailable => notEntered state .capabilityUnavailable
 
 def afterPreEntry (state : State) : PreEntryResult → Decision
   | .satisfied => ceilingFrom state
@@ -304,23 +282,12 @@ def afterCeiling (state : State) : CeilingRead → Decision
       else notEntered state .ceilingAbove
 
 def afterWrite (state : State) : WriteResult → Decision
-  | .notEntered => notEntered state .transportNotEntered
   | .unknown => go state .recordUnknown .recordUnknown
   | .response => go state .recordResponse .recordResponse
 
 def afterResponse (state : State) : ResponseRecord → Decision
   | .failed => stop state .unknown
-  | .recorded observable =>
-      if observable then go state (.reload .readBack) (.reload .readBack)
-      else stop state .response
-
-def afterReadBack (state : State) (mode : Mode) (recorded : Bool) : Decision :=
-  if recorded then stop state .observed
-  else
-    match mode with
-    | .entry => halt state
-    | .readBack => stop state .response
-    | .reobserve => stop state .replayRefused
+  | .recorded => stop state .response
 
 /-- The step before the claim. -/
 def preClaimStep (state : State) (event : Event) : Decision :=
@@ -339,19 +306,16 @@ def preClaimStep (state : State) (event : Event) : Decision :=
 /-- A lease-time step. -/
 def leaseStep (state : State) (event : Event) : Decision :=
   match state.phase, event with
-  | .resume, .resume resumable =>
-      if resumable then go state (.reload .reobserve) (.reload .reobserve)
-      else stop state .replayRefused
-  | .reload mode, .reload unchanged =>
-      if unchanged then go state (.lease mode) (.lease mode)
-      else leaseFailed state mode .connectionChanged
-  | .lease mode, .lease leased =>
-      if leased then go state (.prefixGuard mode) (.checkPrefix mode)
-      else leaseFailed state mode .credentialUnavailable
-  | .prefixGuard mode, .prefixGuard allowed =>
-      if allowed then afterPrefix state mode else leaseFailed state mode .modeGuard
-  | .account mode, .account result => afterAccount state mode result
-  | .denied mode index, .denied result => afterDenied state mode index result
+  | .reload, .reload unchanged =>
+      if unchanged then go state .lease .lease
+      else notEntered state .connectionChanged
+  | .lease, .lease leased =>
+      if leased then go state .prefixGuard .checkPrefix
+      else notEntered state .credentialUnavailable
+  | .prefixGuard, .prefixGuard allowed =>
+      if allowed then afterPrefix state else notEntered state .modeGuard
+  | .account, .account result => afterAccount state result
+  | .denied index, .denied result => afterDenied state index result
   | _, _ => halt state
 
 /-- A step between the credential checks and the stop. -/
@@ -365,23 +329,24 @@ def entryStep (state : State) (event : Event) : Decision :=
       if unchanged then go state .deadline .checkDeadline
       else notEntered state .connectionChanged
   | .deadline, .deadline within =>
-      if within then go state .send .send else notEntered state .entryDeadline
+      if within then go state .grant .grantEntry else notEntered state .entryDeadline
+  | .grant, .granted granted =>
+      if granted then go state .send .send else stop state .grantUnavailable
   | .send, .write result => afterWrite state result
   | .recordResponse, .response record => afterResponse state record
   | .recordUnknown, .recorded _ => stop state .unknown
   | .recordNotEntered, .recorded stored =>
       if stored then stop state .notEntered else stop state .unknown
-  | .readBack mode, .recorded recorded => afterReadBack state mode recorded
   | _, _ => halt state
 
 /-- The next state and action for `event`. -/
 def nextStep (state : State) (event : Event) : Decision :=
   match state.phase with
   | .start | .clock | .verify | .admit | .scope | .prepare | .claim => preClaimStep state event
-  | .resume | .reload _ | .lease _ | .prefixGuard _ | .account _ | .denied _ _ =>
+  | .reload | .lease | .prefixGuard | .account | .denied _ =>
       leaseStep state event
-  | .preEntry | .ceiling | .checkpoint | .entryReload | .deadline | .send | .recordResponse
-  | .recordUnknown | .recordNotEntered | .readBack _ => entryStep state event
+  | .preEntry | .ceiling | .checkpoint | .entryReload | .deadline | .grant | .send | .recordResponse
+  | .recordUnknown | .recordNotEntered => entryStep state event
   | .done => halt state
 
 /-! ## Traces -/
@@ -421,12 +386,12 @@ def Emitted (trace : List Step) (action : Action) : Prop :=
 /-- The actions that write the attempt store. -/
 def writesStore : Action → Bool
   | .claim | .recordCheckpoint | .recordNotEntered _ | .recordResponse | .recordUnknown
-  | .readBack _ => true
+  | .grantEntry => true
   | _ => false
 
 /-- The actions that touch the credential or the provider write. -/
 def leasesOrSends : Action → Bool
-  | .lease _ | .send => true
+  | .lease | .send => true
   | _ => false
 
 theorem run_append (state : State) (events : List Event) (event : Event) :
@@ -507,9 +472,9 @@ theorem nextStep_plan (state : State) (event : Event) :
   rcases state with ⟨plan, phase, argument⟩
   cases phase <;> cases event <;>
     simp only [nextStep, preClaimStep, leaseStep, entryStep, go, stop, halt, notEntered,
-      leaseFailed, afterReads, ceilingFrom, preEntryFrom, afterCredentials, deniedFrom,
+      afterReads, ceilingFrom, preEntryFrom, deniedFrom,
       afterPrefix, afterAdmission, preClaim, afterClaim, afterAccount, afterDenied, afterPreEntry,
-      afterCeiling, afterWrite, afterResponse, afterReadBack] <;>
+      afterCeiling, afterWrite, afterResponse] <;>
     (repeat' split) <;> rfl
 
 /-- Induction over a trace one event at a time, from the end. -/
@@ -535,21 +500,19 @@ theorem stateAfter_plan (plan : Plan) (events : List Event) :
 def Verified (trace : List Step) (argument : Nat) : Prop :=
   Answered trace .verify (.verification (.authorized argument))
 
-/-- The claim a lease mode depends on: an inserted claim for the entry and
-its read-back, a replayed claim for a re-observation. -/
-def Claimed (trace : List Step) : Mode → Prop
-  | .entry | .readBack => Answered trace .claim (.claim .inserted)
-  | .reobserve => Answered trace .claim (.claim .replay)
+/-- The durable reservation accepted before credential access. -/
+def Claimed (trace : List Step) : Prop :=
+  Answered trace .claim (.claim .reserved)
 
-/-- Every credential check of a lease in `mode` passed: the lease, the
+/-- Every credential check passed: the lease, the
 prefix guard, the account read when declared, and every declared denied
 read. -/
-def CredentialsChecked (trace : List Step) (plan : Plan) (mode : Mode) : Prop :=
-  Answered trace (.lease mode) (.lease true) ∧
-    Answered trace (.prefixGuard mode) (.prefixGuard true) ∧
-    (plan.accountRead = true → Answered trace (.account mode) (.account .equal)) ∧
+def CredentialsChecked (trace : List Step) (plan : Plan) : Prop :=
+  Answered trace .lease (.lease true) ∧
+    Answered trace .prefixGuard (.prefixGuard true) ∧
+    (plan.accountRead = true → Answered trace .account (.account .equal)) ∧
     ∀ index, index < plan.deniedReads →
-      Answered trace (.denied mode index) (.denied .refused)
+      Answered trace (.denied index) (.denied .refused)
 
 /-- The relative-ceiling read produced a basis with every bind equal, and
 the ratio admits `argument`. -/
@@ -570,46 +533,47 @@ def Facts (trace : List Step) (state : State) : Prop :=
   | .prepare | .claim =>
       Verified trace state.argument ∧
         (state.plan.accountScope = true → Answered trace .scope (.scope true))
-  | .resume => Verified trace state.argument ∧ Claimed trace .reobserve
-  | .reload mode | .lease mode => Verified trace state.argument ∧ Claimed trace mode
-  | .prefixGuard mode =>
-      Verified trace state.argument ∧ Claimed trace mode ∧
-        Answered trace (.lease mode) (.lease true)
-  | .account mode =>
-      Verified trace state.argument ∧ Claimed trace mode ∧
-        Answered trace (.lease mode) (.lease true) ∧
-        Answered trace (.prefixGuard mode) (.prefixGuard true)
-  | .denied mode index =>
-      Verified trace state.argument ∧ Claimed trace mode ∧
-        Answered trace (.lease mode) (.lease true) ∧
-        Answered trace (.prefixGuard mode) (.prefixGuard true) ∧
-        (state.plan.accountRead = true → Answered trace (.account mode) (.account .equal)) ∧
-        ∀ earlier, earlier < index → Answered trace (.denied mode earlier) (.denied .refused)
-  | .readBack mode =>
-      Verified trace state.argument ∧ Claimed trace mode ∧
-        CredentialsChecked trace state.plan mode
+  | .reload | .lease => Verified trace state.argument ∧ Claimed trace
+  | .prefixGuard =>
+      Verified trace state.argument ∧ Claimed trace ∧
+        Answered trace .lease (.lease true)
+  | .account =>
+      Verified trace state.argument ∧ Claimed trace ∧
+        Answered trace .lease (.lease true) ∧
+        Answered trace .prefixGuard (.prefixGuard true)
+  | .denied index =>
+      Verified trace state.argument ∧ Claimed trace ∧
+        Answered trace .lease (.lease true) ∧
+        Answered trace .prefixGuard (.prefixGuard true) ∧
+        (state.plan.accountRead = true → Answered trace .account (.account .equal)) ∧
+        ∀ earlier, earlier < index → Answered trace (.denied earlier) (.denied .refused)
   | .preEntry =>
-      Verified trace state.argument ∧ Claimed trace .entry ∧
-        CredentialsChecked trace state.plan .entry
+      Verified trace state.argument ∧ Claimed trace ∧
+        CredentialsChecked trace state.plan
   | .ceiling =>
-      Verified trace state.argument ∧ Claimed trace .entry ∧
-        CredentialsChecked trace state.plan .entry ∧
+      Verified trace state.argument ∧ Claimed trace ∧
+        CredentialsChecked trace state.plan ∧
         (state.plan.preEntry = true → Answered trace .preEntry (.preEntry .satisfied))
   | .checkpoint | .entryReload =>
-      Verified trace state.argument ∧ Claimed trace .entry ∧
-        CredentialsChecked trace state.plan .entry ∧
+      Verified trace state.argument ∧ Claimed trace ∧
+        CredentialsChecked trace state.plan ∧
         ReadsPassed trace state.plan state.argument
-  | .deadline | .send | .recordResponse | .recordUnknown =>
-      Verified trace state.argument ∧ Claimed trace .entry ∧
-        CredentialsChecked trace state.plan .entry ∧
+  | .deadline =>
+      Verified trace state.argument ∧ Claimed trace ∧
+        CredentialsChecked trace state.plan ∧
         ReadsPassed trace state.plan state.argument ∧
         Answered trace .entryReload (.reload true)
+  | .grant | .send | .recordResponse | .recordUnknown =>
+      Verified trace state.argument ∧ Claimed trace ∧
+        CredentialsChecked trace state.plan ∧ ReadsPassed trace state.plan state.argument ∧
+        Answered trace .entryReload (.reload true) ∧
+        Answered trace .deadline (.deadline true)
 
-theorem denied_extend {trace : List Step} {mode : Mode} {index bound : Nat}
-    (prior : ∀ earlier, earlier < index → Answered trace (.denied mode earlier) (.denied .refused))
+theorem denied_extend {trace : List Step} {index bound : Nat}
+    (prior : ∀ earlier, earlier < index → Answered trace (.denied earlier) (.denied .refused))
     (within : bound ≤ index + 1) :
     ∀ earlier, earlier < bound →
-      Answered trace (.denied mode earlier) (.denied .refused) ∨ index = earlier := by
+      Answered trace (.denied earlier) (.denied .refused) ∨ index = earlier := by
   intro earlier below
   by_cases before : earlier < index
   · exact Or.inl (prior earlier before)
@@ -622,9 +586,9 @@ theorem facts_step (trace : List Step) (state : State) (event : Event)
   rcases state with ⟨plan, phase, argument⟩
   cases phase <;> cases event <;>
     simp only [nextStep, preClaimStep, leaseStep, entryStep, go, stop, halt, notEntered,
-      leaseFailed, afterReads, ceilingFrom, preEntryFrom, afterCredentials, deniedFrom,
+      afterReads, ceilingFrom, preEntryFrom, deniedFrom,
       afterPrefix, afterAdmission, preClaim, afterClaim, afterAccount, afterDenied, afterPreEntry,
-      afterCeiling, afterWrite, afterResponse, afterReadBack] at facts ⊢ <;>
+      afterCeiling, afterWrite, afterResponse] at facts ⊢ <;>
     (repeat' split) <;>
     simp_all [Facts, Verified, Claimed, CredentialsChecked, CeilingAdmitted, ReadsPassed,
       answered_append] <;>
@@ -648,15 +612,12 @@ def preClaimAction : Action → Bool
 
 /-- The phases the machine can be in once it named the write. -/
 def afterSend : Phase → Bool
-  | .send | .recordResponse | .recordUnknown | .recordNotEntered | .done
-  | .reload .readBack | .lease .readBack | .prefixGuard .readBack | .account .readBack
-  | .denied .readBack _ | .readBack .readBack => true
+  | .send | .recordResponse | .recordUnknown | .done => true
   | _ => false
 
-/-- The phases the machine can be in once a claim replayed. -/
+/-- A replay returns the retained record without another effect. -/
 def replaying : Phase → Bool
-  | .resume | .reload .reobserve | .lease .reobserve | .prefixGuard .reobserve
-  | .account .reobserve | .denied .reobserve _ | .readBack .reobserve | .done => true
+  | .done => true
   | _ => false
 
 /-- The ordering invariant of a trace ending in `state`. -/
@@ -686,11 +647,11 @@ set_option hygiene false in
 /-- Unfolds one step of the machine and closes each case of the case split. -/
 macro "step_cases" : tactic => `(tactic| (
   rcases state with ⟨plan, phase, argument⟩
-  cases phase <;> (try cases ‹Mode›) <;> cases event <;> (try cases ‹Verification›) <;>
+  cases phase <;> cases event <;> (try cases ‹Verification›) <;>
     simp only [nextStep, preClaimStep, leaseStep, entryStep, go, stop, halt, notEntered,
-      leaseFailed, afterReads, ceilingFrom, preEntryFrom, afterCredentials, deniedFrom,
+      afterReads, ceilingFrom, preEntryFrom, deniedFrom,
       afterPrefix, afterAdmission, preClaim, afterClaim, afterAccount, afterDenied, afterPreEntry,
-      afterCeiling, afterWrite, afterResponse, afterReadBack] <;>
+      afterCeiling, afterWrite, afterResponse] <;>
     (repeat' split) <;>
     simp_all [argumentAfter, beforeVerification, beforeClaim, preClaimAction, afterSend,
       replaying]))
@@ -713,7 +674,7 @@ theorem before_claim_step (state : State) (event : Event)
 
 theorem send_step (state : State) (event : Event)
     (sent : (nextStep state event).action = .send) :
-    state.phase = .deadline ∧ event = .deadline true ∧ (nextStep state event).state.phase = .send := by
+    state.phase = .grant ∧ event = .granted true ∧ (nextStep state event).state.phase = .send := by
   revert sent
   step_cases
 
@@ -800,9 +761,9 @@ theorem ordered_step (trace : List Step) (state : State) (event : Event)
         rw [phaseEq] at this
         cases this
 
-theorem lease_named (state : State) (event : Event) (mode : Mode)
-    (leased : (nextStep state event).action = .lease mode) :
-    state.phase = .reload mode ∧ event = .reload true := by
+theorem lease_named (state : State) (event : Event)
+    (leased : (nextStep state event).action = .lease) :
+    state.phase = .reload ∧ event = .reload true := by
   revert leased
   step_cases
 
@@ -836,36 +797,31 @@ theorem invariant (plan : Plan) (events : List Event) :
 
 /-! ## Ordering theorems -/
 
-/-- A credential lease is named only on a successful connection reload in
-the reload phase of its mode, after native verification authorized the
-action, and after the claim it depends on: an inserted claim for the entry
-and its read-back, a replayed claim for a re-observation. -/
+/-- A credential lease requires native authorization and a durable reservation. -/
 theorem lease_requires_verified_claim (plan : Plan) (pre : List Event) (event : Event)
-    (mode : Mode) (leased : (nextStep (stateAfter plan pre) event).action = .lease mode) :
-    event = .reload true ∧ (stateAfter plan pre).phase = .reload mode ∧
+    (leased : (nextStep (stateAfter plan pre) event).action = .lease) :
+    event = .reload true ∧ (stateAfter plan pre).phase = .reload ∧
       (∃ argument, Verified (steps plan pre) argument) ∧
-      (mode = .reobserve → Answered (steps plan pre) .claim (.claim .replay)) ∧
-      (mode ≠ .reobserve → Answered (steps plan pre) .claim (.claim .inserted)) := by
-  obtain ⟨phase, eventEq⟩ := lease_named _ _ _ leased
+      Answered (steps plan pre) .claim (.claim .reserved) := by
+  obtain ⟨phase, eventEq⟩ := lease_named _ _ leased
   have facts := (invariant plan pre).1
   unfold Facts at facts
   rw [phase] at facts
-  obtain ⟨verified, claimed⟩ := facts
-  refine ⟨eventEq, phase, ⟨_, verified⟩, ?_, ?_⟩ <;> intro modeEq <;> cases mode <;>
-    simp_all [Claimed]
+  exact ⟨eventEq, phase, ⟨_, facts.1⟩, facts.2⟩
 
-/-- The write is named only on a successful deadline check, after the entry
-lease succeeded, after the declared pre-entry re-read was satisfied, after
-the connection reload before entry found the record unchanged, and after an
-inserted claim of a verified action. -/
+/-- The write is named only on a successful durable grant, after the deadline
+check and entry lease, after the declared pre-entry re-read was satisfied,
+after the connection reload found the record unchanged, and after a durable
+reservation of a verified action. -/
 theorem send_requires_lease_and_deadline (plan : Plan) (pre : List Event) (event : Event)
     (sent : (nextStep (stateAfter plan pre) event).action = .send) :
-    event = .deadline true ∧ (stateAfter plan pre).phase = .deadline ∧
+    event = .granted true ∧ (stateAfter plan pre).phase = .grant ∧
       (∃ argument, Verified (steps plan pre) argument) ∧
-      Answered (steps plan pre) .claim (.claim .inserted) ∧
-      Answered (steps plan pre) (.lease .entry) (.lease true) ∧
+      Answered (steps plan pre) .claim (.claim .reserved) ∧
+      Answered (steps plan pre) .lease (.lease true) ∧
       (plan.preEntry = true → Answered (steps plan pre) .preEntry (.preEntry .satisfied)) ∧
-      Answered (steps plan pre) .entryReload (.reload true) := by
+      Answered (steps plan pre) .entryReload (.reload true) ∧
+      Answered (steps plan pre) .deadline (.deadline true) := by
   obtain ⟨phase, eventEq, _⟩ := send_step _ _ sent
   have facts := (invariant plan pre).1
   unfold Facts at facts
@@ -878,10 +834,10 @@ check: the prefix guard, the account read with equal commitments when
 declared, and every declared denied read refused with a declared status. -/
 theorem send_requires_credential_checks (plan : Plan) (pre : List Event) (event : Event)
     (sent : (nextStep (stateAfter plan pre) event).action = .send) :
-    Answered (steps plan pre) (.prefixGuard .entry) (.prefixGuard true) ∧
-      (plan.accountRead = true → Answered (steps plan pre) (.account .entry) (.account .equal)) ∧
+    Answered (steps plan pre) .prefixGuard (.prefixGuard true) ∧
+      (plan.accountRead = true → Answered (steps plan pre) .account (.account .equal)) ∧
       ∀ index, index < plan.deniedReads →
-        Answered (steps plan pre) (.denied .entry index) (.denied .refused) := by
+        Answered (steps plan pre) (.denied index) (.denied .refused) := by
   obtain ⟨phase, _, _⟩ := send_step _ _ sent
   have facts := (invariant plan pre).1
   unfold Facts at facts
@@ -948,13 +904,13 @@ theorem pre_claim_refusal_stores_nothing (plan : Plan) (pre : List Event) (event
 records, by phase and event; `none` for every other step. -/
 def refusalOf (state : State) (event : Event) : Option Refusal :=
   match state.phase, event with
-  | .reload .entry, .reload false => some .connectionChanged
-  | .lease .entry, .lease false => some .credentialUnavailable
-  | .prefixGuard .entry, .prefixGuard false => some .modeGuard
-  | .account .entry, .account .mismatch => some .accountMismatch
-  | .account .entry, .account .unavailable => some .accountUnavailable
-  | .denied .entry _, .denied .answered => some .capabilityExcess
-  | .denied .entry _, .denied .unavailable => some .capabilityUnavailable
+  | .reload, .reload false => some .connectionChanged
+  | .lease, .lease false => some .credentialUnavailable
+  | .prefixGuard, .prefixGuard false => some .modeGuard
+  | .account, .account .mismatch => some .accountMismatch
+  | .account, .account .unavailable => some .accountUnavailable
+  | .denied _, .denied .answered => some .capabilityExcess
+  | .denied _, .denied .unavailable => some .capabilityUnavailable
   | .preEntry, .preEntry .conditionFalse => some .preEntryConditionFalse
   | .preEntry, .preEntry .unavailable => some .preEntryUnavailable
   | .ceiling, .ceiling .unavailable => some .ceilingUnavailable
@@ -963,7 +919,6 @@ def refusalOf (state : State) (event : Event) : Option Refusal :=
       if admits state.argument basis state.plan.basisPoints then none else some .ceilingAbove
   | .entryReload, .reload false => some .connectionChanged
   | .deadline, .deadline false => some .entryDeadline
-  | .send, .write .notEntered => some .transportNotEntered
   | _, _ => none
 
 /-- The per-phase table: a step records `not-entered` with a refusal exactly
@@ -982,30 +937,29 @@ theorem not_entered_phase (state : State) (event : Event) (refusal : Refusal)
 
 theorem refusal_claimed (trace : List Step) (state : State) (event : Event) (refusal : Refusal)
     (facts : Facts trace state) (assigned : refusalOf state event = some refusal) :
-    Answered trace .claim (.claim .inserted) := by
+    Answered trace .claim (.claim .reserved) := by
   rcases state with ⟨plan, phase, argument⟩
-  cases phase <;> (try cases ‹Mode›) <;> simp_all [Facts, Claimed, refusalOf]
+  cases phase <;> simp_all [Facts, Claimed, refusalOf]
 
 theorem refusal_after_send (state : State) (event : Event) (refusal : Refusal)
     (sent : afterSend state.phase = true) (assigned : refusalOf state event = some refusal) :
-    refusal = .transportNotEntered := by
+    False := by
   rcases state with ⟨plan, phase, argument⟩
-  cases phase <;> (try cases ‹Mode›) <;> cases event <;> simp_all [afterSend, refusalOf] <;>
+  cases phase <;> cases event <;> simp_all [afterSend, refusalOf] <;>
     (repeat' split at assigned) <;> simp_all
 
 /-- Over every trace: a step records `not-entered` exactly when the claim
-was inserted and the step's phase and event are a failure the table assigns
+was reserved and the step's phase and event are a failure the table assigns
 a refusal to, and the recorded refusal is that failure's. Once the write was
-named, the only such failure is the transport's refusal before network
-entry. -/
+named, no such refusal can be emitted. -/
 theorem post_claim_refusal_records_not_entered (plan : Plan) (pre : List Event)
     (event : Event) (refusal : Refusal) :
     ((nextStep (stateAfter plan pre) event).action = .recordNotEntered refusal ↔
-        Answered (steps plan pre) .claim (.claim .inserted) ∧
+        Answered (steps plan pre) .claim (.claim .reserved) ∧
           refusalOf (stateAfter plan pre) event = some refusal) ∧
       ((nextStep (stateAfter plan pre) event).action = .recordNotEntered refusal →
         (nextStep (stateAfter plan pre) event).state.phase = .recordNotEntered ∧
-          (Emitted (steps plan pre) .send → refusal = .transportNotEntered)) := by
+          ¬ Emitted (steps plan pre) .send) := by
   obtain ⟨facts, _, _, _, _, sent, _⟩ := invariant plan pre
   refine ⟨⟨fun recorded => ?_, fun ⟨_, assigned⟩ => ?_⟩, fun recorded => ?_⟩
   · have assigned := (not_entered_refusal_table _ _ _).mp recorded
@@ -1013,5 +967,29 @@ theorem post_claim_refusal_records_not_entered (plan : Plan) (pre : List Event)
   · exact (not_entered_refusal_table _ _ _).mpr assigned
   · refine ⟨not_entered_phase _ _ _ recorded, fun emitted => ?_⟩
     exact refusal_after_send _ _ _ (sent emitted) ((not_entered_refusal_table _ _ _).mp recorded)
+
+/-- A recorded response is a terminal submission result. Observation requires a
+separate authorized operation; the submission machine emits no follow-up read. -/
+theorem response_stops_without_read (state : State) (phase : state.phase = .recordResponse) :
+    nextStep state (.response .recorded) = stop state .response := by
+  rcases state with ⟨plan, phase', argument⟩
+  cases phase
+  rfl
+
+/-- Losing or replaying an existing reservation returns its retained record;
+it cannot resume credential acquisition or issue another entry grant. -/
+theorem replay_returns_stored (state : State) (phase : state.phase = .claim) :
+    nextStep state (.claim .replay) = stop state .stored := by
+  rcases state with ⟨plan, phase', argument⟩
+  cases phase
+  rfl
+
+/-- A failed durable grant stops without sending, and never fabricates a
+not-entered refund after the authority boundary. -/
+theorem refused_grant_stops_without_send (state : State) (phase : state.phase = .grant) :
+    nextStep state (.granted false) = stop state .grantUnavailable := by
+  rcases state with ⟨plan, phase', argument⟩
+  cases phase
+  rfl
 
 end Auths.Product.SubmitOrder

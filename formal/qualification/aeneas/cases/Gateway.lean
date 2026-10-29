@@ -1,4 +1,5 @@
 import qualification.aeneas.generated.gateway.Funs
+import Auths.Product.Refinement.Gateway
 
 open Aeneas Aeneas.Std Result
 
@@ -92,6 +93,92 @@ example :
         (order.SubmitEvent.Write order.WriteResult.Response) =
       ok { state := { plan, phase := order.Phase.Done, argument := 0#u64 },
            action := order.SubmitAction.Stop order.Stop.Halted } := by
+  rfl
+
+-- AP074: the deadline names durable grant creation; only its successful
+-- result names the send. Failure stops and replay returns stored state.
+example :
+    order.next_step { plan, phase := .Deadline, argument := 1#u64 } (.Deadline true) =
+      ok { state := { plan, phase := .Grant, argument := 1#u64 }, action := .GrantEntry } := by
+  rfl
+example :
+    order.next_step { plan, phase := .Grant, argument := 1#u64 } (.Granted true) =
+      ok { state := { plan, phase := .Send, argument := 1#u64 }, action := .Send } := by
+  rfl
+example :
+    order.next_step { plan, phase := .Grant, argument := 1#u64 } (.Granted false) =
+      ok { state := { plan, phase := .Done, argument := 1#u64 },
+           action := .Stop .GrantUnavailable } := by
+  rfl
+example :
+    order.next_step { plan, phase := .Claim, argument := 1#u64 } (.Claim .Replay) =
+      ok { state := { plan, phase := .Done, argument := 1#u64 }, action := .Stop .Stored } := by
+  rfl
+example :
+    order.next_step { plan, phase := .RecordResponse, argument := 1#u64 } (.Response .Recorded) =
+      ok { state := { plan, phase := .Done, argument := 1#u64 }, action := .Stop .Response } := by
+  rfl
+
+-- Late source response and recipient ACK are allowed evidence routes, but
+-- an unknown cannot gain a second grant or become refundable not-entered.
+example : transition.stage_transition_allowed .Unknown .ResponseRecorded .None = ok true := by
+  rfl
+example : transition.stage_transition_allowed .Unknown .Acknowledged .None = ok true := by
+  rfl
+example : transition.stage_transition_allowed .Unknown .EntryGranted .Verified = ok false := by
+  rfl
+example : transition.stage_transition_allowed .Unknown .NotEntered .Verified = ok false := by
+  rfl
+example : transition.stage_transition_allowed .Acknowledged .Unknown .None = ok false := by
+  rfl
+
+-- Full projected records demonstrate inhabited evidence routes and reject
+-- changed source grants, protocol substitution, and non-successor revisions.
+private def byteVec (byte : Std.U8) : alloc.vec.Vec Std.U8 :=
+  ⟨[byte], by simp; scalar_tac⟩
+
+private def unknownView (protocol : transition.Protocol) : transition.AttemptView :=
+  { protocol, revision := 2#u64, fixed := byteVec 1#u8, entry := byteVec 2#u8,
+    stage := .Unknown, refusal := false, pre_entry := ⟨[], by simp⟩,
+    response := ⟨[], by simp⟩, acknowledgement := ⟨[], by simp⟩,
+    locator := ⟨[], by simp⟩, reading := .None, evidence := false,
+    observation := false, link := .None }
+
+private def lateResponse : transition.AttemptView :=
+  { unknownView .Mutation with revision := 3#u64, stage := .ResponseRecorded, response := byteVec 3#u8 }
+
+private def lateAcknowledgement : transition.AttemptView :=
+  { unknownView .Disclosure with revision := 3#u64, stage := .Acknowledged, acknowledgement := byteVec 4#u8 }
+
+private theorem projected_transition (old new : transition.AttemptView) :
+    transition.valid_transition old new =
+      ok (Auths.Product.Recovery.validTransition
+        (Auths.Product.Refinement.Gateway.viewOf old)
+        (Auths.Product.Refinement.Gateway.viewOf new)) := by
+  obtain ⟨result, resultEq, refined⟩ := Aeneas.Std.WP.spec_imp_exists
+    (Auths.Product.Refinement.Gateway.translated_valid_transition_refines_model old new)
+  rw [resultEq, refined]
+
+example : transition.valid_transition (unknownView .Mutation) lateResponse = ok true := by
+  rw [projected_transition]
+  rfl
+example : transition.valid_transition (unknownView .Disclosure) lateAcknowledgement = ok true := by
+  rw [projected_transition]
+  rfl
+example : transition.valid_transition (unknownView .Mutation)
+    { lateResponse with entry := byteVec 5#u8 } = ok false := by
+  rw [projected_transition]
+  rfl
+example : transition.valid_transition (unknownView .Mutation)
+    { lateResponse with revision := 4#u64 } = ok false := by
+  rw [projected_transition]
+  rfl
+example : transition.valid_transition (unknownView .Mutation)
+    { lateAcknowledgement with protocol := .Mutation } = ok false := by
+  rw [projected_transition]
+  rfl
+example : transition.valid_transition (unknownView .Mutation) lateAcknowledgement = ok false := by
+  rw [projected_transition]
   rfl
 
 end qualification.aeneas.cases
