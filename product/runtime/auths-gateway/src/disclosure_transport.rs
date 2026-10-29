@@ -20,12 +20,12 @@ const SESSION_SECONDS: u64 = 15;
 
 impl UnixDisclosurePolicy {
     fn server_peer(&self, stream: &UnixStream) -> Result<(), &'static str> {
-        self.peer(stream, self.gateway_uid(), self.recipient_uid())
+        Self::peer(stream, self.gateway_uid(), self.recipient_uid())
     }
     pub(crate) fn recipient_peer(&self, stream: &UnixStream) -> Result<(), &'static str> {
-        self.peer(stream, self.recipient_uid(), self.gateway_uid())
+        Self::peer(stream, self.recipient_uid(), self.gateway_uid())
     }
-    fn peer(&self, stream: &UnixStream, local: u32, remote: u32) -> Result<(), &'static str> {
+    fn peer(stream: &UnixStream, local: u32, remote: u32) -> Result<(), &'static str> {
         if rustix::process::geteuid().as_raw() != local
             || stream
                 .peer_cred()

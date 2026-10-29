@@ -470,7 +470,7 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             json!({"crash": "after-write-before-response", "replay": "same-binding"}),
             &["reserved", "entry-granted"],
             None,
-            &counts(1, 0, 1, 0),
+            &counts(1, 0, 0, 1),
         ),
     ]
 }

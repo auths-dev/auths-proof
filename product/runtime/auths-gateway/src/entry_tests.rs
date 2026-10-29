@@ -768,7 +768,7 @@ fn admission_batch_contract(store: &dyn GatewayAttemptStore) -> serde_json::Valu
 
 /// A writer holds the common fence while admission starts. The decision must
 /// observe the writer's committed dependency, never its earlier value.
-fn admission_dependency_order(store: Arc<dyn GatewayAttemptStore>) -> serde_json::Value {
+fn admission_dependency_order(store: &Arc<dyn GatewayAttemptStore>) -> serde_json::Value {
     use std::sync::mpsc;
     use std::time::Duration;
     let dependency = (
@@ -785,7 +785,7 @@ fn admission_dependency_order(store: Arc<dyn GatewayAttemptStore>) -> serde_json
         .expect("dependency");
     let (locked_tx, locked_rx) = mpsc::channel();
     let (release_tx, release_rx) = mpsc::channel();
-    let writer_store = Arc::clone(&store);
+    let writer_store = Arc::clone(store);
     let writer = std::thread::spawn(move || {
         writer_store.fenced_replace(&[dependency], &mut |snapshots| {
             assert_eq!(snapshots, &[Some(b"current".to_vec())]);
@@ -800,7 +800,7 @@ fn admission_dependency_order(store: Arc<dyn GatewayAttemptStore>) -> serde_json
         .recv_timeout(Duration::from_secs(1))
         .expect("writer locked");
     let (started_tx, started_rx) = mpsc::channel();
-    let admission_store = Arc::clone(&store);
+    let admission_store = Arc::clone(store);
     let claim_key = GatewayAttemptKey([196; 32]);
     let charge_key = GatewayAttemptKey([197; 32]);
     let admission = std::thread::spawn(move || {
@@ -856,7 +856,7 @@ async fn native_admission_fixture_is_current() {
     let (mechanism, dependency_order) = tokio::task::spawn_blocking(move || {
         (
             admission_batch_contract(&*raw),
-            admission_dependency_order(raw),
+            admission_dependency_order(&raw),
         )
     })
     .await
@@ -884,7 +884,7 @@ async fn postgres_admission_checks_authority_before_atomic_charges() {
     let raw = store.raw();
     tokio::task::spawn_blocking(move || {
         admission_batch_contract(&*raw);
-        admission_dependency_order(raw);
+        admission_dependency_order(&raw);
     })
     .await
     .expect("contract");

@@ -939,13 +939,19 @@ fn recipes_cannot_select_custody_or_declare_qualification() {
     }
 }
 
-/// A submission frame carries a proof and an action and nothing else.
+/// A submission frame carries only native proof, action and exact approval.
 #[cfg(unix)]
 #[test]
 fn submission_frames_cannot_select_custody() {
     use crate::app::{APP_REQUEST_SCHEMA, AppSubmission};
     let corpus = load(CUSTODY_FILE);
-    let base = json!({"schema": APP_REQUEST_SCHEMA, "proof_b64": "AA", "action_b64": "AA"});
+    let base: Value = serde_json::from_str(
+        load("effect-binding.json")["submission_frame_canonical"]
+            .as_str()
+            .expect("native submission"),
+    )
+    .expect("native frame");
+    assert_eq!(base["schema"], APP_REQUEST_SCHEMA);
     assert!(serde_json::from_value::<AppSubmission>(base.clone()).is_ok());
     for case in corpus["frame_selection"].as_array().expect("frames") {
         let mut frame = base.clone();

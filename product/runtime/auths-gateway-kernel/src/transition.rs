@@ -260,8 +260,8 @@ pub fn consistent(view: &AttemptView) -> bool {
     protocol_consistent(view)
         && view.revision > 0
         && view.revision <= 9_007_199_254_740_991
-        && requires_entry(view.stage) == !absent(&view.entry)
-        && acknowledgement_stage(view.stage) == !absent(&view.acknowledgement)
+        && requires_entry(view.stage) != absent(&view.entry)
+        && acknowledgement_stage(view.stage) != absent(&view.acknowledgement)
         && refusal_stage(view.stage) == view.refusal
         && (!requires_response(view.stage) || has_response)
         && (!has_response || permits_response(view.stage))

@@ -826,6 +826,70 @@ mod tests {
             .collect()
     }
 
+    async fn write_fixture_permit(
+        recipe: &CompiledRecipe,
+        arguments: &Value,
+    ) -> (
+        std::sync::Arc<crate::effect::ApprovedEffect>,
+        crate::store::ProviderEntryPermit,
+    ) {
+        let command = crate::scenario_tests::admitted(
+            recipe,
+            arguments.as_object().expect("arguments"),
+            [1; 32],
+            Vec::new(),
+            60,
+            Vec::new(),
+            1000,
+        )
+        .expect("command");
+        let approved = std::sync::Arc::new(
+            crate::effect::approve_driver_fixture(command, *recipe.digest(), 1000, None)
+                .expect("approval"),
+        );
+        let attempts =
+            crate::store_testkit::TestAttempts::open(crate::store_testkit::Backend::File);
+        let crate::store::BoundedClaim::Claimed(claim) = attempts
+            .attempts()
+            .claim_bounded(
+                &approved,
+                1000,
+                crate::entry::EntryValidation::Oracle { now: 1000 },
+            )
+            .await
+            .expect("claim")
+        else {
+            panic!("claim refused")
+        };
+        let (_granted, permit) = claim
+            .grant_entry(
+                std::sync::Arc::clone(&approved),
+                crate::entry::EntryValidation::Oracle { now: 1000 },
+                1000,
+                &crate::GatewayPreEntry::default(),
+            )
+            .await
+            .expect("durable grant");
+        (approved, permit)
+    }
+
+    fn assert_idempotency_heads(heads: &[String], recipe: &CompiledRecipe, declared: bool) {
+        let expected = idempotency_key(
+            recipe.namespace(),
+            &LogicalOperationId::parse("run-1").expect("operation"),
+        );
+        let sent = if declared {
+            vec![expected.as_str()]
+        } else {
+            Vec::new()
+        };
+        assert_eq!(idempotency_values(&heads[0]), sent, "declared={declared}");
+        assert!(
+            idempotency_values(&heads[1]).is_empty(),
+            "the read-back never sends the key"
+        );
+    }
+
     #[tokio::test]
     async fn write_sends_the_derived_idempotency_key_only_when_declared_and_read_back_never_does() {
         let lease = test_lease().await;
@@ -846,43 +910,7 @@ mod tests {
             let arguments = json!({"operation_id": "run-1", "record_id": "recTEST0000000001",
                 "replacement": "Approved", "operator_namespace": recipe.namespace().as_str(),
                 "recipe_digest": recipe.digest_hex()});
-            let command = crate::scenario_tests::admitted(
-                &recipe,
-                arguments.as_object().expect("arguments"),
-                [1; 32],
-                Vec::new(),
-                60,
-                Vec::new(),
-                1000,
-            )
-            .expect("command");
-            let approved = std::sync::Arc::new(
-                crate::effect::approve_driver_fixture(command, *recipe.digest(), 1000, None)
-                    .expect("approval"),
-            );
-            let attempts =
-                crate::store_testkit::TestAttempts::open(crate::store_testkit::Backend::File);
-            let crate::store::BoundedClaim::Claimed(claim) = attempts
-                .attempts()
-                .claim_bounded(
-                    &approved,
-                    1000,
-                    crate::entry::EntryValidation::Oracle { now: 1000 },
-                )
-                .await
-                .expect("claim")
-            else {
-                panic!("claim refused")
-            };
-            let (_granted, permit) = claim
-                .grant_entry(
-                    std::sync::Arc::clone(&approved),
-                    crate::entry::EntryValidation::Oracle { now: 1000 },
-                    1000,
-                    &crate::GatewayPreEntry::default(),
-                )
-                .await
-                .expect("durable grant");
+            let (approved, permit) = write_fixture_permit(&recipe, &arguments).await;
             let request = &approved.command().expect("mutation command").request;
             let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
                 .await
@@ -952,20 +980,7 @@ mod tests {
             let heads = provider.await.expect("provider");
             assert!(heads[0].starts_with("patch /v0/"), "{}", heads[0]);
             assert!(heads[1].starts_with("get /v0/"), "{}", heads[1]);
-            let expected = idempotency_key(
-                recipe.namespace(),
-                &LogicalOperationId::parse("run-1").expect("operation"),
-            );
-            let sent = if declared {
-                vec![expected.as_str()]
-            } else {
-                Vec::new()
-            };
-            assert_eq!(idempotency_values(&heads[0]), sent, "declared={declared}");
-            assert!(
-                idempotency_values(&heads[1]).is_empty(),
-                "the read-back never sends the key"
-            );
+            assert_idempotency_heads(&heads, &recipe, declared);
         }
     }
 

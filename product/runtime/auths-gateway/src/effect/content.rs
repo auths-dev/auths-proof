@@ -2,7 +2,12 @@
 //! Compilation does not grant entry, retain a response or release content.
 
 use super::acquisition::{AcquisitionTarget, build_binding, compile_acquisition};
-use super::*;
+use super::{
+    BoundEffect, CompiledRecipe, ConnectionRecord, Deserialize, EffectBinding, EffectBindingError,
+    EffectInstallation, GatewayConnectionDescriptor, GatewaySubmitResult, LogicalOperationId,
+    MAX_EFFECT_BYTES, Prerequisites, Protocol, ReservationWindow, Serialize, SourceCapacity, Unit,
+    Zeroizing, canonical, commitment, fmt, managed_reservations, not_entered,
+};
 use crate::recipe::ClosedContentRead;
 use auths_profile_mcp::McpToolCall;
 use serde_json::{Map, Value, json};
@@ -266,7 +271,7 @@ pub fn compile_content_action(
         now,
         proof,
         action,
-        sealed,
+        &sealed,
     )
 }
 

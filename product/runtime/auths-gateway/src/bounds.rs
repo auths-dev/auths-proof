@@ -727,6 +727,7 @@ pub(crate) fn admit_disclosure_bounds(
     )
 }
 
+#[derive(Clone, Copy)]
 enum InformationBudget {
     Acquisition,
     Disclosure,
@@ -798,7 +799,7 @@ pub(crate) fn admit_links(
         links,
         action,
         recipe.namespace(),
-        recipe.sum_requirement(),
+        recipe.sum_requirement().as_ref(),
         now,
     )
 }
@@ -807,7 +808,7 @@ fn admit_policy_links(
     links: Vec<BoundLink>,
     action: &CanonicalAction,
     namespace: &OperatorNamespace,
-    requirement: Option<SumRequirement>,
+    requirement: Option<&SumRequirement>,
     now: u64,
 ) -> Result<Option<BoundAdmission>, &'static str> {
     if links.len() > MAX_BOUNDED_LINKS {

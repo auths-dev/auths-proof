@@ -2,7 +2,14 @@
 //! This constructs the shared bound effect, not an entry permit. The journal
 //! must later account and fence the acquisition separately from its source.
 
-use super::*;
+use super::{
+    ApprovalPolicy, BindingWire, BoundEffect, COMPILER, CompiledEffect, CompiledRecipe,
+    Deserialize, EFFECT_BINDING_SCHEMA, EffectBinding, EffectBindingError, EffectInstallation,
+    GatewayConnectionDescriptor, GatewaySubmitResult, LogicalOperationId, MAX_EFFECT_BYTES,
+    PrerequisitePlan, Prerequisites, Protocol, ReadWire, Reservation, ReservationWindow, Scope,
+    Serialize, SourceCapacity, Unit, Zeroizing, canonical, commitment, fmt, managed_reservations,
+    native_authority_commitment, not_entered,
+};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 #[cfg(unix)]
@@ -493,7 +500,7 @@ pub(super) fn compile_acquisition(
     action: &[u8],
 ) -> Result<BoundEffect, GatewaySubmitResult> {
     let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
-    compile_verified_acquisition(installed, target, now, proof, action, sealed)
+    compile_verified_acquisition(installed, target, now, proof, action, &sealed)
 }
 
 #[allow(
@@ -506,7 +513,7 @@ pub(super) fn compile_verified_acquisition(
     now: u64,
     proof: &[u8],
     action: &[u8],
-    sealed: auths_verifier::SealedVerificationResult,
+    sealed: &auths_verifier::SealedVerificationResult,
 ) -> Result<BoundEffect, GatewaySubmitResult> {
     let invalid = || not_entered("gateway.acquisition.binding");
     GatewayConnectionDescriptor::from_record(installed.connection, installed.recipe)

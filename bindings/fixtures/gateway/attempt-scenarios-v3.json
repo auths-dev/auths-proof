@@ -755,8 +755,8 @@
       "code": null,
       "leases": 1,
       "credential_reads": 0,
-      "action_reads": 1,
-      "provider_entries": 0
+      "action_reads": 0,
+      "provider_entries": 1
     }
   ],
   "record_cases": [

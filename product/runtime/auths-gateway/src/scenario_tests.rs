@@ -498,10 +498,10 @@ async fn reobserve_operator<P: ProviderPort>(
     if !io.reload().await {
         return None;
     }
-    let lease = io.lease().await?;
+    io.lease().await?;
     let prefix = recipe
         .guard_checks()
-        .is_none_or(|guard| io.secret_admitted(&lease, &guard));
+        .is_none_or(|guard| io.secret_admitted(&(), &guard));
     if !submit::lease_checks(recipe, io.provider, prefix, io.account_commitment()).await {
         return None;
     }
@@ -2730,7 +2730,7 @@ async fn store_conformance(backend: Backend) {
     conformance_fresh_challenge(backend).await;
     conformance_unknown_and_reobserve(backend).await;
     conformance_echo_mismatch(backend).await;
-    conformance_concurrent_reobservation(backend).await;
+    Box::pin(conformance_concurrent_reobservation(backend)).await;
     conformance_mechanism_fails_closed(backend).await;
     conformance_concurrent_claims_from_two_processes(backend).await;
     conformance_batches_from_two_processes(backend).await;
@@ -2741,7 +2741,7 @@ async fn store_conformance(backend: Backend) {
 
 #[tokio::test]
 async fn file_store_passes_attempt_store_conformance() {
-    store_conformance(Backend::File).await;
+    Box::pin(store_conformance(Backend::File)).await;
 }
 
 #[tokio::test]
@@ -2751,7 +2751,7 @@ async fn postgres_store_passes_attempt_store_conformance() {
         postgres_configured(),
         "TLS PostgreSQL environment slots are required"
     );
-    store_conformance(Backend::Postgres).await;
+    Box::pin(store_conformance(Backend::Postgres)).await;
 }
 
 /// A batch interrupted at any step leaves nothing once the store is opened

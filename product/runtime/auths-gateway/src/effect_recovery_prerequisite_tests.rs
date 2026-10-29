@@ -5,6 +5,7 @@ use crate::effect::{ApprovedEffect, PrerequisiteKind, compile_recovery_acquisiti
 use crate::entry::EntryValidation::Oracle;
 use crate::store::BoundedClaim;
 use crate::{AcquisitionClaim, AcquisitionStage, GatewayAttempts};
+use sha2::Digest as _;
 use std::sync::Arc;
 
 #[allow(
@@ -87,7 +88,6 @@ pub(super) async fn fixture(
             .expect("observation template")
             .extract_locator(body)
             .expect("source locator");
-        use sha2::Digest as _;
         granted_source
             .record_response(200, sha2::Sha256::digest(body).into(), Some(locator))
             .await

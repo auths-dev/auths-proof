@@ -1,7 +1,12 @@
 //! Publication is an explicit operator action over retained candidate evidence.
 //! It changes only the connection row; acquisition facts and charges stay immutable.
 
-use super::*;
+use super::{
+    AcquisitionPlan, AcquisitionState, ApprovedEffect, Arc, GatewayAttemptError, GatewayAttempts,
+    GatewayInsert, GatewayRecordEntry, GatewayRecordKind, LogicalOperationId, OperatorNamespace,
+    Record, Serialize, allocation, append_dependencies, blocking, canonical, capacity, decode_as,
+    prerequisite_dependencies, select_snapshots, validate_prerequisites,
+};
 
 /// Result of an explicit operator publication; neither variant grants I/O.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -15,19 +20,22 @@ pub enum CandidatePublication {
     AlreadyCurrent,
 }
 
-impl GatewayAttempts {
-    /// No public/application route may call this as a substitute for operator
-    /// publication authority. The native read proof authorizes only its reads.
-    pub(crate) async fn publish_candidate(
-        &self,
-        approved: Arc<ApprovedEffect>,
-        validation: crate::entry::EntryValidation,
-        authorization_started_at: u64,
-    ) -> Result<CandidatePublication, GatewayAttemptError> {
+struct PublicationTarget {
+    plan: crate::effect::CandidatePlan,
+    capacity: super::SourceCapacity,
+    replacement: Vec<u8>,
+    is_first: bool,
+    kind: super::PrerequisiteKind,
+    connection_key: super::GatewayAttemptKey,
+    key: super::GatewayAttemptKey,
+}
+
+impl PublicationTarget {
+    fn new(
+        approved: &ApprovedEffect,
+        attempts: &GatewayAttempts,
+    ) -> Result<Self, GatewayAttemptError> {
         let binding = approved.effect().binding();
-        if !self.policy.contains(binding) {
-            return Err(GatewayAttemptError::BindingConflict);
-        }
         let target = approved
             .candidate_target()
             .ok_or(GatewayAttemptError::InvalidTransition)?;
@@ -47,10 +55,47 @@ impl GatewayAttempts {
             .source_key()
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         let (namespace, operation, _, _) = binding.journal_identity();
-        let key = self.key(
+        let key = attempts.key(
             &OperatorNamespace::parse(namespace).map_err(|_| GatewayAttemptError::Corrupt)?,
             &LogicalOperationId::parse(operation).map_err(|_| GatewayAttemptError::Corrupt)?,
         )?;
+        Ok(Self {
+            plan,
+            capacity,
+            replacement,
+            is_first,
+            kind,
+            connection_key,
+            key,
+        })
+    }
+}
+
+type PublicationDecision<'a> =
+    dyn FnMut(&[Option<Vec<u8>>]) -> Result<Vec<u8>, GatewayAttemptError> + 'a;
+
+impl GatewayAttempts {
+    /// No public/application route may call this as a substitute for operator
+    /// publication authority. The native read proof authorizes only its reads.
+    pub(crate) async fn publish_candidate(
+        &self,
+        approved: Arc<ApprovedEffect>,
+        validation: crate::entry::EntryValidation,
+        authorization_started_at: u64,
+    ) -> Result<CandidatePublication, GatewayAttemptError> {
+        let binding = approved.effect().binding();
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let PublicationTarget {
+            plan,
+            capacity,
+            replacement,
+            is_first,
+            kind,
+            connection_key,
+            key,
+        } = PublicationTarget::new(&approved, self)?;
         let store = Arc::clone(&self.store);
         blocking(move || {
             let root_bytes = store
@@ -129,39 +174,54 @@ impl GatewayAttempts {
                     .map_err(|_| GatewayAttemptError::InvalidTransition)?;
                 Ok(replacement.clone())
             };
-            if is_first {
-                let entry = GatewayRecordEntry {
-                    kind: GatewayRecordKind::Connection,
-                    key: connection_key,
-                    record: replacement.clone(),
-                    expires_at: None,
-                };
-                // The insertion target itself is held absent by the same fence.
-                // Reconstruct that explicit snapshot for the shared decision.
-                match store.fenced_insert_all(&[entry], &keys[1..], &mut |snapshots| {
-                    let mut all = Vec::with_capacity(snapshots.len() + 1);
-                    all.push(None);
-                    all.extend_from_slice(snapshots);
-                    decide(&all)
-                })? {
-                    GatewayInsert::Inserted => {}
-                    GatewayInsert::Exists { index: 0 } => {
-                        if store
-                            .load(GatewayRecordKind::Connection, &connection_key)?
-                            .as_deref()
-                            != Some(replacement.as_slice())
-                        {
-                            return Err(GatewayAttemptError::BindingConflict);
-                        }
-                        return Ok(CandidatePublication::AlreadyCurrent);
-                    }
-                    GatewayInsert::Exists { .. } => return Err(GatewayAttemptError::Corrupt),
-                }
-            } else {
-                store.fenced_replace(&keys, &mut decide)?;
+            if publish_connection(&*store, &keys, &replacement, is_first, &mut decide)? {
+                return Ok(CandidatePublication::AlreadyCurrent);
             }
             Ok(disposition)
         })
         .await
     }
+}
+
+/// Returns true only when a competing publisher already installed the exact record.
+fn publish_connection(
+    store: &dyn super::GatewayAttemptStore,
+    keys: &[(GatewayRecordKind, super::GatewayAttemptKey)],
+    replacement: &[u8],
+    is_first: bool,
+    decide: &mut PublicationDecision<'_>,
+) -> Result<bool, GatewayAttemptError> {
+    let connection_key = keys[0].1;
+    if is_first {
+        let entry = GatewayRecordEntry {
+            kind: GatewayRecordKind::Connection,
+            key: connection_key,
+            record: replacement.to_vec(),
+            expires_at: None,
+        };
+        // The insertion target itself is held absent by the same fence.
+        // Reconstruct that explicit snapshot for the shared decision.
+        match store.fenced_insert_all(&[entry], &keys[1..], &mut |snapshots| {
+            let mut all = Vec::with_capacity(snapshots.len() + 1);
+            all.push(None);
+            all.extend_from_slice(snapshots);
+            decide(&all)
+        })? {
+            GatewayInsert::Inserted => {}
+            GatewayInsert::Exists { index: 0 } => {
+                if store
+                    .load(GatewayRecordKind::Connection, &connection_key)?
+                    .as_deref()
+                    != Some(replacement)
+                {
+                    return Err(GatewayAttemptError::BindingConflict);
+                }
+                return Ok(true);
+            }
+            GatewayInsert::Exists { .. } => return Err(GatewayAttemptError::Corrupt),
+        }
+    } else {
+        store.fenced_replace(keys, decide)?;
+    }
+    Ok(false)
 }

@@ -614,14 +614,6 @@
       "case": null
     },
     {
-      "code": "gateway.observer.credential-guard",
-      "owner": "observer",
-      "stage": "observe",
-      "status": "new",
-      "epic": 3,
-      "case": null
-    },
-    {
       "code": "gateway.policy.above-sum-limit",
       "owner": "engine",
       "stage": "before-claim",
@@ -1019,10 +1011,7 @@
       "stage": "recorded",
       "status": "new",
       "epic": 3,
-      "case": {
-        "fixture": "attempt-scenarios-v3.json",
-        "id": "transport-not-entered"
-      }
+      "case": null
     },
     {
       "code": "gateway.trust.key-aliased",

@@ -3,7 +3,7 @@
 use super::*;
 use crate::effect::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
 
-fn declaration(projection: Value) -> Value {
+fn declaration(projection: &Value) -> Value {
     json!({"schema": "auths.gateway-content-read/1", "resource_field": "record_id",
         "path": [{"kind": "fixed", "value": "documents"}, {"kind": "field", "name": "record_id"}],
         "query": [{"name": "format", "value": "text/plain"}], "projection": projection,
@@ -18,7 +18,7 @@ fn content_recipe(content: Value) -> Result<CompiledRecipe, crate::GatewayRecipe
 }
 
 fn invalid_declarations() -> Value {
-    let original = declaration(json!({"kind": "json-string", "pointer": "/content"}));
+    let original = declaration(&json!({"kind": "json-string", "pointer": "/content"}));
     let mut cases = vec![];
     for field in [
         "schema",
@@ -219,10 +219,10 @@ fn native_content_compilation_fixture_is_current() {
         json!({"kind": "utf8"}),
         json!({"kind": "json-string", "pointer": "/content"}),
     ] {
-        let recipe = content_recipe(declaration(projection.clone())).expect("content recipe");
+        let recipe = content_recipe(declaration(&projection)).expect("content recipe");
         assert_eq!(
             recipe.review_document()["content_acquisition"]["declaration"],
-            declaration(projection.clone())
+            declaration(&projection)
         );
         let connection = connection(&recipe);
         let target = ContentReadTarget::new(&recipe, &connection, arguments.clone())
@@ -475,7 +475,7 @@ async fn native_content_journal_fixture_is_current() {
         EffectPolicy::new("synthetic-content-journal".to_owned(), 1, public).expect("policy");
     let (source, lock) = h::recipe_sources(&json!({}), &Value::Null).expect("source");
     let mut source: Value = serde_json::from_slice(&source).expect("source JSON");
-    source["content"] = declaration(json!({"kind": "utf8"}));
+    source["content"] = declaration(&json!({"kind": "utf8"}));
     source["provider_headers"] = json!({"Stripe-Version": "2024-06-20"});
     let recipe =
         CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
@@ -681,7 +681,6 @@ async fn native_content_journal_fixture_is_current() {
             continue;
         }
         let headers = match index {
-            0 => "Content-Type: text/plain\r\n",
             1 => "Content-Type: text/plain\r\nContent-Encoding: gzip\r\n",
             2 => "Content-Type: text/plain\r\nContent-Type: application/json\r\n",
             3 => "",
@@ -689,7 +688,7 @@ async fn native_content_journal_fixture_is_current() {
                 "Content-Type: text/plain\r\nContent-Encoding: identity\r\nContent-Encoding: gzip\r\n"
             }
             5 => "Content-Type: application/json\r\n",
-            6..=12 | 14 => "Content-Type: text/plain\r\n",
+            0 | 6..=12 | 14 => "Content-Type: text/plain\r\n",
             13 => "Content-Type: text/plain\r\nContent-Encoding: identity\r\n",
             _ => unreachable!(),
         };
@@ -771,7 +770,9 @@ async fn native_content_journal_fixture_is_current() {
         let value: Value = serde_json::from_slice(&retained).expect("record JSON");
         let phase = &value["state"]["facts"]["phase"];
         let metadata = &phase["metadata"];
-        if index != 6 {
+        if index == 6 {
+            assert_eq!(phase["stage"], "unknown");
+        } else {
             assert_eq!(phase["stage"], "content-response-recorded");
             let expected_media = match index {
                 2 => json!({"kind": "invalid"}),
@@ -808,8 +809,6 @@ async fn native_content_journal_fixture_is_current() {
             store
                 .replace(crate::GatewayRecordKind::Attempt, &key, &changed, &retained)
                 .expect("restore fixture");
-        } else {
-            assert_eq!(phase["stage"], "unknown");
         }
         let history_operation =
             LogicalOperationId::parse(&format!("content-journal-{index}")).expect("operation");
@@ -849,19 +848,19 @@ async fn native_content_journal_fixture_is_current() {
             let retained_source = retained_source.expect("validated source");
             assert_eq!(retained_source.bytes, expected_body.len() as u64);
             if index == 0 {
-                disclosure_journal = super::disclosure_journal_tests::corpus(
+                disclosure_journal = Box::pin(super::disclosure_journal_tests::corpus(
                     retained_source.clone(),
                     &recipe,
                     &record,
                     &policy,
                     &store,
                     &path,
-                )
+                ))
                 .await;
             }
             if matches!(index, 0 | 9) {
                 disclosures.push(disclosure_compilation_cases(
-                    retained_source,
+                    &retained_source,
                     &recipe,
                     &record,
                     &policy,
@@ -884,8 +883,8 @@ async fn native_content_journal_fixture_is_current() {
                 "/state/facts/phase/metadata/media_type/value",
             ] {
                 let mut changed = value.clone();
-                let cell = changed.pointer_mut(pointer).expect("field");
-                *cell = match pointer {
+                let field_value = changed.pointer_mut(pointer).expect("field");
+                *field_value = match pointer {
                     "/schema" => json!("auths.gateway-attempt/13"),
                     "/state/facts/phase/content/value/schema" => {
                         json!("auths.gateway-protected-content/0")
@@ -895,7 +894,7 @@ async fn native_content_journal_fixture_is_current() {
                     }
                     "/state/facts/phase/response/version_ok" => json!(false),
                     "/state/facts/phase/metadata/media_type/value" => json!("application/json"),
-                    _ => json!(cell.as_u64().expect("number") ^ 1),
+                    _ => json!(field_value.as_u64().expect("number") ^ 1),
                 };
                 let bytes = serde_json_canonicalizer::to_vec(&changed).expect("changed bytes");
                 store
@@ -997,7 +996,7 @@ async fn native_content_journal_fixture_is_current() {
     reason = "one native disclosure compilation corpus over validated retained content"
 )]
 fn disclosure_compilation_cases(
-    retained: crate::RetainedContent,
+    retained: &crate::RetainedContent,
     recipe: &CompiledRecipe,
     connection: &ConnectionRecord,
     policy: &EffectPolicy,

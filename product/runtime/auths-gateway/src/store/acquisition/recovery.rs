@@ -356,14 +356,13 @@ impl GatewayAttempts {
                     acquisition: read.snapshot()?,
                     disposition,
                 });
-                match next {
-                    Some(bytes) => Ok(bytes),
-                    None => {
-                        unchanged = true;
-                        // Abort the write transaction: an inspection/replay must
-                        // not rewrite state or acquire a new journal revision.
-                        Err(GatewayAttemptError::Replay)
-                    }
+                if let Some(bytes) = next {
+                    Ok(bytes)
+                } else {
+                    unchanged = true;
+                    // Abort the write transaction: an inspection/replay must
+                    // not rewrite state or acquire a new journal revision.
+                    Err(GatewayAttemptError::Replay)
                 }
             });
             match persisted {

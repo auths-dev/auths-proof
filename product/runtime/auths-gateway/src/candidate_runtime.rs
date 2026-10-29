@@ -1,7 +1,12 @@
 //! Candidate checks use the shared acquisition owner and exact staged custody.
 //! Publication is a separate operator action over complete retained evidence.
 
-use super::*;
+use super::{
+    Arc, ConnectionRecord, ConnectionState, Duration, ExactEffectApproval,
+    GatewayConnectionDescriptor, GatewayEngine, GatewayHttpTransport, GatewaySubmitResult, Instant,
+    LoadedConnection, Ordering, ProviderResponse, SecretBytes, SharedConnectionError,
+    StoredSecretLease, not_entered, submit,
+};
 use crate::effect::{BoundEffect, CandidateCredentialTarget, compile_candidate_credential};
 use crate::submit::AcquisitionIo;
 
@@ -146,7 +151,7 @@ impl GatewayEngine {
             .map_err(|_| "gateway.admin.transition-unavailable")?;
         self.holds(record)
             .await
-            .map_err(|_| "gateway.admin.credential-unavailable")?;
+            .map_err(|()| "gateway.admin.credential-unavailable")?;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
         self.note_credential(record, proposed.credential_generation())
@@ -313,7 +318,7 @@ impl GatewayEngine {
         );
         self.holds(target.record())
             .await
-            .map_err(|_| "gateway.credential.unavailable")?;
+            .map_err(|()| "gateway.credential.unavailable")?;
         let disposition = self
             .attempts
             .publish_candidate(approved, self.candidate_validation(target, started)?, now)

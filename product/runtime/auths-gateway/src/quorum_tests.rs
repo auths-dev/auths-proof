@@ -663,17 +663,11 @@ async fn approval_quorum_hostile_cases_admit_only_two_distinct_managers() {
             assert!(
                 matches!(
                     result,
-                    GatewaySubmitResult::ObservedByProvider {
-                        status: Some(200),
-                        ..
-                    }
+                    GatewaySubmitResult::ResponseRecorded { status: 200 }
                 ),
                 "{id}: {result:?}"
             );
-            assert_eq!(
-                leases, 2,
-                "{id}: one lease for the entry and one for its read-back"
-            );
+            assert_eq!(leases, 1, "{id}: one write lease and no implicit read-back");
             unauthorized_entries += entries.saturating_sub(1);
         } else {
             assert_eq!(leases, 0, "{id}: refused before any credential lease");
@@ -693,8 +687,11 @@ async fn approval_quorum_hostile_cases_admit_only_two_distinct_managers() {
         )
         .await;
     assert!(
-        !matches!(result, GatewaySubmitResult::ResponseRecorded { .. }),
-        "an authorized quorum is one-use: {result:?}"
+        matches!(
+            result,
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
+        ),
+        "replay reports historical response without a new entry: {result:?}"
     );
     assert_eq!(counts().0, expected_entries, "a replay never writes again");
 }
@@ -732,18 +729,18 @@ async fn a_quorum_still_authorizes_23_hours_after_approval_and_only_once() {
     assert!(
         matches!(
             result,
-            GatewaySubmitResult::ObservedByProvider {
-                status: Some(200),
-                ..
-            }
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
         ),
         "{result:?}"
     );
     let (writes, _, leases) = harness.provider.counts();
-    assert_eq!((writes, leases), (1, 2));
+    assert_eq!((writes, leases), (1, 1));
     let replay = harness.submit(&proof, &action, later + 60).await;
     assert!(
-        !matches!(replay, GatewaySubmitResult::ResponseRecorded { .. }),
+        matches!(
+            replay,
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
+        ),
         "{replay:?}"
     );
     assert_eq!(
@@ -857,7 +854,7 @@ async fn remote_approvals_from_any_two_managers_authorize() {
             case.id
         );
         assert_eq!(after.0 - before.0, case.provider_entries, "{}", case.id);
-        assert_eq!(after.2 - before.2, 2 * case.provider_entries, "{}", case.id);
+        assert_eq!(after.2 - before.2, case.provider_entries, "{}", case.id);
         entries += case.provider_entries;
     }
     assert!(

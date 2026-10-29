@@ -102,7 +102,7 @@ fn check_file(path: &Path, actual: &str) {
     assert_eq!(expected, actual, "{} differs", path.display());
 }
 
-/// Test-only semantic declarations, independent of the untrusted OpenAPI text.
+/// Test-only semantic declarations, independent of the untrusted `OpenAPI` text.
 /// They permit compiler/differential tests, not installed human-review claims.
 fn complete_synthetic_review(recipe: &[u8]) -> Vec<u8> {
     let mut value: Value = serde_json::from_slice(recipe).unwrap();

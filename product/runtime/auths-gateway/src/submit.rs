@@ -199,23 +199,20 @@ pub(crate) async fn acquire_prerequisite<I: AcquisitionIo>(
                 .grant_entry(std::sync::Arc::clone(approved), validation, entry_started)
                 .await
                 .ok()?;
-            match io.acquisition_send(lease, permit).await {
-                Some(response) => {
-                    let received_at = io.acquisition_clock()?;
-                    granted
-                        .record_response(
-                            response.status,
-                            response.version_ok,
-                            &response.body,
-                            received_at,
-                        )
-                        .await
-                        .ok()?;
-                }
-                None => {
-                    let _ = granted.record_unknown().await;
-                    return None;
-                }
+            if let Some(response) = io.acquisition_send(lease, permit).await {
+                let received_at = io.acquisition_clock()?;
+                granted
+                    .record_response(
+                        response.status,
+                        response.version_ok,
+                        &response.body,
+                        received_at,
+                    )
+                    .await
+                    .ok()?;
+            } else {
+                let _ = granted.record_unknown().await;
+                return None;
             }
         }
         crate::AcquisitionClaim::Existing(_) => {}
@@ -420,6 +417,7 @@ struct Run<'a, I: SubmitIo> {
     written: Option<(u16, [u8; 32], Vec<u8>, bool)>,
     refusal: Option<&'static str>,
     result: Option<GatewaySubmitResult>,
+    unresolved_prerequisite: Option<PrerequisiteKind>,
     in_flight: Option<InFlight<'a, I>>,
 }
 
@@ -440,6 +438,7 @@ impl<'a, I: SubmitIo> Run<'a, I> {
             written: None,
             refusal: None,
             result: None,
+            unresolved_prerequisite: None,
             in_flight: None,
         }
     }
@@ -702,10 +701,6 @@ impl<I: SubmitIo> Run<'_, I> {
                 self.result = Some(not_entered(code));
                 ClaimResult::Refused
             }
-            Ok(BoundedClaim::Contended) => {
-                self.result = Some(self.stored_result().await);
-                ClaimResult::Unavailable
-            }
             Err(GatewayAttemptError::Replay) => {
                 self.result = Some(self.stored_result().await);
                 ClaimResult::Replay
@@ -714,7 +709,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 self.refuse_before_claim(not_entered("gateway.effect.operation-conflict"));
                 ClaimResult::Refused
             }
-            Err(_) => {
+            Ok(BoundedClaim::Contended) | Err(_) => {
                 self.result = Some(self.stored_result().await);
                 ClaimResult::Unavailable
             }
@@ -747,7 +742,7 @@ impl<I: SubmitIo> Run<'_, I> {
         .await
     }
 
-    async fn read_account(&self) -> AccountResult {
+    async fn read_account(&mut self) -> AccountResult {
         let Some(pointer) = self
             .guard
             .as_ref()
@@ -756,6 +751,9 @@ impl<I: SubmitIo> Run<'_, I> {
             return AccountResult::Unavailable;
         };
         let acquired = self.acquire_prerequisite(PrerequisiteKind::Account).await;
+        if acquired.is_none() {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::Account);
+        }
         account_result(
             acquired.as_ref().map(|acquired| &acquired.response),
             pointer,
@@ -763,7 +761,7 @@ impl<I: SubmitIo> Run<'_, I> {
         )
     }
 
-    async fn denied_read(&self, index: usize) -> DeniedResult {
+    async fn denied_read(&mut self, index: usize) -> DeniedResult {
         let Some(refused) = self
             .guard
             .as_ref()
@@ -777,6 +775,9 @@ impl<I: SubmitIo> Run<'_, I> {
         let acquired = self
             .acquire_prerequisite(PrerequisiteKind::DeniedCapability(index))
             .await;
+        if acquired.is_none() {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::DeniedCapability(index));
+        }
         denied_result(
             acquired.as_ref().map(|acquired| &acquired.response),
             refused,
@@ -795,6 +796,7 @@ impl<I: SubmitIo> Run<'_, I> {
             return PreEntryResult::Unavailable;
         };
         let Some(acquired) = self.acquire_prerequisite(PrerequisiteKind::PreEntry).await else {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::PreEntry);
             return PreEntryResult::Unavailable;
         };
         let observed_at = acquired.observed_at;
@@ -832,6 +834,7 @@ impl<I: SubmitIo> Run<'_, I> {
             .acquire_prerequisite(PrerequisiteKind::RelativeCeiling)
             .await
         else {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::RelativeCeiling);
             return CeilingRead::Unavailable;
         };
         let read_at = acquired.observed_at;
@@ -853,9 +856,8 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn grant_entry(&mut self) -> bool {
-        let validation = match self.io.entry_validation() {
-            Ok(validation) => validation,
-            Err(_) => return false,
+        let Ok(validation) = self.io.entry_validation() else {
+            return false;
         };
         let Some(approved) = &self.verified else {
             return false;
@@ -866,7 +868,7 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(claim) = self.claim.take() else {
             return false;
         };
-        let (claim, permit) = match claim
+        let Ok((claim, permit)) = claim
             .grant_entry(
                 std::sync::Arc::clone(approved),
                 validation,
@@ -874,15 +876,12 @@ impl<I: SubmitIo> Run<'_, I> {
                 &self.pre_entry,
             )
             .await
-        {
-            Ok(granted) => granted,
+        else {
             // The grant may have committed without its acknowledgement.
             // A fresh authoritative read may report reserved or unknown, never
             // manufacture a permit. Unavailable state is indeterminate.
-            Err(_) => {
-                self.result = Some(self.stored_result().await);
-                return false;
-            }
+            self.result = Some(self.stored_result().await);
+            return false;
         };
         self.claim = Some(claim);
         self.permit = Some(permit);
@@ -931,6 +930,12 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn record_not_entered(&mut self, refusal: Refusal) -> bool {
+        if self.unresolved_prerequisite.is_some() {
+            // Preserve the durable reservation. Recording a terminal predicate
+            // failure here could poison a concurrent owner's valid read/write.
+            self.result = Some(self.stored_result().await);
+            return false;
+        }
         let Some(claim) = self.claim.take() else {
             return false;
         };
@@ -964,7 +969,8 @@ impl<I: SubmitIo> Run<'_, I> {
             Stop::NotEntered => self
                 .refusal
                 .map_or(GatewaySubmitResult::Unknown, not_entered),
-            Stop::Unknown | Stop::Halted => GatewaySubmitResult::Unknown,
+            Stop::Unknown => self.result.unwrap_or(GatewaySubmitResult::Unknown),
+            Stop::Halted => GatewaySubmitResult::Unknown,
         }
     }
 }

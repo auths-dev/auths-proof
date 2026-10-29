@@ -407,12 +407,15 @@ mod tests {
             let retained = gate(VerifierState::default());
             candidate.check(&retained).expect("retained shared memory");
             assert!(retained.verifier_state().revoked_signers.contains(&signer));
-            let mut saturated = VerifierState::default();
-            saturated.revoked_signers = (0..=MAX_REVOKED_SIGNERS)
-                .map(|n| {
-                    QualificationSignerId::parse(format!("synthetic-signer-{n}")).expect("signer")
-                })
-                .collect();
+            let saturated = VerifierState {
+                revoked_signers: (0..=MAX_REVOKED_SIGNERS)
+                    .map(|n| {
+                        QualificationSignerId::parse(format!("synthetic-signer-{n}"))
+                            .expect("signer")
+                    })
+                    .collect(),
+                ..VerifierState::default()
+            };
             candidate
                 .publish(&gate(saturated))
                 .expect("durable saturated denial");

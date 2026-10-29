@@ -413,7 +413,10 @@ impl GatewayApplication for GatewayEngine {
         stream: UnixStream,
         clock: SessionClock,
     ) {
-        content::engine_disclose(self, target, submission, stream, clock).await;
+        Box::pin(content::engine_disclose(
+            self, target, submission, stream, clock,
+        ))
+        .await;
     }
 
     async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
@@ -767,7 +770,8 @@ mod tests {
             "request": {"kind": "outcome", "operation_id": "step-1"}
         });
         assert!(serde_json::from_value::<AppFrame>(read_back.clone()).is_err());
-        for frame in [&outcome] {
+        {
+            let frame = &outcome;
             assert!(matches!(
                 serde_json::from_value::<AppFrame>(frame.clone()),
                 Ok(AppFrame::Observe(_))

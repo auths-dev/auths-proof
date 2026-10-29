@@ -304,6 +304,8 @@ pub struct InMemoryCredentialStore {
     maximum_bytes: usize,
 }
 
+type CredentialEntries = BTreeMap<(String, u64), StoredSecret>;
+
 /// One retained generation. Every clone, including the copy-on-write map in
 /// [`PersistentCredentialStore`], zeroizes its bytes when dropped.
 #[derive(Clone)]
@@ -685,9 +687,7 @@ impl PersistentCredentialStore {
         Ok(())
     }
 
-    fn current_entries(
-        &self,
-    ) -> Result<MutexGuard<'_, BTreeMap<(String, u64), StoredSecret>>, CredentialStoreError> {
+    fn current_entries(&self) -> Result<MutexGuard<'_, CredentialEntries>, CredentialStoreError> {
         let mut entries = self
             .entries
             .lock()

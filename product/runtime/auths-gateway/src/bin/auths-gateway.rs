@@ -2506,23 +2506,7 @@ mod unix {
                     ..AdminResponse::refused("gateway.admin.execution-witness")
                 },
                 Ok(AdminCommand::QualificationReload) => {
-                    let reloading = Arc::clone(&engine);
-                    let directory = Arc::clone(&state_dir);
-                    let reloaded = tokio::task::spawn_blocking(move || {
-                        let local = qualification_reload(&directory, reloading.qualification());
-                        reloading.publish_effect_qualification(reloading.qualification())?;
-                        local
-                    })
-                    .await;
-                    match reloaded {
-                        Ok(Ok(())) => AdminResponse {
-                            ok: true,
-                            qualification: Some(QualificationReport::of(engine.qualification())),
-                            ..AdminResponse::refused("gateway.admin.qualification-reloaded")
-                        },
-                        Ok(Err(code)) => AdminResponse::refused(code),
-                        Err(_) => AdminResponse::refused("gateway.qualification.unavailable"),
-                    }
+                    reload_admin_qualification(&engine, &state_dir).await
                 }
                 Ok(AdminCommand::Recover {
                     source_operation,
@@ -2567,10 +2551,33 @@ mod unix {
                 Err(code) => AdminResponse::refused(code),
             }
         };
-        if let Some((mut stream, response)) = clock.complete(stream, change).await
+        if let Some((mut stream, response)) = Box::pin(clock.complete(stream, change)).await
             && let Ok(bytes) = serde_json::to_vec(&response)
         {
             let _ = clock.write_frame(&mut stream, &bytes).await;
+        }
+    }
+
+    async fn reload_admin_qualification(
+        engine: &Arc<GatewayEngine>,
+        state_dir: &Arc<PathBuf>,
+    ) -> AdminResponse {
+        let reloading = Arc::clone(engine);
+        let directory = Arc::clone(state_dir);
+        let reloaded = tokio::task::spawn_blocking(move || {
+            let local = qualification_reload(&directory, reloading.qualification());
+            reloading.publish_effect_qualification(reloading.qualification())?;
+            local
+        })
+        .await;
+        match reloaded {
+            Ok(Ok(())) => AdminResponse {
+                ok: true,
+                qualification: Some(QualificationReport::of(engine.qualification())),
+                ..AdminResponse::refused("gateway.admin.qualification-reloaded")
+            },
+            Ok(Err(code)) => AdminResponse::refused(code),
+            Err(_) => AdminResponse::refused("gateway.qualification.unavailable"),
         }
     }
 
@@ -2744,7 +2751,7 @@ mod unix {
                 let engine = Arc::clone(&app_engine);
                 async move {
                     let _permit = permit;
-                    app_session(stream, engine.as_ref()).await;
+                    Box::pin(app_session(stream, engine.as_ref())).await;
                 }
             },
         );
@@ -2759,7 +2766,7 @@ mod unix {
                 let state_dir = Arc::clone(&admin_state_dir);
                 async move {
                     let _permit = permit;
-                    admin_session(stream, engine, state_dir).await;
+                    Box::pin(admin_session(stream, engine, state_dir)).await;
                 }
             },
         );
@@ -5407,7 +5414,7 @@ mod unix {
 #[cfg(unix)]
 #[tokio::main]
 async fn main() {
-    if let Err(failure) = unix::run().await {
+    if let Err(failure) = Box::pin(unix::run()).await {
         eprintln!("{failure}");
         std::process::exit(1);
     }

@@ -47,7 +47,7 @@ fn native_application_recovery_cli_fixture_is_current() {
                     if error.kind() == std::io::ErrorKind::WouldBlock
                         && std::time::Instant::now() < until =>
                 {
-                    std::thread::sleep(std::time::Duration::from_millis(5))
+                    std::thread::sleep(std::time::Duration::from_millis(5));
                 }
                 Err(error) => panic!("CLI did not connect: {error}"),
             }

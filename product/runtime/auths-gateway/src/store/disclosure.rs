@@ -74,11 +74,11 @@ impl DisclosurePhase {
 
 impl JournalProtocol for DisclosureState {
     fn wrap(self) -> ProtocolState {
-        ProtocolState::Disclosure(self)
+        ProtocolState::Disclosure(Box::new(self))
     }
     fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError> {
         match state {
-            ProtocolState::Disclosure(state) => Ok(state),
+            ProtocolState::Disclosure(state) => Ok(*state),
             _ => Err(GatewayAttemptError::BindingConflict),
         }
     }
@@ -449,7 +449,7 @@ impl GatewayAttempts {
                             .ok_or(GatewayAttemptError::Corrupt)?
                             .advance(&*store, index - 2)?;
                     }
-                    _ => return Err(GatewayAttemptError::Corrupt),
+                    GatewayInsert::Exists { .. } => return Err(GatewayAttemptError::Corrupt),
                 }
             }
             Err(GatewayAttemptError::Conflict)
@@ -522,7 +522,7 @@ impl GatewayAttempts {
             .await
             {
                 Ok(attempt) => return attempt.record.disclosure_snapshot(),
-                Err(GatewayAttemptError::Conflict) => continue,
+                Err(GatewayAttemptError::Conflict) => {}
                 Err(error) => return Err(error),
             }
         }

@@ -130,10 +130,10 @@ impl ContentSource {
             }
             previous = Some(query.name.as_str());
         }
-        if let ContentProjection::JsonString { pointer } = &self.projection {
-            if !super::validate::valid_response_pointer(pointer) || !valid_escapes(pointer) {
-                return Err(GatewayRecipeError::InvalidSource);
-            }
+        if let ContentProjection::JsonString { pointer } = &self.projection
+            && (!super::validate::valid_response_pointer(pointer) || !valid_escapes(pointer))
+        {
+            return Err(GatewayRecipeError::InvalidSource);
         }
         Ok(())
     }

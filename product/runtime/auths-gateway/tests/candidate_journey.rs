@@ -1,6 +1,6 @@
 //! Real CLI processes, native signatures, file custody/journal and a counting
 //! local HTTP provider. Fixed public test keys simulate the external reviewer;
-//! this is no human-presence, live-provider, isolation or PostgreSQL claim.
+//! this is no human-presence, live-provider, isolation or `PostgreSQL` claim.
 #![cfg(all(unix, feature = "testkit-harness", feature = "loopback-provider"))]
 
 use auths_connections::{ConnectionAlias, ConnectionRecord, ProviderKind};

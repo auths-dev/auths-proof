@@ -1,7 +1,10 @@
 //! Private candidate persistence for explicit operator review and restart.
 //! Decoding reconstructs proposed data only; it grants no custody or I/O.
 
-use super::*;
+use super::{
+    CandidateCredentialTarget, CompiledRecipe, ConnectionRecord, Deserialize, EffectBindingError,
+    MAX_EFFECT_BYTES, Serialize, Zeroizing, canonical, decode_connection,
+};
 
 const SCHEMA: &str = "auths.gateway-credential-candidate/1";
 

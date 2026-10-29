@@ -347,7 +347,7 @@ impl PrerequisitePlan {
     pub(super) fn new(
         source: &super::EffectBinding,
         index: u8,
-        transport: zeroize::Zeroizing<Vec<u8>>,
+        transport: &[u8],
     ) -> Result<Self, EffectBindingError> {
         let plan = Self {
             source_binding: String::from_utf8(source.to_private_bytes()?.to_vec())

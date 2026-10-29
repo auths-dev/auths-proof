@@ -369,17 +369,16 @@ impl CommissioningSession<'_> {
         .await
         .map_err(|_| "gateway.commissioning.store-unavailable")?
         .map_err(CommissioningBudgetRefusal::code)?;
-        match update.refusal() {
-            Some(refusal) => Err(refusal.code()),
+        if let Some(refusal) = update.refusal() {
+            Err(refusal.code())
+        } else {
             // A queued host lock or durable store write can outlast the permit
             // window. Capacity stays spent, but custody requires fresh time.
-            None => {
-                action
-                    .claimed
-                    .set(update.snapshot().clone())
-                    .map_err(|_| "gateway.commissioning.binding-mismatch")?;
-                self.check(action)
-            }
+            action
+                .claimed
+                .set(update.snapshot().clone())
+                .map_err(|_| "gateway.commissioning.binding-mismatch")?;
+            self.check(action)
         }
     }
 }

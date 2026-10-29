@@ -231,7 +231,7 @@ pub(super) async fn disclose(
         Ok(decoded) => {
             application
                 .disclose_content(request.target, decoded, stream, clock)
-                .await
+                .await;
         }
         Err(code) => {
             let mut stream = stream;
@@ -308,7 +308,7 @@ pub(super) async fn engine_disclose(
 /// no received bytes and never authorizes automatic redelivery.
 pub enum AppDisclosureReception {
     /// Exact plaintext received through the authenticated native transport.
-    Received(crate::disclosure_transport::ReceivedDisclosure),
+    Received(Box<crate::disclosure_transport::ReceivedDisclosure>),
     /// The operation already has retained history; no handshake/send occurred.
     History(crate::DisclosureSnapshot),
     /// Native pre-handshake refusal.
@@ -365,6 +365,7 @@ pub async fn receive_content_disclosure(
             key,
         )
         .await
+        .map(Box::new)
         .map(AppDisclosureReception::Received),
         AppContentResult::History {
             history: crate::ContentHistory::Disclosure(snapshot),

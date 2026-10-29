@@ -104,6 +104,7 @@ fn with_preconditions(
     lock["schema_digest"] = Value::String(digest.clone());
     let mut source: Value = serde_json::from_slice(source).expect("source");
     source["profile_schema_digest"] = Value::String(digest);
+    source["review"] = super::synthetic_review(&lock["command_schema"]["fields"]);
     if let Some(preconditions) = preconditions {
         source["preconditions"] = preconditions;
     }
@@ -209,7 +210,8 @@ fn preconditions_are_closed_reviewed_and_digest_bound() {
     let names: Vec<String> = (0..9).map(|index| format!("v{index}")).collect();
     assert_eq!(
         with_preconditions(&many, Some(json!({"verified": names})), false).err(),
-        Some(GatewayRecipeError::PreconditionConflict)
+        Some(GatewayRecipeError::InvalidSource),
+        "the complete review field bound rejects an oversized declaration before precondition validation"
     );
 }
 

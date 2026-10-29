@@ -2876,7 +2876,7 @@ pub(crate) mod tests {
         /// One gateway process: its own credential store over the shared
         /// attempt store.
         pub(crate) struct Host {
-            _state: tempfile::TempDir,
+            state_directory: tempfile::TempDir,
             credentials_directory: std::path::PathBuf,
             pub(crate) engine: GatewayEngine,
             pub(crate) leases: Arc<AtomicU64>,
@@ -2970,7 +2970,7 @@ pub(crate) mod tests {
             let mut engine = engine;
             engine.retirement_delay = Duration::ZERO;
             Host {
-                _state: state,
+                state_directory: state,
                 credentials_directory,
                 engine,
                 leases,
@@ -3108,7 +3108,7 @@ pub(crate) mod tests {
             ) -> Result<ConnectionRecord, &'static str> {
                 crate::join_connection(
                     &self.engine.connection,
-                    &crate::CredentialJournal::new(self._state.path().to_path_buf()),
+                    &crate::CredentialJournal::new(self.state_directory.path().to_path_buf()),
                     &*self.engine.credentials,
                     &self.engine.recipe,
                     &candidate(secret),
@@ -3162,13 +3162,16 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn a_restored_store_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::File).await;
+            Box::pin(restored_store_floor(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
         #[ignore = "requires the TLS PostgreSQL fixture"]
         async fn postgres_restore_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(restored_store_floor(
+                crate::store_testkit::Backend::Postgres,
+            ))
+            .await;
         }
 
         async fn restored_store_floor(backend: crate::store_testkit::Backend) {

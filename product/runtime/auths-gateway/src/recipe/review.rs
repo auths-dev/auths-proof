@@ -322,22 +322,7 @@ impl CompiledRecipe {
             "recovery": review.recovery().as_ref().map(recovery_document),
             "write_is_conditional": false,
         });
-        document["provider_headers"] =
-            source
-                .provider_headers
-                .as_ref()
-                .map_or(Value::Null, |headers| {
-                    Value::Object(
-                        headers
-                            .iter()
-                            .map(|(name, value)| {
-                                let response = provider_header(name)
-                                    .map_or("not-checked", |entry| entry.response.as_str());
-                                (name.clone(), json!({"value": value, "response": response}))
-                            })
-                            .collect(),
-                    )
-                });
+        document["provider_headers"] = self.provider_headers_review();
         document["credential_guard"] = self.guard_review();
         if let Some(content) = &source.content {
             document["content_acquisition"] = json!({
@@ -399,6 +384,24 @@ impl CompiledRecipe {
             }))})
         });
         document
+    }
+
+    fn provider_headers_review(&self) -> Value {
+        self.source
+            .provider_headers
+            .as_ref()
+            .map_or(Value::Null, |headers| {
+                Value::Object(
+                    headers
+                        .iter()
+                        .map(|(name, value)| {
+                            let response = provider_header(name)
+                                .map_or("not-checked", |entry| entry.response.as_str());
+                            (name.clone(), json!({"value": value, "response": response}))
+                        })
+                        .collect(),
+                )
+            })
     }
 
     fn guard_review(&self) -> Value {

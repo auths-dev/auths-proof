@@ -29,7 +29,7 @@ async fn native_candidate_compilation_fixture_is_current() {
     let capacity_directory = tempfile::tempdir().expect("capacity directory");
     let capacity_store = std::sync::Arc::new(
         crate::FileGatewayAttemptStore::open(
-            &std::fs::canonicalize(capacity_directory.path())
+            std::fs::canonicalize(capacity_directory.path())
                 .expect("path")
                 .join("journal"),
         )
@@ -177,7 +177,7 @@ async fn native_candidate_compilation_fixture_is_current() {
         .expect("grant");
         let submission = submission_for_call(&root, &reader, &grant, &call, &[]);
         if case == "rotation" {
-            staging_cases = staging::histories(&recipe, &trust, &policy).await;
+            staging_cases = Box::pin(staging::histories(&recipe, &trust, &policy)).await;
         }
         let installed = policy.installation(
             &recipe,
@@ -286,7 +286,7 @@ async fn native_candidate_compilation_fixture_is_current() {
         let directory = tempfile::tempdir().expect("tempdir");
         let store = std::sync::Arc::new(
             crate::FileGatewayAttemptStore::open(
-                &std::fs::canonicalize(directory.path())
+                std::fs::canonicalize(directory.path())
                     .expect("canonical")
                     .join("journal"),
             )

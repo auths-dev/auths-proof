@@ -126,9 +126,9 @@ impl EntryValidation {
         if target.final_kind() != primary.kind
             || primary.observed_at > primary.received_at
             || primary.received_at > now
-            || !now
+            || now
                 .checked_sub(primary.observed_at)
-                .is_some_and(|age| age <= crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
+                .is_none_or(|age| age > crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
         {
             return Err(invalid);
         }
@@ -282,9 +282,9 @@ pub(crate) fn validate_prerequisite_evidence(
         if plan.kind().map_err(|_| invalid)? != evidence.kind
             || evidence.observed_at > evidence.received_at
             || evidence.received_at > now
-            || !now
+            || now
                 .checked_sub(evidence.observed_at)
-                .is_some_and(|age| age <= crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
+                .is_none_or(|age| age > crate::effect::MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS)
         {
             return Err(invalid);
         }

@@ -4,7 +4,13 @@
 
 use super::acquisition::{AcquisitionTarget, build_binding, compile_acquisition};
 use super::prerequisite::Prerequisite;
-use super::*;
+use super::{
+    BoundEffect, ClosedPrerequisiteRead, CompiledRecipe, ConnectionRecord, Deserialize,
+    EffectBinding, EffectBindingError, EffectInstallation, GatewayConnectionDescriptor,
+    GatewaySubmitResult, LogicalOperationId, MAX_EFFECT_BYTES, PrerequisiteKind, Prerequisites,
+    Protocol, ReservationWindow, Serialize, SourceCapacity, Unit, Zeroizing, canonical, commitment,
+    fmt, managed_reservations, not_entered,
+};
 use auths_connections::ConnectionState;
 use auths_profile_mcp::McpToolCall;
 use serde_json::{Value, json};

@@ -803,21 +803,21 @@ impl PrivateEffectReview {
         let json = Zeroizing::new(
             serde_json::to_string_pretty(self).map_err(|_| EffectBindingError::Invalid)?,
         );
-        let mut rendered = Zeroizing::new(String::new());
+        let mut literal = Zeroizing::new(String::new());
         for character in json.chars() {
             if character.is_ascii() {
-                rendered.push(character);
+                literal.push(character);
             } else {
                 let mut units = [0; 2];
                 for unit in character.encode_utf16(&mut units) {
-                    write!(rendered, "\\u{unit:04x}").map_err(|_| EffectBindingError::Invalid)?;
+                    write!(literal, "\\u{unit:04x}").map_err(|_| EffectBindingError::Invalid)?;
                 }
             }
-            if rendered.len() > 1_048_576 {
+            if literal.len() > 1_048_576 {
                 return Err(EffectBindingError::Invalid);
             }
         }
-        Ok(rendered)
+        Ok(literal)
     }
 
     /// Encodes machine-readable private review without reconstructing identity,
@@ -1245,7 +1245,7 @@ impl ApprovedEffect {
             CompiledEffect::Acquisition(command) => command.request_bytes()?,
             CompiledEffect::Disclosure(_) => return Err(EffectBindingError::Invalid),
         };
-        let plan = PrerequisitePlan::new(self.effect.binding(), index, transport)?;
+        let plan = PrerequisitePlan::new(self.effect.binding(), index, &transport)?;
         Ok((plan, read.clone()))
     }
 
@@ -1670,8 +1670,8 @@ mod tests {
         );
         let text = std::str::from_utf8(&bytes).expect("json");
         for invalid in [
-            text.replacen("{", "{\"epoch\":1,", 1),
-            text.replacen("{", "{\"unknown\":1,", 1),
+            text.replacen('{', "{\"epoch\":1,", 1),
+            text.replacen('{', "{\"unknown\":1,", 1),
             text.replace("\"epoch\":1", "\"epoch\":1.0"),
             text.replace("\"epoch\":1", "\"epoch\":0"),
         ] {

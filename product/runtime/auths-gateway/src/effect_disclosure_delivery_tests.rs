@@ -1,5 +1,5 @@
 //! Real local sockets over the native installed file fence. Same-process UID
-//! checks do not establish independent-process isolation or PostgreSQL evidence.
+//! checks do not establish independent-process isolation or `PostgreSQL` evidence.
 use super::*;
 use crate::disclosure_transport::{
     AuthenticatedDisclosureChannel, DisclosureConnection, ReceivedDisclosure, deliver,
@@ -53,7 +53,7 @@ async fn authenticate(
         match crate::app::receive_content_disclosure(client, &request, &binding, bytes, &client_key)
             .await?
         {
-            crate::app::AppDisclosureReception::Received(received) => Ok(received),
+            crate::app::AppDisclosureReception::Received(delivery) => Ok(*delivery),
             _ => Err("test.unexpected-history"),
         }
     });
@@ -155,15 +155,15 @@ pub(super) async fn corpus(
         .await
         .expect("grant");
     let receive_and_ack = async {
-        let received = receiver.await.expect("receiver task").expect("delivery");
-        assert_eq!(received.content(), b"PRIVATE-SYNTHETIC-CONTENT");
-        assert_eq!(received.content().len() as u64, bytes);
+        let delivery = receiver.await.expect("receiver task").expect("delivery");
+        assert_eq!(delivery.content(), b"PRIVATE-SYNTHETIC-CONTENT");
+        assert_eq!(delivery.content().len() as u64, bytes);
         assert!(
-            received
+            delivery
                 .acknowledgement(&SigningKey::from_bytes(&[52; 32]))
                 .is_err()
         );
-        received.acknowledge(recipient).await.expect("ACK send");
+        delivery.acknowledge(recipient).await.expect("ACK send");
     };
     let (ack, ()) = tokio::join!(deliver(permit), receive_and_ack);
     let ack = ack.expect("received ACK");
@@ -231,9 +231,9 @@ pub(super) async fn corpus(
         .await
         .expect("grant");
     let lose_ack = async {
-        let received = receiver.await.expect("receiver task").expect("delivery");
-        assert_eq!(received.content(), b"PRIVATE-SYNTHETIC-CONTENT");
-        received
+        let delivery = receiver.await.expect("receiver task").expect("delivery");
+        assert_eq!(delivery.content(), b"PRIVATE-SYNTHETIC-CONTENT");
+        delivery
             .acknowledgement(recipient)
             .expect("retain late ACK")
         // Owned client socket drops without sending its ACK.
@@ -359,9 +359,9 @@ pub(super) async fn corpus(
     };
     assert!(loser.await.expect("losing receiver").is_err());
     let receive = async {
-        let received = winner.await.expect("winner").expect("one delivery");
-        assert_eq!(received.content(), b"PRIVATE-SYNTHETIC-CONTENT");
-        received.acknowledge(recipient).await.expect("ACK");
+        let delivery = winner.await.expect("winner").expect("one delivery");
+        assert_eq!(delivery.content(), b"PRIVATE-SYNTHETIC-CONTENT");
+        delivery.acknowledge(recipient).await.expect("ACK");
     };
     let (ack, ()) = tokio::join!(deliver(permit), receive);
     let raced_snapshot = attempts
@@ -581,7 +581,7 @@ async fn authentication_failures(
                 client.write_u32(4097).await.expect("oversized header");
             } else {
                 client
-                    .write_u32(response.len() as u32)
+                    .write_u32(u32::try_from(response.len()).expect("bounded frame"))
                     .await
                     .expect("length");
                 client.write_all(&response).await.expect("response");

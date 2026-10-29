@@ -857,20 +857,19 @@ impl SubmitIo for HarnessIo<'_> {
         let effect =
             crate::effect::compile_mutation_effect(&installed, now, self.proof, self.action)?;
         let key = SigningKey::from_bytes(&[29; 32]);
-        let approval = match &self.approval {
-            Some(approval) => approval.clone(),
-            None => {
-                let request = effect
-                    .approval_request(
-                        now,
-                        now.saturating_add(crate::effect::MAX_EFFECT_APPROVAL_SECONDS),
-                    )
-                    .map_err(|_| invalid())?;
-                let signature = key
-                    .sign(&request.signing_message().map_err(|_| invalid())?)
-                    .to_bytes();
-                request.with_signature(signature)
-            }
+        let approval = if let Some(approval) = &self.approval {
+            approval.clone()
+        } else {
+            let request = effect
+                .approval_request(
+                    now,
+                    now.saturating_add(crate::effect::MAX_EFFECT_APPROVAL_SECONDS),
+                )
+                .map_err(|_| invalid())?;
+            let signature = key
+                .sign(&request.signing_message().map_err(|_| invalid())?)
+                .to_bytes();
+            request.with_signature(signature)
         };
         effect
             .approve(approval, &key.verifying_key().to_bytes(), now)

@@ -1,6 +1,13 @@
 //! Separately verified disclosure compilation over sealed retained provenance.
 //! No constructor in this module releases bytes or authenticates a live channel.
-use super::*;
+use super::{
+    BoundEffect, CompiledEffect, CompiledRecipe, DISCLOSURE_ACK_SCHEMA, Deserialize,
+    DisclosureAcknowledgementRequest, EffectBinding, EffectBindingError, EffectInstallation,
+    GatewayConnectionDescriptor, GatewaySubmitResult, LogicalOperationId, MAX_EFFECT_BYTES,
+    Prerequisites, Protocol, Reservation, ReservationWindow, Scope, Serialize, SourceCapacity,
+    Unit, VerifyingKey, Zeroizing, acquisition, canonical, commitment, fmt, managed_reservations,
+    native_authority_commitment, not_entered,
+};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use auths_raw_key::{RawKeyDescriptor, RawKeyType};

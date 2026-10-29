@@ -1,6 +1,6 @@
 //! Production daemon and client processes with native proof/approval and a real
 //! counting HTTP double. Public fixed keys simulate reviewer/agent/recipient;
-//! this is not human-presence, UID isolation, installed-language or PostgreSQL evidence.
+//! this is not human-presence, UID isolation, installed-language or `PostgreSQL` evidence.
 #![cfg(all(unix, feature = "testkit-harness", feature = "loopback-provider"))]
 
 use auths_gateway::{
@@ -13,6 +13,7 @@ use auths_gateway::{
     harness::authoring::{tool_fixture, tools_context},
 };
 use auths_profile_mcp::McpToolCall;
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Value, json};
 use std::{
@@ -315,7 +316,7 @@ fn approve(
         EffectApprovalRequest::from_private_bytes(&std::fs::read(&request).expect("request"))
             .expect("native signing request");
     let message = signing.signing_message().expect("message");
-    assert_eq!(review["signing_message_hex"], hex::encode(&message));
+    assert_eq!(review["signing_message_hex"], hex::encode(message));
     private(
         &approval,
         &success(cli(
@@ -367,7 +368,6 @@ fn recipient_without_ack_process() {
     };
     let root = PathBuf::from(root);
     let state = root.join("state");
-    use base64ct::{Base64UrlUnpadded, Encoding as _};
     let request = auths_gateway::app::AppDisclosure {
         schema: auths_gateway::app::APP_DISCLOSURE_SCHEMA.to_owned(),
         target: serde_json::from_slice(&std::fs::read(root.join("target.json")).expect("target"))

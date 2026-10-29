@@ -94,8 +94,8 @@ impl ReviewContract {
                 (
                     Presentation::Text { label } | Presentation::Identifier { label },
                     Some(FieldSchema::String { .. } | FieldSchema::Enum { .. }),
-                ) => (label, true),
-                (Presentation::Boolean { label }, Some(FieldSchema::Boolean)) => (label, true),
+                )
+                | (Presentation::Boolean { label }, Some(FieldSchema::Boolean)) => (label, true),
                 (Presentation::Integer { label, unit }, Some(FieldSchema::Integer { .. })) => {
                     (label, trusted_text(unit, 80))
                 }

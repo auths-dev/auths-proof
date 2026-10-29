@@ -300,7 +300,7 @@ impl GatewayAttemptSnapshot {
     pub fn recovery_received_at(&self) -> Option<u64> {
         self.recovery_evidence
             .as_ref()
-            .map(|link| link.received_at())
+            .map(acquisition::RecoveryEvidenceLink::received_at)
     }
 
     /// Returns the durable journal revision.
@@ -705,9 +705,9 @@ impl<S> Record<S> {
     deny_unknown_fields
 )]
 enum ProtocolState {
-    Mutation(MutationState),
-    Acquisition(acquisition::AcquisitionState),
-    Disclosure(disclosure::DisclosureState),
+    Mutation(Box<MutationState>),
+    Acquisition(Box<acquisition::AcquisitionState>),
+    Disclosure(Box<disclosure::DisclosureState>),
 }
 
 mod acquisition;
@@ -732,11 +732,11 @@ trait JournalProtocol: Clone + Sized {
 
 impl JournalProtocol for MutationState {
     fn wrap(self) -> ProtocolState {
-        ProtocolState::Mutation(self)
+        ProtocolState::Mutation(Box::new(self))
     }
     fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError> {
         match state {
-            ProtocolState::Mutation(state) => Ok(state),
+            ProtocolState::Mutation(state) => Ok(*state),
             ProtocolState::Acquisition(_) | ProtocolState::Disclosure(_) => {
                 Err(GatewayAttemptError::BindingConflict)
             }
@@ -2195,7 +2195,7 @@ impl GatewayAttempts {
         Arc::clone(&self.store)
     }
 
-    /// Reference-store oracle only; production admission requires ApprovedEffect.
+    /// Reference-store oracle only; production admission requires `ApprovedEffect`.
     #[cfg(test)]
     pub(crate) async fn claim(
         &self,
@@ -2486,6 +2486,31 @@ impl<S: JournalProtocol> Attempt<S> {
     }
 }
 
+fn validate_mutation_prerequisites(
+    key: GatewayAttemptKey,
+    approved: &ApprovedEffect,
+    validation: &crate::entry::EntryValidation,
+    pre_entry: Option<&PreEntryWire>,
+    prerequisites: &[crate::effect::PrerequisitePlan],
+    snapshots: &[Option<Vec<u8>>],
+    now: u64,
+) -> Result<(), GatewayAttemptError> {
+    let acquired = acquisition::validate_prerequisites(
+        key,
+        approved.effect().binding(),
+        prerequisites,
+        snapshots,
+        now,
+    )?;
+    let evidence = pre_entry
+        .map(PreEntryWire::decode)
+        .transpose()?
+        .unwrap_or_default();
+    validation
+        .validate_prerequisite_evidence(approved, &evidence, &acquired, now)
+        .map_err(|_| GatewayAttemptError::InvalidTransition)
+}
+
 /// A durable attempt handle. A reservation does not authorize transport; only
 /// a newly acknowledged grant produces a one-use provider permit.
 pub struct ClaimedGatewayAttempt {
@@ -2564,21 +2589,15 @@ impl ClaimedGatewayAttempt {
                     &snapshots[dependency_end..counter_end],
                     now,
                 )?;
-                let acquired = acquisition::validate_prerequisites(
+                validate_mutation_prerequisites(
                     attempt.key,
-                    approved.effect().binding(),
+                    &approved,
+                    &validation,
+                    pre_entry.as_ref(),
                     &prerequisites,
                     &snapshots[counter_end..],
                     now,
                 )?;
-                let evidence = pre_entry
-                    .as_ref()
-                    .map(PreEntryWire::decode)
-                    .transpose()?
-                    .unwrap_or_default();
-                validation
-                    .validate_prerequisite_evidence(&approved, &evidence, &acquired, now)
-                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
                 let mut next = current.clone();
                 next.record_grant(
                     &approved,
@@ -3316,23 +3335,22 @@ impl GatewayAttempts {
                 admission.approved.approval(),
                 evaluated_at,
             )?;
-            let result = match &bound {
-                Some(bound) => reserve_with_claim(&*store, key, &base, bound, &admission),
-                None => {
-                    let mut record = base.clone();
-                    let entries = [GatewayRecordEntry {
-                        kind: GatewayRecordKind::Attempt,
-                        key,
-                        record: encode(&record)?,
-                        expires_at: None,
-                    }];
-                    match insert_claim(&*store, &mut record, &entries, &admission, None)? {
-                        GatewayInsert::Inserted => Ok(Reserved::Claimed {
-                            stored: encode(&record)?,
-                            record: Box::new(record),
-                        }),
-                        GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
-                    }
+            let result = if let Some(bound) = &bound {
+                reserve_with_claim(&*store, key, &base, bound, &admission)
+            } else {
+                let mut record = base.clone();
+                let entries = [GatewayRecordEntry {
+                    kind: GatewayRecordKind::Attempt,
+                    key,
+                    record: encode(&record)?,
+                    expires_at: None,
+                }];
+                match insert_claim(&*store, &mut record, &entries, &admission, None)? {
+                    GatewayInsert::Inserted => Ok(Reserved::Claimed {
+                        stored: encode(&record)?,
+                        record: Box::new(record),
+                    }),
+                    GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
                 }
             };
             match result {

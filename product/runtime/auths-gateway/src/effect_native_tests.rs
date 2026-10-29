@@ -619,7 +619,7 @@ async fn exercise_recovery_journal(
 }
 
 /// Signed read effects and durable file records with synthetic provider bodies.
-/// No installed authority, network or PostgreSQL claim is made by this corpus.
+/// No installed authority, network or `PostgreSQL` claim is made by this corpus.
 #[allow(
     clippy::too_many_lines,
     reason = "one native evidence history and its refusal matrix"
@@ -922,6 +922,104 @@ fn connection_account(recipe: &CompiledRecipe, account: [u8; 32]) -> ConnectionR
     .expect("connection")
 }
 
+fn assert_compiled_request(
+    effect: &crate::effect::BoundEffect,
+    expected: &crate::ClosedProviderRequest,
+) {
+    assert_eq!(
+        effect.private_request().expect("mutation request").body(),
+        expected.body()
+    );
+    assert_eq!(
+        effect.private_request().expect("mutation request").url(),
+        expected.url()
+    );
+    assert_eq!(
+        effect
+            .private_request()
+            .expect("mutation request")
+            .headers(),
+        expected.headers()
+    );
+}
+
+fn assert_effect_fixtures(
+    fixture: &[u8],
+    policy_bytes: &[u8],
+    signing_request: &[u8],
+    approval_bytes: &[u8],
+) {
+    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/effect-binding.json");
+    let policy_path = fixture_path.with_file_name("effect-policy.json");
+    let request_path = fixture_path.with_file_name("effect-approval-request.json");
+    let approval_path = fixture_path.with_file_name("effect-approval.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        std::fs::write(&fixture_path, fixture).expect("write native fixture");
+        std::fs::write(&policy_path, policy_bytes).expect("write native policy fixture");
+        std::fs::write(&request_path, signing_request).expect("write native signing fixture");
+        std::fs::write(&approval_path, approval_bytes).expect("write native approval fixture");
+    }
+    assert_eq!(
+        std::fs::read(&approval_path).expect("approval fixture"),
+        approval_bytes
+    );
+    assert_eq!(
+        std::fs::read(&policy_path).expect("policy fixture"),
+        policy_bytes
+    );
+    assert_eq!(
+        std::fs::read(&request_path).expect("signing fixture"),
+        signing_request
+    );
+    assert_eq!(
+        std::fs::read(&fixture_path).expect("native fixture"),
+        fixture
+    );
+}
+
+fn assert_complete_private_review(
+    effect: &crate::effect::BoundEffect,
+    expected: &crate::ClosedProviderRequest,
+) -> (Value, zeroize::Zeroizing<String>) {
+    let private_review = effect.private_review().expect("native private review");
+    let review_bytes = private_review.to_private_bytes().expect("review JSON");
+    let review_json: Value = serde_json::from_slice(&review_bytes).expect("review JSON");
+    assert_eq!(
+        review_json["effect_id_hex"],
+        hex::encode(effect.binding().id().as_bytes())
+    );
+    assert_eq!(
+        review_json["native"]["request"]["body"],
+        std::str::from_utf8(expected.body()).expect("body")
+    );
+    assert_eq!(review_json["native"]["request"]["url"], expected.url());
+    assert_eq!(review_json["schema"], "auths.private-effect-review/2");
+    assert_eq!(
+        review_json["semantic"]["contract"]["schema"],
+        "auths.effect-review-contract/1"
+    );
+    let literal = private_review
+        .render_literal("auths.literal-complete-review/1")
+        .expect("complete native rendering");
+    assert!(literal.is_ascii());
+    assert!(
+        literal.contains("\\u202e"),
+        "bidi controls remain escaped data"
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&literal).expect("literal JSON"),
+        review_json
+    );
+    assert!(
+        private_review
+            .render_literal("truncate-to-summary/1")
+            .is_err()
+    );
+    assert!(!format!("{private_review:?}").contains("private-sentinel"));
+    (review_json, literal)
+}
+
 #[test]
 fn native_compilation_approval_and_reverification_keep_exact_request() {
     let root = signer(h::ROOT_SEED);
@@ -973,80 +1071,10 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     let expected = recipe
         .closed_request_from_arguments(&arguments, submission.commitment)
         .expect("compiler output");
-    assert_eq!(
-        effect.private_request().expect("mutation request").body(),
-        expected.body()
-    );
-    assert_eq!(
-        effect.private_request().expect("mutation request").url(),
-        expected.url()
-    );
-    assert_eq!(
-        effect
-            .private_request()
-            .expect("mutation request")
-            .headers(),
-        expected.headers()
-    );
+    assert_compiled_request(&effect, &expected);
     let bytes = effect.binding().to_private_bytes().expect("binding bytes");
-    let private_review = effect.private_review().expect("native private review");
-    let review_bytes = private_review.to_private_bytes().expect("review JSON");
-    let review_json: Value = serde_json::from_slice(&review_bytes).expect("review JSON");
-    assert_eq!(
-        review_json["effect_id_hex"],
-        hex::encode(effect.binding().id().as_bytes())
-    );
-    assert_eq!(
-        review_json["native"]["request"]["body"],
-        std::str::from_utf8(expected.body()).expect("body")
-    );
-    assert_eq!(review_json["native"]["request"]["url"], expected.url());
-    assert_eq!(review_json["schema"], "auths.private-effect-review/2");
-    assert_eq!(
-        review_json["semantic"]["contract"]["schema"],
-        "auths.effect-review-contract/1"
-    );
-    let literal = private_review
-        .render_literal("auths.literal-complete-review/1")
-        .expect("complete native rendering");
-    assert!(literal.is_ascii());
-    assert!(
-        literal.contains("\\u202e"),
-        "bidi controls remain escaped data"
-    );
-    assert_eq!(
-        serde_json::from_str::<Value>(&literal).expect("literal JSON"),
-        review_json
-    );
-    assert!(
-        private_review
-            .render_literal("truncate-to-summary/1")
-            .is_err()
-    );
-    assert!(!format!("{private_review:?}").contains("private-sentinel"));
-    assert_eq!(
-        &EffectBinding::from_private_bytes(&bytes).expect("binding data"),
-        effect.binding()
-    );
-    assert!(
-        !String::from_utf8(bytes.to_vec())
-            .expect("json")
-            .contains("private-sentinel")
-    );
-    assert!(!format!("{effect:?}").contains("private-sentinel"));
-    let review = effect.approval_request(NOW, NOW + 30).expect("review");
-    let signature = key
-        .sign(&review.signing_message().expect("native message"))
-        .to_bytes();
-    let signing_request = review
-        .to_private_bytes()
-        .expect("canonical signing request");
-    assert_eq!(
-        crate::effect::EffectApprovalRequest::from_private_bytes(&signing_request)
-            .expect("signing data"),
-        review
-    );
-    let approval = review.with_signature(signature);
+    let (review_json, literal) = assert_complete_private_review(&effect, &expected);
+    let (approval, signing_request) = assert_bound_approval(&effect, &bytes, &key);
     let frame = crate::app::AppSubmission {
         schema: crate::app::APP_REQUEST_SCHEMA.to_owned(),
         proof_b64: base64ct::Base64UrlUnpadded::encode_string(&submission.proof),
@@ -1072,34 +1100,33 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
         "approval_expires_at": NOW + 30,
         "submission_frame_canonical": String::from_utf8(serde_json_canonicalizer::to_vec(&frame).expect("native frame")).expect("UTF-8"),
     })).expect("fixture JSON");
-    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../bindings/fixtures/gateway/effect-binding.json");
-    let policy_path = fixture_path.with_file_name("effect-policy.json");
-    let request_path = fixture_path.with_file_name("effect-approval-request.json");
-    let approval_path = fixture_path.with_file_name("effect-approval.json");
-    let approval_bytes = approval.to_private_bytes().expect("approval bytes");
-    if std::env::var_os("AUTHS_UPDATE_FIXTURES").as_deref() == Some(std::ffi::OsStr::new("1")) {
-        std::fs::write(&fixture_path, &fixture).expect("write native fixture");
-        std::fs::write(&policy_path, &policy_bytes).expect("write native policy fixture");
-        std::fs::write(&request_path, &signing_request).expect("write native signing fixture");
-        std::fs::write(&approval_path, &approval_bytes).expect("write native approval fixture");
-    }
-    assert_eq!(
-        std::fs::read(&approval_path).expect("approval fixture"),
-        *approval_bytes
+    assert_effect_fixtures(
+        &fixture,
+        &policy_bytes,
+        &signing_request,
+        &approval.to_private_bytes().expect("approval bytes"),
     );
-    assert_eq!(
-        std::fs::read(&policy_path).expect("policy fixture"),
-        *policy_bytes
+    assert_approval_entry(
+        effect,
+        later,
+        &installed,
+        &key,
+        approval,
+        &expected,
+        (&submission.proof, &submission.action),
     );
-    assert_eq!(
-        std::fs::read(&request_path).expect("signing fixture"),
-        *signing_request
-    );
-    assert_eq!(
-        std::fs::read(&fixture_path).expect("native fixture"),
-        fixture
-    );
+}
+
+fn assert_approval_entry(
+    effect: crate::effect::BoundEffect,
+    later: crate::effect::BoundEffect,
+    installed: &EffectInstallation<'_>,
+    key: &SigningKey,
+    approval: crate::effect::ExactEffectApproval,
+    expected: &crate::ClosedProviderRequest,
+    submission: (&[u8], &[u8]),
+) {
+    let public = key.verifying_key().to_bytes();
     let approved = effect
         .approve(approval.clone(), &public, NOW)
         .expect("exact approval");
@@ -1113,8 +1140,8 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
     );
     assert!(approved.validate_approval(&public, NOW + 29).is_ok());
     assert!(approved.validate_approval(&public, NOW + 30).is_err());
-    assert!(approved.validate_for_entry(&installed, NOW + 29).is_ok());
-    assert!(approved.validate_for_entry(&installed, NOW + 30).is_err());
+    assert!(approved.validate_for_entry(installed, NOW + 29).is_ok());
+    assert!(approved.validate_for_entry(installed, NOW + 30).is_err());
     let late_request = later
         .approval_request(NOW + 3_570, NOW + 3_605)
         .expect("approval spanning native action expiry");
@@ -1128,23 +1155,52 @@ fn native_compilation_approval_and_reverification_keep_exact_request() {
             NOW + 3_570,
         )
         .expect("late approval");
-    assert!(late.validate_for_entry(&installed, NOW + 3_599).is_ok());
+    assert!(late.validate_for_entry(installed, NOW + 3_599).is_ok());
     assert!(late.validate_approval(&public, NOW + 3_601).is_ok());
     assert!(
-        late.validate_for_entry(&installed, NOW + 3_601).is_err(),
+        late.validate_for_entry(installed, NOW + 3_601).is_err(),
         "a current human approval must not revive expired native resource authority"
     );
     let changed_installation = EffectInstallation {
         epoch: 2,
-        ..installed
+        ..*installed
     };
-    let changed = compile_mutation_effect(
-        &changed_installation,
-        NOW,
-        &submission.proof,
-        &submission.action,
-    )
-    .expect("changed epoch");
+    let changed = compile_mutation_effect(&changed_installation, NOW, submission.0, submission.1)
+        .expect("changed epoch");
     assert!(changed.approve(approval, &public, NOW).is_err());
-    assert!(compile_mutation_effect(&changed_installation, NOW, &[], &submission.action).is_err());
+    assert!(compile_mutation_effect(&changed_installation, NOW, &[], submission.1).is_err());
+}
+
+fn assert_bound_approval(
+    effect: &crate::effect::BoundEffect,
+    bytes: &[u8],
+    key: &SigningKey,
+) -> (
+    crate::effect::ExactEffectApproval,
+    zeroize::Zeroizing<Vec<u8>>,
+) {
+    assert_eq!(
+        &EffectBinding::from_private_bytes(bytes).expect("binding data"),
+        effect.binding()
+    );
+    assert!(
+        !String::from_utf8(bytes.to_vec())
+            .expect("json")
+            .contains("private-sentinel")
+    );
+    assert!(!format!("{effect:?}").contains("private-sentinel"));
+    let review = effect.approval_request(NOW, NOW + 30).expect("review");
+    let signature = key
+        .sign(&review.signing_message().expect("native message"))
+        .to_bytes();
+    let signing_request = review
+        .to_private_bytes()
+        .expect("canonical signing request");
+    assert_eq!(
+        crate::effect::EffectApprovalRequest::from_private_bytes(&signing_request)
+            .expect("signing data"),
+        review
+    );
+    let approval = review.with_signature(signature);
+    (approval, signing_request)
 }
