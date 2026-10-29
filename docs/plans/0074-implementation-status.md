@@ -2585,8 +2585,8 @@ closure regeneration passed after that correction (one artifact-generation test)
   and public surface 406 subjects. Journal schema `/16`, effect schema `/3`,
   compiler `/8`, all native clocks/deadlines and shipping semantics remain
   unchanged. This batch and local threshold commit `0e20c5f8` require fresh
-  exact-head hosted verification after publication. The live authoritative Lean
-  job `123552204257` for published `ce9d6cf5` is preserved; its twenty explicit
+  exact-head hosted verification after publication. The authoritative Lean
+  job `123552204257` for published `ce9d6cf5` was preserved and completed; its twenty explicit
   native PostgreSQL workflow cases passed with none ignored, including the newly
   published disclosure matrices. That evidence does not attest to these later
   unpublished sources or close complete AP074 acceptance.
@@ -2632,6 +2632,29 @@ closure regeneration passed after that correction (one artifact-generation test)
   identity protocol 151, public SDK 148 and public surface 407 subjects. No Rust
   runtime, gateway source closure, native schemas, formal predicates or tool pins
   change in this UI batch.
+
+## Published ce9d6cf5 terminal hosted checkpoint
+
+- All 96 check records are terminal: 86 successful, two cancelled and eight
+  conditional skips. Main CI `40899439849`, authoritative implementation/Kani/
+  clean Lean, final formal evidence `123567518646` and CI-qualified
+  `123572202035` passed. The complete PR matrix is not all green: Python workflow
+  `40899439869` failed solely because CPython 3.10/3.11 macOS consumers never
+  acquired hosted runners, including one grouped recovery attempt. Neither
+  cancelled consumer ran a test. No source defect was identified, no healthy
+  execution was rerun, and no platform/assertion/deadline was removed.
+- PostgreSQL job `123537375377` executed all twenty explicit native selectors
+  with zero ignored, including the published disclosure crash matrices. Installed
+  Docker demos, TypeScript, SDK recipes, operator package, isolation and retained
+  independent Google reference passed. Conditional live/reviewer skips provide
+  no qualification evidence.
+- The [durable terminal report](0074-hosted-evidence-ce9d6cf5.md) preserves the
+  complete workflow matrix, exact producer merge/tree identity, validated
+  translation reuse chain and both original/retry macOS job identities and
+  runner-acquisition annotations. All useful formal work completed before the
+  next publication. Local threshold `0e20c5f8`, independent recovery `5eb761d2`
+  and owner UI `37a218c9` remain outside this older-head evidence and require
+  fresh exact-head hosted verification. Complete AP074 acceptance remains open.
 
 ## Phase gates
 
