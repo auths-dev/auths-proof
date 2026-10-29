@@ -28,7 +28,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Instant,
 };
 use tempfile::NamedTempFile;
@@ -45,6 +45,9 @@ const LOCK_FILE: &str = ".replace.lock";
 /// A load that keeps finding a crashed batch gives up after this many
 /// rollbacks rather than spin.
 const MAX_RECOVERY_ROUNDS: usize = 8;
+/// Maintenance work is bounded even when most directory entries are retained
+/// attempts or slots that have not expired. This cursor confers no authority.
+const MAX_FILE_SWEEP_SCAN: usize = 4_096;
 const MAX_RECORD_BYTES: usize = auths_stores::MAX_GATEWAY_RECORD_BYTES;
 const MAX_BATCH_ENTRIES: usize = auths_stores::MAX_GATEWAY_BATCH_ENTRIES;
 /// A slot file wraps its record in base64 with its expiry.
@@ -1439,10 +1442,21 @@ pub trait GatewayAttemptStore: Send + Sync {
 /// `.batch.json` listing each target and its bytes, then creates the
 /// targets, then deletes the batch file; a batch file found later means the
 /// batch never returned, so its targets are deleted.
+/// Expiry maintenance inspects at most 4,096 directory entries per call and
+/// stops between entries at the common two-second cooperative work deadline.
+/// One transient directory cursor resumes later; reopening loses only progress.
+/// It never sweeps attempts, configuration, commissioning or lifetime allocations.
 pub struct FileGatewayAttemptStore {
     root: PathBuf,
+    sweep_cursor: Mutex<Option<fs::ReadDir>>,
     #[cfg(test)]
     io_fault: std::sync::Mutex<FileIoFault>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct FileSweepProgress {
+    inspected: usize,
+    deleted: usize,
 }
 
 /// Private test-only failures at the actual adapter's I/O call sites. Shipping
@@ -1529,6 +1543,7 @@ impl FileGatewayAttemptStore {
         })?;
         let store = Self {
             root,
+            sweep_cursor: Mutex::default(),
             #[cfg(test)]
             io_fault: std::sync::Mutex::default(),
         };
@@ -1573,6 +1588,74 @@ impl FileGatewayAttemptStore {
             return Err(GatewayAttemptError::Corrupt);
         }
         Ok(Some(bytes))
+    }
+
+    /// Resumes bounded maintenance under the same fence as every writer.
+    /// The in-memory iterator is only a progress hint: losing it can delay
+    /// reclamation, never remove a retained claim or recreate entry authority.
+    fn sweep_batch(
+        &self,
+        now: u64,
+        limit: usize,
+        scan_budget: usize,
+    ) -> Result<FileSweepProgress, GatewayAttemptError> {
+        let mut progress = FileSweepProgress::default();
+        if limit == 0 || scan_budget == 0 {
+            return Ok(progress);
+        }
+        let _writer = self.exclusive()?;
+        let started = Instant::now();
+        let mut cursor = self
+            .sweep_cursor
+            .lock()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if cursor.is_none() {
+            *cursor = Some(fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?);
+        }
+        let result = (|| {
+            while progress.inspected < scan_budget.min(MAX_FILE_SWEEP_SCAN)
+                && progress.deleted < limit
+                && started.elapsed() < auths_stores::GATEWAY_FENCE_DEADLINE
+            {
+                let next = cursor
+                    .as_mut()
+                    .ok_or(GatewayAttemptError::Unavailable)?
+                    .next();
+                let entry = match next {
+                    Some(Ok(entry)) => entry,
+                    Some(Err(_)) => {
+                        *cursor = None;
+                        return Err(GatewayAttemptError::Unavailable);
+                    }
+                    None => {
+                        *cursor = None;
+                        break;
+                    }
+                };
+                progress.inspected += 1;
+                let name = entry.file_name();
+                let Some(name) = name.to_str().filter(|name| {
+                    (name.starts_with("slot-") || name.starts_with("sum-")) && valid_file_name(name)
+                }) else {
+                    continue;
+                };
+                let path = self.root.join(name);
+                let Some(bytes) = Self::read_file(&path, MAX_SLOT_FILE_BYTES)? else {
+                    continue;
+                };
+                if Self::decode_slot(&bytes)?.0 <= now {
+                    fs::remove_file(&path).map_err(|_| GatewayAttemptError::Unavailable)?;
+                    progress.deleted += 1;
+                }
+            }
+            Ok(progress)
+        })();
+        // Sync even if a later directory/record read failed after a safe
+        // expired-slot deletion. Errors cannot turn unreadable state into absence.
+        if progress.deleted > 0 {
+            self.sync_root()?;
+        }
+        result
     }
 
     /// The bytes a record's file holds: the record itself, or for a slot
@@ -2038,37 +2121,8 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
     }
 
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
-        let _lock = self.exclusive()?;
-        let mut names: Vec<String> = fs::read_dir(&self.root)
-            .map_err(|_| GatewayAttemptError::Unavailable)?
-            .map(|entry| {
-                entry
-                    .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                    .map_err(|_| GatewayAttemptError::Unavailable)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        names.retain(|name| {
-            (name.starts_with("slot-") || name.starts_with("sum-")) && valid_file_name(name)
-        });
-        names.sort_unstable();
-        let mut deleted = 0;
-        for name in names {
-            if deleted >= limit {
-                break;
-            }
-            let path = self.root.join(&name);
-            let Some(bytes) = Self::read_file(&path, MAX_SLOT_FILE_BYTES)? else {
-                continue;
-            };
-            if Self::decode_slot(&bytes)?.0 <= now {
-                fs::remove_file(&path).map_err(|_| GatewayAttemptError::Unavailable)?;
-                deleted += 1;
-            }
-        }
-        if deleted > 0 {
-            self.sync_root()?;
-        }
-        Ok(deleted)
+        self.sweep_batch(now, limit, MAX_FILE_SWEEP_SCAN)
+            .map(|progress| progress.deleted)
     }
 }
 
@@ -3573,3 +3627,7 @@ impl GatewayAttempts {
 #[cfg(test)]
 #[path = "entry_tests.rs"]
 mod entry_tests;
+
+#[cfg(test)]
+#[path = "store_retention_tests.rs"]
+mod retention_tests;

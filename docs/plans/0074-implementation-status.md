@@ -2761,6 +2761,68 @@ mutations include changing the exact-limit padding; that unit test and new
 hosted execution remain pending. Semantic inventory construction stayed at
 freeze409 without identity/hash changes. No shipping or AP070 source changed.
 
+## Resumed completion and retention checkpoint
+
+The user resumed the full completion prompt after the pause. The published
+CI-only repair `d9618a568c4db8fae0b8bc4cb80b77de81c8e7d1` is now an ancestor of
+this branch through a non-rewriting merge; the three A19 commits, duplicate
+local cherry-pick and all unfinished work were preserved. The durable goal
+above continues to mean all P0–P4/A01–A22, not merely the current patch.
+
+The exact published d961 Airtable run40942189355, package123688155935 and
+installed-demo123691155527 passed, including all 36 existing cases and the
+complete repaired owner-browser journey. Its verified artifact12928066979 is
+attributed to d961; production_qualification=false remains explicit. The saved
+[hosted report](0074-hosted-evidence-d9618a56.md) records the CI-only scope and
+pause as historical facts. On resumption, the commit-workflows API returned all
+14 d961 workflows terminal: 13 successful and custody live conditionally skipped.
+No unpublished A19 or retention behavior is established by those old-head runs.
+
+Retention implementation now removes the file adapter's full-directory
+collection/sort. Each call scans at most 4,096 directory entries, checks the
+common two-second cooperative deadline between entries and retains one
+nonauthoritative iterator for progress. It uses the same writer fence, only
+deletes expired count/sum slots and syncs safe deletions even if a later read
+fails. Restart loses only scan progress. Filesystem I/O latency remains an
+explicit host assumption. All other record kinds remain permanent; retained
+full attempts are the replay tombstones, with continuing storage growth.
+
+The engine sweep now uses the existing deployment/effect clock and fails before
+storage if required qualification lacks trusted time. A separately sampled wall
+clock could previously delete windows still current on that effect clock.
+No new clock-rollback or malicious whole-store rollback guarantee is claimed.
+
+Required fixture construction executed this batch over the reconciled branch:
+
+- `AUTHS_UPDATE_FIXTURES=1 cargo test --locked -p auths-gateway --features loopback-provider,testkit-harness --lib native_information_replay_tests::retention_tests::native_file_retention_fixture_is_current -- --exact`
+  passed one test, zero failed/ignored, 0.93 seconds after compilation.
+- The corresponding explicit `postgres_native_retention_fixture_is_current`
+  selector with `--ignored --exact` and the owned TLS PostgreSQL fixture passed
+  one test, zero failed/ignored, 1.63 seconds after compilation.
+
+The six histories use actual native signed bounded grants, exact approval,
+HTTP acquisition and authenticated Unix delivery/ACK loss. Cleanup preserves
+slots before expiry and removes two at exact expiry while approval is still
+current. Original replay cannot send again or allocate again; an independently
+signed new operation cannot consume the old approval. After reopening and full
+authority expiry, source/disclosure records and recorded allocations/charges
+remain byte-identical and provider reads remain one. Scope excludes independent
+OS isolation, mutation/reserved retention and epoch/rollback-floor evidence.
+
+File cursor scan bounds/corrupt-slot controls, required-untrusted-clock refusal,
+and both-adapter conformance over all five durable record kinds are authored,
+not executed locally. The PostgreSQL workflow adds the two native selectors
+(24 explicit selections total) without dropping existing cases. Hosted checks
+must execute these and the previously unpublished A19 comparisons on the new
+head before any completion claim. AP070/AP073 source remains untouched.
+
+The preserved information comparator also now uses the native artifact's actual
+`disclosure-acknowledged` label; the prior shorthand was not an accepted native
+protocol value. This is a correction to previously unrun test orchestration,
+not a runtime protocol change. Required semantic inventory regeneration advances
+freeze410 with only reported identity154/public-SDK151/public-surface410 inputs.
+Effect/compiler/attempt schemas and translated pure predicates stay unchanged.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2799,7 +2861,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / mutation reference comparison constructed; 22 paired post-authorization information comparisons authored against unchanged AP070 and native file/PostgreSQL histories / 28 request and 26 response mutation cases constructed locally, including valid JSON at/above both byte bounds; information comparison unrun | Execute new independent information runner and parser controls plus exact-head hosted mutation corpus; complete coverage audit; AP070 source stays independent without managed guarantees |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
-| A21 | Tombstones, stale state, supported rollback floors | Pending / no / no | Epoch/retention evidence |
+| A21 | Tombstones, stale state, supported rollback floors | Partial / bounded file maintenance and shared effect clock; native read/release expiry cleanup / six file/TLS PostgreSQL histories constructed, with retained replay and unchanged recorded charges after cleanup/reopen | Hosted execution, reserved/mutation retention, epoch/stale configuration and supported rollback-floor evidence remain required |
 | A22 | Installed single-human/single-agent full journey/UI | Partial / real daemon and CLI / read, recipient disclosure, exact write and independent observation executed with simulated signing | Installed language packages, authenticated human UI and hostile isolated agent still required |
 
 ## Deployment assumptions retained

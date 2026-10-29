@@ -2482,12 +2482,35 @@ async fn conformance_sweep_bounds(backend: Backend) {
             expires_at: None,
         };
         raw.insert(&connection).expect("connection");
+        let permanent: Vec<_> = [
+            GatewayRecordKind::CommissioningBudget,
+            GatewayRecordKind::EffectConfiguration,
+            GatewayRecordKind::EffectAllocation,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, kind)| GatewayRecordEntry {
+            kind,
+            key: GatewayAttemptKey::from_bytes(test_key("sweep-durable", index, None)),
+            record: b"permanent-retention-control".to_vec(),
+            expires_at: None,
+        })
+        .collect();
+        for entry in &permanent {
+            raw.insert(entry).expect("permanent record");
+        }
         assert_eq!(raw.sweep_expired(99, 10), Ok(0), "nothing expired yet");
         assert_eq!(raw.sweep_expired(150, 3), Ok(3), "at most the limit");
         assert_eq!(raw.sweep_expired(150, 10), Ok(2));
         assert_eq!(raw.sweep_expired(150, 10), Ok(0));
         assert_eq!(raw.sweep_expired(200, 10), Ok(2), "expiry is inclusive");
         assert_eq!(raw.sweep_expired(u64::MAX >> 1, 10), Ok(0));
+        for entry in &permanent {
+            assert_eq!(
+                raw.load(entry.kind, &entry.key).expect("permanent record"),
+                Some(entry.record.clone())
+            );
+        }
         assert!(
             raw.load(GatewayRecordKind::Attempt, &attempt)
                 .expect("load")

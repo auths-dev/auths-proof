@@ -26,6 +26,9 @@ use tokio::{io::AsyncReadExt as _, net::UnixStream};
 const SOURCE: &str = "retained-read";
 const RELEASE: &str = "retained-release";
 
+#[path = "native_retention_tests.rs"]
+mod retention_tests;
+
 #[derive(Clone, Copy, Debug)]
 enum Protocol {
     Acquisition,

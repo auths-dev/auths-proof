@@ -1,0 +1,79 @@
+{
+  "schema": "auths.native-retention/1",
+  "adapter": "postgres",
+  "scope": "real native bounded proof/approval, HTTP and authenticated Unix delivery; expiry-slot sweep on file/TLS PostgreSQL; retained full records serve as replay tombstones",
+  "excluded": [
+    "epoch changes and rollback floors",
+    "malicious whole-store rollback",
+    "hostile OS or live provider qualification"
+  ],
+  "cases": [
+    {
+      "protocol": "acquisition-response",
+      "window_seconds": 60,
+      "slot_expiry": 1790000100,
+      "deleted_before_expiry": 0,
+      "deleted_at_expiry": 2,
+      "original_approval_current_at_sweep": true,
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "new_operation_with_old_approval_refused": true,
+      "claims_and_recorded_allocations_unchanged": true,
+      "replay_after_window_cleanup_and_full_authority_expiry_sends_nothing": true,
+      "provider_reads": 1
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "window_seconds": 60,
+      "slot_expiry": 1790000100,
+      "deleted_before_expiry": 0,
+      "deleted_at_expiry": 2,
+      "original_approval_current_at_sweep": true,
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "new_operation_with_old_approval_refused": true,
+      "claims_and_recorded_allocations_unchanged": true,
+      "replay_after_window_cleanup_and_full_authority_expiry_sends_nothing": true,
+      "provider_reads": 1
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "window_seconds": 60,
+      "slot_expiry": 1790000100,
+      "deleted_before_expiry": 0,
+      "deleted_at_expiry": 2,
+      "original_approval_current_at_sweep": true,
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "new_operation_with_old_approval_refused": true,
+      "claims_and_recorded_allocations_unchanged": true,
+      "replay_after_window_cleanup_and_full_authority_expiry_sends_nothing": true,
+      "provider_reads": 1
+    }
+  ]
+}

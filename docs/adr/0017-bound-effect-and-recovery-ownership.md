@@ -1126,6 +1126,42 @@ PostgreSQL and hostile process isolation remain distinct incomplete obligations.
 No production transition predicate or wire schema changed in this increment.
 
 
+## Bounded expiry maintenance and retained replay facts
+
+The existing store remains the only journal and reservation owner. Count/sum
+slots expire one complete window after the corresponding window ends. Attempts,
+configuration, commissioning budgets and lifetime effect allocations do not
+expire and are never eligible for this sweep. Full retained attempt records
+serve as replay tombstones; no compressed tombstone decoder or alternative
+admission path is added. Total journal storage may grow with retained operations.
+
+The file adapter now inspects at most 4,096 directory entries in a sweep and
+checks the existing two-second cooperative work deadline between entries. It
+retains one transient directory iterator, so later calls can advance past
+permanent and unexpired records without collecting or sorting the directory.
+All inspection and deletion participate in the common writer fence. Reopening
+loses only scan progress, never journal authority. Each record read remains
+byte-bounded; physical filesystem I/O/sync latency remains a host assumption.
+Deletion of expired slots is directory-synced even if a later read fails.
+The indexed PostgreSQL sweep keeps its existing writer fence and bounded LIMIT.
+
+The engine supplies the same deployment clock used for native effect evaluation;
+required qualification with untrusted time refuses cleanup before storage work.
+An independently sampled wall clock must not age out a still-current effect
+window. This is not a new clock rollback detector or a whole-store rollback claim.
+
+Native file/PostgreSQL evidence acquires actual HTTP content using signed
+count/byte bounds and exact approval, then optionally performs authenticated
+Unix disclosure with ACK or ACK loss. Slots remain before their exact expiry
+and are removed at expiry while the original approval remains current. Replay
+returns the same original facts without new entry, recipient authentication,
+delivery or charges; another operation cannot consume the old approval. A
+reopened engine preserves those facts after full authority expiry. Separate
+adapter controls retain every nonexpiring kind, bound scan progress and refuse
+corrupt slots. Execution status belongs in the AP074 ledger; epoch/floor,
+reserved/mutation retention and remaining fault cases are not inferred from
+these read/release histories.
+
 ## Standalone read-only recipe decision
 
 A source `/3` with no `write` declaration is a content-only installation. It must

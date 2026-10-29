@@ -309,7 +309,7 @@ def compare(native, reference):
                 'ap074.differential.crash-no-reentry')
         pairs.append({'adapter': adapter, 'contract': 'durable entry uncertainty retains charges and forbids old operation reentry',
                       'reference': reference['crash'], 'native': case})
-        for protocol in ['acquisition-response', 'disclosure-ack', 'disclosure-unknown']:
+        for protocol in ['acquisition-response', 'disclosure-acknowledged', 'disclosure-unknown']:
             case = one(artifacts['replay']['value']['cases'], protocol=protocol, change='connection-revoked')
             require(case['journal_and_execution_witness_unchanged'] is True
                     and case['no_replay_authentication_or_delivery'] is True

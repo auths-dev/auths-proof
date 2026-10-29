@@ -1268,10 +1268,14 @@ impl GatewayEngine {
     /// clock, and returns how many were deleted. Claims are never swept.
     ///
     /// # Errors
-    /// `gateway.sweep.clock-unavailable` without a clock, and
+    /// `gateway.sweep.clock-unavailable` without the effect clock (including
+    /// untrusted time under required qualification), and
     /// `gateway.sweep.unavailable` when the store fails.
     pub async fn sweep_expired_slots(&self) -> Result<usize, &'static str> {
-        let now = wall_clock_seconds().ok_or("gateway.sweep.clock-unavailable")?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or("gateway.sweep.clock-unavailable")?;
         let deleted = self
             .attempts
             .sweep_expired(now, SLOT_SWEEP_LIMIT)
@@ -4092,6 +4096,41 @@ pub(crate) mod tests {
             let status = host.engine.status().await.expect("status");
             let swept = status.last_sweep.expect("a completed sweep is reported");
             assert!(swept <= status.gateway_clock);
+        }
+
+        #[tokio::test]
+        async fn slot_sweep_refuses_untrusted_required_time_without_deleting_state() {
+            let mut installation = installation(8).await;
+            let raw = installation.attempts.raw();
+            let entry = crate::store::GatewayRecordEntry {
+                kind: crate::GatewayRecordKind::CountSlot,
+                key: crate::GatewayAttemptKey::from_bytes([91; 32]),
+                record: b"public-untrusted-clock-slot".to_vec(),
+                expires_at: Some(1),
+            };
+            raw.insert(&entry).expect("slot");
+            let clock = Arc::new(crate::FixedClock::at(100));
+            clock.trust_is(false);
+            installation.first.engine.qualification = Arc::new(crate::QualificationGate::new(
+                crate::QualificationPolicy::Required,
+                None,
+                None,
+                Box::new(clock),
+                auths_recipe_qualification::VerifierState::default(),
+            ));
+            assert_eq!(
+                installation.first.engine.sweep_expired_slots().await,
+                Err("gateway.sweep.clock-unavailable")
+            );
+            assert_eq!(
+                raw.load(entry.kind, &entry.key).expect("slot"),
+                Some(entry.record)
+            );
+            assert_eq!(
+                installation.first.engine.last_sweep.load(Ordering::SeqCst),
+                0
+            );
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
         }
 
         #[tokio::test]

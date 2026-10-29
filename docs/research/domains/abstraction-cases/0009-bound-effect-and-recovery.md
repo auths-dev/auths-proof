@@ -114,6 +114,17 @@ byte private authority projection limit and no reader for obsolete state.
 
 ## Cutover and evidence
 
+The retained replay/maintenance boundary has two separate bounds: native policy
+windows and adapter maintenance work. Expiring count/sum slots may be reclaimed
+without deleting attempts, configuration, commissioning or lifetime allocations.
+File maintenance uses a nonauthoritative iterator (4,096 inspected directory
+entries and a cooperative two-second work budget), not a second journal or a
+full-directory sort. PostgreSQL retains its indexed LIMIT and common writer
+fence. The engine samples the existing deployment/effect clock for both stores.
+The source and native retention fixtures are recorded in the ledger; they do
+not establish clock rollback detection, all reserved/mutation histories or
+malicious whole-store rollback protection.
+
 Replace affected formats and call sites in one bounded PR. No production
 compatibility path, migration or dual journal. Reference models remain explicitly
 test-only or independently application-owned with explicit narrower claims.
