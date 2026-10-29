@@ -852,3 +852,28 @@ The development simulator retains a fixed actor key copy before app ownership
 changes, separately from exact reviewer keys; production/exclusive signing
 custody, human attention and hostile-OS claims remain excluded. The maintained
 AP070 reference and every remaining AP074 gate are unchanged.
+
+### Native mutation/disclosure capacity and retention histories
+
+New test-only vertical histories consume the existing approval, admission,
+transaction, grant and sweep owners. They introduce no shipping capability or
+semantic extraction. Plain Stripe mutation count/amount-sum and content-release
+count/byte-sum each have count-only, sum-only and combined cases on file/TLS
+PostgreSQL. A real prefix precedes two independent OS contenders. Raw records,
+exact native mutation bodies, actual authenticated recipient content/ACK, and
+provider/custody counters establish the corresponding unit conservation.
+
+Each protocol also has reserved-state expiry controls. Mutation kills the native
+worker after durable reservation ACK; disclosure calls native reservation-only
+admission. Original proof and approval times remain eligible after a short window
+expires, but the new window changes the exact binding and requires fresh approval.
+Only expired slots are removed; attempts and lifetime allocations remain intact.
+Reopen/replay creates no grant, resend, redelivery or new recorded charge. These
+are actual local constructor histories, not new-head hosted evidence, malicious
+rollback detection or hostile-process containment. The disclosure contenders
+each host gateway/recipient tasks in one process over real same-UID Unix sockets.
+
+The pending acceptance gates still include dependency-race/adverse schedules,
+supported floors, complete public binding/containment negatives, generated
+concurrent histories/formal links, bounded performance and final hosted results.
+AP070 remains independently application-owned; AP073 is untouched.

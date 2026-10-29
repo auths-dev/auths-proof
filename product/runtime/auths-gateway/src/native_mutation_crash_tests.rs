@@ -34,6 +34,9 @@ const OPERATION: &str = "crash-write";
 const RESPONSE: &[u8] = b"{\"id\":\"public-crash-response\"}";
 const ENVIRONMENT: &str = "AUTHS_AP074_MUTATION_CRASH_PEER";
 
+#[path = "native_mutation_budget_tests.rs"]
+mod window_capacity_tests;
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum Flavor {

@@ -1219,3 +1219,24 @@ mutation-refusal and real read-only install/acquisition/disclosure process
 journey. Google metadata, token refresh custody and AP070 owner migration are
 deferred integration work. Supporting a content-only recipe establishes neither
 those optional provider capabilities nor AP070 equivalence.
+
+## Native fixed-window contention and retained reservation evidence
+
+The existing native admission owner is exercised by independent OS contenders
+for mutation count/amount-sum and disclosure count/byte-sum capacity on file and
+TLS PostgreSQL. A prefix leaves exactly one unit; two separately approved native
+operations contend and exactly one wins. The counting HTTP provider performs no
+idempotent deduplication. Native recipient authentication and ACK retain typed
+disclosure facts, with no provider refetch or credential lease at release. Each
+disclosure contender hosts gateway/recipient tasks over same-UID Unix sockets;
+this is independent admission-process evidence, not hostile-process containment.
+
+The short signed window expires while original proof and approval times remain
+eligible. Native recompilation selects a new window-bound identity; old exact
+approval cannot authorize it. Cleanup removes only old fixed-window slots and
+keeps original attempt/allocation bytes. Terminal replay and reserved restart
+create no new grant, send, recipient bytes or recorded charge. Mutation reserved
+histories include SIGKILL after actual reservation acknowledgement. Disclosure
+reservation-only admission returns data and no permit. These tests add no
+production owner or new semantic abstraction. Source-specific adverse schedules,
+rollback floors, installed containment and final hosted evidence remain required.

@@ -34,6 +34,9 @@ use tokio::{
 mod kit;
 use kit::{CrashSetup, Input, Recipient, Role, controls, key};
 
+#[path = "native_disclosure_budget_tests.rs"]
+mod window_capacity_tests;
+
 const SOURCE: &str = "crash-release-source";
 const RELEASE: &str = "crash-release";
 

@@ -3012,6 +3012,67 @@ closure remains the repaired epoch commitment; the formal translation source
 closure remains a002. These metadata updates do not execute the new browser/SDK
 cases and are not a fresh formal proof.
 
+## Native mutation/disclosure capacity and retention continuation
+
+CI inspection, reproduction and repair belong to the existing CI subagent, per
+user instruction. The main agent continues core implementation and required
+artifact construction. The subagent's coherent installed-demo repair was
+integrated as `25c93709` from `31f71657`, preserving the identical pending provider
+ledger regression. It creates the owned counter log exclusively at startup,
+uses the existing native JSON-string projection at `/fields/PrivateNote` for
+an application/json response, and correlates browser completion/operation IDs
+and the native versioned disclosure contract correctly. Native media checks,
+all counter/consent/privacy assertions and the original reference recipe remain
+unchanged. The private recipient receives the exact selected string, not a
+reinterpretation of the complete provider JSON as text/plain.
+
+The subagent reports successful full source-free local reproduction against the
+exact hosted ab980 SDK/native package plus the repaired payloads: 36 semantic
+cases, ordinary browser and complete authenticated owner content/write/recovery/
+unknown journey. Package labels still identify the original hosted ab980 source;
+this is repaired local execution, not a passed new-head hosted job. Precise
+producer identity, artifact hashes, repairs and limitations are in
+[the repair report](0074-ci-repair-ab980d10.md). New-head hosted confirmation
+remains required; the main agent does not duplicate the subagent's CI checks.
+
+Four new native constructors execute 24 histories across file and TLS PostgreSQL:
+three final-unit mutation races and three disclosure races per adapter, plus
+three reserved-retention histories for each protocol/adapter. Each race admits
+a prefix then starts two distinct OS contenders against shared durable state.
+Exactly one contender wins the last count/amount-sum or delivery/byte-sum unit.
+Native signed proofs and exact approvals are used, with actual HTTP mutation
+capture and authenticated same-UID Unix recipient delivery/ACK. Counter records,
+permanent lifetime rows and attempt bytes are inspected directly; replay after
+reopen creates no custody/transport entry, recipient content or new recorded
+charge. The disclosure contenders each host gateway and recipient tasks in one
+OS process; this proves independent admission contention, not hostile-recipient
+isolation or separate gateway/recipient processes within each contender.
+
+A 60-second window lets cleanup occur while original proofs and approval times
+remain eligible. Full native recompilation remains authorized but produces a
+new window-bound identity, and the old exact approval refuses it. Only expired
+window slots disappear. Terminal and reserved attempts and permanent allocations
+remain byte-identical; reopening cannot remint entry or re-charge old operations.
+Mutation reservation cases use actual SIGKILL after durable reservation ACK;
+disclosure cases use native reservation-only admission, which returns no permit.
+No synthetic grant, alternative journal, callback or second decision owner is
+introduced. Counts and byte/amount units remain distinct.
+
+Required local artifact construction passed each exact selector with one matched,
+nonignored test: mutation file1.61s/PG3.34s and disclosure file2.83s/PG5.60s.
+Each constructor contains three race and three reserved cases. The PostgreSQL
+workflow preserves all previous 26 selected native cases and adds these four
+for 30 explicit selectors. This is not new-head hosted execution or full A04/A21
+closure: dependency-change/entry races, remaining adverse durability schedules,
+supported rollback floors, complete containment/binding negatives, generated
+concurrent histories/formal linkage and bounded performance remain mandatory.
+
+Native source-closure construction and its rebuilt non-update verification both
+passed after these Rust test changes. Semantic inventory construction advances
+freeze414 and only reported identity158/public-SDK155/public-surface414; other
+identity counters remain unchanged. Formal translation source closure remains
+a002. These construction results are not new hosted/formal acceptance.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -3033,7 +3094,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A01 | Same bound identity and exact request across review/approval/send | Partial / native review/compiler and real mutation replay corpus / ten file/TLS PostgreSQL histories send the exact reviewed PATCH body | Full installed review-completeness and authenticated human/UI evidence pending |
 | A02 | Independent mutation of every binding dimension | Partial / bound-effect corpus and native retained-input controls / distinct valid proof/action, damaged approval, changed resource and changed recipient rejected during file/TLS PostgreSQL replay | Complete independent substitutions for every binding dimension and installed surface remain required |
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / real native process lifetime and fixed-window acquisition histories on file/TLS PostgreSQL / lifetime count/bytes plus six fixed-window count/byte-sum contention histories executed | Mutation/disclosure fixed-window contention and complete adverse schedules still required |
+| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / native lifetime/acquisition histories executed; twelve mutation/disclosure count/sum/both contention histories now constructed on both adapters using prefix plus two OS contenders | New-head hosted confirmation and complete dependency-change/adverse grant schedules remain required |
 | A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
 | A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / socket-file and real daemon process corpus / separate operator disable prevents recipient CLI delivery | Full revocation scopes and adapter races |
@@ -3050,8 +3111,8 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
 | A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / independent mutation and post-authorization information comparisons against unchanged references / hosted74ce mutation 28 requests + 26 responses, information 22 pairs across both adapters and 104 source/parser controls passed | Named A19 contracts audited in the differential-contracts document; final-head confirmation remains required, with AP070 independence and divergent claims retained |
 | A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
-| A21 | Tombstones, stale state, supported rollback floors | Partial / bounded maintenance/shared clock and one active epoch control per partition / hosted74ce six native read/release cleanup histories passed; two new file/TLS PostgreSQL epoch histories constructed locally preserve replay and lifetime slots | New-head hosted epoch verification, reserved/mutation retention, concurrent epoch/configuration schedules and supported rollback-floor evidence remain required |
-| A22 | Installed single-human/single-agent full journey/UI | Partial / native daemon/CLI journey executed; installed authenticated write/recovery UI passed74ce; full same-actor Python/TypeScript acquisition/native disclosure/write/observation/unknown journey now authored | Execute the expanded source-free browser/package journey on the new head; complete hostile interface inventory and remaining adverse/negative integration evidence |
+| A21 | Tombstones, stale state, supported rollback floors | Partial / bounded maintenance/shared clock and stable epoch control; native terminal/reserved mutation/disclosure cleanup now constructed on both stores with original authority/approval times still current and unchanged permanent rows | New-head hosted confirmation, concurrent epoch/configuration schedules and supported rollback-floor evidence remain required |
+| A22 | Installed single-human/single-agent full journey/UI | Partial / native CLI journey and hosted74ce write/recovery UI; CI subagent reports repaired source-free full Python/TypeScript acquisition/native disclosure/write/observation/unknown reproduction passed against original ab980 package plus repaired payloads | Exact new-head hosted confirmation, complete hostile interface inventory and remaining adverse/negative integration evidence |
 
 ## Deployment assumptions retained
 
