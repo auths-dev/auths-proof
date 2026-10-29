@@ -2500,6 +2500,43 @@ closure regeneration passed after that correction (one artifact-generation test)
   commit `a81943a7` and later revisions still need exact-head hosted checks. Full
   AP074 acceptance remains open; the separate reference AP070 is not migrated.
 
+## Native observer-expiry and threshold-selection checkpoint
+
+- The existing dependency matrix now has twelve histories per adapter (24 total).
+  Its original eight histories remain identical. New independent worker/operator
+  histories advance the maintained clock while entry waits behind the actual
+  file/TLS PostgreSQL connection-record writer fence. No verifier result,
+  admission/entry decision, signed event time or store snapshot is substituted.
+- Two signed-observation controls exercise the inclusive five-second freshness
+  boundary and stale evidence at six seconds. The latter retains Reserved with
+  one call/1024 bytes and no provider request. Two 1-of-2 threshold controls use
+  the same complete proof/action/observation bytes: both branches authorize at
+  five seconds; at six, the proof remains Authorized through the longer-lived
+  branch. Actual selected branch/observation counts and native authority
+  commitments are checked, and only the authority field of the compiled binding
+  changes. The old exact approval remains in time but cannot approve that effect.
+- The installed worker repeats the complete native check inside the actual
+  final writer fence. The changed selection yields no grant, HTTP entry or new
+  allocation; unchanged selection enters exactly once. These final-fence
+  schedules occur after initially authorized admission/custody. All four new
+  cases measure one earlier credential lease; refusals correctly measure zero
+  HTTP reads. No claim that a later refusal reverses an earlier lease is made.
+- Original signed inputs stay byte-identical, admission remains at the original
+  time, positive entry uses the post-wait time, and reopened history leaves the
+  journal unchanged. Fixed public keys, maintained test clock, trusted host/
+  stores, local HTTP and same-UID process assumptions remain explicit.
+- Required artifact generation passed both adapter generators (2/2, zero
+  ignored, 5.02 seconds). Final refactored source passed no-update generation
+  verification (2/2, zero ignored, 5.03 seconds) and the previously failed strict
+  gateway all-feature library/test lint (7.74 seconds). These are construction
+  and focused reproduction results, not exact new-head hosted qualification.
+  A13/A14 installed surfaces and full mutation/disclosure races remain open.
+- Gateway source closure was regenerated and its rebuilt no-update check passed.
+  Semantic-freeze generation reports no changed release subjects, so freeze 405
+  and every existing semantic version remain unchanged. This batch changes only
+  native test authoring/evidence and documentation, with no shipping behavior,
+  journal schema, clock rule, approval rule or verification limit change.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -2530,8 +2567,8 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP histories / six local process histories | Complete mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
 | A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate plus full native acquisition worker/operator histories / sixteen file/TLS PostgreSQL histories executed | Complete mutation/disclosure races remain required |
-| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age, signed-observation cases and native independent-process approval/authority lock-wait cases / file/TLS PostgreSQL lock-wait controls executed | Observer expiry, threshold changes and full installed/adverse evidence remain required |
-| A14 | Valid threshold selection changes | Pending / no / no | Pin selected evidence |
+| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and native independent-process approval/authority/observer lock-wait cases / file/TLS PostgreSQL positive/stale observer controls executed at the exact freshness boundary and one second beyond | Full mutation/disclosure and installed/adverse evidence remain required |
+| A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls / four file/TLS PostgreSQL histories execute unchanged/changed selection; proof remains Authorized but changed authority invalidates the old still-current exact approval before grant | Complete installed language/UI and mutation/disclosure parity remain required |
 | A15 | Recovery actor differs; original authority revoked | Partial / native compiler and file refinement / synthetic entry only | Revocation and installed execution |
 | A16 | Cross-task/recipe/partition substitution | Partial / adapter cases / no | Full task-scope and installed boundary evidence |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |

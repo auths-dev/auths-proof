@@ -39,11 +39,16 @@ enum Scenario {
     ApprovalExpired,
     AuthorityValid,
     AuthorityExpired,
+    ObserverValid,
+    ObserverExpired,
+    ThresholdValid,
+    ThresholdChanged,
 }
 impl Scenario {
     const fn time_shift(self) -> u64 {
         match self {
             Self::ApprovalValid | Self::AuthorityValid => 4,
+            Self::ObserverValid | Self::ThresholdValid => 5,
             _ => 6,
         }
     }
@@ -82,7 +87,10 @@ impl Race {
         matches!(self.order, Order::GrantFirst)
             || matches!(
                 self.scenario,
-                Scenario::ApprovalValid | Scenario::AuthorityValid
+                Scenario::ApprovalValid
+                    | Scenario::AuthorityValid
+                    | Scenario::ObserverValid
+                    | Scenario::ThresholdValid
             )
     }
     fn key() -> GatewayAttemptKey {
@@ -267,6 +275,10 @@ fn run_worker(race: &Race, store: &TestAttempts) {
     private(
         &race.installation.root.join("worker-result"),
         &serde_json::to_vec(&result).expect("result"),
+    );
+    private(
+        &race.installation.root.join("worker-witness"),
+        &serde_json::to_vec(&engine.execution_witness()).expect("witness"),
     );
 }
 fn hold_connection(race: &Race, store: &TestAttempts, channel: &mut TcpStream) {
@@ -473,6 +485,7 @@ struct Case {
     operator_listener: TcpListener,
     provider: Provider,
     signed_inputs: Vec<Vec<u8>>,
+    evidence: Option<Value>,
 }
 impl Case {
     fn new(backend: Backend, scenario: Scenario, order: Order) -> Self {
@@ -497,10 +510,13 @@ impl Case {
             },
         };
         let runtime = runtime();
-        let (engine, record) = runtime.block_on(load_engine(
+        let controls = EngineControls::baseline();
+        let clock = controls.clock.clone();
+        let (engine, record) = runtime.block_on(load_controlled_engine(
             &race.installation,
             "parent",
             store.attempts().clone(),
+            controls,
         ));
         let shared = SharedConnection::new(
             store.raw(),
@@ -513,13 +529,36 @@ impl Case {
         engine
             .initialize_effect_configuration()
             .expect("configuration");
-        runtime.block_on(authorize_bounded(
-            &engine,
-            &race.installation.root,
-            OPERATION,
-            scenario.authority_until(),
-            scenario.approval_until(),
-        ));
+        let evidence = if matches!(
+            scenario,
+            Scenario::ObserverValid
+                | Scenario::ObserverExpired
+                | Scenario::ThresholdValid
+                | Scenario::ThresholdChanged
+        ) {
+            Some(
+                runtime.block_on(crate::observed_tests::threshold_testkit::authorize(
+                    &engine,
+                    &clock,
+                    &race.installation.root,
+                    OPERATION,
+                    matches!(
+                        scenario,
+                        Scenario::ThresholdValid | Scenario::ThresholdChanged
+                    ),
+                    NOW + scenario.time_shift(),
+                )),
+            )
+        } else {
+            runtime.block_on(authorize_bounded(
+                &engine,
+                &race.installation.root,
+                OPERATION,
+                scenario.authority_until(),
+                scenario.approval_until(),
+            ));
+            None
+        };
         let signed_inputs = Self::inputs(&race);
         Self {
             _directory: directory,
@@ -529,6 +568,7 @@ impl Case {
             operator_listener,
             provider,
             signed_inputs,
+            evidence,
         }
     }
     fn inputs(race: &Race) -> Vec<Vec<u8>> {
@@ -649,11 +689,31 @@ impl Case {
                 .expect("replay")
                 .expect("record")
         );
-        json!({ "scenario": self.race.scenario, "order": self.race.order,
+        let mut result = json!({ "scenario": self.race.scenario, "order": self.race.order,
             "actual_provider_reads": self.provider.calls.load(Ordering::SeqCst), "native_history": snapshot,
             "separate_operator_completed": true, "signed_inputs_unchanged": true,
             "admission_time": NOW, "clock_after_wait": matches!(self.race.order, Order::LockWait).then(|| NOW + self.race.scenario.time_shift()),
-            "history_inspection_did_not_change_journal": true })
+            "history_inspection_did_not_change_journal": true });
+        if let Some(evidence) = &self.evidence {
+            let witness: crate::GatewayExecutionWitness = serde_json::from_slice(
+                &std::fs::read(self.race.installation.root.join("worker-witness"))
+                    .expect("witness"),
+            )
+            .expect("native witness");
+            // This schedule pauses at the final fence after an initially
+            // authorized admission and custody lease. Refusing that grant
+            // must prevent HTTP entry; it does not undo the earlier lease.
+            assert_eq!(witness.credential_lease_calls, 1);
+            assert_eq!(
+                witness.read_transport_entries,
+                u64::from(self.race.enters())
+            );
+            assert_eq!(witness.write_transport_entries, 0);
+            result["evidence_selection"] = evidence.clone();
+            result["actual_credential_leases"] = json!(witness.credential_lease_calls);
+            result["actual_read_entries"] = json!(witness.read_transport_entries);
+        }
+        result
     }
 }
 fn dependency_matrix(backend: Backend) {
@@ -666,6 +726,10 @@ fn dependency_matrix(backend: Backend) {
         (Scenario::ApprovalExpired, Order::LockWait),
         (Scenario::AuthorityValid, Order::LockWait),
         (Scenario::AuthorityExpired, Order::LockWait),
+        (Scenario::ObserverValid, Order::LockWait),
+        (Scenario::ObserverExpired, Order::LockWait),
+        (Scenario::ThresholdValid, Order::LockWait),
+        (Scenario::ThresholdChanged, Order::LockWait),
     ];
     let cases: Vec<_> = pairs
         .into_iter()
@@ -677,7 +741,7 @@ fn dependency_matrix(backend: Backend) {
         .collect();
     let artifact = serde_json::to_vec_pretty(&json!({ "schema": "auths.native-dependency-order/1", "adapter": backend.label(),
         "scope": "full native acquisition engine; independent worker/operator OS processes; maintained file or TLS PostgreSQL common writer fence; changed dependencies in physically distinct records; fixed public test trust/keys and controlled maintained test clock; real local HTTP",
-        "excluded": ["observer-evidence aging and threshold-selection changes", "mutation/disclosure races", "fixed-window budget contention", "production commissioning", "hostile OS containment", "power loss and whole-store rollback"], "cases": cases })).expect("artifact");
+        "excluded": ["mutation/disclosure races", "installed language and human UI journeys", "fixed-window budget contention", "production commissioning", "hostile OS containment", "power loss and whole-store rollback"], "cases": cases })).expect("artifact");
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
         "../../../bindings/fixtures/gateway/native-dependency-order-{}.json",
         backend.label()

@@ -694,15 +694,26 @@ These transaction-boundary process deaths do not establish actual sync/rename
 failure, partial-batch failure, ambiguous database commit delivery or the complete
 mutation/disclosure crash matrix.
 
-`native-dependency-order-{file,postgres}.json` adds eight independent worker/
+`native-dependency-order-{file,postgres}.json` adds twelve independent worker/
 operator histories per adapter. Connection revocation and configuration activation
 race the actual grant fence in both orders. Separate positive/expired controls
 advance the maintained test clock while entry waits behind a physically distinct
 connection record's writer fence, independently checking human approval and
-native resource authority. Signed inputs and admission time remain unchanged;
-valid entry records the time after waiting. These cases establish acquisition
-ordering under the stated test deployment, not observer-evidence expiry,
-threshold-selection changes or complete mutation/disclosure dependency races.
+native resource authority. Four additional histories per adapter independently
+age a signed observation and change the selected evidence in a real 1-of-2 proof.
+At the inclusive five-second freshness boundary, both positive controls enter.
+At six seconds, single-branch observation evidence is stale; the threshold proof
+remains natively authorized through its longer-lived branch, but only its bound
+native authority projection changes. The original exact approval remains current
+and cannot approve that changed effect. Actual final fenced re-verification
+refuses entry and retains the original reservation and charges. Signed proof,
+action, observation and approval bytes and admission time remain unchanged;
+valid entry records the time after waiting. The schedule occurs after initially
+authorized admission and a custody lease; the final refusal prevents any HTTP
+entry and does not claim to undo that prior lease. These cases establish native
+acquisition ordering under the stated test deployment. Complete mutation/
+disclosure dependency races and installed language/human UI evidence remain
+separate requirements.
 
 `native-window-capacity-{file,postgres}.json` separately exercises native
 bounded resource grants and exact approvals across independent worker processes.

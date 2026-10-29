@@ -54,6 +54,10 @@ const NOW: u64 = 1_790_000_000;
 #[path = "effect_native_tests.rs"]
 mod effect_native_tests;
 
+#[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+#[path = "native_threshold_testkit.rs"]
+pub(crate) mod threshold_testkit;
+
 fn window(from: u64, until: u64) -> ValidityWindow {
     h::window(from, until).expect("window")
 }
