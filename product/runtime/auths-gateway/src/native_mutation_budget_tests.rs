@@ -1,5 +1,5 @@
 //! Native final-unit mutation contention. One prefix and two independent OS
-//! workers share actual file/TLS PostgreSQL state and a counting HTTP provider.
+//! workers share actual file/TLS `PostgreSQL` state and a counting HTTP provider.
 use super::*;
 use crate::GatewayExecutionWitness;
 use std::{collections::BTreeMap, net::TcpStream, time::Instant};
