@@ -198,8 +198,11 @@ def crash_reference():
         token = challenge(store, task)
         context = multiprocessing.get_context('spawn')
         received, ready = context.Pipe(duplex=False)
+        # Keep the synchronization primitive alive in the parent until the
+        # spawned child exits; spawn reconstructs its semaphore by name.
+        hold = context.Event()
         worker = context.Process(target=crash_worker,
-            args=(str(path), task, token, ready, context.Event()))
+            args=(str(path), task, token, ready, hold))
         worker.start()
         ready.close()
         try:

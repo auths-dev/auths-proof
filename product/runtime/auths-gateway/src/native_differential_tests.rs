@@ -381,7 +381,7 @@ fn family_corpus(family: Family) -> Value {
                     .expect("same verified effect");
             }
             Err(error) => {
-                row["native_result"] = serde_json::to_value(error).expect("native refusal")
+                row["native_result"] = serde_json::to_value(error).expect("native refusal");
             }
         }
         cases.push(row);
