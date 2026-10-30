@@ -87,10 +87,26 @@ impl SessionClock {
     /// Returns [`read_frame`]'s codes, or `gateway.ipc.read-timeout` when a
     /// deadline passes first.
     pub async fn read_frame(&self, stream: &mut UnixStream) -> Result<Vec<u8>, &'static str> {
+        self.read_frame_limited(stream, MAX_FRAME_BYTES).await
+    }
+
+    /// Reads a frame under a tighter protocol limit, clamped to the global
+    /// frame bound. An oversized advertised length is refused before allocation.
+    ///
+    /// # Errors
+    /// Returns the bounded frame/read/deadline failures of [`Self::read_frame`].
+    pub async fn read_frame_limited(
+        &self,
+        stream: &mut UnixStream,
+        maximum: usize,
+    ) -> Result<Vec<u8>, &'static str> {
         let until = self.deadline.min(Instant::now() + self.limits.frame_read);
-        timeout_at(until, read_frame(stream))
-            .await
-            .unwrap_or(Err("gateway.ipc.read-timeout"))
+        timeout_at(
+            until,
+            read_frame_limited(stream, maximum.min(MAX_FRAME_BYTES)),
+        )
+        .await
+        .unwrap_or(Err("gateway.ipc.read-timeout"))
     }
 
     /// Writes one frame within the response-write limit and the session
@@ -256,21 +272,31 @@ pub enum AppRecoveryResult {
     },
 }
 
-/// Every application frame selects one closed native operation.
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum AppFrame {
-    Submit(AppSubmission),
-    Observe(AppObservation),
-    Recover(AppRecovery),
-    Content(AppContent),
-    Disclose(AppDisclosure),
-    ContentHistory(AppContentHistory),
-    DisclosureAck(AppDisclosureAcknowledgement),
+// The enum and operator-visible catalog share this one declaration, so an
+// application variant cannot be added without entering the interface inventory.
+macro_rules! application_frames {
+    ($($variant:ident($frame:ty) => $schema:expr),* $(,)?) => {
+        /// Every application frame selects one closed native operation.
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum AppFrame { $($variant($frame)),* }
+        /// Complete application control-frame schemas, from the native dispatcher.
+        pub const APPLICATION_REQUEST_SCHEMAS: &[&str] = &[$($schema),*];
+    };
+}
+application_frames! {
+    Submit(AppSubmission) => APP_REQUEST_SCHEMA,
+    Observe(AppObservation) => APP_OBSERVE_SCHEMA,
+    Recover(AppRecovery) => APP_RECOVERY_SCHEMA,
+    Content(AppContent) => APP_CONTENT_SCHEMA,
+    Disclose(AppDisclosure) => APP_DISCLOSURE_SCHEMA,
+    ContentHistory(AppContentHistory) => APP_CONTENT_HISTORY_SCHEMA,
+    DisclosureAck(AppDisclosureAcknowledgement) => APP_DISCLOSURE_ACK_SCHEMA,
 }
 
 /// Which closed frame `bytes` parse as, schema included: `submit`,
-/// `observe`, `recover`, or `None`.
+/// `observe`, `recover`, `content`, `disclose`, `content-history`,
+/// `disclosure-ack`, or `None`.
 #[cfg(feature = "fuzzing")]
 pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
     match serde_json::from_slice::<AppFrame>(bytes).ok()? {

@@ -34,6 +34,9 @@ const SECRET: &[u8] = b"pat_public_content_journey_fixture";
 const CONTENT: &[u8] = b"PRIVATE-CONTENT-PROCESS-SENTINEL";
 const RECORD: &str = "recTEST0000000001";
 
+#[path = "content_interface_tests.rs"]
+mod interface_tests;
+
 fn private(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).expect("write");
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).expect("mode");
@@ -102,15 +105,22 @@ struct Provider {
     calls: Arc<Mutex<Vec<String>>>,
     stop: Arc<AtomicBool>,
     join: Option<JoinHandle<()>>,
+    denied: Arc<std::sync::atomic::AtomicUsize>,
 }
 impl Provider {
     fn start() -> Self {
+        Self::configured(SECRET.to_vec(), false)
+    }
+    fn configured(secret: Vec<u8>, refuse_unauthorized: bool) -> Self {
+        let secret = zeroize::Zeroizing::new(secret);
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
         let port = listener.local_addr().expect("address").port();
         listener.set_nonblocking(true).expect("nonblocking");
         let calls = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
         let captured = calls.clone();
+        let denied = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let refused = denied.clone();
         let finished = stop.clone();
         let join = thread::spawn(move || {
             let mut record = json!({"fields":{"DemoStatus":"Pending"}});
@@ -140,10 +150,21 @@ impl Provider {
                     request.push(byte[0]);
                 }
                 let header = String::from_utf8(request).expect("header");
-                assert!(header.to_ascii_lowercase().contains(&format!(
-                    "authorization: bearer {}\r\n",
-                    String::from_utf8_lossy(SECRET)
-                )));
+                let expected = format!("Bearer {}", String::from_utf8_lossy(&secret));
+                let authenticated = header.lines().any(|line| {
+                    line.split_once(':').is_some_and(|(name, value)| {
+                        name.eq_ignore_ascii_case("authorization") && value.trim() == expected
+                    })
+                });
+                if !authenticated && refuse_unauthorized {
+                    refused.fetch_add(1, Ordering::SeqCst);
+                    stream.write_all(b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n").expect("unauthorized response");
+                    continue;
+                }
+                assert!(
+                    authenticated,
+                    "native gateway must send the exact fixture credential"
+                );
                 let line = header.lines().next().expect("request").to_owned();
                 let length = header
                     .lines()
@@ -192,6 +213,7 @@ impl Provider {
             calls,
             stop,
             join: Some(join),
+            denied,
         }
     }
     fn calls(&self) -> Vec<String> {
@@ -238,6 +260,18 @@ impl Daemon {
             thread::sleep(Duration::from_millis(10));
         }
         daemon
+    }
+    fn finish_logs(&mut self) -> Vec<u8> {
+        self.0.kill().expect("stop owned daemon");
+        self.0.wait().expect("reap owned daemon");
+        let mut bytes = Vec::new();
+        if let Some(mut output) = self.0.stdout.take() {
+            output.read_to_end(&mut bytes).expect("stdout");
+        }
+        if let Some(mut output) = self.0.stderr.take() {
+            output.read_to_end(&mut bytes).expect("stderr");
+        }
+        bytes
     }
 }
 impl Drop for Daemon {

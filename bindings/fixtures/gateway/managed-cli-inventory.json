@@ -1,0 +1,1642 @@
+{
+  "schema": "auths.managed-cli-inventory/1",
+  "scope": "all native Clap command and argument declarations; catalog data grants no authority; loopback-provider is test-only and excluded",
+  "application_schemas": [
+    "auths.gateway-submit/2",
+    "auths.gateway-observe/3",
+    "auths.gateway-recover/1",
+    "auths.gateway-content/1",
+    "auths.gateway-disclose/1",
+    "auths.gateway-content-history/1",
+    "auths.gateway-disclosure-acknowledge/1"
+  ],
+  "operator_commands": [
+    "disable",
+    "enable",
+    "revoke",
+    "rotate",
+    "rotate-prepare",
+    "rotate-commit",
+    "status",
+    "execution-witness",
+    "qualification-reload",
+    "recover",
+    "recovery-record"
+  ],
+  "cli": [
+    {
+      "command": "app-recover",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "source_operation",
+          "long": "source-operation",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "audit",
+      "arguments": [
+        {
+          "name": "allow_unverified_refusals",
+          "long": "allow-unverified-refusals",
+          "required": false
+        },
+        {
+          "name": "bundle",
+          "long": "bundle",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "observer",
+          "long": "observer",
+          "required": true
+        },
+        {
+          "name": "trusted_context_sha256",
+          "long": "trusted-context-sha256",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "bound-extension",
+      "arguments": [
+        {
+          "name": "argument",
+          "long": "argument",
+          "required": true
+        },
+        {
+          "name": "ceiling",
+          "long": "ceiling",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "max_count",
+          "long": "max-count",
+          "required": true
+        },
+        {
+          "name": "partition",
+          "long": "partition",
+          "required": false
+        },
+        {
+          "name": "scope",
+          "long": "scope",
+          "required": false
+        },
+        {
+          "name": "sum_limit",
+          "long": "sum-limit",
+          "required": false
+        },
+        {
+          "name": "window_seconds",
+          "long": "window-seconds",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "candidate-acquire",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "candidate",
+          "long": "candidate",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "candidate-publish",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "candidate",
+          "long": "candidate",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "candidate-stage-installation",
+      "arguments": [
+        {
+          "name": "credential_stdin",
+          "long": "credential-stdin",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proposal_out",
+          "long": "proposal-out",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "candidate-stage-rotation",
+      "arguments": [
+        {
+          "name": "credential_stdin",
+          "long": "credential-stdin",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proposal_out",
+          "long": "proposal-out",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "commissioning-init",
+      "arguments": [
+        {
+          "name": "from",
+          "long": "from",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "protected_run",
+          "long": "protected-run",
+          "required": true
+        },
+        {
+          "name": "resource_binding",
+          "long": "resource-binding",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "commissioning-submit",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "from",
+          "long": "from",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "protected_run",
+          "long": "protected-run",
+          "required": true
+        },
+        {
+          "name": "resource_binding",
+          "long": "resource-binding",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        },
+        {
+          "name": "witness_file",
+          "long": "witness-file",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "content-acquire",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "content-history",
+      "arguments": [
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operation",
+          "long": "operation",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "credential-collect",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "disable",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        },
+        {
+          "name": "store_only",
+          "long": "store-only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "disclosure-acknowledge",
+      "arguments": [
+        {
+          "name": "acknowledgement",
+          "long": "acknowledgement",
+          "required": true
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operation",
+          "long": "operation",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "disclosure-receive",
+      "arguments": [
+        {
+          "name": "acknowledgement_out",
+          "long": "acknowledgement-out",
+          "required": true
+        },
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "content_out",
+          "long": "content-out",
+          "required": true
+        },
+        {
+          "name": "expected_binding",
+          "long": "expected-binding",
+          "required": true
+        },
+        {
+          "name": "expected_bytes",
+          "long": "expected-bytes",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "recipient_seed_stdin",
+          "long": "recipient-seed-stdin",
+          "required": true
+        },
+        {
+          "name": "target",
+          "long": "target",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "doctor",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "app_gid",
+          "long": "app-gid",
+          "required": true
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "app_uid",
+          "long": "app-uid",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "echo-verify",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": false
+        },
+        {
+          "name": "bundle",
+          "long": "bundle",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "namespace",
+          "long": "namespace",
+          "required": false
+        },
+        {
+          "name": "operation_id",
+          "long": "operation-id",
+          "required": true
+        },
+        {
+          "name": "pointer",
+          "long": "pointer",
+          "required": true
+        },
+        {
+          "name": "record",
+          "long": "record",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-approval",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "request",
+          "long": "request",
+          "required": true
+        },
+        {
+          "name": "signature_hex",
+          "long": "signature-hex",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-candidate-call",
+      "arguments": [
+        {
+          "name": "call_out",
+          "long": "call-out",
+          "required": true
+        },
+        {
+          "name": "candidate",
+          "long": "candidate",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operation",
+          "long": "operation",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-configuration-activate",
+      "arguments": [
+        {
+          "name": "expected_candidate",
+          "long": "expected-candidate",
+          "required": true
+        },
+        {
+          "name": "expected_revision",
+          "long": "expected-revision",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-configuration-review",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-content-call",
+      "arguments": [
+        {
+          "name": "call_out",
+          "long": "call-out",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operation",
+          "long": "operation",
+          "required": true
+        },
+        {
+          "name": "resource_arguments",
+          "long": "resource-arguments",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-disclosure-call",
+      "arguments": [
+        {
+          "name": "call_out",
+          "long": "call-out",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operation",
+          "long": "operation",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        },
+        {
+          "name": "target",
+          "long": "target",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-policy",
+      "arguments": [
+        {
+          "name": "approver_public_key",
+          "long": "approver-public-key",
+          "required": true
+        },
+        {
+          "name": "epoch",
+          "long": "epoch",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "partition",
+          "long": "partition",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-recovery-call",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "recovery_operation",
+          "long": "recovery-operation",
+          "required": true
+        },
+        {
+          "name": "source_operation",
+          "long": "source-operation",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "effect-review",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "binding_out",
+          "long": "binding-out",
+          "required": false
+        },
+        {
+          "name": "candidate",
+          "long": "candidate",
+          "required": false
+        },
+        {
+          "name": "content",
+          "long": "content",
+          "required": false
+        },
+        {
+          "name": "disclosure",
+          "long": "disclosure",
+          "required": false
+        },
+        {
+          "name": "expires_at",
+          "long": "expires-at",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "not_before",
+          "long": "not-before",
+          "required": true
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "recovery_of",
+          "long": "recovery-of",
+          "required": false
+        },
+        {
+          "name": "request_out",
+          "long": "request-out",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "enable",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "execution-witness",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "help",
+      "arguments": []
+    },
+    {
+      "command": "install",
+      "arguments": [
+        {
+          "name": "account_label",
+          "long": "account-label",
+          "required": false
+        },
+        {
+          "name": "alias",
+          "long": "alias",
+          "required": true
+        },
+        {
+          "name": "approve_digest",
+          "long": "approve-digest",
+          "required": true
+        },
+        {
+          "name": "attempt_store",
+          "long": "attempt-store",
+          "required": false
+        },
+        {
+          "name": "aws_identity",
+          "long": "aws-identity",
+          "required": false
+        },
+        {
+          "name": "aws_kms_key",
+          "long": "aws-kms-key",
+          "required": false
+        },
+        {
+          "name": "aws_region",
+          "long": "aws-region",
+          "required": false
+        },
+        {
+          "name": "credential_header",
+          "long": "credential-header",
+          "required": false
+        },
+        {
+          "name": "credential_namespace",
+          "long": "credential-namespace",
+          "required": false
+        },
+        {
+          "name": "credential_stdin",
+          "long": "credential-stdin",
+          "required": false
+        },
+        {
+          "name": "credential_store",
+          "long": "credential-store",
+          "required": false
+        },
+        {
+          "name": "deployment",
+          "long": "deployment",
+          "required": false
+        },
+        {
+          "name": "effect_policy",
+          "long": "effect-policy",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "join",
+          "long": "join",
+          "required": false
+        },
+        {
+          "name": "operator_attestation",
+          "long": "operator-attestation",
+          "required": false
+        },
+        {
+          "name": "profile_lock",
+          "long": "profile-lock",
+          "required": true
+        },
+        {
+          "name": "provider",
+          "long": "provider",
+          "required": true
+        },
+        {
+          "name": "provider_contract_id",
+          "long": "provider-contract-id",
+          "required": false
+        },
+        {
+          "name": "qualification_policy",
+          "long": "qualification-policy",
+          "required": false
+        },
+        {
+          "name": "qualification_trust_root",
+          "long": "qualification-trust-root",
+          "required": false
+        },
+        {
+          "name": "recipe",
+          "long": "recipe",
+          "required": true
+        },
+        {
+          "name": "recipe_family",
+          "long": "recipe-family",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        },
+        {
+          "name": "trusted_context",
+          "long": "trusted-context",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "observe",
+      "arguments": [
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "outcome",
+          "long": "outcome",
+          "required": false
+        },
+        {
+          "name": "pre_entry",
+          "long": "pre-entry",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "observer-init",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "observer-show",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "operator-attest",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operator_attestation",
+          "long": "operator-attestation",
+          "required": true
+        },
+        {
+          "name": "replace",
+          "long": "replace",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "operator-request",
+      "arguments": [
+        {
+          "name": "alias",
+          "long": "alias",
+          "required": true
+        },
+        {
+          "name": "deployment",
+          "long": "deployment",
+          "required": true
+        },
+        {
+          "name": "effect_policy",
+          "long": "effect-policy",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operator_principal",
+          "long": "operator-principal",
+          "required": true
+        },
+        {
+          "name": "principal_method",
+          "long": "principal-method",
+          "required": true
+        },
+        {
+          "name": "profile_lock",
+          "long": "profile-lock",
+          "required": true
+        },
+        {
+          "name": "provider",
+          "long": "provider",
+          "required": true
+        },
+        {
+          "name": "recipe",
+          "long": "recipe",
+          "required": true
+        },
+        {
+          "name": "signature_suite",
+          "long": "signature-suite",
+          "required": true
+        },
+        {
+          "name": "trusted_context",
+          "long": "trusted-context",
+          "required": true
+        },
+        {
+          "name": "verification_method",
+          "long": "verification-method",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "probe",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "qualification-candidate",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "profile_lock",
+          "long": "profile-lock",
+          "required": true
+        },
+        {
+          "name": "provider_contract_id",
+          "long": "provider-contract-id",
+          "required": true
+        },
+        {
+          "name": "recipe",
+          "long": "recipe",
+          "required": true
+        },
+        {
+          "name": "recipe_family",
+          "long": "recipe-family",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "qualification-import",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "from",
+          "long": "from",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "qualification-status",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        },
+        {
+          "name": "tuple",
+          "long": "tuple",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "readiness-probe",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "recover",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "source_operation",
+          "long": "source-operation",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "recovery-record",
+      "arguments": [
+        {
+          "name": "acquisition_operation",
+          "long": "acquisition-operation",
+          "required": true
+        },
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "source_operation",
+          "long": "source-operation",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "review",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "profile_lock",
+          "long": "profile-lock",
+          "required": true
+        },
+        {
+          "name": "recipe",
+          "long": "recipe",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "review-submission",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "evaluated_at",
+          "long": "evaluated-at",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "profile_lock",
+          "long": "profile-lock",
+          "required": true
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        },
+        {
+          "name": "recipe",
+          "long": "recipe",
+          "required": true
+        },
+        {
+          "name": "trusted_context",
+          "long": "trusted-context",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "revoke",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        },
+        {
+          "name": "store_only",
+          "long": "store-only",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "rotate",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "credential_stdin",
+          "long": "credential-stdin",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operator_process",
+          "long": "operator-process",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "rotate-commit",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "commitment",
+          "long": "commitment",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operator_process",
+          "long": "operator-process",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "rotate-prepare",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "credential_stdin",
+          "long": "credential-stdin",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operator_process",
+          "long": "operator-process",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "serve",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "app_capacity",
+          "long": "app-capacity",
+          "required": false
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "status",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "submit",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": true
+        },
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "support-bundle",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "out",
+          "long": "out",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

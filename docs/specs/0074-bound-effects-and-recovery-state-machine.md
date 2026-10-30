@@ -1169,6 +1169,15 @@ Cover: effect metadata; payload/proof/context bytes; header/path sizes; resource
 
 Errors distinguish malformed/noncanonical input, unsupported schema/protocol, unauthorized effect, expired/stale evidence, changed binding, replay, conflicting operation, exhausted capacity, invalid transition, unavailable/corrupt store and unresolved outcome. Map them consistently across Rust and bindings without exposing proof bodies, provider content or credentials. Preserve existing codes where semantics are unchanged; version intentional changes.
 
+Operator command objects use `MAX_ADMIN_REQUEST_BYTES = 4,096`, enforced on the
+advertised frame length before allocation and again before decoding. Native proof,
+approval and rotation-secret second frames keep their separate existing limits.
+Operator control members must be unique string fields; escaped aliases, duplicate
+schema/command/argument members and arguments for another command are invalid.
+The command enum and application-frame enum each generate their own native
+interface catalog. The CLI inventory is generated from the built Clap command
+metadata, including generated help, rather than a second runtime dispatcher.
+
 ## 9. Required invariants
 
 | ID | Invariant |

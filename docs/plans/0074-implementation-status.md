@@ -3600,3 +3600,65 @@ or deployment claim is made by AP074 source work.
   423 updates identity 166, public SDK 163 and public surface 423, the only
   changed subjects reported by the generator. The runtime orchestration change
   adds no reducer transition, permit constructor or accounting authority.
+
+## Bounded admin decoder and managed interface checkpoint
+
+- Fixed native admin decoding that first collected JSON into a map and thereby
+  accepted last-key-wins duplicates. A bounded visitor now rejects duplicate
+  schema, command and argument members, including escaped aliases, unknown
+  members and non-string values. The existing command enum still owns valid
+  argument combinations and every refusal keeps `gateway.admin.invalid-frame`.
+  `MAX_ADMIN_REQUEST_BYTES` is 4,096. The admin socket checks the advertised
+  first-frame length before reading/allocating its body; separately bounded
+  secret/native-submission second frames retain their current protocol.
+- The native application enum and admin enum now generate their own catalogs,
+  with seven application schemas and eleven operator commands. One native
+  Clap metadata constructor inventories every command and argument, including
+  generated help (52 entries). Catalogs grant no authority and add no dispatcher.
+  A new native boundary corpus checks every operator command, identical/changed
+  duplicate members, escaped duplicates, unknown/nested members, trailing data,
+  4,096 accepted / 4,097 refused and an oversized advertised length with no body.
+- New actual installed-daemon Unix constructor uses a fresh random credential,
+  real counting HTTP and retained private content. Its untrusted client exercises
+  all seven application schemas in 32 frame cases, all eleven operator commands
+  injected on the app channel, obsolete schemas/routes, raw HTTP and oversized
+  advertised frames. It reaches help for all 52 CLI entries. There is one
+  authorized acquisition only; four direct provider attempts without the fresh
+  credential return 401. Native custody/read/write counters do not advance.
+- Disclosure with actual signed authority/approval but no recipient authentication
+  stays reserved without content. The trusted native recipient then authenticates,
+  receives exact bytes and records its ACK. A later hostile replay gets history
+  without redelivery or new source I/O/charges. The source journal remains
+  byte-identical. Captured public results, CLI errors, daemon logs, post-ready
+  frames and decoded base64 fields are checked for content/credential plaintext,
+  hex/base64 encodings and raw/encoded SHA-256 digests. Ordinary provider fixtures
+  still require the exact credential; intentional unauthorized HTTP is enabled
+  only for this fresh-credential fixture and never mutates provider state.
+- Linux-only distinct-UID execution is authored in the existing isolation workflow,
+  preserving its two existing deployment tests. It drops capabilities/groups and
+  privileges, retains only the gateway's primary group for app-socket access,
+  probes every private fixture file, recipient outputs and gateway process
+  environ/memory, and verifies it cannot acquire the gateway UID or chmod state.
+  It intentionally makes the relocated admin inode traversable/writable to
+  exercise the accept-time UID gate for every operator command. Four privileged
+  CLI examples are refused. The workflow publishes an exact-source actual report.
+  This Linux execution is pending hosted evidence; the local Unix run uses the
+  same UID and does not claim OS containment. CLI help coverage is not a claim
+  that all privileged CLI execution paths were exercised.
+- Required artifact construction passed: native admin boundary 1 passed /
+  0 ignored (0.01 s), native CLI inventory 1 passed / 0 ignored (0.01 s),
+  managed Unix interface constructor 1 passed / 0 ignored (2.31 s). The original
+  complete CLI/daemon content journey passed unchanged (2.86 s). The generated
+  help entry is included in the final count; the earlier unbuilt catalog had 51.
+- A17 remains open: positive configured signed mutation observations and legacy
+  public mutation evidence still require the raw body-derived commitment audit
+  and projection hardening. Private audit/evidence binding must be preserved.
+  No exit criterion was relaxed, no AP070/AP073 file was touched, and the main
+  agent did not inspect CI. Broader A18 binding parity, A20 formal/concurrent
+  evidence, A21 rollback schedules and final exact-head gates remain required.
+- Final gateway semantic closure is
+  `87d516a91c79770a0db7ce4e066e304b2358274bc5af99248ce21b1abef48efb`;
+  the exact constructor and rebuilt non-update check passed. Semantic freeze
+  424 updates identity 167, public SDK 164 and public surface 424, the only
+  changed subjects required by the generator. No complete acceptance row or
+  new hosted/Linux result is claimed from these construction checks.

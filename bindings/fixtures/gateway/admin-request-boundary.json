@@ -1,0 +1,594 @@
+{
+  "schema": "auths.admin-request-boundary/1",
+  "scope": "native closed decoder and enum-generated interface catalog; decoding grants no operator, provider or recovery authority",
+  "maximum_command_bytes": 4096,
+  "oversized_advertised_length_refused_before_body": true,
+  "application_schemas": [
+    "auths.gateway-submit/2",
+    "auths.gateway-observe/3",
+    "auths.gateway-recover/1",
+    "auths.gateway-content/1",
+    "auths.gateway-disclose/1",
+    "auths.gateway-content-history/1",
+    "auths.gateway-disclosure-acknowledge/1"
+  ],
+  "operator_commands": [
+    "disable",
+    "enable",
+    "revoke",
+    "rotate",
+    "rotate-prepare",
+    "rotate-commit",
+    "status",
+    "execution-witness",
+    "qualification-reload",
+    "recover",
+    "recovery-record"
+  ],
+  "cases": [
+    {
+      "case": "disable:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "disable:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "disable:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "disable:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\",\"command\":\"disable\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "disable:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "disable:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "disable:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"disable\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "enable:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"enable\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "enable:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"enable\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "enable:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"enable\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "enable:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"enable\",\"command\":\"enable\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "enable:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"enable\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "enable:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"enable\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "enable:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"enable\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "revoke:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"revoke\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "revoke:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"revoke\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "revoke:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"revoke\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "revoke:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"revoke\",\"command\":\"revoke\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "revoke:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"revoke\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "revoke:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"revoke\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "revoke:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"revoke\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "rotate:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate\",\"command\":\"rotate\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"rotate\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-prepare:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-prepare\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "rotate-prepare:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-prepare\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-prepare:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-prepare\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-prepare:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-prepare\",\"command\":\"rotate-prepare\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-prepare:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-prepare\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-prepare:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-prepare\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-prepare:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"rotate-prepare\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "rotate-commit:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"command\":\"rotate-commit\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:duplicate-commitment-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:duplicate-commitment-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"commitment\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"rotate-commit\",\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "rotate-commit:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"rotate-commit\"},\"commitment\":\"0000000000000000000000000000000000000000000000000000000000000000\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "status:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "status:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "status:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "status:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\",\"command\":\"status\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "status:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "status:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "status:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"status\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "execution-witness:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"execution-witness\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "execution-witness:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"execution-witness\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "execution-witness:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"execution-witness\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "execution-witness:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"execution-witness\",\"command\":\"execution-witness\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "execution-witness:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"execution-witness\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "execution-witness:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"execution-witness\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "execution-witness:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"execution-witness\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "qualification-reload:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"qualification-reload\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "qualification-reload:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"qualification-reload\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "qualification-reload:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"qualification-reload\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "qualification-reload:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"qualification-reload\",\"command\":\"qualification-reload\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "qualification-reload:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"qualification-reload\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "qualification-reload:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"qualification-reload\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "qualification-reload:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"qualification-reload\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "recover:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"command\":\"recover\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:duplicate-source_operation-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"source_operation\":\"original\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:duplicate-source_operation-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"source_operation\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":\"original\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recover:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"recover\"},\"source_operation\":\"original\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:valid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\"}",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "recovery-record:duplicate-schema-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"schema\":\"auths.gateway-admin-request/2\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-schema-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"schema\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-command-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"command\":\"recovery-record\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-command-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"command\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-source_operation-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"source_operation\":\"original\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-source_operation-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"source_operation\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-acquisition_operation-same",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"acquisition_operation\":\"independent-read\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:duplicate-acquisition_operation-different",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"acquisition_operation\":\"altered-public-fixture\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:unknown-argument",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recovery-record\",\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\",\"administrative_resolution\":\"not-entered-and-refunded\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "recovery-record:non-string-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":{\"name\":\"recovery-record\"},\"source_operation\":\"original\",\"acquisition_operation\":\"independent-read\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "escaped-duplicate-schema",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"\\u0073chema\":\"auths.gateway-admin-request/2\",\"command\":\"status\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "duplicate-command-first-invalid",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"unsupported\",\"command\":\"status\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "argument-for-other-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"disable\",\"commitment\":\"public\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "nested-source",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"recover\",\"source_operation\":{\"id\":\"original\"}}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "obsolete-command",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"reobserve\",\"operation_id\":\"original\"}",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "non-object",
+      "input": "[]",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "trailing-data",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\"} null",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    },
+    {
+      "case": "byte-limit",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\"}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ",
+      "accepted": true,
+      "refusal": null
+    },
+    {
+      "case": "byte-limit-plus-one",
+      "input": "{\"schema\":\"auths.gateway-admin-request/2\",\"command\":\"status\"}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ",
+      "accepted": false,
+      "refusal": "gateway.admin.invalid-frame"
+    }
+  ]
+}

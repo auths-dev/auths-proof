@@ -89,7 +89,8 @@ mod unix {
     const INSTALL_DRAFT_FILE: &str = "candidate-installation.cbor";
     const INSTALL_PROPOSAL_FILE: &str = "candidate-installation.json";
     use auths_gateway::admin::{
-        ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
+        ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, MAX_ADMIN_REQUEST_BYTES,
+        parse_admin_request,
     };
     /// Descriptors `serve` keeps beyond its listeners' capacities and the
     /// store pool: standard streams, listeners, store and state files.
@@ -2392,10 +2393,12 @@ mod unix {
         clock: &SessionClock,
         stream: &mut UnixStream,
     ) -> Result<AdminCommand, &'static str> {
-        let bytes = clock
-            .read_frame(stream)
-            .await
-            .map_err(|_| "gateway.admin.invalid-frame")?;
+        let bytes = Zeroizing::new(
+            clock
+                .read_frame_limited(stream, MAX_ADMIN_REQUEST_BYTES)
+                .await
+                .map_err(|_| "gateway.admin.invalid-frame")?,
+        );
         match parse_admin_request(&bytes)? {
             AdminRequestCommand::Disable {} => Ok(AdminCommand::Disable),
             AdminRequestCommand::Enable {} => Ok(AdminCommand::Enable),
@@ -5111,6 +5114,49 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn managed_cli_inventory_fixture_is_current() {
+            use clap::CommandFactory as _;
+            let mut cli = Cli::command();
+            cli.build();
+            let mut commands: Vec<_> = cli.get_subcommands().map(|command| {
+                let mut arguments: Vec<_> = command.get_arguments()
+                    .filter(|argument| argument.get_id().as_str() != "loopback_provider")
+                    .map(|argument| serde_json::json!({"name":argument.get_id().as_str(), "long":argument.get_long(), "required":argument.is_required_set()}))
+                    .collect();
+                arguments.sort_by(|left, right| left["name"].as_str().cmp(&right["name"].as_str()));
+                serde_json::json!({"command":command.get_name(), "arguments":arguments})
+            }).collect();
+            commands
+                .sort_by(|left, right| left["command"].as_str().cmp(&right["command"].as_str()));
+            assert!(!commands.is_empty());
+            for obsolete in [
+                "reobserve",
+                "observe-read-back",
+                "raw-http",
+                "credential-export",
+                "retry",
+                "refund",
+            ] {
+                assert!(
+                    !commands
+                        .iter()
+                        .any(|command| command["command"] == obsolete)
+                );
+            }
+            let artifact = serde_json::to_vec_pretty(&serde_json::json!({
+                "schema":"auths.managed-cli-inventory/1", "scope":"all native Clap command and argument declarations; catalog data grants no authority; loopback-provider is test-only and excluded",
+                "application_schemas":auths_gateway::app::APPLICATION_REQUEST_SCHEMAS,
+                "operator_commands":auths_gateway::admin::ADMIN_REQUEST_COMMANDS,"cli":commands
+            })).expect("artifact");
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../bindings/fixtures/gateway/managed-cli-inventory.json");
+            if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+                fs::write(&path, &artifact).expect("fixture");
+            }
+            assert_eq!(fs::read(path).expect("artifact"), artifact);
+        }
 
         #[test]
         fn commissioning_witness_refuses_shared_existing_and_linked_outputs() {
