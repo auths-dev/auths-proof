@@ -193,7 +193,7 @@ fn interrupt(case: &MutationRace, schedule: Schedule, proxy: &Proxy, url: &str) 
     );
     match &result.result {
         GatewaySubmitResult::Indeterminate { code } => {
-            assert_eq!(code, "gateway.attempt.state-unavailable")
+            assert_eq!(code, "gateway.attempt.state-unavailable");
         }
         GatewaySubmitResult::Unknown => assert!(matches!(
             schedule.retained(),

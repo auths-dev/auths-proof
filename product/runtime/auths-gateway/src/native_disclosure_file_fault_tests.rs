@@ -299,7 +299,7 @@ fn fail(case: &Case, schedule: Schedule) {
         match result.result {
             Ok(snapshot) => assert_eq!(snapshot.stage, schedule.projection()),
             Err(GatewaySubmitResult::Indeterminate { code }) => {
-                assert_eq!(code, "gateway.attempt.state-unavailable")
+                assert_eq!(code, "gateway.attempt.state-unavailable");
             }
             other => panic!("unexpected retained projection: {other:?}"),
         }

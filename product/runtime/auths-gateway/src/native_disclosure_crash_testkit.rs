@@ -397,9 +397,8 @@ pub(super) fn peer() {
     runtime.block_on(async {
         match setup.role {
             Role::Gateway => Box::pin(gateway(&setup)).await,
-            Role::Recipient => recipient(&setup, false).await,
+            Role::Recipient | Role::RecipientWithoutAck => recipient(&setup, false).await,
             Role::ResumeRecipient => recipient(&setup, true).await,
-            Role::RecipientWithoutAck => recipient(&setup, false).await,
         }
     });
 }

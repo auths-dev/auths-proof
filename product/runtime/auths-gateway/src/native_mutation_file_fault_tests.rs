@@ -217,10 +217,10 @@ fn fail(case: &MutationRace, schedule: Schedule, counters: &[Counter]) {
         assert_eq!(!record["entry"].is_null(), stage != "reserved");
         match &result.result {
             GatewaySubmitResult::Indeterminate { code } => {
-                assert_eq!(code, "gateway.attempt.state-unavailable")
+                assert_eq!(code, "gateway.attempt.state-unavailable");
             }
             GatewaySubmitResult::Unknown => {
-                assert!(matches!(stage, "entry-granted" | "response-recorded"))
+                assert!(matches!(stage, "entry-granted" | "response-recorded"));
             }
             other => assert_eq!(other, &schedule.projection()),
         }
@@ -336,15 +336,14 @@ fn slot_bytes(case: &MutationRace, counters: &[Counter], present: bool) -> Vec<V
                     .expect("no duplicate")
                     .is_none()
             );
-            value.map(|bytes| {
-                let data: Value = serde_json::from_slice(&bytes).expect("native slot");
+            value.inspect(|bytes| {
+                let data: Value = serde_json::from_slice(bytes).expect("native slot");
                 assert_eq!(data["slot"], 0);
                 assert_eq!(data["operation_id"], OPERATIONS[0]);
                 if counter.kind == GatewayRecordKind::SumSlot {
                     assert_eq!(data["amount"], AMOUNT);
                     assert_eq!(data["cumulative"], AMOUNT);
                 }
-                bytes
             })
         })
         .collect()

@@ -450,7 +450,7 @@ fn interrupt(case: &Case, setup: &CommitSetup, proxy: &Proxy, url: &str) -> Barr
             assert_eq!(snapshot.stage, setup.schedule.projection());
         }
         Err(GatewaySubmitResult::Indeterminate { code }) => {
-            assert_eq!(code, "gateway.attempt.state-unavailable")
+            assert_eq!(code, "gateway.attempt.state-unavailable");
         }
         Err(other) => panic!("unexpected projection: {other:?}"),
     }
