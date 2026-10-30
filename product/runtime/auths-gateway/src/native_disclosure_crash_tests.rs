@@ -40,6 +40,9 @@ mod window_capacity_tests;
 #[path = "native_disclosure_pg_batch_tests.rs"]
 mod postgres_batch_tests;
 
+#[path = "native_disclosure_pg_commit_tests.rs"]
+mod postgres_commit_tests;
+
 const SOURCE: &str = "crash-release-source";
 const RELEASE: &str = "crash-release";
 

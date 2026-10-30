@@ -1,5 +1,6 @@
 //! Real lost COMMIT replies over end-to-end TLS, with independent observation
 //! of both possible transaction outcomes. No adapter result is fabricated.
+use crate::native_crash_tests::CrashProtocol;
 use crate::native_process_tests::{
     NOW, Provider, Setup, acquire, authorize_policy, load_engine, private, recipe, runtime,
 };
@@ -34,15 +35,15 @@ use std::{
 };
 
 #[path = "native_postgres_commit_proxy.rs"]
-mod proxy;
-use proxy::Proxy;
+pub(crate) mod proxy;
+pub(crate) use proxy::Proxy;
 
 const OPERATION: &str = "commit-reply-loss";
 const LOCK_GROUP: i32 = 1_095_780_184;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Phase {
+pub(crate) enum Phase {
     Admission,
     Entry,
     Response,
@@ -58,7 +59,7 @@ impl Phase {
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Outcome {
+pub(crate) enum Outcome {
     Committed,
     Aborted,
 }
@@ -110,18 +111,40 @@ fn key() -> GatewayAttemptKey {
 }
 
 /// Records only actual adapter errors after the unchanged native decision.
-struct CommitWitness {
+pub(crate) struct CommitWitness {
     inner: Arc<dyn GatewayAttemptStore>,
-    phase: Phase,
+    key: GatewayAttemptKey,
+    protocol: CrashProtocol,
+    stage: &'static str,
     errors: AtomicU64,
 }
 impl CommitWitness {
+    pub(crate) fn new(
+        inner: Arc<dyn GatewayAttemptStore>,
+        key: GatewayAttemptKey,
+        protocol: CrashProtocol,
+        stage: &'static str,
+    ) -> Self {
+        Self {
+            inner,
+            key,
+            protocol,
+            stage,
+            errors: AtomicU64::new(0),
+        }
+    }
+    pub(crate) fn errors(&self) -> u64 {
+        self.errors.load(Ordering::SeqCst)
+    }
     fn selected(&self, kind: GatewayRecordKind, target: GatewayAttemptKey, bytes: &[u8]) -> bool {
-        if kind != GatewayRecordKind::Attempt || target != key() {
+        if kind != GatewayRecordKind::Attempt || target != self.key {
             return false;
         }
         let record: Value = serde_json::from_slice(bytes).expect("native decision");
-        record["state"]["facts"]["phase"]["stage"] == self.phase.stage()
+        record
+            .pointer(self.protocol.stage_pointer())
+            .and_then(Value::as_str)
+            == Some(self.stage)
     }
     fn observe<T>(
         &self,
@@ -211,11 +234,12 @@ fn native_postgres_commit_peer() {
     let setup: CommitSetup =
         serde_json::from_slice(&std::fs::read(input).expect("setup")).expect("closed setup");
     let store = TestAttempts::attach(Backend::Postgres, &setup.installation.location);
-    let witness = Arc::new(CommitWitness {
-        inner: store.raw(),
-        phase: setup.schedule.phase,
-        errors: AtomicU64::new(0),
-    });
+    let witness = Arc::new(CommitWitness::new(
+        store.raw(),
+        key(),
+        CrashProtocol::Acquisition,
+        setup.schedule.phase.stage(),
+    ));
     let attempts = GatewayAttempts::new(
         witness.clone(),
         crate::effect::fixture_policy().expect("policy"),
@@ -234,7 +258,7 @@ fn native_postgres_commit_peer() {
     assert_eq!(start, *b"G");
     let result = runtime.block_on(acquire(&engine, &setup.installation.root, OPERATION));
     let result = WorkerResult {
-        errors: witness.errors.load(Ordering::SeqCst),
+        errors: witness.errors(),
         witness: engine.execution_witness(),
         result,
     };
@@ -244,24 +268,46 @@ fn native_postgres_commit_peer() {
     );
 }
 
-struct Barrier {
+pub(crate) struct Barrier {
     client: Client,
     schema: String,
     lock: i32,
+    key: GatewayAttemptKey,
+    protocol: CrashProtocol,
 }
 impl Barrier {
     fn install(store: &TestAttempts, phase: Phase) -> Self {
+        Self::install_target(store, key(), CrashProtocol::Acquisition, phase.stage())
+    }
+    pub(crate) fn install_target(
+        store: &TestAttempts,
+        key: GatewayAttemptKey,
+        protocol: CrashProtocol,
+        stage: &'static str,
+    ) -> Self {
+        assert!(matches!(
+            stage,
+            "reserved"
+                | "entry-granted"
+                | "response-recorded"
+                | "content-response-recorded"
+                | "unknown"
+                | "acknowledged"
+        ));
         let (schema, mut client) = store.postgres_commit_observer();
         let lock: i32 = client.query_one(&format!("SELECT (('{schema}.auths_gateway_records'::regclass::oid)::bigint - 2147483648)::integer"), &[]).expect("table lock identity").get(0);
         client
             .query_one("SELECT pg_advisory_lock($1, $2)", &[&LOCK_GROUP, &lock])
             .expect("commit barrier");
-        let stage = phase.stage();
-        let target = hex::encode(key().as_bytes());
+        let target = hex::encode(key.as_bytes());
+        let path = protocol
+            .stage_pointer()
+            .trim_start_matches('/')
+            .replace('/', ",");
         client.batch_execute(&format!(
             "CREATE FUNCTION {schema}.fixture_commit_barrier() RETURNS trigger LANGUAGE plpgsql AS $body$
              BEGIN
-               IF convert_from(NEW.record_bytes, 'UTF8')::jsonb #>> '{{state,facts,phase,stage}}' = '{stage}' THEN
+               IF convert_from(NEW.record_bytes, 'UTF8')::jsonb #>> '{{{path}}}' = '{stage}' THEN
                  PERFORM pg_advisory_xact_lock({LOCK_GROUP}, {lock});
                END IF;
                RETURN NEW;
@@ -275,9 +321,11 @@ impl Barrier {
             client,
             schema,
             lock,
+            key,
+            protocol,
         }
     }
-    fn waiter(&mut self) -> i32 {
+    pub(crate) fn waiter(&mut self) -> i32 {
         let deadline = Instant::now() + Duration::from_secs(1);
         let group = i64::from(LOCK_GROUP);
         let object = i64::from(u32::from_ne_bytes(self.lock.to_ne_bytes()));
@@ -295,7 +343,7 @@ impl Barrier {
             thread::sleep(Duration::from_millis(1));
         }
     }
-    fn release(&mut self) {
+    pub(crate) fn release(&mut self) {
         let released: bool = self
             .client
             .query_one(
@@ -306,7 +354,7 @@ impl Barrier {
             .get(0);
         assert!(released);
     }
-    fn abort(&mut self, pid: i32) {
+    pub(crate) fn abort(&mut self, pid: i32) {
         let terminated: bool = self
             .client
             .query_one("SELECT pg_terminate_backend($1)", &[&pid])
@@ -334,10 +382,15 @@ impl Barrier {
         }
         self.release();
     }
-    fn phase(&mut self) -> Option<String> {
-        self.client.query_opt(&format!("SELECT convert_from(record_bytes, 'UTF8')::jsonb #>> '{{state,facts,phase,stage}}' FROM {}.auths_gateway_records WHERE record_key = $1", self.schema), &[&&key().as_bytes()[..]]).expect("committed state").map(|row| row.get(0))
+    pub(crate) fn phase(&mut self) -> Option<String> {
+        let path = self
+            .protocol
+            .stage_pointer()
+            .trim_start_matches('/')
+            .replace('/', ",");
+        self.client.query_opt(&format!("SELECT convert_from(record_bytes, 'UTF8')::jsonb #>> '{{{path}}}' FROM {}.auths_gateway_records WHERE record_kind = 'attempt' AND record_key = $1", self.schema), &[&&self.key.as_bytes()[..]]).expect("committed state").map(|row| row.get(0))
     }
-    fn committed(&mut self, expected: Option<&str>) {
+    pub(crate) fn committed(&mut self, expected: Option<&str>) {
         let deadline = Instant::now() + Duration::from_secs(1);
         loop {
             if self.phase().as_deref() == expected {
@@ -350,7 +403,7 @@ impl Barrier {
             thread::sleep(Duration::from_millis(1));
         }
     }
-    fn retire(&mut self) {
+    pub(crate) fn retire(&mut self) {
         self.client
             .batch_execute(&format!(
                 "DROP TRIGGER fixture_commit_barrier ON {}.auths_gateway_records",
@@ -358,12 +411,12 @@ impl Barrier {
             ))
             .expect("retire trigger");
     }
-    fn records(&mut self) -> BTreeMap<String, Vec<u8>> {
-        self.client.query(&format!("SELECT encode(record_key, 'hex'), record_bytes FROM {}.auths_gateway_records ORDER BY record_key", self.schema), &[]).expect("record snapshot").into_iter().map(|row| (row.get(0), row.get(1))).collect()
+    pub(crate) fn records(&mut self) -> BTreeMap<String, Vec<u8>> {
+        self.client.query(&format!("SELECT record_kind, encode(record_key, 'hex'), record_bytes FROM {}.auths_gateway_records ORDER BY record_kind, record_key", self.schema), &[]).expect("record snapshot").into_iter().map(|row| (format!("{}:{}", row.get::<_,String>(0),row.get::<_,String>(1)), row.get(2))).collect()
     }
 }
 
-fn fixture_url() -> (String, u16) {
+pub(crate) fn fixture_url() -> (String, u16) {
     let url = std::env::var("AUTHS_POSTGRES_URL").expect("fixture URL");
     let config = Config::from_str(&url).expect("fixture parameters");
     assert_eq!(config.get_ssl_mode(), SslMode::Require);

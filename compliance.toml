@@ -1836,6 +1836,8 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/native_mutation_pg_batch_tests.rs#postgres_native_mutation_partial_batch_fixture_is_current",
   "product/runtime/auths-gateway/src/native_disclosure_pg_batch_tests.rs#postgres_native_disclosure_partial_batch_fixture_is_current",
   "product/runtime/auths-gateway/src/native_postgres_commit_tests.rs#postgres_native_commit_reply_loss_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_pg_commit_tests.rs#postgres_native_mutation_commit_reply_loss_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_pg_commit_tests.rs#postgres_native_disclosure_commit_reply_loss_fixture_is_current",
   "product/runtime/auths-gateway/src/native_mutation_replay_tests.rs#native_file_mutation_retained_replay_fixture_is_current",
   "product/runtime/auths-gateway/src/native_mutation_replay_tests.rs#postgres_native_mutation_retained_replay_fixture_is_current",
   "product/runtime/auths-gateway/src/native_information_replay_tests.rs#native_file_information_retained_replay_fixture_is_current",

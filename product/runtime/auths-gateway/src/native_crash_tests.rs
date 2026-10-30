@@ -130,6 +130,15 @@ pub(super) enum CrashProtocol {
     Disclosure,
 }
 
+impl CrashProtocol {
+    pub(super) const fn stage_pointer(self) -> &'static str {
+        match self {
+            Self::Mutation => "/state/facts/stage",
+            Self::Acquisition | Self::Disclosure => "/state/facts/phase/stage",
+        }
+    }
+}
+
 pub(super) struct PausedStore {
     operation: &'static str,
     protocol: CrashProtocol,

@@ -1354,3 +1354,32 @@ authentication challenge either. These tests use the maintained TLS transaction
 adapter and existing testkit setup/authoring, with no shipping fault branch.
 Commit acknowledgement ambiguity, actual durability/power faults, full file I/O
 matrices and hostile OS/provider qualification remain separate obligations.
+
+## Real lost COMMIT replies preserve typed uncertainty
+
+The existing acquisition COMMIT harness now observes typed mutation and
+disclosure record paths and exact operation keys. Its native store wrapper
+forwards unchanged native decisions and counts actual adapter errors. An opaque
+proxy never terminates TLS; a separate direct TLS observer waits on the selected
+backend's deferred transaction trigger, verifies its SSL session and independently
+observes commit versus backend termination/rollback. Snapshot keys include record
+kind as well as storage key so distinct record families cannot collapse together.
+No production error, clock, grant, record byte or authorization decision is faked.
+
+Six mutation histories cover admission, final grant and response persistence.
+Eight disclosure histories cover admission, final grant, exact ACK and Unknown
+persistence, with separate native gateway/recipient processes and opaque Unix
+wire capture. A committed grant with a lost reply never recreates a permit, even
+if actual send count is zero. Absent/reserved work requires native reauthorization
+to continue. Existing count/sum/lifetime rows remain byte-identical and terminal
+replay makes no new custody/provider calls or authentication/content frames.
+
+An aborted ACK transaction is followed by the existing native Unknown transition;
+an ACK that committed despite reply loss stays acknowledged. A recipient that
+received content can supply its genuine historical signed ACK later, including
+when its original ACK was deliberately withheld to exercise Unknown persistence.
+That action refines history and preserves charges without delivery. No saved ACK
+is invented when a lost grant sent no content. This is native transaction/transport
+evidence under fixture keys, clocks and same-UID local process policy; file faults,
+server/power loss, hostile OS containment and live-provider qualification remain
+separate work.

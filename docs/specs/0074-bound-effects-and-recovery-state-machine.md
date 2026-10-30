@@ -840,6 +840,23 @@ checks and never recreate a lost grant. Charges and exact terminal rows remain
 unchanged through replay. These acquisition histories do not replace the full
 mutation/disclosure commit-fault matrix or establish power-loss/rollback safety.
 
+`native-mutation-commit-reply-loss.json` extends those committed/aborted COMMIT
+histories to native mutation admission, final entry and response persistence.
+`native-disclosure-commit-reply-loss.json` covers release admission, entry, ACK
+and Unknown persistence with gateway and recipient in separate OS processes.
+Both use the same opaque end-to-end TLS proxy and independent server observer;
+only typed native record paths/operation keys select the fixture barrier. The
+observer addresses records by kind and key and snapshots every record family.
+A grant whose transaction committed but whose reply was lost remains charged
+Unknown even if no provider request or content frame was sent. Absent/pre-grant work continues only
+through explicit native reauthorization. Recorded responses and recipient ACKs
+remain distinct retained facts, and terminal replay emits no new frames or I/O.
+An aborted ACK write can be followed by native Unknown persistence; an exact
+historical ACK from the recipient may refine it later without any new delivery
+or charge. These cases add fourteen transaction-outcome histories. Remaining
+file/adverse schedules, server/power-loss and supported rollback assumptions and
+hostile OS/provider qualification remain separate requirements.
+
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
 ### 4.4 Stage types and serialization

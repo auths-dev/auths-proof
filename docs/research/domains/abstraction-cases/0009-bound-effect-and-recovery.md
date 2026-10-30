@@ -928,3 +928,13 @@ after a fresh native retry; mutation has no disclosure lifetime allocation. Thes
 are test-only vertical histories using the existing transaction and journal
 owners. No provider branch enters runtime, no new abstraction is extracted and no
 reference implementation becomes a managed decision system.
+
+Real COMMIT-reply loss now uses the acquisition harness's opaque TLS proxy and
+server observer for mutation and disclosure too. The shared test observer selects
+only typed record paths/operation keys and preserves kind-plus-key snapshots;
+it has no decision or permit authority. Mutation response, disclosure ACK and
+native Unknown persistence keep their distinct facts. Existing production journal,
+grant and historical ACK owners are unchanged. Late recipient evidence may
+refine Unknown, while lost grants and terminal replay cannot authorize I/O or new
+charges. The additional six mutation/eight disclosure histories introduce no
+shipping abstraction, provider branch or application-owned decision system.

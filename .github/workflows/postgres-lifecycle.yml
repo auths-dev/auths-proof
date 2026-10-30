@@ -72,6 +72,8 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_postgres_commit_tests::postgres_native_commit_reply_loss_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::postgres_native_mutation_commit_reply_loss_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_replay_tests::native_file_mutation_retained_replay_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_replay_tests::postgres_native_mutation_retained_replay_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::native_file_information_retained_replay_fixture_is_current

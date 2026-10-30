@@ -12,6 +12,9 @@ const AMOUNT: u64 = 500;
 #[path = "native_mutation_pg_batch_tests.rs"]
 mod postgres_batch_tests;
 
+#[path = "native_mutation_pg_commit_tests.rs"]
+mod postgres_commit_tests;
+
 #[derive(Clone, Copy)]
 enum Limit {
     Count,

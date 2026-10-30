@@ -96,13 +96,13 @@ fn attach(
     }));
 }
 
-pub(super) struct Proxy {
+pub(crate) struct Proxy {
     port: u16,
     shared: Arc<Shared>,
     service: Option<JoinHandle<()>>,
 }
 impl Proxy {
-    pub(super) fn start(upstream_port: u16) -> Self {
+    pub(crate) fn start(upstream_port: u16) -> Self {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("proxy listener");
         listener.set_nonblocking(true).expect("proxy polling");
         let port = listener.local_addr().expect("proxy address").port();
@@ -140,7 +140,7 @@ impl Proxy {
             service: Some(service),
         }
     }
-    pub(super) fn url(&self, original: &str) -> String {
+    pub(crate) fn url(&self, original: &str) -> String {
         let mut replaced = 0;
         let parts: Vec<_> = original
             .split_ascii_whitespace()
@@ -159,11 +159,11 @@ impl Proxy {
         );
         parts.join(" ")
     }
-    pub(super) fn hold_replies(&self) {
+    pub(crate) fn hold_replies(&self) {
         assert!(!self.shared.hold.swap(true, Ordering::SeqCst));
         assert_eq!(self.shared.withheld.load(Ordering::SeqCst), 0);
     }
-    pub(super) fn wait_for_withheld_reply(&self) {
+    pub(crate) fn wait_for_withheld_reply(&self) {
         let deadline = Instant::now() + Duration::from_secs(1);
         while self.shared.withheld.load(Ordering::SeqCst) == 0 {
             assert!(
@@ -173,7 +173,7 @@ impl Proxy {
             thread::sleep(Duration::from_millis(1));
         }
     }
-    pub(super) fn disconnect_and_resume(&self) {
+    pub(crate) fn disconnect_and_resume(&self) {
         self.shared.disconnect();
     }
 }
