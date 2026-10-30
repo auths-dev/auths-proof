@@ -41,10 +41,23 @@ switch (result.outcome) {
 
 There is no Auths application token, remote executor URL, or provider
 credential in application code. The gateway endpoint is an
-operator-provisioned local socket. The gateway can also sign a read-only
-observation of a provider field (`observeReadBack`), of an operation's stored
-outcome (`observeOutcome`), or return the pre-entry observations it stored for
-an operation (`observePreEntry`).
+operator-provisioned local socket. The gateway also signs local stored outcomes (`observeOutcome`) and returns
+stored pre-entry observations (`observePreEntry`). Independently approved
+provider recovery uses `recover(sourceOperation, { proof, action, approval })`,
+returning bounded native recovery-report/refusal JSON bytes. It returns no
+provider content or disclosure acknowledgement. The former unapproved
+`observeReadBack` route is removed.
+
+The native `auths.gateway-recovery/2` report includes retained lifetime read and
+response-byte reservations, observation transport and freshness limits, the
+selected response receipt time, escalation and proposed next actions. Requesting
+another observation requires fresh independent authorization and exact approval.
+The report grants no retry, redelivery or refund authority.
+
+Mutation `observed-by-provider` results use `auths.gateway-public-evidence/1`.
+They expose a native record-scoped hiding commitment and receipt time; raw
+response digests and echo tokens stay in the protected journal. Older evidence
+shapes are rejected. Bindings validate the shape and never compute the commitment.
 
 The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
 runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway

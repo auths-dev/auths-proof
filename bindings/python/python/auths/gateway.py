@@ -21,23 +21,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal, Mapping, Optional, Union, cast
 
-_REQUEST_SCHEMA = "auths.gateway-submit/1"
-_OBSERVE_SCHEMA = "auths.gateway-observe/2"
-_READ_BACK_SCHEMA: Final = "auths.gateway-readback/1"
+_REQUEST_SCHEMA = "auths.gateway-submit/2"
+_OBSERVE_SCHEMA = "auths.gateway-observe/3"
 _OUTCOME_SCHEMA: Final = "auths.gateway-outcome/2"
 _OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 _MAX_OBSERVATION_BYTES = 4_096
 _MAX_PRE_ENTRY_OBSERVATIONS = 4
 _MAX_SUBJECT_BYTES = 1_024
-_MAX_READ_BACK_ARGUMENTS = 16
-_MAX_ARGUMENT_BYTES = 128
 _MAX_PROOF_BYTES = 4 * 1024 * 1024
 _MAX_ACTION_BYTES = 64 * 1024
 # Room for four maximal pre-entry observations in one base64url response.
 _MAX_RESPONSE_BYTES = 32 * 1024
-_ECHO = re.compile(r"auths-e1-[0-9a-f]{64}")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
-_FIELD_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 _OPERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]*")
 _MAX_U64 = 2**64 - 1
@@ -88,7 +83,7 @@ class GatewayDenied:
 
 @dataclass(frozen=True)
 class GatewayIndeterminate:
-    """Native proof verification could not authorize the action."""
+    """Native verification or required durable state is indeterminate."""
 
     code: str
     outcome: Literal["indeterminate"] = "indeterminate"
@@ -100,6 +95,14 @@ class GatewayNotEntered:
 
     code: str
     outcome: Literal["not-entered"] = "not-entered"
+
+
+@dataclass(frozen=True)
+class GatewayReserved:
+    """Reserved without an entry grant; continuation requires fresh authorization."""
+
+    revision: int
+    outcome: Literal["reserved"] = "reserved"
 
 
 @dataclass(frozen=True)
@@ -130,14 +133,14 @@ class GatewayObserved:
 class GatewayProviderEvidence:
     """Secret-free summary of provider-held read-back evidence.
 
-    The response bytes and observation locator stay in the operator's attempt
-    store. ``observed_at`` is gateway wall-clock seconds and is not
-    authenticated.
+    The response bytes, raw digest and echo stay in the protected journal.
+    ``evidence_commitment`` is a native scoped hiding commitment, not a body
+    hash. ``observed_at`` is gateway wall-clock seconds and is not authenticated.
     """
 
     channel: Literal["read-back"]
-    echo: str
-    evidence_digest: str
+    schema: Literal["auths.gateway-public-evidence/1"]
+    evidence_commitment: str
     observed_at: int
 
 
@@ -160,6 +163,7 @@ GatewayResult = Union[
     GatewayDenied,
     GatewayIndeterminate,
     GatewayNotEntered,
+    GatewayReserved,
     GatewayUnknown,
     GatewayResponseRecorded,
     GatewayObserved,
@@ -180,28 +184,59 @@ def _parse_evidence(value: object) -> GatewayProviderEvidence:
         raise GatewayProtocolError("gateway returned invalid evidence")
     evidence = cast(Mapping[str, object], value)
     channel = evidence.get("channel")
-    echo = evidence.get("echo")
-    digest = evidence.get("evidence_digest")
+    schema = evidence.get("schema")
+    commitment = evidence.get("evidence_commitment")
     observed_at = evidence.get("observed_at")
     if (
-        set(evidence) != {"channel", "echo", "evidence_digest", "observed_at"}
+        set(evidence) != {"schema", "channel", "evidence_commitment", "observed_at"}
         or channel != "read-back"
-        or not isinstance(echo, str)
-        or _ECHO.fullmatch(echo) is None
-        or not isinstance(digest, str)
-        or _DIGEST.fullmatch(digest) is None
+        or schema != "auths.gateway-public-evidence/1"
+        or not isinstance(commitment, str)
+        or _DIGEST.fullmatch(commitment) is None
         or not isinstance(observed_at, int)
         or isinstance(observed_at, bool)
-        or not 0 <= observed_at <= _MAX_U64
+        or not 0 <= observed_at <= (1 << 53) - 1
     ):
         raise GatewayProtocolError("gateway returned invalid evidence")
-    return GatewayProviderEvidence("read-back", echo, digest, observed_at)
+    return GatewayProviderEvidence("read-back", "auths.gateway-public-evidence/1", commitment, observed_at)
+
+
+def _result_integer(value: str) -> int:
+    if value.startswith("-") or len(value) > 20:
+        raise ValueError("negative gateway result integer")
+    return int(value)
+
+
+def _result_float(_value: str) -> object:
+    raise ValueError("gateway result number is not an integer")
+
+
+def _gateway_json(raw: bytes) -> object:
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise ValueError("gateway JSON BOM")
+    return cast(object, json.loads(raw.decode("utf-8"),
+                                   object_pairs_hook=_unique_result_object,
+                                   parse_int=_result_integer, parse_float=_result_float))
+
+
+def _unique_result_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if len(pairs) > 16:
+        raise ValueError("oversized gateway result object")
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate gateway result member")
+        key.encode("utf-8")
+        if isinstance(value, str):
+            value.encode("utf-8")
+        result[key] = value
+    return result
 
 
 def _parse_result(raw: bytes) -> GatewayResult:
     try:
-        decoded: object = json.loads(raw)
-    except (UnicodeDecodeError, ValueError) as error:
+        decoded: object = _gateway_json(raw)
+    except (UnicodeError, ValueError, RecursionError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid result")
@@ -218,6 +253,16 @@ def _parse_result(raw: bytes) -> GatewayResult:
         if outcome == "indeterminate":
             return GatewayIndeterminate(code)
         return GatewayNotEntered(code)
+    if outcome == "reserved":
+        revision = value.get("revision")
+        if (
+            set(value) != {"outcome", "revision"}
+            or not isinstance(revision, int)
+            or isinstance(revision, bool)
+            or not 1 <= revision <= 9_007_199_254_740_991
+        ):
+            raise GatewayProtocolError("gateway returned invalid reservation")
+        return GatewayReserved(revision)
     if outcome == "unknown" and set(value) == {"outcome"}:
         return GatewayUnknown()
     if outcome == "observed-by-provider":
@@ -319,8 +364,8 @@ def _parse_observe_result(
     raw: bytes, schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"]
 ) -> GatewayObserveResult:
     try:
-        decoded: object = json.loads(raw)
-    except (UnicodeDecodeError, ValueError) as error:
+        decoded: object = _gateway_json(raw)
+    except (UnicodeError, ValueError, RecursionError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid observation result")
@@ -375,8 +420,8 @@ def _parse_refusal(value: Mapping[str, object]) -> GatewayObservationRefused:
 
 def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryResult:
     try:
-        decoded: object = json.loads(raw)
-    except (UnicodeDecodeError, ValueError) as error:
+        decoded: object = _gateway_json(raw)
+    except (UnicodeError, ValueError, RecursionError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid pre-entry result")
@@ -406,53 +451,38 @@ def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryRes
     )
 
 
-def _read_back_request(arguments: Mapping[str, str]) -> dict[str, object]:
-    if not isinstance(arguments, Mapping) or not (
-        1 <= len(arguments) <= _MAX_READ_BACK_ARGUMENTS
-    ):
-        raise ValueError("read-back arguments must be a bounded mapping")
-    checked: dict[str, str] = {}
-    for name, value in cast(Mapping[object, object], arguments).items():
-        if not isinstance(name, str) or _FIELD_NAME.fullmatch(name) is None:
-            raise ValueError("read-back argument names must be recipe field names")
-        if (
-            not isinstance(value, str)
-            or "\x00" in value
-            or not 1
-            <= len(value.encode("utf-8", "surrogatepass"))
-            <= _MAX_ARGUMENT_BYTES
-        ):
-            raise ValueError("read-back argument values must be bounded strings")
-        checked[name] = value
-    return {"kind": "read-back", "arguments": checked}
+def _submission(proof: bytes, action: bytes, approval: bytes) -> dict[str, str]:
+    if not isinstance(proof, bytes) or not 1 <= len(proof) <= _MAX_PROOF_BYTES:
+        raise ValueError("proof must be bounded bytes")
+    if not isinstance(action, bytes) or not 1 <= len(action) <= _MAX_ACTION_BYTES:
+        raise ValueError("action must be bounded bytes")
+    if not isinstance(approval, bytes) or not 1 <= len(approval) <= 4096:
+        raise ValueError("approval must be bounded native canonical bytes")
+    return {
+        "schema": _REQUEST_SCHEMA,
+        "proof_b64": _encode_base64url(proof),
+        "action_b64": _encode_base64url(action),
+        "approval_b64": _encode_base64url(approval),
+    }
 
 
 class GatewayClient:
-    """Submit only canonical proof and action bytes over the local app socket,
-    or request one read-only gateway-signed observation."""
+    """Submit exact approved effects, acquire approved recovery evidence, or
+    inspect retained local history over the application socket."""
 
     def __init__(self, endpoint: GatewayEndpoint) -> None:
         if not isinstance(endpoint, GatewayEndpoint):
             raise TypeError("endpoint must be a GatewayEndpoint")
         self._endpoint = endpoint
 
-    async def submit(self, *, proof: bytes, action: bytes) -> GatewayResult:
+    async def submit(self, *, proof: bytes, action: bytes, approval: bytes) -> GatewayResult:
         """Return proof/transport stage without implying provider effect.
 
         An IPC failure is not a retry signal: the gateway may have entered the
         provider before the client lost its response.
         """
-        if not isinstance(proof, bytes) or not 1 <= len(proof) <= _MAX_PROOF_BYTES:
-            raise ValueError("proof must be bounded bytes")
-        if not isinstance(action, bytes) or not 1 <= len(action) <= _MAX_ACTION_BYTES:
-            raise ValueError("action must be bounded bytes")
         payload = json.dumps(
-            {
-                "schema": _REQUEST_SCHEMA,
-                "proof_b64": _encode_base64url(proof),
-                "action_b64": _encode_base64url(action),
-            },
-            separators=(",", ":"),
+            _submission(proof, action, approval), separators=(",", ":")
         ).encode("utf-8")
         return _parse_result(
             await self._exchange(
@@ -460,21 +490,66 @@ class GatewayClient:
             )
         )
 
-    async def observe_read_back(
-        self, arguments: Mapping[str, str]
-    ) -> GatewayObserveResult:
-        """Ask the gateway to read the recipe's observed field now and sign it.
+    async def recover(
+        self, source_operation: str, *, proof: bytes, action: bytes, approval: bytes
+    ) -> bytes:
+        """Return the bounded native recovery-report/refusal JSON unchanged.
 
-        ``arguments`` names exactly the recipe observation path's fields (for
-        example ``{"record_id": "rec..."}``); the gateway derives the URL,
-        subject, and time itself. The application learns the observed value.
-
-        Raises ``ValueError`` for unbounded or non-string arguments and
-        ``GatewayProtocolError`` when the socket or bounded response is
-        unavailable or malformed. A refusal is a result, not an exception.
+        The read requires its own native proof/action and exact approval. The
+        report separates mutation and acquisition facts and contains no provider
+        content. A lost reply never authorizes a retry or another provider call.
         """
-        request = _read_back_request(arguments)
-        return await self._observe(request, _READ_BACK_SCHEMA)
+        if (
+            not isinstance(source_operation, str)
+            or _OPERATION_ID.fullmatch(source_operation) is None
+        ):
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        payload = json.dumps(
+            {
+                "schema": "auths.gateway-recover/1",
+                "source_operation": source_operation,
+                "submission": _submission(proof, action, approval),
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return await self._exchange(
+            payload, "gateway recovery exchange unavailable; outcome may be unknown"
+        )
+
+    async def acquire_content(self, *, proof: bytes, action: bytes, approval: bytes) -> bytes:
+        """Return native acquisition/refusal bytes; no provider content is released.
+
+        Resource arguments come only from the signed native action. IPC failure
+        cannot authorize a new read. Disclosure uses the native recipient client.
+        """
+        payload = json.dumps({"schema": "auths.gateway-content/1",
+                              "submission": _submission(proof, action, approval)},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "content acquisition may be unknown")
+
+    async def content_history(self, operation: str) -> bytes:
+        """Return redacted native history unchanged, without provider I/O."""
+        if not isinstance(operation, str) or _OPERATION_ID.fullmatch(operation) is None:
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        payload = json.dumps({"schema": "auths.gateway-content-history/1", "operation": operation},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "content history unavailable")
+
+    async def acknowledge_disclosure(self, operation: str, acknowledgement: bytes) -> bytes:
+        """Carry exact ACK bytes produced by the native recipient client.
+
+        Rust validates the signature and retained grant. This wrapper does not
+        sign, hash, interpret evidence or authorize another delivery.
+        """
+        if not isinstance(operation, str) or _OPERATION_ID.fullmatch(operation) is None:
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        if not isinstance(acknowledgement, bytes) or not 1 <= len(acknowledgement) <= 4096:
+            raise ValueError("acknowledgement must be 1-4096 native canonical bytes")
+        payload = json.dumps({"schema": "auths.gateway-disclosure-acknowledge/1",
+                              "operation": operation,
+                              "acknowledgement_b64": _encode_base64url(acknowledgement)},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "disclosure acknowledgement persistence may be unknown")
 
     async def observe_outcome(self, operation_id: str) -> GatewayObserveResult:
         """Ask the gateway to sign the stored outcome of one logical operation.
@@ -576,6 +651,7 @@ __all__ = [
     "GatewayPreEntryResult",
     "GatewayProtocolError",
     "GatewayProviderEvidence",
+    "GatewayReserved",
     "GatewayResponseRecorded",
     "GatewayResult",
     "GatewaySignedObservation",

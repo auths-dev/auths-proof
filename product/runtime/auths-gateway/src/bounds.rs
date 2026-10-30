@@ -694,6 +694,93 @@ pub(crate) fn link_policy(
     }
 }
 
+/// Read budgets use the existing bounded evaluator with explicit call/byte
+/// units. Their identities cannot consume or replenish mutation budgets.
+pub(crate) fn admit_acquisition_bounds(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+    namespace: &OperatorNamespace,
+    now: u64,
+) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    admit_information_bounds(
+        proof_cbor,
+        verified,
+        namespace,
+        now,
+        InformationBudget::Acquisition,
+    )
+}
+
+/// Disclosure policy has its own count/byte identities and ceiling argument.
+pub(crate) fn admit_disclosure_bounds(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+    namespace: &OperatorNamespace,
+    now: u64,
+) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    admit_information_bounds(
+        proof_cbor,
+        verified,
+        namespace,
+        now,
+        InformationBudget::Disclosure,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum InformationBudget {
+    Acquisition,
+    Disclosure,
+}
+
+fn admit_information_bounds(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+    namespace: &OperatorNamespace,
+    now: u64,
+    protocol: InformationBudget,
+) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    let (argument, count_domain, bytes_domain, refusal) = match protocol {
+        InformationBudget::Disclosure => (
+            "maximum_disclosure_bytes",
+            b"auths.gateway-disclosure-policy-count/1\0".as_slice(),
+            b"auths.gateway-disclosure-policy-bytes/1\0".as_slice(),
+            "gateway.disclosure.unsupported-bounds",
+        ),
+        InformationBudget::Acquisition => (
+            "maximum_response_bytes",
+            b"auths.gateway-read-policy-count/1\0".as_slice(),
+            b"auths.gateway-read-policy-bytes/1\0".as_slice(),
+            "gateway.acquisition.unsupported-bounds",
+        ),
+    };
+    let links = selected_bound_links(proof_cbor, verified)?;
+    if links.iter().any(|link| link.policy.argument() != argument) {
+        return Err(not_entered(refusal));
+    }
+    let mut bound = admit_policy_links(links, verified.canonical_action(), namespace, None, now)
+        .map_err(not_entered)?;
+    if let Some(bound) = &mut bound {
+        // Retain the established namespace/subject/evaluator/window/partition
+        // commitment, but place read units in disjoint counter domains.
+        let rekey = |domain: &[u8], key: &[u8; 32]| -> [u8; 32] {
+            let mut hash = Sha256::new();
+            hash.update(domain);
+            hash.update(key);
+            hash.finalize().into()
+        };
+        for counter in &mut bound.counts {
+            counter.key = rekey(count_domain, &counter.key);
+        }
+        for counter in &mut bound.sums {
+            counter.key = rekey(bytes_domain, &counter.key);
+        }
+        bound.counts.sort_by_key(|counter| counter.key);
+        bound.sums.sort_by_key(|counter| counter.key);
+    }
+    Ok(bound)
+}
+
 /// Admits the verified action under every link of its bounded branch and
 /// derives the counters to reserve, or refuses it before any claim. An
 /// empty chain is unbounded, which a recipe that declares `bounds.sum`
@@ -708,7 +795,22 @@ pub(crate) fn admit_links(
     recipe: &CompiledRecipe,
     now: u64,
 ) -> Result<Option<BoundAdmission>, &'static str> {
-    let requirement = recipe.sum_requirement();
+    admit_policy_links(
+        links,
+        action,
+        recipe.namespace(),
+        recipe.sum_requirement().as_ref(),
+        now,
+    )
+}
+
+fn admit_policy_links(
+    links: Vec<BoundLink>,
+    action: &CanonicalAction,
+    namespace: &OperatorNamespace,
+    requirement: Option<&SumRequirement>,
+    now: u64,
+) -> Result<Option<BoundAdmission>, &'static str> {
     if links.len() > MAX_BOUNDED_LINKS {
         return Err("gateway.policy.too-many-bounds");
     }
@@ -752,13 +854,7 @@ pub(crate) fn admit_links(
         .and_then(|next| next.checked_mul(window_seconds))
         .filter(|end| end.checked_add(window_seconds).is_some())
         .ok_or("gateway.verify.clock-unavailable")?;
-    let (counts, sums) = chain_counters(
-        &links,
-        &partitions,
-        recipe.namespace(),
-        window_seconds,
-        index,
-    );
+    let (counts, sums) = chain_counters(&links, &partitions, namespace, window_seconds, index);
     Ok(Some(BoundAdmission {
         links,
         argument,
@@ -1047,6 +1143,14 @@ pub(crate) fn admit_bounds(
     recipe: &CompiledRecipe,
     now: u64,
 ) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
+    let links = selected_bound_links(proof_cbor, verified)?;
+    admit_links(links, verified.canonical_action(), recipe, now).map_err(not_entered)
+}
+
+fn selected_bound_links(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+) -> Result<Vec<BoundLink>, GatewaySubmitResult> {
     let refuse = not_entered;
     let chain = bounded_chain(proof_cbor, verified).map_err(refuse)?;
     let mut bounds: Vec<(PrincipalId, BoundedPolicyCommitment)> = Vec::new();
@@ -1078,15 +1182,14 @@ pub(crate) fn admit_bounds(
     {
         return Err(refuse("gateway.policy.dangling-link"));
     }
-    let links = bounds
+    bounds
         .into_iter()
         .map(|(subject, body)| {
             link_policy(body.commitment(), body.policy())
                 .map(|policy| BoundLink { subject, policy })
         })
         .collect::<Result<Vec<_>, _>>()
-        .map_err(refuse)?;
-    admit_links(links, verified.canonical_action(), recipe, now).map_err(refuse)
+        .map_err(refuse)
 }
 
 /// The account-scope binding: for a recipe with `account_scope`, the action

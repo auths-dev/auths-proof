@@ -1,0 +1,366 @@
+{
+  "schema": "auths.native-disclosure-entry-order/1",
+  "adapter": "file",
+  "cases": [
+    {
+      "scenario": "revoke",
+      "order": "change-first",
+      "native_snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": null,
+      "recipient_bytes": 0,
+      "native_recipient_ack_sent": false,
+      "captured_wire_bytes_after_authentication_challenge": 0,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": false
+    },
+    {
+      "scenario": "revoke",
+      "order": "grant-first",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": null,
+      "recipient_bytes": 21,
+      "native_recipient_ack_sent": true,
+      "captured_wire_bytes_after_authentication_challenge": 25,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": true
+    },
+    {
+      "scenario": "configuration",
+      "order": "change-first",
+      "native_snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": null,
+      "recipient_bytes": 0,
+      "native_recipient_ack_sent": false,
+      "captured_wire_bytes_after_authentication_challenge": 0,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": false
+    },
+    {
+      "scenario": "configuration",
+      "order": "grant-first",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": null,
+      "recipient_bytes": 21,
+      "native_recipient_ack_sent": true,
+      "captured_wire_bytes_after_authentication_challenge": 25,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": true
+    },
+    {
+      "scenario": "approval-valid",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000004,
+      "recipient_bytes": 21,
+      "native_recipient_ack_sent": true,
+      "captured_wire_bytes_after_authentication_challenge": 25,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": true
+    },
+    {
+      "scenario": "approval-expired",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000006,
+      "recipient_bytes": 0,
+      "native_recipient_ack_sent": false,
+      "captured_wire_bytes_after_authentication_challenge": 0,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": false
+    },
+    {
+      "scenario": "authority-valid",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000004,
+      "recipient_bytes": 21,
+      "native_recipient_ack_sent": true,
+      "captured_wire_bytes_after_authentication_challenge": 25,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": true
+    },
+    {
+      "scenario": "authority-expired",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000006,
+      "recipient_bytes": 0,
+      "native_recipient_ack_sent": false,
+      "captured_wire_bytes_after_authentication_challenge": 0,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": false
+    },
+    {
+      "scenario": "observer-valid",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000005,
+      "recipient_bytes": 21,
+      "native_recipient_ack_sent": true,
+      "captured_wire_bytes_after_authentication_challenge": 25,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": true,
+      "selected_native_evidence": {
+        "threshold": false,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000005,
+        "authorized_before_wait": true,
+        "authorized_after_wait": true,
+        "signed_inputs_reused": true,
+        "selected_branches_before": [
+          "4040404040404040404040404040404040404040404040404040404040404040"
+        ],
+        "selected_branches_after": [
+          "4040404040404040404040404040404040404040404040404040404040404040"
+        ],
+        "authority_commitment_changed": false,
+        "old_approval_accepts_current_effect": true
+      }
+    },
+    {
+      "scenario": "observer-expired",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000006,
+      "recipient_bytes": 0,
+      "native_recipient_ack_sent": false,
+      "captured_wire_bytes_after_authentication_challenge": 0,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": false,
+      "selected_native_evidence": {
+        "threshold": false,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000006,
+        "authorized_before_wait": true,
+        "authorized_after_wait": false,
+        "signed_inputs_reused": true,
+        "old_approval_accepts_current_effect": false
+      }
+    },
+    {
+      "scenario": "threshold-valid",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000005,
+      "recipient_bytes": 21,
+      "native_recipient_ack_sent": true,
+      "captured_wire_bytes_after_authentication_challenge": 25,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": true,
+      "selected_native_evidence": {
+        "threshold": true,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000005,
+        "authorized_before_wait": true,
+        "authorized_after_wait": true,
+        "signed_inputs_reused": true,
+        "selected_branches_before": [
+          "4040404040404040404040404040404040404040404040404040404040404040",
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "selected_branches_after": [
+          "4040404040404040404040404040404040404040404040404040404040404040",
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "authority_commitment_changed": false,
+        "old_approval_accepts_current_effect": true
+      }
+    },
+    {
+      "scenario": "threshold-changed",
+      "order": "lock-wait",
+      "native_snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "separate_worker_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "original_admission_time": 1790000000,
+      "clock_after_wait": 1790000006,
+      "recipient_bytes": 0,
+      "native_recipient_ack_sent": false,
+      "captured_wire_bytes_after_authentication_challenge": 0,
+      "provider_reads": 1,
+      "additional_provider_reads": 0,
+      "credential_leases_at_release": 0,
+      "reopened_journal_unchanged": true,
+      "historical_replay_sends_nothing": false,
+      "selected_native_evidence": {
+        "threshold": true,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000006,
+        "authorized_before_wait": true,
+        "authorized_after_wait": true,
+        "signed_inputs_reused": true,
+        "selected_branches_before": [
+          "4040404040404040404040404040404040404040404040404040404040404040",
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "selected_branches_after": [
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "authority_commitment_changed": true,
+        "old_approval_accepts_current_effect": false
+      }
+    }
+  ],
+  "scope": "native separate release authority and exact approval, real local HTTP source acquisition, independent worker/operator OS processes, maintained adapter writer fence; gateway/recipient tasks in the worker over same-UID Unix sockets; fixed public keys and controlled maintained clock",
+  "excluded": [
+    "separate gateway/recipient OS processes in each worker",
+    "hostile OS containment",
+    "all selected-authority and revocation scopes",
+    "installed language framing",
+    "whole-store rollback and power loss"
+  ]
+}

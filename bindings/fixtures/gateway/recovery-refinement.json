@@ -1,0 +1,498 @@
+{
+  "schema": "auths.recovery-refinement-fixture/1",
+  "scope": "native signed effects and real file journal; synthetic entry validation/provider bodies and controlled deployment clock; no installed transport or PostgreSQL claim",
+  "cases": [
+    {
+      "case": "http-error",
+      "disposition": "response-unusable",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 503,
+          "response_bytes": 176,
+          "response_version_ok": true
+        },
+        "disposition": "response-unusable",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "wrong-version",
+      "disposition": "response-unusable",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 176,
+          "response_version_ok": false
+        },
+        "disposition": "response-unusable",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "missing-field",
+      "disposition": "response-unusable",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 2,
+          "response_version_ok": true
+        },
+        "disposition": "response-unusable",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "malformed-json",
+      "disposition": "response-unusable",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 1,
+          "response_version_ok": true
+        },
+        "disposition": "response-unusable",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "multiple-records",
+      "disposition": "response-unusable",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 75,
+          "response_version_ok": true
+        },
+        "disposition": "response-unusable",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "duplicate-members",
+      "disposition": "response-unusable",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 148,
+          "response_version_ok": true
+        },
+        "disposition": "response-unusable",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "state-match-without-echo",
+      "disposition": "inconclusive",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 36,
+          "response_version_ok": true
+        },
+        "disposition": "inconclusive",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "unrelated-echo",
+      "disposition": "inconclusive",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 61,
+          "response_version_ok": true
+        },
+        "disposition": "inconclusive",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "wrong-value",
+      "disposition": "inconclusive",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "unknown",
+          "revision": 2,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": false,
+          "recovery_received_at": null
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 124,
+          "response_version_ok": true
+        },
+        "disposition": "inconclusive",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "capacity-exhausted",
+        "next_actions": [
+          "inspect-retained-evidence",
+          "escalate"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    },
+    {
+      "case": "exact-linked-evidence",
+      "disposition": "recorded",
+      "report": {
+        "schema": "auths.gateway-recovery/2",
+        "source": {
+          "stage": "observed-by-provider",
+          "revision": 3,
+          "response_status": null,
+          "observation_match": null,
+          "provider_linked": true,
+          "recovery_received_at": 1790000004
+        },
+        "acquisition": {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 176,
+          "response_version_ok": true
+        },
+        "disposition": "recorded",
+        "budget": {
+          "retained_attempts": 16,
+          "maximum_attempts": 16,
+          "maximum_response_bytes": 16384,
+          "retained_response_bytes": 262144,
+          "maximum_total_response_bytes": 262144,
+          "maximum_transport_seconds": 15,
+          "maximum_total_transport_seconds": 240,
+          "maximum_evidence_age_seconds": 30
+        },
+        "escalation": "none",
+        "next_actions": [
+          "inspect-retained-evidence"
+        ],
+        "acquisition_received_at": 1790000004
+      }
+    }
+  ],
+  "freshness": {
+    "maximum_age_seconds": 30,
+    "age_31_refused": true,
+    "future_receipt_refused": true,
+    "age_30_recorded": true
+  },
+  "history": {
+    "expired_writer_preserved": true,
+    "late_replay_idempotent": true,
+    "receipt_time_unchanged": true,
+    "charges_retained": true,
+    "no_mutation_readmission": true
+  },
+  "recipe_substitution_refused": true,
+  "concurrent_refinement": "one recorded, one already-recorded, same immutable facts",
+  "public_report_excludes_private_content_and_commitments": true,
+  "admin_frames": [
+    {
+      "frame": {
+        "command": "recover",
+        "source_operation": "source-1",
+        "schema": "auths.gateway-admin-request/2"
+      },
+      "accepted": true
+    },
+    {
+      "frame": {
+        "command": "recovery-record",
+        "source_operation": "source-1",
+        "acquisition_operation": "read-1",
+        "schema": "auths.gateway-admin-request/2"
+      },
+      "accepted": true
+    },
+    {
+      "frame": {
+        "command": "reobserve",
+        "operation_id": "source-1",
+        "schema": "auths.gateway-admin-request/2"
+      },
+      "accepted": false
+    },
+    {
+      "frame": {
+        "command": "recover",
+        "source_operation": "source-1",
+        "url": "https://untrusted.example/",
+        "schema": "auths.gateway-admin-request/2"
+      },
+      "accepted": false
+    },
+    {
+      "frame": {
+        "command": "recovery-record",
+        "source_operation": "source-1",
+        "acquisition_operation": "read-1",
+        "evidence": "synthetic",
+        "schema": "auths.gateway-admin-request/2"
+      },
+      "accepted": false
+    }
+  ],
+  "shared_native_submission_decoder": "bounded data only; no authority from decoding"
+}

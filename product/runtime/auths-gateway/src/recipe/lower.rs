@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 /// Every plan of one compiled recipe.
 #[derive(Clone, Debug)]
 pub(super) struct Plans {
-    pub(super) write: WritePlan,
+    pub(super) execution: ExecutionPlan,
     /// Present only for a verified-locator observation.
     pub(super) observation: Option<ActionReadPlan>,
     pub(super) pre_entry: Option<ActionReadPlan>,
@@ -33,6 +33,13 @@ pub(super) struct Plans {
     pub(super) probe: Option<CredentialReadPlan>,
     pub(super) account: Option<CredentialReadPlan>,
     pub(super) denied: Vec<CredentialReadPlan>,
+}
+
+/// A content-only installation has no executable mutation plan.
+#[derive(Clone, Debug)]
+pub(super) enum ExecutionPlan {
+    Mutation(Box<WritePlan>),
+    ContentOnly,
 }
 
 struct Lowering<'a> {
@@ -349,20 +356,20 @@ pub(super) fn plans(
         origin: source.origin.as_bytes().to_vec(),
         headers: header_plan(source, fields)?,
     };
-    let write = WritePlan {
-        method: method(source.write.method),
-        origin: lowering.origin.clone(),
-        path: lowering.path(&source.write.path)?,
-        headers: lowering.headers.clone(),
-        idempotency_header: matches!(
-            source.write.idempotency,
-            Some(IdempotencySource::DerivedHeader { .. })
-        )
-        .then(|| IDEMPOTENCY_HEADER.as_bytes().to_vec()),
-        body: lowering.body(
-            &source.write.body,
-            source.echo.as_ref().map(|echo| &echo.write),
-        )?,
+    let execution = match &source.write {
+        None => ExecutionPlan::ContentOnly,
+        Some(write) => ExecutionPlan::Mutation(Box::new(WritePlan {
+            method: method(write.method),
+            origin: lowering.origin.clone(),
+            path: lowering.path(&write.path)?,
+            headers: lowering.headers.clone(),
+            idempotency_header: matches!(
+                write.idempotency,
+                Some(IdempotencySource::DerivedHeader { .. })
+            )
+            .then(|| IDEMPOTENCY_HEADER.as_bytes().to_vec()),
+            body: lowering.body(&write.body, source.echo.as_ref().map(|echo| &echo.write))?,
+        })),
     };
     let observation = source
         .observation
@@ -408,7 +415,7 @@ pub(super) fn plans(
         })
         .collect::<Result<_, _>>()?;
     Ok(Plans {
-        write,
+        execution,
         observation,
         pre_entry,
         relative_ceiling,
@@ -416,4 +423,18 @@ pub(super) fn plans(
         account,
         denied,
     })
+}
+
+/// Reuses the reviewed action-read lowering for an explicit content capability.
+pub(super) fn content_plan(
+    source: &RecipeSource,
+    fields: &BTreeMap<String, FieldSchema>,
+    path: &[PathSegment],
+) -> Result<ActionReadPlan, GatewayRecipeError> {
+    Lowering {
+        fields,
+        origin: source.origin.as_bytes().to_vec(),
+        headers: header_plan(source, fields)?,
+    }
+    .action_read(path)
 }

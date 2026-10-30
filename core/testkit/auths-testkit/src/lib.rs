@@ -55,6 +55,7 @@ use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey as Ed25519SigningKey, pkcs8::EncodePrivateKey as _};
 use p256::ecdsa::{
     Signature as P256Signature, SigningKey as P256SigningKey, VerifyingKey as P256VerifyingKey,
+    signature::Signer as _,
 };
 use rcgen::{
     BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
@@ -248,7 +249,7 @@ impl Identity {
         let mut scalar = [0; 32];
         scalar[31] = seed.max(1);
         let key = P256SigningKey::from_bytes((&scalar).into()).expect("fixed P-256 scalar");
-        let public_key = key.verifying_key().to_encoded_point(true);
+        let public_key = key.verifying_key().to_sec1_point(true);
         let raw = RawKeyDescriptor::new(RawKeyType::P256, public_key.as_bytes().to_vec())
             .expect("fixed P-256 key");
         let principal = raw.principal().expect("derived principal");
@@ -470,11 +471,7 @@ impl Identity {
             TestKey::Ed25519(key) => key.sign(preimage).to_bytes().to_vec(),
             TestKey::P256(key) => {
                 let signature: P256Signature = key.sign(preimage);
-                signature
-                    .normalize_s()
-                    .unwrap_or(signature)
-                    .to_bytes()
-                    .to_vec()
+                signature.normalize_s().to_bytes().to_vec()
             }
         };
         let bytes = if let PrincipalKind::WebAuthn { evidence, .. } = &self.principal_kind {
@@ -482,11 +479,7 @@ impl Identity {
                 panic!("WebAuthn fixture requires P-256");
             };
             let signature: P256Signature = key.sign(&evidence.signature_message());
-            signature
-                .normalize_s()
-                .unwrap_or(signature)
-                .to_bytes()
-                .to_vec()
+            signature.normalize_s().to_bytes().to_vec()
         } else {
             bytes
         };
@@ -498,7 +491,7 @@ impl Identity {
             panic!("high-S fixture requires P-256");
         };
         let signature: P256Signature = key.sign(preimage);
-        let low = signature.normalize_s().unwrap_or(signature);
+        let low = signature.normalize_s();
         let (r, s) = low.split_scalars();
         let high =
             P256Signature::from_scalars(r.to_bytes(), (-s).to_bytes()).expect("high-S signature");
@@ -602,11 +595,7 @@ fn p256_compact_key(seed: u8) -> (P256SigningKey, Vec<u8>) {
     let mut scalar = [0; 32];
     scalar[31] = seed.max(1);
     let key = P256SigningKey::from_bytes((&scalar).into()).expect("fixed P-256 scalar");
-    let mut compact = key
-        .verifying_key()
-        .to_encoded_point(true)
-        .as_bytes()
-        .to_vec();
+    let mut compact = key.verifying_key().to_sec1_point(true).as_bytes().to_vec();
     compact[0] = 0x05;
     let decoded = P256VerifyingKey::from_sec1_bytes(&compact).expect("x-coordinate on the curve");
     let key = if decoded == *key.verifying_key() {
@@ -626,7 +615,7 @@ fn webauthn_credential(seed: u8) -> (P256SigningKey, WebAuthnCredential) {
     let mut scalar = [0; 32];
     scalar[31] = seed.max(1);
     let key = P256SigningKey::from_bytes((&scalar).into()).expect("fixed WebAuthn scalar");
-    let point = key.verifying_key().to_encoded_point(true);
+    let point = key.verifying_key().to_sec1_point(true);
     let credential = WebAuthnCredential::new(
         vec![seed; 16],
         &P256Sha256Suite::new().expect("P-256 suite"),

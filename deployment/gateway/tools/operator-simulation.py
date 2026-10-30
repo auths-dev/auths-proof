@@ -84,7 +84,7 @@ class Operator:
         return json.loads(self.run(label, args, **kwargs))
 
     def install(self, state, store=None, join=False, secret=None, extra=(), label="install"):
-        args = ["install", "--state-dir", state, "--recipe", self.inputs / "recipe.json",
+        args = ["install", "--effect-policy", self.inputs / "effect-policy.json", "--state-dir", state, "--recipe", self.inputs / "recipe.json",
                 "--profile-lock", self.inputs / "profile.lock.json",
                 "--trusted-context", self.inputs / "trusted.context.cbor",
                 "--approve-digest", self.digest, "--provider", "airtable",
@@ -174,7 +174,7 @@ class Operator:
         private_tree(first, self.uid, self.gid)
         self.json("offline-support", ["support-bundle", "--state-dir", first])
         # These are shipped builds: neither test transport nor plaintext production is allowed.
-        args = ["install", "--state-dir", self.work / "production", "--recipe",
+        args = ["install", "--effect-policy", self.inputs / "effect-policy.json", "--state-dir", self.work / "production", "--recipe",
                 self.inputs / "recipe.json", "--profile-lock", self.inputs / "profile.lock.json",
                 "--trusted-context", self.inputs / "trusted.context.cbor", "--approve-digest",
                 self.digest, "--provider", "airtable", "--alias", "simulation",
@@ -231,8 +231,11 @@ class Operator:
                 and one["credential_held"] and two["credential_held"], "simulation.rotation-diverged")
         self.json("redacted-support", ["support-bundle", "--state-dir", first],
                   env={"AUTHS_SIMULATION_CANARY": self.secret.decode()})
-        self.admin(first, "reobserve", extra=["--operation-id", "simulation-no-such-operation"],
-                   success=False, code="gateway.reobserve.not-observable")
+        # AP074 removed raw re-observation. An operator must author and approve
+        # an independent recovery effect; the obsolete command stays unavailable.
+        self.run("refuse-obsolete-reobserve", ["reobserve", "--state-dir", first,
+                 "--operation-id", "simulation-no-such-operation"], success=False,
+                 code="unrecognized subcommand 'reobserve'")
         tuple_bytes = self.run("deployment-tuple", ["qualification-status", "--state-dir", first, "--tuple"])
         tuple_path = self.work / "tuple.json"
         tuple_path.write_bytes(tuple_bytes)

@@ -355,7 +355,10 @@ async fn audit_checks_the_pre_entry_observations() {
     let submission = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
     let result = harness.submit(&submission, NOW + 30).await;
     assert!(
-        matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+        matches!(
+            result,
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
+        ),
         "{result:?}"
     );
     let outcome = signed_bytes(harness.outcome("pre-entry", NOW + 31).await);

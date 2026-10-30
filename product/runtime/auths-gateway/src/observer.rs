@@ -24,7 +24,7 @@
 //!   declares an echo field and the record carries one, `echo`;
 //! - `auths.gateway-outcome/2`, subject
 //!   `auths-gateway://<namespace>/operations/<operation-id>`, whose facts
-//!   are the stored attempt's commitment, stage (a stored `attempting` is
+//!   are the stored attempt's commitment, stage (a stored `entry-granted` is
 //!   reported as `unknown`), evaluation time, and recipe digest, and, as the
 //!   record holds them, its counter-set digest, refusal, response status and
 //!   digest, read-back comparison, evidence digest, pre-entry digest, and
@@ -522,11 +522,11 @@ fn bytes_fact(value: &[u8; 32]) -> Result<FactValue, GatewayObserverError> {
         .map_err(|_| GatewayObserverError::Unrepresentable)
 }
 
-/// The stage an outcome names for a stored stage: a stored `attempting`
+/// The stage an outcome names for a stored stage: a stored `entry-granted`
 /// record is reported as `unknown`, because transport may have been entered.
 const fn outcome_stage(stage: GatewayAttemptStage) -> GatewayAttemptStage {
     match stage {
-        GatewayAttemptStage::Attempting => GatewayAttemptStage::Unknown,
+        GatewayAttemptStage::EntryGranted => GatewayAttemptStage::Unknown,
         other => other,
     }
 }
@@ -534,7 +534,8 @@ const fn outcome_stage(stage: GatewayAttemptStage) -> GatewayAttemptStage {
 const fn kernel_stage(stage: GatewayAttemptStage) -> Stage {
     match stage {
         GatewayAttemptStage::NotEntered => Stage::NotEntered,
-        GatewayAttemptStage::Attempting => Stage::Attempting,
+        GatewayAttemptStage::Reserved => Stage::Reserved,
+        GatewayAttemptStage::EntryGranted => Stage::EntryGranted,
         GatewayAttemptStage::ResponseRecorded => Stage::ResponseRecorded,
         GatewayAttemptStage::Unknown => Stage::Unknown,
         GatewayAttemptStage::Observed => Stage::Observed,
@@ -545,7 +546,8 @@ const fn kernel_stage(stage: GatewayAttemptStage) -> Stage {
 fn stage_name(stage: GatewayAttemptStage) -> &'static str {
     match stage {
         GatewayAttemptStage::NotEntered => "not-entered",
-        GatewayAttemptStage::Attempting => "attempting",
+        GatewayAttemptStage::Reserved => "reserved",
+        GatewayAttemptStage::EntryGranted => "entry-granted",
         GatewayAttemptStage::ResponseRecorded => "response-recorded",
         GatewayAttemptStage::Unknown => "unknown",
         GatewayAttemptStage::Observed => "observed",
@@ -555,6 +557,7 @@ fn stage_name(stage: GatewayAttemptStage) -> &'static str {
 
 fn parse_stage(name: &str) -> Option<GatewayAttemptStage> {
     Some(match name {
+        "reserved" => GatewayAttemptStage::Reserved,
         "not-entered" => GatewayAttemptStage::NotEntered,
         "unknown" => GatewayAttemptStage::Unknown,
         "response-recorded" => GatewayAttemptStage::ResponseRecorded,
@@ -571,7 +574,7 @@ fn parse_stage(name: &str) -> Option<GatewayAttemptStage> {
 pub(crate) struct OutcomeRecord {
     /// Lowercase hex of the stored action commitment.
     pub(crate) commitment: String,
-    /// The stage the outcome names; never `attempting`.
+    /// The stage the outcome names; never `entry-granted`.
     pub(crate) stage: GatewayAttemptStage,
     /// The gateway clock when native verification ran.
     pub(crate) evaluated_at: u64,
@@ -709,7 +712,7 @@ impl OutcomeRecord {
     fn from_facts(facts: &[ObservationFact]) -> Option<Self> {
         let mut record = Self {
             commitment: String::new(),
-            stage: GatewayAttemptStage::Attempting,
+            stage: GatewayAttemptStage::EntryGranted,
             evaluated_at: 0,
             recipe_digest: String::new(),
             counters_digest: None,

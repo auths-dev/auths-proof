@@ -2,7 +2,7 @@
 
 The maintained monorepo demo uses a fixed-table, data-only recipe and installed
 public Python/TypeScript SDKs. The application has its own signing key and sends
-proof/action bytes to the gateway socket. Only the operator and gateway hold
+proof/action/exact-approval bytes to the gateway socket. Only the operator and gateway hold
 provider credentials. The older field-lab `airtable-cli` app-owned-PAT mode is a
 self-hosted reference; its token holder can bypass enforcement.
 
@@ -14,6 +14,32 @@ root-private operator directory; the app receives no manager or provider secret.
 The workbench shows the native review fields and includes insufficient-quorum
 and duplicate-response cases. This local simulator is integration evidence, not
 a human approval inbox: simulator state or a UI click never authorizes an action.
+
+The operator additionally requests the complete native exact-effect review and
+signs its canonical request. Simulation supplies this signature from a separate
+operator-only ephemeral development key. The app forwards the approval unchanged;
+it holds neither that key nor the private actor used for candidate/recovery reads.
+Credential-checking installs stage a candidate, acquire separately authorized
+checks, and publish from retained evidence before peers join. Adding the software
+observer requires explicit native configuration review and CAS activation.
+
+A write returns `response-recorded` when its HTTP response is retained. Choose
+**Separately approve and observe the exact operation** to authorize a distinct
+read. Its native report separates original-write facts, read charges and evidence
+disposition. Replaying a mutation returns retained facts without a read or write;
+unknown outcomes never cause an automatic read, resend or refund.
+
+Live mode never uses the scripted exact-effect reviewer. Startup and each new
+recovery read pause for at most ten minutes on an owner-only consent FIFO. In a
+separate trusted operator shell, use `docker exec CONTAINER cat REVIEW_PATH` to
+read the **entire** `literal-review.txt` and its `literal-review.json` signing
+request at the private paths printed by the operator. After
+checking its exact destination, units, consequences and signing request, use
+`docker exec CONTAINER sh -c 'printf "approve OPERATION\n" > CONSENT_PATH'` with
+the exact operation and consent path printed there. The application UID cannot
+read or write this private channel. Missing or different consent fails closed.
+This is local Docker-operator development custody, not a remote human approval
+inbox, independent-human trial or production signing-custody claim.
 
 ## Source-free local demo
 
@@ -40,8 +66,9 @@ actual gateway audit-bundle format. Missing evidence remains missing.
 
 Default mode is clearly labeled **simulation**. An independent HTTP double
 counts real native reads and PATCH entries; it never reaches Airtable. Two
-native processes race through one operation store; a third uses a fresh
-challenge. Each installation independently checks its custody setup. The web
+native processes race through one operation store; a third joins the same
+connection, trust and configuration with independent custody. Substituting a
+fresh challenge is refused under the unchanged installed trust. The web
 app runs as UID 62004/GID 62005; private state/root/observer keys remain root-only.
 The source recipe is the reviewed Airtable fixture with exactly the fixed
 base/table substitutions authorized by the release reference. The shipping
@@ -58,9 +85,10 @@ does not establish a linked observation.
 
 **Lose PATCH response** actually drops the socket after the provider applies
 the write. The result stays unknown while fresh reads lack its value/echo.
-After three seconds choose **Observe lost operation again**. This submits the
-original proof/action to the native replay boundary: it can read again, and
-cannot PATCH again. The automated journey measures zero new write entries.
+The original proof/action replay returns retained history without another read
+or PATCH. The recovery UI explicitly requests a new native bounded read proof
+and exact approval from the separate operator channel; its tagged native report
+retains the original write stage and the independently charged read facts.
 There is no automatic recovery or write retry.
 
 **Competing writer** makes a second actual HTTP actor write the same value with
@@ -93,11 +121,14 @@ docker exec --user 62004:62005 auths-airtable-gateway-demo \
 ```
 
 An IPC failure is unconfirmed, never permission to send another PATCH.
-Operator-only read-only re-observation and diagnostics use the shipped CLI:
+Operator-only recovery uses a separately authorized native read and exact approval;
+diagnostics remain available through the shipped CLI:
 
 ```sh
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
-  reobserve --state-dir /run/demo/gateway0 --operation-id lost-response
+  recover --state-dir /run/demo/gateway0 --source-operation lost-response \
+  --proof /private/read-proof.cbor --action /private/read-action.cbor \
+  --approval /private/read-approval.json
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
   doctor --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/app0.sock \
   --app-uid 62004 --app-gid 62005
@@ -179,6 +210,52 @@ session. Do not overwrite a dirty journal or use forced kill as normal cleanup.
 
 ## Evidence boundaries
 
+### Authenticated owner review in local simulation
+
+The optional owner interface withholds all application exact-effect approvals
+until a separately authenticated owner reviews and approves the complete native
+literal projection. The application keeps its own proposal interface; it cannot
+read the owner login file or exact approver key. Native authorization, request
+compilation, admission and recovery still run in the gateway.
+
+```sh
+python launch.py --name airtable-owner-workbench --port 8181 --owner-ui-port 8182
+```
+
+Open the application at `http://localhost:8181` and owner review at
+`http://localhost:8182`. Retrieve `/run/demo/private/owner-login` through the
+trusted container operator account and enter it only in the owner interface.
+Choose a closed application experiment, inspect the entire native review on the
+owner page, and approve or decline that exact pending effect. Recovery requires
+its own review and approval. A cached approval permits only the same native
+effect; replay remains subject to the gateway's conservative history rules.
+Each closed mutation label permits one new consent attempt per fresh run. An
+identical proof/action may retrieve its original signed approval after a client
+restart; this neither refreshes consent nor recreates a native entry permit.
+
+The browser keeps its short-lived owner bearer only in the owner page's memory
+and explicit same-origin headers. Cookies are deliberately absent: localhost
+cookies cross ports and would reach the untrusted application. The private
+credential file and approver key remain in the operator boundary. This assumes
+a trusted operator, browser and host, with the application UID unable to read
+operator state. Expose both Docker ports on host loopback only, as the launcher
+does. This mode is available only for simulation; live consent retains its
+existing private operator channel.
+
+Bounds are one pending review, eight HTTP handlers, a 1,024-byte command,
+131,072-byte native review envelope, five-second HTTP I/O, fifteen-minute owner
+session and ten-minute consent wait. Session/consent limits do not refresh native
+proofs, approvals or evidence. Native deadlines and final authority checks still
+apply. Initial simulation commissioning and organizational proof approvals stay
+explicitly scripted; the owner interface controls application exact effects.
+
+The hosted installed browser test exercises authenticated decline, refusal of a
+substituted review, unchanged full native presentation, one exact write,
+separately approved recovery and replay without further execution. Browser
+actions simulate the owner; no human-attention or production qualification claim
+follows. Complete managed content acquisition/disclosure through the installed
+UI and the remaining AP074 acceptance evidence are still required.
+
 The workflow packages and verifies exact payload digests outside the checkout,
 installs both SDK artifacts, measures native verification/replay/race/recovery,
 independent wire/read-back, competing-writer traffic, error bounds, UID isolation,
@@ -191,3 +268,37 @@ Protected AWS custody, PostgreSQL/TLS, two genuine rotation PATs, verified exclu
 base access, current signed qualification, full crash/canary/lifecycle corpus,
 independent security/human review and an actual GitHub-release installation
 remain separate gates in AP-SPEC-066 and [AP-SPEC-068](../../docs/specs/0068-airtable-general-gateway-demo.md).
+
+## Managed read, recipient release and write journey
+
+The optional authenticated owner UI selects `managed-recipe.json` for the local
+simulation. Its mutation declaration matches the maintained record-update recipe;
+an additional bounded GET projects the `/fields/PrivateNote` JSON string into
+at most 512 private UTF-8 bytes from an `application/json` response bounded to
+1,024 bytes. `managed-review.json` is the actual native recipe review,
+reconstructed and compared by CI. The original recipe remains the live/reference
+recipe. This local variant grants no managed Google or live-provider claim.
+
+After logging into the separate owner origin, choose the Python acquisition,
+then the TypeScript acquisition. Each installed client submits a separate native
+proof and exact approval. Acquisition returns redacted history and leaves content
+private. Choose disclosure next: inspect and approve its separate complete native
+review, including the exact recipient/channel/instance and source. The native
+recipient process runs under the application UID, receives into private `0600`
+files and signs the native ACK. The browser displays the gateway's retained ACK
+fact after it is recorded; an ACK-send result alone is not displayed as delivery
+evidence. History/replay choices never authorize another GET or release.
+
+The same native agent actor acquires, discloses and writes. The development
+proposal simulator retains a fixed root-private copy of that actor's development
+key before handing application files over, so the operator never loads an
+application-writable signer configuration. Exact-effect reviewer keys remain
+separate. This is explicit software simulation custody, not exclusive actor-key
+custody, independent-human attention or production qualification.
+
+The packaged browser scenario exercises both installed SDKs, real native
+HTTP/Unix transport, recipient files, external provider counters, complete
+owner review, exact write and independent observation. It also exercises actual
+response loss and retained unknown without reentry. Assertions check that
+private sentinel content stays out of public HTTP/history. New scenarios remain
+authored until their exact-head hosted result is recorded in the AP074 ledger.

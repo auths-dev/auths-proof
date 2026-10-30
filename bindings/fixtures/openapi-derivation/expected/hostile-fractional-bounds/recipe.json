@@ -1,5 +1,16 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [],
+    "fields": {
+      "p": {
+        "kind": "integer",
+        "label": "p",
+        "unit": ""
+      }
+    }
+  },
   "profile_schema_digest": "bb9157c5e5256469c5b5c903362508d0e2a1b75d5fcecdf6221230497f9b2c5b",
   "service": "hostile",
   "tool": "hFractionalBounds_v1",

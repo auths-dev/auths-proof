@@ -86,17 +86,13 @@ fn keys() -> Vec<Key> {
             .to_vec(),
     };
     let p256 = |id, seed| {
-        use p256::elliptic_curve::sec1::ToEncodedPoint as _;
+        use p256::elliptic_curve::sec1::ToSec1Point as _;
         let secret = p256::SecretKey::from_slice(&[seed; 32]).expect("fixed scalar");
         Key {
             id,
             kind: RawKeyType::P256,
             seed,
-            public: secret
-                .public_key()
-                .to_encoded_point(true)
-                .as_bytes()
-                .to_vec(),
+            public: secret.public_key().to_sec1_point(true).as_bytes().to_vec(),
         }
     };
     vec![

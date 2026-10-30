@@ -1,0 +1,15 @@
+{
+  "schema": "auths.native-process-capacity/1",
+  "adapter": "file",
+  "scope": "full native engine compilation, exact fixed-key approval, installed dependency fencing and real HTTP across two independent processes; fixed test deployment clock and separate local custody; source-lifetime acquisition count/response bytes only; no human UI, hostile containment, power-loss or distributed-file claim",
+  "prefilled": 15,
+  "contenders": 2,
+  "winner_count": 1,
+  "not_entered": 1,
+  "durable_grants": 16,
+  "refusal_code": "gateway.acquisition.exhausted",
+  "reserved_calls": 16,
+  "reserved_bytes": 16384,
+  "provider_calls": 16,
+  "reopened_replay_no_refetch": true
+}

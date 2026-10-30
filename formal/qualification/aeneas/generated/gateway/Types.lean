@@ -147,17 +147,8 @@ inductive construct.ConstructError where
 | HeaderValue : construct.ConstructError
 | BodySize : construct.ConstructError
 
-/-- [auths_gateway_kernel::order::Mode]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 34:0-41:1
-    Visibility: public -/
-@[discriminant isize]
-inductive order.Mode where
-| Entry : order.Mode
-| ReadBack : order.Mode
-| Reobserve : order.Mode
-
 /-- [auths_gateway_kernel::order::SubmitPlan]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 50:0-63:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 39:0-52:1
     Visibility: public -/
 structure order.SubmitPlan where
   account_scope : Bool
@@ -168,7 +159,7 @@ structure order.SubmitPlan where
   basis_points : Std.U16
 
 /-- [auths_gateway_kernel::order::Phase]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 67:0-116:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 56:0-103:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.Phase where
@@ -179,26 +170,25 @@ inductive order.Phase where
 | Scope : order.Phase
 | Prepare : order.Phase
 | Claim : order.Phase
-| Resume : order.Phase
-| Reload : order.Mode → order.Phase
-| Lease : order.Mode → order.Phase
-| Prefix : order.Mode → order.Phase
-| Account : order.Mode → order.Phase
-| Denied : order.Mode → Std.U8 → order.Phase
+| Reload : order.Phase
+| Lease : order.Phase
+| Prefix : order.Phase
+| Account : order.Phase
+| Denied : Std.U8 → order.Phase
 | PreEntry : order.Phase
 | Ceiling : order.Phase
 | Checkpoint : order.Phase
 | EntryReload : order.Phase
 | Deadline : order.Phase
+| Grant : order.Phase
 | Send : order.Phase
 | RecordResponse : order.Phase
 | RecordUnknown : order.Phase
 | RecordNotEntered : order.Phase
-| ReadBack : order.Mode → order.Phase
 | Done : order.Phase
 
 /-- [auths_gateway_kernel::order::SubmitState]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 120:0-128:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 107:0-115:1
     Visibility: public -/
 structure order.SubmitState where
   plan : order.SubmitPlan
@@ -206,7 +196,7 @@ structure order.SubmitState where
   argument : Std.U64
 
 /-- [auths_gateway_kernel::order::Verification]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 132:0-141:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 119:0-128:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.Verification where
@@ -214,17 +204,17 @@ inductive order.Verification where
 | Authorized : Std.U64 → order.Verification
 
 /-- [auths_gateway_kernel::order::ClaimResult]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 145:0-154:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 132:0-141:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.ClaimResult where
-| Inserted : order.ClaimResult
+| Reserved : order.ClaimResult
 | Refused : order.ClaimResult
 | Replay : order.ClaimResult
 | Unavailable : order.ClaimResult
 
 /-- [auths_gateway_kernel::order::AccountResult]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 158:0-165:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 145:0-152:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.AccountResult where
@@ -233,7 +223,7 @@ inductive order.AccountResult where
 | Unavailable : order.AccountResult
 
 /-- [auths_gateway_kernel::order::DeniedResult]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 169:0-176:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 156:0-163:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.DeniedResult where
@@ -242,7 +232,7 @@ inductive order.DeniedResult where
 | Unavailable : order.DeniedResult
 
 /-- [auths_gateway_kernel::order::PreEntryResult]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 180:0-187:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 167:0-174:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.PreEntryResult where
@@ -251,7 +241,7 @@ inductive order.PreEntryResult where
 | Unavailable : order.PreEntryResult
 
 /-- [auths_gateway_kernel::order::CeilingRead]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 191:0-201:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 178:0-188:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.CeilingRead where
@@ -259,24 +249,23 @@ inductive order.CeilingRead where
 | Read : Std.U64 → Bool → order.CeilingRead
 
 /-- [auths_gateway_kernel::order::WriteResult]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 205:0-212:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 192:0-197:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.WriteResult where
-| NotEntered : order.WriteResult
 | Unknown : order.WriteResult
 | Response : order.WriteResult
 
 /-- [auths_gateway_kernel::order::ResponseRecord]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 216:0-224:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 201:0-206:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.ResponseRecord where
 | Failed : order.ResponseRecord
-| Recorded : Bool → order.ResponseRecord
+| Recorded : order.ResponseRecord
 
 /-- [auths_gateway_kernel::order::SubmitEvent]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 228:0-267:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 210:0-249:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.SubmitEvent where
@@ -287,7 +276,6 @@ inductive order.SubmitEvent where
 | Scope : Bool → order.SubmitEvent
 | Preparation : Bool → order.SubmitEvent
 | Claim : order.ClaimResult → order.SubmitEvent
-| Resume : Bool → order.SubmitEvent
 | Reload : Bool → order.SubmitEvent
 | Lease : Bool → order.SubmitEvent
 | Prefix : Bool → order.SubmitEvent
@@ -297,11 +285,12 @@ inductive order.SubmitEvent where
 | Ceiling : order.CeilingRead → order.SubmitEvent
 | Recorded : Bool → order.SubmitEvent
 | Deadline : Bool → order.SubmitEvent
+| Granted : Bool → order.SubmitEvent
 | Write : order.WriteResult → order.SubmitEvent
 | Response : order.ResponseRecord → order.SubmitEvent
 
 /-- [auths_gateway_kernel::order::Refusal]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 271:0-300:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 253:0-282:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.Refusal where
@@ -321,7 +310,7 @@ inductive order.Refusal where
 | TransportNotEntered : order.Refusal
 
 /-- [auths_gateway_kernel::order::Stop]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 304:0-323:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 286:0-305:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.Stop where
@@ -331,12 +320,12 @@ inductive order.Stop where
 | NotEntered : order.Stop
 | Unknown : order.Stop
 | Response : order.Stop
-| Observed : order.Stop
-| ReplayRefused : order.Stop
+| Stored : order.Stop
+| GrantUnavailable : order.Stop
 | Halted : order.Stop
 
 /-- [auths_gateway_kernel::order::SubmitAction]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 327:0-374:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 309:0-354:1
     Visibility: public -/
 @[discriminant isize]
 inductive order.SubmitAction where
@@ -346,26 +335,25 @@ inductive order.SubmitAction where
 | BindScope : order.SubmitAction
 | Prepare : order.SubmitAction
 | Claim : order.SubmitAction
-| Resume : order.SubmitAction
-| Reload : order.Mode → order.SubmitAction
-| Lease : order.Mode → order.SubmitAction
-| CheckPrefix : order.Mode → order.SubmitAction
-| ReadAccount : order.Mode → order.SubmitAction
-| DeniedRead : order.Mode → Std.U8 → order.SubmitAction
+| Reload : order.SubmitAction
+| Lease : order.SubmitAction
+| CheckPrefix : order.SubmitAction
+| ReadAccount : order.SubmitAction
+| DeniedRead : Std.U8 → order.SubmitAction
 | PreEntryRead : order.SubmitAction
 | CeilingRead : order.SubmitAction
 | RecordCheckpoint : order.SubmitAction
 | ReloadBeforeEntry : order.SubmitAction
 | CheckDeadline : order.SubmitAction
+| GrantEntry : order.SubmitAction
 | Send : order.SubmitAction
 | RecordResponse : order.SubmitAction
 | RecordUnknown : order.SubmitAction
 | RecordNotEntered : order.Refusal → order.SubmitAction
-| ReadBack : order.Mode → order.SubmitAction
 | Stop : order.Stop → order.SubmitAction
 
 /-- [auths_gateway_kernel::order::SubmitDecision]
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 378:0-383:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 358:0-363:1
     Visibility: public -/
 structure order.SubmitDecision where
   state : order.SubmitState
@@ -435,20 +423,31 @@ structure recovery.RecoveryCapability where
   pre_entry_reread : Bool
   write_is_conditional : Bool
 
+/-- [auths_gateway_kernel::transition::Protocol]
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 19:0-26:1
+    Visibility: public -/
+@[discriminant isize]
+inductive transition.Protocol where
+| Mutation : transition.Protocol
+| Acquisition : transition.Protocol
+| Disclosure : transition.Protocol
+
 /-- [auths_gateway_kernel::transition::Stage]
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 19:0-32:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 30:0-47:1
     Visibility: public -/
 @[discriminant isize]
 inductive transition.Stage where
-| Attempting : transition.Stage
+| Reserved : transition.Stage
+| EntryGranted : transition.Stage
 | NotEntered : transition.Stage
 | Unknown : transition.Stage
 | ResponseRecorded : transition.Stage
 | Observed : transition.Stage
 | ObservedByProvider : transition.Stage
+| Acknowledged : transition.Stage
 
 /-- [auths_gateway_kernel::transition::Reading]
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 36:0-45:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 51:0-60:1
     Visibility: public -/
 @[discriminant isize]
 inductive transition.Reading where
@@ -458,7 +457,7 @@ inductive transition.Reading where
 | EchoMismatch : transition.Reading
 
 /-- [auths_gateway_kernel::transition::Link]
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 49:0-56:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 64:0-71:1
     Visibility: public -/
 @[discriminant isize]
 inductive transition.Link where
@@ -467,14 +466,18 @@ inductive transition.Link where
 | AfterResponse : transition.Link
 
 /-- [auths_gateway_kernel::transition::AttemptView]
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 60:0-81:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 75:0-105:1
     Visibility: public -/
 structure transition.AttemptView where
+  protocol : transition.Protocol
+  revision : Std.U64
   fixed : alloc.vec.Vec Std.U8
+  entry : alloc.vec.Vec Std.U8
   stage : transition.Stage
   refusal : Bool
   pre_entry : alloc.vec.Vec Std.U8
   response : alloc.vec.Vec Std.U8
+  acknowledgement : alloc.vec.Vec Std.U8
   locator : alloc.vec.Vec Std.U8
   reading : transition.Reading
   evidence : Bool

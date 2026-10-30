@@ -28,7 +28,11 @@ fuzz_target!(|data: &[u8]| {
     let review = recipe.review();
     let _ = recipe.review_document();
     assert_eq!(review.recovery(), recipe.recovery());
-    assert!(!recipe.recovery().write_is_conditional);
+    assert!(
+        recipe
+            .recovery()
+            .is_none_or(|capability| !capability.write_is_conditional)
+    );
     let Ok(value) = serde_json::from_slice::<serde_json::Value>(source) else {
         panic!("an accepted source is JSON");
     };

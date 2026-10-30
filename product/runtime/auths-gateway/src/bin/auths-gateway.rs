@@ -29,9 +29,8 @@ mod unix {
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
-        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
-        OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, check_candidate_credential, check_principal_separation,
+        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OperatorNamespace,
+        PostgresGatewayAttemptStore, PrincipalSeparationError, check_principal_separation,
         check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
@@ -77,7 +76,7 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/5";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/7";
     /// The directory of the state directory that holds the signed
     /// qualification inputs the operator imported.
     const QUALIFICATION_DIRECTORY: &str = "qualification";
@@ -87,8 +86,11 @@ mod unix {
     const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
+    const INSTALL_DRAFT_FILE: &str = "candidate-installation.cbor";
+    const INSTALL_PROPOSAL_FILE: &str = "candidate-installation.json";
     use auths_gateway::admin::{
-        ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
+        ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, MAX_ADMIN_REQUEST_BYTES,
+        parse_admin_request,
     };
     /// Descriptors `serve` keeps beyond its listeners' capacities and the
     /// store pool: standard streams, listeners, store and state files.
@@ -157,9 +159,173 @@ mod unix {
         reason = "one command is parsed per process"
     )]
     enum Command {
+        /// Emit canonical operator configuration for exact effect approval.
+        /// Supply only the human approver's public key, never a signing key.
+        EffectPolicy {
+            #[arg(long)]
+            partition: String,
+            #[arg(long)]
+            epoch: u64,
+            #[arg(long)]
+            approver_public_key: String,
+        },
+        /// Review the current shared revision and this validated candidate installation.
+        EffectConfigurationReview {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Activate the reviewed candidate using the exact previous revision.
+        /// This operator-only command preserves permanent revocation memory.
+        EffectConfigurationActivate {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            expected_revision: String,
+            #[arg(long)]
+            expected_candidate: String,
+        },
+        /// Private native review of the installed exact effect, with a bounded
+        /// signing request. Does not lease credentials or enter provider transport.
+        EffectReview {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// Compile independent read authority for this retained source.
+            #[arg(long, conflicts_with_all = ["candidate", "content", "disclosure"])]
+            recovery_of: Option<String>,
+            /// Private staged candidate proposal for credential-check review.
+            #[arg(long, conflicts_with_all = ["recovery_of", "content", "disclosure"])]
+            candidate: Option<PathBuf>,
+            /// Review independently authorized content from its signed action.
+            #[arg(long, conflicts_with_all = ["recovery_of", "candidate", "disclosure"])]
+            content: bool,
+            /// Private native recipient/source proposal to review.
+            #[arg(long, conflicts_with_all = ["recovery_of", "candidate", "content"])]
+            disclosure: Option<PathBuf>,
+            /// Preserve the exact native binding for the trusted recipient channel.
+            #[arg(long)]
+            binding_out: Option<PathBuf>,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            not_before: u64,
+            #[arg(long)]
+            expires_at: u64,
+            /// New absolute owner-private file for the canonical signing request.
+            #[arg(long)]
+            request_out: PathBuf,
+        },
+        /// Resume an unpublished first install from its retained private draft.
+        /// Reuses the exact connection ID and timestamps; performs no provider I/O.
+        CandidateStageInstallation {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long, required = true)]
+            credential_stdin: bool,
+            #[arg(long)]
+            proposal_out: PathBuf,
+        },
+        /// Operator-only: stage a rotation secret from stdin and save its exact
+        /// private proposal. No provider read, lease or publication occurs.
+        CandidateStageRotation {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long, required = true)]
+            credential_stdin: bool,
+            #[arg(long)]
+            proposal_out: PathBuf,
+        },
+        /// Author the native call for exact staged candidate checks. No I/O
+        /// authority or completed-check claim is created.
+        EffectCandidateCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            candidate: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            call_out: PathBuf,
+        },
+        /// Execute independently authorized staged credential checks using the
+        /// runtime custody identity; returns redacted acquisition facts only.
+        CandidateAcquire {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            candidate: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+            /// Development build only: independently approved reads reach the local double.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            loopback_provider: Option<u16>,
+        },
+        /// Operator-only: publish an exact candidate from fresh retained checks.
+        /// Performs no provider I/O and creates no new read allocation.
+        CandidatePublish {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            candidate: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Author a native content read call from private resource arguments.
+        /// No proof, approval, custody lease or provider entry is created.
+        EffectContentCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// Private JSON object containing only declared resource arguments.
+            #[arg(long)]
+            resource_arguments: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            call_out: PathBuf,
+        },
+        /// Author a native disclosure call from retained source provenance and
+        /// a private recipient proposal. Does not reserve or release content.
+        EffectDisclosureCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            target: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            call_out: PathBuf,
+        },
+        /// Author the exact private call for an independently authorized
+        /// recovery read. No proof, approval, reservation or entry is created.
+        EffectRecoveryCall {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            source_operation: String,
+            #[arg(long)]
+            recovery_operation: String,
+        },
+        /// Attach an external reviewer's Ed25519 signature to native signing
+        /// data. Submission still verifies installed trust, binding and time.
+        EffectApproval {
+            #[arg(long)]
+            request: PathBuf,
+            #[arg(long)]
+            signature_hex: String,
+        },
         /// Operator-only install; credential bytes enter through stdin. The
-        /// first host inserts the shared connection record; each further host
-        /// joins it with `--join` and the same secret.
+        /// first host stages recipes with reads for independent approval and
+        /// publication; each further host joins published state with `--join`.
         Install {
             #[arg(long)]
             state_dir: PathBuf,
@@ -169,6 +335,9 @@ mod unix {
             profile_lock: PathBuf,
             #[arg(long)]
             trusted_context: PathBuf,
+            /// Canonical operator-selected effect policy (partition, epoch, approver).
+            #[arg(long)]
+            effect_policy: PathBuf,
             #[arg(long)]
             approve_digest: String,
             #[arg(long)]
@@ -224,12 +393,6 @@ mod unix {
             attempt_store: Option<PathBuf>,
             #[command(flatten)]
             qualification: QualificationOptions,
-            /// Development builds only: send the onboarding credential reads
-            /// of a first install to a plain-HTTP provider double on
-            /// 127.0.0.1:<port>.
-            #[cfg(feature = "loopback-provider")]
-            #[arg(long, conflicts_with = "join")]
-            loopback_provider: Option<u16>,
         },
         /// Serve a restricted application socket and private admin socket.
         /// A Unix socket path holds at most 103 bytes on macOS and 107 on
@@ -323,6 +486,9 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+            /// Canonical native exact-effect approval from the authorized reviewer.
+            #[arg(long)]
+            approval: PathBuf,
         },
         /// Ask the private operator socket to disable new writes in every
         /// process sharing the store.
@@ -401,6 +567,9 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+            /// Canonical native exact-effect approval from the authorized reviewer.
+            #[arg(long)]
+            approval: PathBuf,
             /// Optional new owner-private file of bounded, secret-free counter
             /// snapshots. Read-only diagnostics; never a remote effect claim.
             #[arg(long)]
@@ -437,17 +606,31 @@ mod unix {
             #[arg(long)]
             admin_socket: Option<PathBuf>,
         },
-        /// Ask the private operator socket for one read-only re-observation
-        /// of a stored attempt.
-        Reobserve {
+        /// Acquire and refine one separately authorized bounded recovery read.
+        Recover {
             #[arg(long)]
             state_dir: PathBuf,
-            /// The admin socket `serve` was given with `--admin-socket`;
-            /// defaults to `<state-dir>/admin.sock`.
             #[arg(long)]
             admin_socket: Option<PathBuf>,
             #[arg(long)]
-            operation_id: String,
+            source_operation: String,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Refine from an existing acquisition response; performs no provider I/O.
+        RecoveryRecord {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            #[arg(long)]
+            source_operation: String,
+            #[arg(long)]
+            acquisition_operation: String,
         },
         /// Print the operator statement and the preimage the operator's own
         /// signer signs for `install --operator-attestation`. Prints no
@@ -459,6 +642,9 @@ mod unix {
             profile_lock: PathBuf,
             #[arg(long)]
             trusted_context: PathBuf,
+            /// Canonical operator-selected effect policy (partition, epoch, approver).
+            #[arg(long)]
+            effect_policy: PathBuf,
             #[arg(long)]
             provider: String,
             #[arg(long)]
@@ -507,7 +693,8 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
         },
-        /// Rotate the credential via the private operator socket and stdin.
+        /// Offline rotation for recipes without credential reads. Read-bearing
+        /// recipes use candidate-stage-rotation, candidate-acquire and candidate-publish.
         Rotate {
             #[arg(long)]
             state_dir: PathBuf,
@@ -522,7 +709,7 @@ mod unix {
             #[arg(long, default_value_t = false)]
             operator_process: bool,
         },
-        /// First phase of a two-phase rotation: store the new credential
+        /// Offline recipes only. First phase of a two-phase rotation: store the new credential
         /// from stdin without publishing it, and print its commitment.
         RotatePrepare {
             #[arg(long)]
@@ -538,7 +725,7 @@ mod unix {
             #[arg(long, default_value_t = false)]
             operator_process: bool,
         },
-        /// Second phase: publish the prepared credential the commitment
+        /// Offline recipes only. Second phase: publish the prepared credential the commitment
         /// names to every process sharing the store.
         RotateCommit {
             #[arg(long)]
@@ -568,13 +755,10 @@ mod unix {
         },
         /// Ask the app socket for one signed observation, or for one
         /// operation's stored pre-entry observations; never a write.
-        #[command(group(clap::ArgGroup::new("request").required(true).args(["read_back", "outcome", "pre_entry"])))]
+        #[command(group(clap::ArgGroup::new("request").required(true).args(["outcome", "pre_entry"])))]
         Observe {
             #[arg(long)]
             app_socket: PathBuf,
-            /// JSON object naming exactly the recipe observation path fields.
-            #[arg(long)]
-            read_back: Option<String>,
             /// Logical operation ID whose stored outcome to sign.
             #[arg(long)]
             outcome: Option<String>,
@@ -582,6 +766,72 @@ mod unix {
             /// return; nothing is signed.
             #[arg(long)]
             pre_entry: Option<String>,
+        },
+        /// Acquire/refine separately approved evidence through the application socket.
+        AppRecover {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            source_operation: String,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Acquire approved content; returns facts only, never plaintext.
+        ContentAcquire {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+        },
+        /// Inspect retained content/disclosure facts without external I/O.
+        ContentHistory {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            operation: String,
+        },
+        /// Record an exact previously received ACK without redelivery.
+        DisclosureAcknowledge {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            operation: String,
+            #[arg(long)]
+            acknowledgement: PathBuf,
+        },
+        /// Receive on the native authenticated channel, save private content and
+        /// late-ACK evidence, then send the ACK. Does not claim durable ACK storage.
+        DisclosureReceive {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            target: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            #[arg(long)]
+            approval: PathBuf,
+            /// Exact private binding from the trusted native review channel.
+            #[arg(long)]
+            expected_binding: PathBuf,
+            #[arg(long)]
+            expected_bytes: u64,
+            /// Raw 32-byte Ed25519 seed through non-interactive stdin only.
+            #[arg(long, required = true)]
+            recipient_seed_stdin: bool,
+            #[arg(long)]
+            content_out: PathBuf,
+            #[arg(long)]
+            acknowledgement_out: PathBuf,
         },
         /// Check offline whether a provider record holds one action's echo
         /// token. Reads no network and no gateway state; exits 0 only on a
@@ -701,6 +951,7 @@ mod unix {
         recipe_digest: String,
         profile_lock_sha256: String,
         trusted_context_sha256: String,
+        effect_policy: auths_gateway::effect::EffectPolicy,
         provider: String,
         alias: String,
         deployment: Deployment,
@@ -926,6 +1177,7 @@ mod unix {
                 recipe_digest: self.recipe_digest.clone(),
                 profile_lock_sha256: self.profile_lock_sha256.clone(),
                 trusted_context_sha256: self.trusted_context_sha256.clone(),
+                effect_policy: self.effect_policy.clone(),
                 provider: self.provider.clone(),
                 alias: self.alias.clone(),
                 deployment: self.deployment.label().to_owned(),
@@ -948,6 +1200,8 @@ mod unix {
         execution_witness: Option<auths_gateway::GatewayExecutionWitness>,
         #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<GatewaySubmitResult>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        recovery: Option<auths_gateway::GatewayRecoveryReport>,
         /// The reference commitment of a prepared successor. It names the
         /// stored secret without revealing it or where it is kept.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -988,6 +1242,7 @@ mod unix {
                 status: None,
                 execution_witness: None,
                 result: None,
+                recovery: None,
                 commitment: None,
                 qualification: None,
             }
@@ -1151,37 +1406,6 @@ mod unix {
         Ok(bytes)
     }
 
-    /// Runs every credential check the recipe declares on the candidate
-    /// secret before anything is stored: the prefix, the probe, the account
-    /// read against the operator's label, and the denied reads.
-    async fn checked_install_credential(
-        recipe: &CompiledRecipe,
-        mut candidate: Zeroizing<Vec<u8>>,
-        account_label: &str,
-        loopback_provider: Option<u16>,
-    ) -> Result<SecretBytes, &'static str> {
-        let account = OnboardingAccount::Label(account_label);
-        let review = recipe.review();
-        let requirement = review.credential();
-        let checked = match loopback_provider {
-            #[cfg(feature = "loopback-provider")]
-            Some(port) => {
-                auths_gateway::check_candidate_credential_loopback(
-                    recipe,
-                    requirement,
-                    &candidate,
-                    account,
-                    port,
-                )
-                .await
-            }
-            _ => check_candidate_credential(recipe, requirement, &candidate, account).await,
-        };
-        checked.map_err(OnboardingFailure::install_code)?;
-        SecretBytes::new(std::mem::take(&mut *candidate))
-            .map_err(|_| "gateway.install.invalid-credential")
-    }
-
     /// Verifies an operator attestation against the installation it must
     /// name, and requires the authenticated operator to pass separation by
     /// key from every root and observer of the trust.
@@ -1228,6 +1452,7 @@ mod unix {
         recipe_path: PathBuf,
         lock_path: PathBuf,
         context_path: PathBuf,
+        effect_policy_path: PathBuf,
         approved: String,
         provider_text: String,
         alias_text: String,
@@ -1240,7 +1465,6 @@ mod unix {
         attempt_store: Option<PathBuf>,
         credential_store: CredentialStoreSettings,
         qualification: QualificationOptions,
-        loopback_provider: Option<u16>,
     ) -> Result<(), Failure> {
         // The store choice is checked before anything is read or written.
         auths_gateway::credential_store_policy(
@@ -1255,6 +1479,7 @@ mod unix {
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
         let trust = read_bounded(&context_path, 4 * 1024 * 1024)?;
+        let effect_policy = read_effect_policy(&effect_policy_path)?;
         let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.install.invalid-trusted-context")?;
         check_anchor_aliasing(&context).map_err(PrincipalSeparationError::code)?;
@@ -1282,6 +1507,7 @@ mod unix {
             recipe_digest: approved,
             profile_lock_sha256: digest(&lock),
             trusted_context_sha256: digest(&trust),
+            effect_policy,
             provider: provider_text,
             alias: alias_text,
             deployment,
@@ -1302,14 +1528,18 @@ mod unix {
             }
             (None, Deployment::Development) => None,
         };
-        let candidate = read_install_credential()?;
+        let mut candidate = read_install_credential()?;
+        if !recipe.credential_prefix_matches(&candidate) {
+            return Err("gateway.install.credential-guard".into());
+        }
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed".into());
         }
         let attempts = {
             let store_path = store_path.clone();
-            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path))
+            let policy = manifest.effect_policy.clone();
+            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path, policy))
                 .await
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
@@ -1324,9 +1554,58 @@ mod unix {
             "gateway.install.credential-store-unavailable",
             CredentialAccess::Operator,
         )?;
-        // Retain authenticated cleanup inputs before any custody write. A
-        // pending install has no generation floor and cannot admit a lease.
-        // Explicit store-only revocation can still make its journal collectible.
+        // Retain the exact private initial draft before manifest/custody. An
+        // explicit staging retry reuses its connection ID and timestamps.
+        let draft = if join {
+            None
+        } else {
+            let label = account_label.ok_or("gateway.install.invalid-account-label")?;
+            if label.is_empty() || label.len() > 256 {
+                return Err("gateway.install.invalid-account-label".into());
+            }
+            let id =
+                ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
+            let profile = ConnectionProfile::new(
+                SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
+                2,
+            )
+            .map_err(|_| "gateway.install.profile")?;
+            let mut account_hash = Sha256::new();
+            account_hash.update(b"auths.gateway-account/1\0");
+            account_hash.update(label.as_bytes());
+            let timestamp = now()?;
+            Some(
+                ConnectionRecord::new(
+                    provider.clone(),
+                    alias.clone(),
+                    id,
+                    SemanticId::parse("auths.gateway-operation/1")
+                        .map_err(|_| "gateway.install.contract")?,
+                    SemanticId::parse("auths.gateway-connection-descriptor/1")
+                        .map_err(|_| "gateway.install.descriptor-schema")?,
+                    descriptor,
+                    account_hash.finalize().into(),
+                    [0; 32],
+                    NonZeroU64::MIN,
+                    ConnectionState::Active,
+                    vec!["gateway".to_owned()],
+                    vec![profile],
+                    timestamp,
+                    timestamp,
+                    None,
+                )
+                .map_err(|_| "gateway.install.connection-invalid")?,
+            )
+        };
+        if let Some(draft) = &draft {
+            private_file(
+                &state_dir.join(INSTALL_DRAFT_FILE),
+                &draft
+                    .to_canonical_cbor()
+                    .map_err(|_| "gateway.install.connection-invalid")?,
+            )?;
+        }
+        // Retain authenticated cleanup inputs before any custody write.
         private_file(&state_dir.join("recipe.json"), &source)?;
         private_file(&state_dir.join("profile.lock.json"), &lock)?;
         private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
@@ -1339,64 +1618,59 @@ mod unix {
         let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
             .map_err(|_| "gateway.install.manifest-invalid")?;
         private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
-        let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
+        let shared = SharedConnection::new(attempts.store(), provider, alias);
+        let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
         if join {
-            join_connection(&shared, &*credentials, &recipe, &candidate).await?;
+            join_connection(&shared, &journal, &*credentials, &recipe, &candidate).await?;
         } else {
-            let account_label = account_label.ok_or("gateway.install.invalid-account-label")?;
-            if account_label.is_empty() || account_label.len() > 256 {
-                return Err("gateway.install.invalid-account-label".into());
+            let draft = draft.ok_or("gateway.install.connection-invalid")?;
+            if !recipe
+                .credential_reads()
+                .map_err(|_| "gateway.install.invalid-descriptor")?
+                .is_empty()
+            {
+                let proposal = state_dir.join(INSTALL_PROPOSAL_FILE);
+                stage_installation(&state_dir, candidate, &proposal).await?;
+                println!(
+                    "installation candidate staged; approve checks and publish before serving"
+                );
+                return Ok(());
             }
-            let secret =
-                checked_install_credential(&recipe, candidate, &account_label, loopback_provider)
-                    .await?;
-            let connection_id =
-                ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
-            let profile = ConnectionProfile::new(
-                SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
-                2,
-            )
-            .map_err(|_| "gateway.install.profile")?;
-            let mut account_hash = Sha256::new();
-            account_hash.update(b"auths.gateway-account/1\0");
-            account_hash.update(account_label.as_bytes());
-            let account_commitment: [u8; 32] = account_hash.finalize().into();
-            let timestamp = now()?;
-            let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
-            let id = connection_id.clone();
+            let notes = journal.clone();
+            let id = draft.connection_id().clone();
             tokio::task::spawn_blocking(move || {
-                journal.initialize(&id)?;
-                journal.register(&id, NonZeroU64::MIN)
+                notes.initialize(&id)?;
+                notes.register(&id, NonZeroU64::MIN)
             })
             .await
             .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-            let record_id = connection_id.clone();
+            let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+                .map_err(|_| "gateway.install.invalid-credential")?;
             install_connection(
+                &recipe,
                 &shared,
                 &*credentials,
-                move |reference| {
+                |reference| {
                     ConnectionRecord::new(
-                        provider,
-                        alias,
-                        record_id,
-                        SemanticId::parse("auths.gateway-operation/1")
-                            .map_err(|_| "gateway.install.contract")?,
-                        SemanticId::parse("auths.gateway-connection-descriptor/1")
-                            .map_err(|_| "gateway.install.descriptor-schema")?,
-                        descriptor,
-                        account_commitment,
+                        draft.provider_kind().clone(),
+                        draft.alias().clone(),
+                        draft.connection_id().clone(),
+                        draft.contract().clone(),
+                        draft.descriptor_schema().clone(),
+                        draft.descriptor().to_vec(),
+                        *draft.account_commitment(),
                         reference,
-                        NonZeroU64::MIN,
-                        ConnectionState::Active,
-                        vec!["gateway".to_owned()],
-                        vec![profile],
-                        timestamp,
-                        timestamp,
+                        draft.generation(),
+                        draft.state(),
+                        draft.allowed_workloads().to_vec(),
+                        draft.allowed_profiles().to_vec(),
+                        draft.created_at_unix_seconds(),
+                        draft.updated_at_unix_seconds(),
                         None,
                     )
                     .map_err(|_| "gateway.install.connection-invalid")
                 },
-                &connection_id,
+                draft.connection_id(),
                 secret,
             )
             .await?;
@@ -1406,21 +1680,19 @@ mod unix {
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")?
             .ok_or("gateway.install.connection-store-unavailable")?;
-        if join {
-            let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
-            let record = installed.record().clone();
-            tokio::task::spawn_blocking(move || {
-                journal.initialize(record.connection_id())?;
-                journal.register(record.connection_id(), record.credential_generation())
-            })
-            .await
-            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-        }
         let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
         let record = installed.record().clone();
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
+        let initializing = state_dir.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), Failure> {
+            load_engine(&initializing)?
+                .initialize_effect_configuration()
+                .map_err(Failure::from)
+        })
+        .await
+        .map_err(|_| "gateway.configuration.unavailable")??;
         println!(
             "{} recipe {} with separate gateway credential custody",
             if join { "joined" } else { "installed" },
@@ -1739,7 +2011,11 @@ mod unix {
         let bundle =
             qualification_bundle(from).map_err(|code| Failure::at(code, from, "unreadable"))?;
         let candidate = QualificationGate::new(
-            QualificationPolicy::Required,
+            qualification_policy(
+                Some(&manifest.qualification.policy),
+                production_qualification(manifest.deployment),
+            )
+            .map_err(|_| "gateway.serve.invalid-installation")?,
             qualification_root(state_dir, &manifest)?,
             qualification_deployment(state_dir, &manifest),
             Box::new(DevelopmentClock),
@@ -1757,6 +2033,7 @@ mod unix {
         // What the new inputs establish is recorded before they replace the
         // old ones. If the replacement then fails, the old inputs meet a
         // floor they are below and nothing qualifies.
+        load_engine(state_dir)?.publish_effect_qualification(&candidate)?;
         write_verifier_state(state_dir, &candidate.verifier_state())?;
         let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
         let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
@@ -1840,11 +2117,20 @@ mod unix {
         }
     }
 
+    fn read_effect_policy(
+        path: &Path,
+    ) -> Result<auths_gateway::effect::EffectPolicy, &'static str> {
+        let bytes = read_bounded(path, auths_gateway::effect::MAX_EFFECT_POLICY_BYTES)?;
+        auths_gateway::effect::EffectPolicy::from_private_bytes(&bytes)
+            .map_err(|_| "gateway.install.invalid-effect-policy")
+    }
+
     fn installation(state_dir: &Path) -> Result<Installation, &'static str> {
         let manifest_bytes = read_bounded(&state_dir.join("installation.json"), 4_096)?;
         let manifest: Installation = serde_json::from_slice(&manifest_bytes)
             .map_err(|_| "gateway.serve.invalid-installation")?;
-        if manifest.schema != MANIFEST_SCHEMA
+        if manifest.effect_policy.to_private_bytes().is_err()
+            || manifest.schema != MANIFEST_SCHEMA
             || serde_json_canonicalizer::to_vec(&manifest)
                 .map_err(|_| "gateway.serve.invalid-installation")?
                 != manifest_bytes
@@ -1862,22 +2148,27 @@ mod unix {
     fn open_attempts(
         deployment: Deployment,
         store_path: Option<PathBuf>,
+        policy: auths_gateway::effect::EffectPolicy,
     ) -> Result<GatewayAttempts, &'static str> {
-        Ok(GatewayAttempts::new(match (deployment, store_path) {
-            (Deployment::Development, Some(path)) => Arc::new(
-                FileGatewayAttemptStore::open(path)
-                    .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
-            ),
-            (Deployment::Production, None) => {
-                let configuration = PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
-                    .map_err(|_| "gateway.serve.postgres-configuration")?;
-                Arc::new(PostgresGatewayAttemptStore::new(Arc::new(
-                    PostgresLifecycleStore::connect(configuration)
+        GatewayAttempts::new(
+            match (deployment, store_path) {
+                (Deployment::Development, Some(path)) => Arc::new(
+                    FileGatewayAttemptStore::open(path)
                         .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
-                )))
-            }
-            _ => return Err("gateway.serve.invalid-installation"),
-        }))
+                ),
+                (Deployment::Production, None) => {
+                    let configuration = PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
+                        .map_err(|_| "gateway.serve.postgres-configuration")?;
+                    Arc::new(PostgresGatewayAttemptStore::new(Arc::new(
+                        PostgresLifecycleStore::connect(configuration)
+                            .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
+                    )))
+                }
+                _ => return Err("gateway.serve.invalid-installation"),
+            },
+            policy,
+        )
+        .map_err(|_| "gateway.serve.invalid-effect-policy")
     }
 
     /// The store connections `serve` may hold: the `PostgreSQL` pool's
@@ -1967,6 +2258,7 @@ mod unix {
             recipe,
             approved,
             &trust,
+            manifest.effect_policy.clone(),
             ProviderKind::parse(manifest.provider.clone())
                 .map_err(|_| "gateway.serve.invalid-provider")?,
             ConnectionAlias::parse(manifest.alias.clone())
@@ -1983,6 +2275,7 @@ mod unix {
             open_attempts(
                 manifest.deployment,
                 manifest.attempt_store.as_ref().map(PathBuf::from),
+                manifest.effect_policy.clone(),
             )?,
         )
         .map_err(|_| "gateway.serve.invalid-installation")?;
@@ -2083,7 +2376,14 @@ mod unix {
         RotateCommit([u8; 32]),
         Status,
         ExecutionWitness,
-        Reobserve(String),
+        Recover {
+            source_operation: String,
+            submission: Box<auths_gateway::app::DecodedSubmission>,
+        },
+        RecoveryRecord {
+            source_operation: String,
+            acquisition_operation: String,
+        },
         QualificationReload,
     }
 
@@ -2093,10 +2393,12 @@ mod unix {
         clock: &SessionClock,
         stream: &mut UnixStream,
     ) -> Result<AdminCommand, &'static str> {
-        let bytes = clock
-            .read_frame(stream)
-            .await
-            .map_err(|_| "gateway.admin.invalid-frame")?;
+        let bytes = Zeroizing::new(
+            clock
+                .read_frame_limited(stream, MAX_ADMIN_REQUEST_BYTES)
+                .await
+                .map_err(|_| "gateway.admin.invalid-frame")?,
+        );
         match parse_admin_request(&bytes)? {
             AdminRequestCommand::Disable {} => Ok(AdminCommand::Disable),
             AdminRequestCommand::Enable {} => Ok(AdminCommand::Enable),
@@ -2104,9 +2406,22 @@ mod unix {
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
             AdminRequestCommand::ExecutionWitness {} => Ok(AdminCommand::ExecutionWitness),
             AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
-            AdminRequestCommand::Reobserve { operation_id } => {
-                Ok(AdminCommand::Reobserve(operation_id))
+            AdminRequestCommand::Recover { source_operation } => {
+                let frame = Zeroizing::new(clock.read_frame(stream).await?);
+                let submission: AppSubmission =
+                    serde_json::from_slice(&frame).map_err(|_| "gateway.admin.invalid-frame")?;
+                Ok(AdminCommand::Recover {
+                    source_operation,
+                    submission: Box::new(submission.decode()?),
+                })
             }
+            AdminRequestCommand::RecoveryRecord {
+                source_operation,
+                acquisition_operation,
+            } => Ok(AdminCommand::RecoveryRecord {
+                source_operation,
+                acquisition_operation,
+            }),
             AdminRequestCommand::Rotate {} => read_admin_secret(clock, stream)
                 .await
                 .map(AdminCommand::Rotate),
@@ -2194,28 +2509,44 @@ mod unix {
                     ..AdminResponse::refused("gateway.admin.execution-witness")
                 },
                 Ok(AdminCommand::QualificationReload) => {
-                    let reloading = Arc::clone(&engine);
-                    let directory = Arc::clone(&state_dir);
-                    let reloaded = tokio::task::spawn_blocking(move || {
-                        qualification_reload(&directory, reloading.qualification())
-                    })
-                    .await;
-                    match reloaded {
-                        Ok(Ok(())) => AdminResponse {
+                    reload_admin_qualification(&engine, &state_dir).await
+                }
+                Ok(AdminCommand::Recover {
+                    source_operation,
+                    submission,
+                }) => {
+                    match engine
+                        .recover(
+                            &source_operation,
+                            &submission.proof,
+                            &submission.action,
+                            submission.approval,
+                        )
+                        .await
+                    {
+                        Ok(snapshot) => AdminResponse {
                             ok: true,
-                            qualification: Some(QualificationReport::of(engine.qualification())),
-                            ..AdminResponse::refused("gateway.admin.qualification-reloaded")
+                            recovery: Some(snapshot.report()),
+                            ..AdminResponse::refused("gateway.admin.recovered")
                         },
-                        Ok(Err(code)) => AdminResponse::refused(code),
-                        Err(_) => AdminResponse::refused("gateway.qualification.unavailable"),
+                        Err(result) => AdminResponse {
+                            result: Some(result),
+                            ..AdminResponse::refused("gateway.admin.recovery-refused")
+                        },
                     }
                 }
-                Ok(AdminCommand::Reobserve(operation_id)) => {
-                    match engine.reobserve(&operation_id).await {
-                        Ok(result) => AdminResponse {
+                Ok(AdminCommand::RecoveryRecord {
+                    source_operation,
+                    acquisition_operation,
+                }) => {
+                    match engine
+                        .refine_recovery(&source_operation, &acquisition_operation)
+                        .await
+                    {
+                        Ok(snapshot) => AdminResponse {
                             ok: true,
-                            result: Some(result),
-                            ..AdminResponse::refused("gateway.admin.reobserved")
+                            recovery: Some(snapshot.report()),
+                            ..AdminResponse::refused("gateway.admin.recovery-recorded")
                         },
                         Err(code) => AdminResponse::refused(code),
                     }
@@ -2223,10 +2554,33 @@ mod unix {
                 Err(code) => AdminResponse::refused(code),
             }
         };
-        if let Some((mut stream, response)) = clock.complete(stream, change).await
+        if let Some((mut stream, response)) = Box::pin(clock.complete(stream, change)).await
             && let Ok(bytes) = serde_json::to_vec(&response)
         {
             let _ = clock.write_frame(&mut stream, &bytes).await;
+        }
+    }
+
+    async fn reload_admin_qualification(
+        engine: &Arc<GatewayEngine>,
+        state_dir: &Arc<PathBuf>,
+    ) -> AdminResponse {
+        let reloading = Arc::clone(engine);
+        let directory = Arc::clone(state_dir);
+        let reloaded = tokio::task::spawn_blocking(move || {
+            let local = qualification_reload(&directory, reloading.qualification());
+            reloading.publish_effect_qualification(reloading.qualification())?;
+            local
+        })
+        .await;
+        match reloaded {
+            Ok(Ok(())) => AdminResponse {
+                ok: true,
+                qualification: Some(QualificationReport::of(engine.qualification())),
+                ..AdminResponse::refused("gateway.admin.qualification-reloaded")
+            },
+            Ok(Err(code)) => AdminResponse::refused(code),
+            Err(_) => AdminResponse::refused("gateway.qualification.unavailable"),
         }
     }
 
@@ -2400,7 +2754,7 @@ mod unix {
                 let engine = Arc::clone(&app_engine);
                 async move {
                     let _permit = permit;
-                    app_session(stream, engine.as_ref()).await;
+                    Box::pin(app_session(stream, engine.as_ref())).await;
                 }
             },
         );
@@ -2415,7 +2769,7 @@ mod unix {
                 let state_dir = Arc::clone(&admin_state_dir);
                 async move {
                     let _permit = permit;
-                    admin_session(stream, engine, state_dir).await;
+                    Box::pin(admin_session(stream, engine, state_dir)).await;
                 }
             },
         );
@@ -2745,15 +3099,16 @@ mod unix {
         engine: &GatewayEngine,
         proof: &[u8],
         action: &[u8],
+        approval: auths_gateway::effect::ExactEffectApproval,
         witness_file: Option<&Path>,
         before: &auths_gateway::GatewayExecutionWitness,
     ) -> Result<(GatewaySubmitResult, Option<&'static str>), Failure> {
         let Some(path) = witness_file else {
-            return Ok((session.submit(proof, action).await, None));
+            return Ok((session.submit(proof, action, approval).await, None));
         };
         let mut witness = CommissioningWitnessFile::open(path)?;
         witness.record(before.clone())?;
-        let submission = session.submit(proof, action);
+        let submission = session.submit(proof, action, approval);
         tokio::pin!(submission);
         let mut interval = tokio::time::interval(Duration::from_millis(10));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -2777,7 +3132,7 @@ mod unix {
     /// Direct operator process; ordinary application handlers never call this.
     async fn commissioning(
         options: &CommissioningOptions,
-        command: Option<(&Path, &Path)>,
+        command: Option<(&Path, &Path, &Path)>,
         witness_file: Option<&Path>,
     ) -> Result<(), Failure> {
         use auths_recipe_qualification::{
@@ -2830,7 +3185,8 @@ mod unix {
                     "{{\"outcome\":\"commissioning-registered\",\"qualification\":\"required\"}}"
                 );
             }
-            Some((proof, action)) => {
+            Some((proof, action, approval)) => {
+                let approval = read_effect_approval(approval)?;
                 let proof = read_bounded(proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(action, 64 * 1024)?;
                 let before = engine.execution_witness();
@@ -2839,6 +3195,7 @@ mod unix {
                     &engine,
                     &proof,
                     &action,
+                    approval,
                     witness_file,
                     &before,
                 )
@@ -2862,13 +3219,195 @@ mod unix {
         Ok(())
     }
 
-    async fn submit(socket: PathBuf, proof: PathBuf, action: PathBuf) -> Result<(), Failure> {
+    fn read_effect_approval(
+        path: &Path,
+    ) -> Result<auths_gateway::effect::ExactEffectApproval, &'static str> {
+        let bytes = read_bounded(path, auths_gateway::effect::MAX_EFFECT_APPROVAL_BYTES)?;
+        auths_gateway::effect::ExactEffectApproval::from_private_bytes(&bytes)
+            .map_err(|_| "gateway.effect.approval")
+    }
+
+    async fn stage_installation(
+        state_dir: &Path,
+        candidate: Zeroizing<Vec<u8>>,
+        proposal_out: &Path,
+    ) -> Result<(), Failure> {
+        if !proposal_out.is_absolute() || proposal_out.exists() {
+            return Err("gateway.state.file-exists-or-unavailable".into());
+        }
+        private_root(state_dir)?;
+        let path = state_dir.join(INSTALL_DRAFT_FILE);
+        let metadata = fs::symlink_metadata(&path).map_err(|_| "gateway.state.invalid-path")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let bytes = Zeroizing::new(read_bounded(
+            &path,
+            auths_gateway::effect::MAX_EFFECT_BYTES,
+        )?);
+        let draft = ConnectionRecord::from_canonical_cbor(&bytes)
+            .map_err(|_| "gateway.install.connection-invalid")?;
+        let loading = state_dir.to_path_buf();
+        let engine = tokio::task::spawn_blocking(move || -> Result<GatewayEngine, Failure> {
+            let engine = load_engine_for(&loading, CredentialAccess::Operator)?;
+            engine.initialize_effect_configuration()?;
+            Ok(engine)
+        })
+        .await
+        .map_err(|_| "gateway.configuration.unavailable")??;
+        let proposal = engine
+            .stage_candidate_installation(&draft, candidate)
+            .await?;
+        private_file(
+            proposal_out,
+            &Zeroizing::new(
+                proposal
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.review-refused")?,
+            ),
+        )?;
+        Ok(())
+    }
+
+    fn read_candidate(
+        state_dir: &Path,
+        path: &Path,
+    ) -> Result<auths_gateway::effect::CandidateCredentialTarget, Failure> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| "gateway.state.invalid-path")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let recipe = installed_recipe(state_dir)?;
+        let bytes = Zeroizing::new(read_bounded(path, auths_gateway::effect::MAX_EFFECT_BYTES)?);
+        auths_gateway::effect::CandidateCredentialTarget::from_private_bytes(&recipe, &bytes)
+            .map_err(|_| "gateway.effect.review-refused".into())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn effect_review(
+        state_dir: PathBuf,
+        recovery_of: Option<String>,
+        candidate: Option<PathBuf>,
+        content: bool,
+        disclosure: Option<PathBuf>,
+        binding_out: Option<PathBuf>,
+        proof: PathBuf,
+        action: PathBuf,
+        not_before: u64,
+        expires_at: u64,
+        request_out: PathBuf,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        if !request_out.is_absolute() {
+            return Err("gateway.state.invalid-path".into());
+        }
+        if binding_out
+            .as_ref()
+            .is_some_and(|path| !path.is_absolute() || path.exists())
+        {
+            return Err("gateway.state.file-exists-or-unavailable".into());
+        }
+        let disclosure = disclosure
+            .as_ref()
+            .map(|path| read_disclosure_target(path))
+            .transpose()?;
+        let candidate = candidate
+            .as_ref()
+            .map(|path| read_candidate(&state_dir, path))
+            .transpose()?;
+        let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
+            .await
+            .map_err(|_| "gateway.effect.unavailable")??;
+        let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&action, 64 * 1024)?;
+        let effect = match (recovery_of, candidate, content, disclosure) {
+            (Some(source), None, false, None) => {
+                engine
+                    .compile_recovery_effect(&source, &proof, &action)
+                    .await
+            }
+            (None, Some(target), false, None) => {
+                engine
+                    .compile_candidate_effect(&target, &proof, &action)
+                    .await
+            }
+            (None, None, false, None) => engine.compile_effect(&proof, &action).await,
+            (None, None, true, None) => engine.compile_content_action(&proof, &action).await,
+            (None, None, false, Some(proposal)) => {
+                let target = proposal
+                    .resolve(&engine)
+                    .await
+                    .map_err(|_| "gateway.effect.review-refused")?;
+                engine
+                    .compile_disclosure_effect(&target, &proof, &action)
+                    .await
+            }
+            _ => return Err("gateway.effect.review-refused".into()),
+        }
+        .map_err(|_| "gateway.effect.review-refused")?;
+        let request = effect
+            .approval_request(not_before, expires_at)
+            .map_err(|_| "gateway.effect.approval")?;
+        let review = effect
+            .private_review()
+            .map_err(|_| "gateway.effect.review-refused")?;
+        let rendered_review = review
+            .render_literal(auths_gateway::effect::LITERAL_REVIEW_RENDERER)
+            .map_err(|_| "gateway.effect.review-refused")?;
+        let signing_message = request
+            .signing_message()
+            .map_err(|_| "gateway.effect.approval")?;
+        let output = Zeroizing::new(
+            serde_json_canonicalizer::to_vec(&serde_json::json!({
+                "schema": "auths.private-effect-signing/2",
+                "renderer": auths_gateway::effect::LITERAL_REVIEW_RENDERER,
+                "literal_review": rendered_review.as_str(),
+                "approval_request": request,
+                "signing_message_hex": hex::encode(signing_message),
+            }))
+            .map_err(|_| "gateway.output")?,
+        );
+        if output.len() > auths_gateway::effect::MAX_PRIVATE_EFFECT_REVIEW_BYTES {
+            return Err("gateway.effect.review-refused".into());
+        }
+        std::io::stdout()
+            .write_all(&output)
+            .and_then(|()| std::io::stdout().flush())
+            .map_err(|_| "gateway.output")?;
+        if let Some(path) = binding_out {
+            private_file(
+                &path,
+                &effect
+                    .binding()
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.review-refused")?,
+            )?;
+        }
+        private_file(
+            &request_out,
+            &request
+                .to_private_bytes()
+                .map_err(|_| "gateway.effect.approval")?,
+        )?;
+        Ok(())
+    }
+
+    async fn submit(
+        socket: PathBuf,
+        proof: PathBuf,
+        action: PathBuf,
+        approval: PathBuf,
+    ) -> Result<(), Failure> {
+        let approval = read_effect_approval(&approval)?
+            .to_private_bytes()
+            .map_err(|_| "gateway.effect.approval")?;
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
         let request = AppSubmission {
             schema: APP_REQUEST_SCHEMA.to_owned(),
             proof_b64: Base64UrlUnpadded::encode_string(&proof),
             action_b64: Base64UrlUnpadded::encode_string(&action),
+            approval_b64: Base64UrlUnpadded::encode_string(&approval),
         };
         let bytes = serde_json::to_vec(&request).map_err(|_| "gateway.submit.encoding-failed")?;
         let mut stream = connect_app_socket(&socket, "gateway.submit.socket-unavailable").await?;
@@ -2883,19 +3422,203 @@ mod unix {
         Ok(())
     }
 
+    fn content_submission(
+        proof: &Path,
+        action: &Path,
+        approval: &Path,
+    ) -> Result<AppSubmission, Failure> {
+        let submission = AppSubmission {
+            schema: APP_REQUEST_SCHEMA.to_owned(),
+            proof_b64: Base64UrlUnpadded::encode_string(&Zeroizing::new(read_bounded(
+                proof,
+                4 * 1024 * 1024,
+            )?)),
+            action_b64: Base64UrlUnpadded::encode_string(&Zeroizing::new(read_bounded(
+                action,
+                64 * 1024,
+            )?)),
+            approval_b64: Base64UrlUnpadded::encode_string(
+                &read_effect_approval(approval)?
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.approval")?,
+            ),
+        };
+        submission.decode()?;
+        Ok(submission)
+    }
+
+    fn read_disclosure_target(
+        path: &Path,
+    ) -> Result<auths_gateway::app::AppDisclosureTarget, Failure> {
+        let metadata = fs::symlink_metadata(path).map_err(|_| "gateway.state.invalid-path")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.state.invalid-path".into());
+        }
+        serde_json::from_slice(&Zeroizing::new(read_bounded(path, 4096)?))
+            .map_err(|_| "gateway.disclosure.binding".into())
+    }
+
+    async fn content_exchange(socket: &Path, request: &impl Serialize) -> Result<(), Failure> {
+        let bytes = Zeroizing::new(
+            serde_json::to_vec(request).map_err(|_| "gateway.submit.encoding-failed")?,
+        );
+        let mut stream = connect_app_socket(socket, "gateway.submit.socket-unavailable").await?;
+        let clock = auths_gateway::app::SessionClock::start(auths_gateway::app::APP_SESSION_LIMITS);
+        clock.write_frame(&mut stream, &bytes).await?;
+        let bytes = tokio::time::timeout(
+            auths_gateway::app::APP_SESSION_LIMITS.result_wait,
+            read_frame(&mut stream),
+        )
+        .await
+        .map_err(|_| "gateway.ipc.read-timeout")??;
+        let result: auths_gateway::app::AppContentResult =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.submit.invalid-response")?;
+        if matches!(result, auths_gateway::app::AppContentResult::Ready) {
+            return Err("gateway.submit.invalid-response".into());
+        }
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "typed CLI inputs remain explicit at the native recipient boundary"
+    )]
+    async fn receive_disclosure_cli(
+        socket: &Path,
+        target: &Path,
+        proof: &Path,
+        action: &Path,
+        approval: &Path,
+        expected_binding: &Path,
+        expected_bytes: u64,
+        seed_stdin: bool,
+        content_out: &Path,
+        acknowledgement_out: &Path,
+    ) -> Result<(), Failure> {
+        if !seed_stdin || std::io::stdin().is_terminal() || expected_bytes > 65_536 {
+            return Err("gateway.disclosure.authentication".into());
+        }
+        for path in [content_out, acknowledgement_out] {
+            if !path.is_absolute() || path.exists() {
+                return Err("gateway.state.file-exists-or-unavailable".into());
+            }
+        }
+        if content_out == acknowledgement_out {
+            return Err("gateway.state.invalid-path".into());
+        }
+        let mut seed = Zeroizing::new(Vec::new());
+        std::io::stdin()
+            .take(33)
+            .read_to_end(&mut seed)
+            .map_err(|_| "gateway.disclosure.authentication")?;
+        let key = ed25519_dalek::SigningKey::from_bytes(
+            seed.as_slice()
+                .try_into()
+                .map_err(|_| "gateway.disclosure.authentication")?,
+        );
+        let expected = auths_gateway::effect::EffectBinding::from_private_bytes(&Zeroizing::new(
+            read_bounded(expected_binding, auths_gateway::effect::MAX_EFFECT_BYTES)?,
+        ))
+        .map_err(|_| "gateway.disclosure.binding")?;
+        let request = auths_gateway::app::AppDisclosure {
+            schema: auths_gateway::app::APP_DISCLOSURE_SCHEMA.to_owned(),
+            target: read_disclosure_target(target)?,
+            submission: content_submission(proof, action, approval)?,
+        };
+        let stream = connect_app_socket(socket, "gateway.submit.socket-unavailable").await?;
+        match auths_gateway::app::receive_content_disclosure(
+            stream,
+            &request,
+            &expected,
+            expected_bytes,
+            &key,
+        )
+        .await?
+        {
+            auths_gateway::app::AppDisclosureReception::Received(received) => {
+                private_file(content_out, received.content())?;
+                let ack = received
+                    .acknowledgement(&key)?
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.disclosure.acknowledgement")?;
+                private_file(acknowledgement_out, &ack)?;
+                received.acknowledge(&key).await?;
+                println!(
+                    "{}",
+                    serde_json::json!({"outcome": "recipient-ack-sent", "received_bytes": expected_bytes})
+                );
+            }
+            auths_gateway::app::AppDisclosureReception::History(snapshot) => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&auths_gateway::app::AppContentResult::History {
+                        history: auths_gateway::ContentHistory::Disclosure(snapshot)
+                    })
+                    .map_err(|_| "gateway.output")?
+                );
+            }
+            auths_gateway::app::AppDisclosureReception::Refused(result) => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&auths_gateway::app::AppContentResult::Refused {
+                        result
+                    })
+                    .map_err(|_| "gateway.output")?
+                );
+            }
+        }
+        Ok(())
+    }
+
+    async fn app_recover(
+        socket: PathBuf,
+        source_operation: String,
+        proof: PathBuf,
+        action: PathBuf,
+        approval: PathBuf,
+    ) -> Result<(), Failure> {
+        let request = auths_gateway::app::AppRecovery {
+            schema: auths_gateway::app::APP_RECOVERY_SCHEMA.to_owned(),
+            source_operation,
+            submission: AppSubmission {
+                schema: APP_REQUEST_SCHEMA.to_owned(),
+                proof_b64: Base64UrlUnpadded::encode_string(&read_bounded(
+                    &proof,
+                    4 * 1024 * 1024,
+                )?),
+                action_b64: Base64UrlUnpadded::encode_string(&read_bounded(&action, 64 * 1024)?),
+                approval_b64: Base64UrlUnpadded::encode_string(&read_bounded(
+                    &approval,
+                    auths_gateway::effect::MAX_EFFECT_APPROVAL_BYTES,
+                )?),
+            },
+        };
+        request.decode()?;
+        let bytes = serde_json::to_vec(&request).map_err(|_| "gateway.submit.encoding-failed")?;
+        let mut stream = connect_app_socket(&socket, "gateway.submit.socket-unavailable").await?;
+        write_frame(&mut stream, &bytes).await?;
+        let response = read_frame(&mut stream).await?;
+        let result: serde_json::Value =
+            serde_json::from_slice(&response).map_err(|_| "gateway.submit.invalid-response")?;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.submit.invalid-response")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
-        read_back: Option<String>,
         outcome: Option<String>,
         pre_entry: Option<String>,
     ) -> Result<(), Failure> {
-        let request = match (read_back, outcome, pre_entry) {
-            (Some(arguments), None, None) => GatewayObserveRequest::ReadBack {
-                arguments: serde_json::from_str(&arguments)
-                    .map_err(|_| "gateway.observe.invalid-arguments")?,
-            },
-            (None, Some(operation_id), None) => GatewayObserveRequest::Outcome { operation_id },
-            (None, None, Some(operation_id)) => GatewayObserveRequest::PreEntry { operation_id },
+        let request = match (outcome, pre_entry) {
+            (Some(operation_id), None) => GatewayObserveRequest::Outcome { operation_id },
+            (None, Some(operation_id)) => GatewayObserveRequest::PreEntry { operation_id },
             _ => return Err("gateway.observe.invalid-request".into()),
         };
         let bytes = serde_json::to_vec(&AppObservation {
@@ -3065,6 +3788,7 @@ mod unix {
         let listed = open_attempts(
             manifest.deployment,
             manifest.attempt_store.as_ref().map(PathBuf::from),
+            manifest.effect_policy.clone(),
         )
         .ok()
         .and_then(|attempts| {
@@ -3108,9 +3832,11 @@ mod unix {
         let manifest = installation(state_dir)?;
         let deployment = manifest.deployment;
         let store_path = manifest.attempt_store.as_ref().map(PathBuf::from);
-        let attempts = tokio::task::spawn_blocking(move || open_attempts(deployment, store_path))
-            .await
-            .map_err(|_| "gateway.admin.connection-unavailable")??;
+        let policy = manifest.effect_policy.clone();
+        let attempts =
+            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path, policy))
+                .await
+                .map_err(|_| "gateway.admin.connection-unavailable")??;
         let shared = SharedConnection::new(
             attempts.store(),
             ProviderKind::parse(manifest.provider).map_err(|_| "gateway.serve.invalid-provider")?,
@@ -3208,6 +3934,7 @@ mod unix {
         recipe_path: &Path,
         lock_path: &Path,
         context_path: &Path,
+        effect_policy_path: &Path,
         provider: String,
         alias: String,
         deployment: Deployment,
@@ -3231,6 +3958,7 @@ mod unix {
                 recipe_digest: recipe.digest_hex(),
                 profile_lock_sha256: digest(&lock),
                 trusted_context_sha256: digest(&trust),
+                effect_policy: read_effect_policy(effect_policy_path)?,
                 provider,
                 alias,
                 deployment: deployment.label().to_owned(),
@@ -3530,11 +4258,321 @@ mod unix {
     )]
     pub async fn run() -> Result<(), Failure> {
         match Cli::parse().command {
+            Command::EffectConfigurationReview { state_dir } => {
+                private_root(&state_dir)?;
+                tokio::task::spawn_blocking(move || -> Result<(), Failure> {
+                    let engine = load_engine(&state_dir)?;
+                    let review = serde_json::json!({
+                        "schema": "auths.effect-configuration-review/1",
+                        "previous_revision_hex": hex::encode(engine.effect_configuration_revision()?),
+                        "candidate_hex": hex::encode(engine.effect_configuration_candidate()?),
+                        "installation": installation(&state_dir)?,
+                    });
+                    let bytes = serde_json_canonicalizer::to_vec(&review).map_err(|_| "gateway.configuration.unavailable")?;
+                    std::io::stdout().write_all(&bytes).map_err(|_| "gateway.configuration.unavailable")?;
+                    Ok(())
+                }).await.map_err(|_| "gateway.configuration.unavailable")??;
+                Ok(())
+            }
+            Command::EffectConfigurationActivate {
+                state_dir,
+                expected_revision,
+                expected_candidate,
+            } => {
+                private_root(&state_dir)?;
+                tokio::task::spawn_blocking(move || -> Result<(), Failure> {
+                    let parse = |text: &str| -> Result<[u8; 32], Failure> {
+                        let mut value = [0; 32];
+                        hex::decode_to_slice(text, &mut value)
+                            .map_err(|_| "gateway.configuration.invalid-review")?;
+                        Ok(value)
+                    };
+                    let revision = parse(&expected_revision)?;
+                    let candidate = parse(&expected_candidate)?;
+                    let engine = load_engine(&state_dir)?;
+                    if engine.effect_configuration_candidate()? != candidate {
+                        return Err("gateway.configuration.changed".into());
+                    }
+                    engine.activate_effect_configuration(revision)?;
+                    Ok(())
+                })
+                .await
+                .map_err(|_| "gateway.configuration.unavailable")??;
+                Ok(())
+            }
+            Command::CandidateStageInstallation {
+                state_dir,
+                credential_stdin,
+                proposal_out,
+            } => {
+                if !credential_stdin || std::io::stdin().is_terminal() {
+                    return Err("gateway.install.credential-must-be-piped-to-stdin".into());
+                }
+                stage_installation(&state_dir, read_install_credential()?, &proposal_out).await?;
+                println!("installation candidate staged; private proposal saved");
+                Ok(())
+            }
+            Command::CandidateStageRotation {
+                state_dir,
+                credential_stdin,
+                proposal_out,
+            } => {
+                if !credential_stdin || std::io::stdin().is_terminal() {
+                    return Err("gateway.admin.credential-must-be-piped-to-stdin".into());
+                }
+                if !proposal_out.is_absolute() || proposal_out.exists() {
+                    return Err("gateway.state.file-exists-or-unavailable".into());
+                }
+                let candidate = read_install_credential()?;
+                let engine = operator_engine(&state_dir).await?;
+                let proposal = engine.stage_candidate_rotation(candidate).await?;
+                private_file(
+                    &proposal_out,
+                    &proposal
+                        .to_private_bytes()
+                        .map_err(|_| "gateway.effect.review-refused")?,
+                )?;
+                println!("credential candidate staged; private proposal saved");
+                Ok(())
+            }
+            Command::EffectCandidateCall {
+                state_dir,
+                candidate,
+                operation,
+                call_out,
+            } => {
+                if !call_out.is_absolute() {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let target = read_candidate(&state_dir, &candidate)?;
+                let recipe = installed_recipe(&state_dir)?;
+                let operation = auths_gateway::LogicalOperationId::parse(&operation)
+                    .map_err(|_| "gateway.effect.review-refused")?;
+                let call = target
+                    .authorization_call(&recipe, &operation)
+                    .map_err(|_| "gateway.effect.review-refused")?;
+                let bytes = Zeroizing::new(
+                    serde_json_canonicalizer::to_vec(&call).map_err(|_| "gateway.output")?,
+                );
+                private_file(&call_out, &bytes)?;
+                println!(
+                    "private candidate call saved; native proof and exact approval still required"
+                );
+                Ok(())
+            }
+            Command::CandidateAcquire {
+                state_dir,
+                candidate,
+                proof,
+                action,
+                approval,
+                #[cfg(feature = "loopback-provider")]
+                loopback_provider,
+            } => {
+                let target = read_candidate(&state_dir, &candidate)?;
+                let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+                let action = read_bounded(&action, 64 * 1024)?;
+                let approval = read_effect_approval(&approval)?;
+                #[cfg(feature = "loopback-provider")]
+                if loopback_provider.is_some()
+                    && installation(&state_dir)?.deployment != Deployment::Development
+                {
+                    return Err("gateway.serve.invalid-installation".into());
+                }
+                let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
+                    .await
+                    .map_err(|_| "gateway.effect.unavailable")??;
+                #[cfg(feature = "loopback-provider")]
+                let engine = match loopback_provider {
+                    Some(port) => engine.with_loopback_provider(port),
+                    None => engine,
+                };
+                match engine
+                    .acquire_candidate_credential(&target, &proof, &action, approval)
+                    .await
+                {
+                    Ok(snapshot) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&snapshot).map_err(|_| "gateway.output")?
+                        );
+                        Ok(())
+                    }
+                    Err(result) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&result).map_err(|_| "gateway.output")?
+                        );
+                        Err("gateway.effect.review-refused".into())
+                    }
+                }
+            }
+            Command::CandidatePublish {
+                state_dir,
+                candidate,
+                proof,
+                action,
+                approval,
+            } => {
+                let target = read_candidate(&state_dir, &candidate)?;
+                let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+                let action = read_bounded(&action, 64 * 1024)?;
+                let approval = read_effect_approval(&approval)?;
+                let engine = operator_engine(&state_dir).await?;
+                let outcome = engine
+                    .publish_candidate_credential(&target, &proof, &action, approval)
+                    .await?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&outcome).map_err(|_| "gateway.output")?
+                );
+                Ok(())
+            }
+            Command::EffectReview {
+                state_dir,
+                recovery_of,
+                candidate,
+                content,
+                disclosure,
+                binding_out,
+                proof,
+                action,
+                not_before,
+                expires_at,
+                request_out,
+            } => {
+                effect_review(
+                    state_dir,
+                    recovery_of,
+                    candidate,
+                    content,
+                    disclosure,
+                    binding_out,
+                    proof,
+                    action,
+                    not_before,
+                    expires_at,
+                    request_out,
+                )
+                .await
+            }
+            Command::EffectContentCall {
+                state_dir,
+                resource_arguments,
+                operation,
+                call_out,
+            } => {
+                if !call_out.is_absolute() {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let metadata = fs::symlink_metadata(&resource_arguments)
+                    .map_err(|_| "gateway.state.invalid-path")?;
+                if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let arguments = Zeroizing::new(read_bounded(&resource_arguments, 65_536)?);
+                let engine = operator_engine(&state_dir).await?;
+                let call = engine
+                    .content_authorization_call(&arguments, &operation)
+                    .await
+                    .map_err(|_| "gateway.acquisition.binding")?;
+                let bytes = Zeroizing::new(call.canonical_bytes().map_err(|_| "gateway.output")?);
+                private_file(&call_out, &bytes)?;
+                println!(
+                    "private content call saved; native proof and exact approval still required"
+                );
+                Ok(())
+            }
+            Command::EffectDisclosureCall {
+                state_dir,
+                target,
+                operation,
+                call_out,
+            } => {
+                if !call_out.is_absolute() {
+                    return Err("gateway.state.invalid-path".into());
+                }
+                let proposal = read_disclosure_target(&target)?;
+                let engine = operator_engine(&state_dir).await?;
+                let target = proposal
+                    .resolve(&engine)
+                    .await
+                    .map_err(|_| "gateway.disclosure.binding")?;
+                let call = engine
+                    .disclosure_authorization_call(&target, &operation)
+                    .map_err(|_| "gateway.disclosure.binding")?;
+                let bytes = Zeroizing::new(call.canonical_bytes().map_err(|_| "gateway.output")?);
+                private_file(&call_out, &bytes)?;
+                println!(
+                    "private disclosure call saved; native proof and exact approval still required"
+                );
+                Ok(())
+            }
+            Command::EffectRecoveryCall {
+                state_dir,
+                source_operation,
+                recovery_operation,
+            } => {
+                private_root(&state_dir)?;
+                let engine = tokio::task::spawn_blocking(move || load_engine(&state_dir))
+                    .await
+                    .map_err(|_| "gateway.effect.unavailable")??;
+                let call = engine
+                    .recovery_authorization_call(&source_operation, &recovery_operation)
+                    .await
+                    .map_err(|_| "gateway.acquisition.binding")?;
+                let bytes = Zeroizing::new(call.canonical_bytes().map_err(|_| "gateway.output")?);
+                std::io::stdout()
+                    .write_all(&bytes)
+                    .and_then(|()| std::io::stdout().flush())
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
+            Command::EffectApproval {
+                request,
+                signature_hex,
+            } => {
+                let bytes =
+                    read_bounded(&request, auths_gateway::effect::MAX_EFFECT_APPROVAL_BYTES)?;
+                let request =
+                    auths_gateway::effect::EffectApprovalRequest::from_private_bytes(&bytes)
+                        .map_err(|_| "gateway.effect.approval")?;
+                let mut signature = [0_u8; 64];
+                hex::decode_to_slice(signature_hex, &mut signature)
+                    .map_err(|_| "gateway.effect.approval")?;
+                let approval = request
+                    .with_signature(signature)
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.approval")?;
+                std::io::stdout()
+                    .write_all(&approval)
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
+            Command::EffectPolicy {
+                partition,
+                epoch,
+                approver_public_key,
+            } => {
+                let mut approver = [0_u8; 32];
+                hex::decode_to_slice(&approver_public_key, &mut approver)
+                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                let policy = auths_gateway::effect::EffectPolicy::new(partition, epoch, approver)
+                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                let bytes = policy
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                std::io::stdout()
+                    .write_all(&bytes)
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
             Command::Install {
                 state_dir,
                 recipe,
                 profile_lock,
                 trusted_context,
+                effect_policy,
                 approve_digest,
                 provider,
                 alias,
@@ -3551,11 +4589,7 @@ mod unix {
                 aws_region,
                 aws_kms_key,
                 aws_identity,
-                #[cfg(feature = "loopback-provider")]
-                loopback_provider,
             } => {
-                #[cfg(not(feature = "loopback-provider"))]
-                let loopback_provider = None;
                 let credential_store = CredentialStoreSettings {
                     kind: credential_store,
                     namespace: credential_namespace,
@@ -3568,6 +4602,7 @@ mod unix {
                     recipe,
                     profile_lock,
                     trusted_context,
+                    effect_policy,
                     approve_digest,
                     provider,
                     alias,
@@ -3580,7 +4615,6 @@ mod unix {
                     attempt_store,
                     credential_store,
                     qualification,
-                    loopback_provider,
                 )
                 .await
             }
@@ -3655,8 +4689,16 @@ mod unix {
                 session,
                 proof,
                 action,
+                approval,
                 witness_file,
-            } => commissioning(&session, Some((&proof, &action)), witness_file.as_deref()).await,
+            } => {
+                commissioning(
+                    &session,
+                    Some((&proof, &action, &approval)),
+                    witness_file.as_deref(),
+                )
+                .await
+            }
             #[cfg(feature = "loopback-provider")]
             Command::Serve {
                 state_dir,
@@ -3735,7 +4777,8 @@ mod unix {
                 app_socket,
                 proof,
                 action,
-            } => submit(app_socket, proof, action).await,
+                approval,
+            } => submit(app_socket, proof, action, approval).await,
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -3784,20 +4827,49 @@ mod unix {
                 let command = serde_json::json!({"command": "status"});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
-            Command::Reobserve {
+            Command::Recover {
                 state_dir,
                 admin_socket,
-                operation_id,
+                source_operation,
+                proof,
+                action,
+                approval,
             } => {
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let approval = read_effect_approval(&approval)?
+                    .to_private_bytes()
+                    .map_err(|_| "gateway.effect.approval")?;
+                let proof = Zeroizing::new(read_bounded(&proof, 4 * 1024 * 1024)?);
+                let action = Zeroizing::new(read_bounded(&action, 64 * 1024)?);
+                let submission = AppSubmission {
+                    schema: APP_REQUEST_SCHEMA.to_owned(),
+                    proof_b64: Base64UrlUnpadded::encode_string(&proof),
+                    action_b64: Base64UrlUnpadded::encode_string(&action),
+                    approval_b64: Base64UrlUnpadded::encode_string(&approval),
+                };
+                let frame = Zeroizing::new(
+                    serde_json::to_vec(&submission).map_err(|_| "gateway.admin.invalid-frame")?,
+                );
                 let command =
-                    serde_json::json!({"command": "reobserve", "operation_id": operation_id});
+                    serde_json::json!({"command": "recover", "source_operation": source_operation});
+                admin_command(&state_dir, &admin_socket, command, Some(&frame)).await
+            }
+            Command::RecoveryRecord {
+                state_dir,
+                admin_socket,
+                source_operation,
+                acquisition_operation,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "recovery-record", "source_operation": source_operation,
+                    "acquisition_operation": acquisition_operation});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
             Command::OperatorRequest {
                 recipe,
                 profile_lock,
                 trusted_context,
+                effect_policy,
                 provider,
                 alias,
                 deployment,
@@ -3809,6 +4881,7 @@ mod unix {
                 &recipe,
                 &profile_lock,
                 &trusted_context,
+                &effect_policy,
                 provider,
                 alias,
                 deployment,
@@ -3899,12 +4972,92 @@ mod unix {
             }
             Command::ObserverInit { state_dir } => observer_init(&state_dir),
             Command::ObserverShow { state_dir } => observer_show(&state_dir),
+            Command::AppRecover {
+                app_socket,
+                source_operation,
+                proof,
+                action,
+                approval,
+            } => app_recover(app_socket, source_operation, proof, action, approval).await,
             Command::Observe {
                 app_socket,
-                read_back,
                 outcome,
                 pre_entry,
-            } => observe(app_socket, read_back, outcome, pre_entry).await,
+            } => observe(app_socket, outcome, pre_entry).await,
+            Command::ContentAcquire {
+                app_socket,
+                proof,
+                action,
+                approval,
+            } => {
+                let request = auths_gateway::app::AppContent {
+                    schema: auths_gateway::app::APP_CONTENT_SCHEMA.to_owned(),
+                    submission: content_submission(&proof, &action, &approval)?,
+                };
+                request.decode()?;
+                content_exchange(&app_socket, &request).await
+            }
+            Command::ContentHistory {
+                app_socket,
+                operation,
+            } => {
+                auths_gateway::LogicalOperationId::parse(&operation)
+                    .map_err(|_| "gateway.submit.invalid-frame")?;
+                content_exchange(
+                    &app_socket,
+                    &auths_gateway::app::AppContentHistory {
+                        schema: auths_gateway::app::APP_CONTENT_HISTORY_SCHEMA.to_owned(),
+                        operation,
+                    },
+                )
+                .await
+            }
+            Command::DisclosureAcknowledge {
+                app_socket,
+                operation,
+                acknowledgement,
+            } => {
+                let bytes = Zeroizing::new(read_bounded(&acknowledgement, 4096)?);
+                let ack =
+                    auths_gateway::effect::DisclosureAcknowledgement::from_private_bytes(&bytes)
+                        .map_err(|_| "gateway.disclosure.acknowledgement")?;
+                let request = auths_gateway::app::AppDisclosureAcknowledgement {
+                    schema: auths_gateway::app::APP_DISCLOSURE_ACK_SCHEMA.to_owned(),
+                    operation,
+                    acknowledgement_b64: Base64UrlUnpadded::encode_string(
+                        &ack.to_private_bytes()
+                            .map_err(|_| "gateway.disclosure.acknowledgement")?,
+                    ),
+                };
+                request.decode()?;
+                content_exchange(&app_socket, &request).await
+            }
+            Command::DisclosureReceive {
+                app_socket,
+                target,
+                proof,
+                action,
+                approval,
+                expected_binding,
+                expected_bytes,
+                recipient_seed_stdin,
+                content_out,
+                acknowledgement_out,
+            } => {
+                receive_disclosure_cli(
+                    &app_socket,
+                    &target,
+                    &proof,
+                    &action,
+                    &approval,
+                    &expected_binding,
+                    expected_bytes,
+                    recipient_seed_stdin,
+                    &content_out,
+                    &acknowledgement_out,
+                )
+                .await
+            }
             Command::EchoVerify {
                 record,
                 pointer,
@@ -3961,6 +5114,49 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn managed_cli_inventory_fixture_is_current() {
+            use clap::CommandFactory as _;
+            let mut cli = Cli::command();
+            cli.build();
+            let mut commands: Vec<_> = cli.get_subcommands().map(|command| {
+                let mut arguments: Vec<_> = command.get_arguments()
+                    .filter(|argument| argument.get_id().as_str() != "loopback_provider")
+                    .map(|argument| serde_json::json!({"name":argument.get_id().as_str(), "long":argument.get_long(), "required":argument.is_required_set()}))
+                    .collect();
+                arguments.sort_by(|left, right| left["name"].as_str().cmp(&right["name"].as_str()));
+                serde_json::json!({"command":command.get_name(), "arguments":arguments})
+            }).collect();
+            commands
+                .sort_by(|left, right| left["command"].as_str().cmp(&right["command"].as_str()));
+            assert!(!commands.is_empty());
+            for obsolete in [
+                "reobserve",
+                "observe-read-back",
+                "raw-http",
+                "credential-export",
+                "retry",
+                "refund",
+            ] {
+                assert!(
+                    !commands
+                        .iter()
+                        .any(|command| command["command"] == obsolete)
+                );
+            }
+            let artifact = serde_json::to_vec_pretty(&serde_json::json!({
+                "schema":"auths.managed-cli-inventory/1", "scope":"all native Clap command and argument declarations; catalog data grants no authority; loopback-provider is test-only and excluded",
+                "application_schemas":auths_gateway::app::APPLICATION_REQUEST_SCHEMAS,
+                "operator_commands":auths_gateway::admin::ADMIN_REQUEST_COMMANDS,"cli":commands
+            })).expect("artifact");
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../bindings/fixtures/gateway/managed-cli-inventory.json");
+            if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+                fs::write(&path, &artifact).expect("fixture");
+            }
+            assert_eq!(fs::read(path).expect("artifact"), artifact);
+        }
 
         #[test]
         fn commissioning_witness_refuses_shared_existing_and_linked_outputs() {
@@ -4116,11 +5312,29 @@ mod unix {
             assert_eq!(stored.revoked_signers.len(), 8);
         }
 
+        fn canonical_application_frame() -> serde_json::Value {
+            let fixture: serde_json::Value = serde_json::from_slice(include_bytes!(
+                "../../../../../bindings/fixtures/gateway/effect-binding.json"
+            ))
+            .expect("native exact-effect fixture");
+            let frame: serde_json::Value = serde_json::from_str(
+                fixture["submission_frame_canonical"]
+                    .as_str()
+                    .expect("native submission frame"),
+            )
+            .expect("canonical frame JSON");
+            let submission: AppSubmission =
+                serde_json::from_value(frame.clone()).expect("current submission shape");
+            assert_eq!(submission.schema, APP_REQUEST_SCHEMA);
+            assert!(submission.decode().is_ok(), "native approval must decode");
+            frame
+        }
+
         #[test]
         fn application_and_admin_frames_cannot_select_a_commissioning_session() {
+            let canonical = canonical_application_frame();
             for field in ["commissioning", "permit", "authority", "operator_session"] {
-                let mut frame = serde_json::json!({"schema": APP_REQUEST_SCHEMA,
-                    "proof_b64": "AA", "action_b64": "AA"});
+                let mut frame = canonical.clone();
                 frame[field] = serde_json::json!("synthetic-untrusted-authority");
                 assert!(
                     serde_json::from_value::<AppSubmission>(frame).is_err(),
@@ -4196,21 +5410,21 @@ mod unix {
                 parse(serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "disable"}))
                     .expect("disable");
             assert!(matches!(disable, AdminRequestCommand::Disable {}));
-            let reobserve = parse(serde_json::json!({
+            let recover = parse(serde_json::json!({
                 "schema": ADMIN_REQUEST_SCHEMA,
-                "command": "reobserve",
-                "operation_id": "op-1"
+                "command": "recover",
+                "source_operation": "op-1"
             }))
-            .expect("reobserve");
+            .expect("recover");
             assert!(matches!(
-                reobserve,
-                AdminRequestCommand::Reobserve { ref operation_id } if operation_id == "op-1"
+                recover,
+                AdminRequestCommand::Recover { ref source_operation } if source_operation == "op-1"
             ));
             for refused in [
                 serde_json::json!({"command": "disable"}),
                 serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "delete"}),
                 serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "disable", "secret": "x"}),
-                serde_json::json!({"schema": "auths.gateway-admin-request/2", "command": "disable"}),
+                serde_json::json!({"schema": "auths.gateway-admin-request/1", "command": "disable"}),
                 serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "reobserve"}),
             ] {
                 assert!(parse(refused.clone()).is_err(), "{refused}");
@@ -4241,12 +5455,7 @@ mod unix {
             .expect("service hostile cases");
             assert_eq!(cases["schema"], "auths.gateway-service-hostile/1");
             assert_eq!(cases["cases"].as_array().expect("cases").len(), 15);
-            let canonical = serde_json::json!({
-                "schema": APP_REQUEST_SCHEMA,
-                "proof_b64": "AA",
-                "action_b64": "AA"
-            });
-            assert!(serde_json::from_value::<AppSubmission>(canonical.clone()).is_ok());
+            let canonical = canonical_application_frame();
             for (key, value) in [
                 ("url", "https://attacker.example"),
                 ("method", "POST"),
@@ -4264,7 +5473,7 @@ mod unix {
 #[cfg(unix)]
 #[tokio::main]
 async fn main() {
-    if let Err(failure) = unix::run().await {
+    if let Err(failure) = Box::pin(unix::run()).await {
         eprintln!("{failure}");
         std::process::exit(1);
     }

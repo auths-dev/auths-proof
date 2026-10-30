@@ -1596,7 +1596,43 @@
       "kind": "theorem",
       "module": "Auths.Product.Recovery",
       "name": "Auths.Product.Recovery.unknown_resolves_only_linked",
-      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validTransition old new = true →\n      old.stage = Auths.Product.Recovery.Stage.unknown →\n        new.stage = Auths.Product.Recovery.Stage.observedByProvider ∧\n          old.link = Auths.Product.Recovery.Link.verified ∧\n            new.link = Auths.Product.Recovery.Link.verified ∧ new.evidence = true) ∧\n  (∀ (views : List Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.validChain views →\n        ∀ (index : ℕ) (bound : index + 1 < views.length),\n          views[index].stage = Auths.Product.Recovery.Stage.unknown →\n            views[index + 1].stage = Auths.Product.Recovery.Stage.observedByProvider ∧\n              views[index + 1].link = Auths.Product.Recovery.Link.verified ∧ views[index + 1].evidence = true) ∧\n    ∀ (declarations : Auths.Product.Recovery.Declarations),\n      Auths.Product.Recovery.linkOf (Auths.Product.Recovery.capability declarations).providerLink =\n          Auths.Product.Recovery.Link.verified ↔\n        (Auths.Product.Recovery.capability declarations).recoveryClass = Auths.Product.Recovery.RecoveryClass.linked"
+      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validTransition old new = true →\n      old.stage = Auths.Product.Recovery.Stage.unknown →\n        new.stage = Auths.Product.Recovery.Stage.observedByProvider →\n          old.link = Auths.Product.Recovery.Link.verified ∧\n            new.link = Auths.Product.Recovery.Link.verified ∧ new.evidence = true) ∧\n  (∀ (views : List Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.validChain views →\n        ∀ (index : ℕ) (bound : index + 1 < views.length),\n          views[index].stage = Auths.Product.Recovery.Stage.unknown →\n            views[index + 1].stage = Auths.Product.Recovery.Stage.observedByProvider →\n              views[index + 1].link = Auths.Product.Recovery.Link.verified ∧ views[index + 1].evidence = true) ∧\n    ∀ (declarations : Auths.Product.Recovery.Declarations),\n      Auths.Product.Recovery.linkOf (Auths.Product.Recovery.capability declarations).providerLink =\n          Auths.Product.Recovery.Link.verified ↔\n        (Auths.Product.Recovery.capability declarations).recoveryClass = Auths.Product.Recovery.RecoveryClass.linked"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.unknown_exits_with_bound_evidence",
+      "statement": "∀ (old new : Auths.Product.Recovery.AttemptView),\n  Auths.Product.Recovery.validTransition old new = true →\n    old.stage = Auths.Product.Recovery.Stage.unknown →\n      new.stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n        new.stage = Auths.Product.Recovery.Stage.acknowledged ∨\n          new.stage = Auths.Product.Recovery.Stage.observedByProvider ∧ old.link = Auths.Product.Recovery.Link.verified"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.transition_ownership",
+      "statement": "∀ {old new : Auths.Product.Recovery.AttemptView},\n  Auths.Product.Recovery.validTransition old new = true →\n    new.protocol = old.protocol ∧\n      new.revision = old.revision + 1 ∧ new.revision ≤ 9007199254740991 ∧ (old.entry ≠ [] → new.entry = old.entry)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.late_response_retains_source",
+      "statement": "∀ (old new : Auths.Product.Recovery.AttemptView),\n  Auths.Product.Recovery.validTransition old new = true →\n    old.stage = Auths.Product.Recovery.Stage.unknown →\n      new.stage = Auths.Product.Recovery.Stage.responseRecorded →\n        new.protocol = old.protocol ∧\n          new.revision = old.revision + 1 ∧\n            new.entry = old.entry ∧ old.entry ≠ [] ∧ new.response ≠ [] ∧ new.evidence = false ∧ new.acknowledgement = []"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.late_acknowledgement_retains_source",
+      "statement": "∀ (old new : Auths.Product.Recovery.AttemptView),\n  Auths.Product.Recovery.validTransition old new = true →\n    old.stage = Auths.Product.Recovery.Stage.unknown →\n      new.stage = Auths.Product.Recovery.Stage.acknowledged →\n        old.protocol = Auths.Product.Recovery.Protocol.disclosure ∧\n          new.protocol = Auths.Product.Recovery.Protocol.disclosure ∧\n            new.revision = old.revision + 1 ∧\n              new.entry = old.entry ∧\n                old.entry ≠ [] ∧ new.acknowledgement ≠ [] ∧ new.response = [] ∧ new.evidence = false"
     },
     {
       "axioms": [
@@ -1607,7 +1643,7 @@
       "kind": "theorem",
       "module": "Auths.Product.Recovery",
       "name": "Auths.Product.Recovery.provider_claim_requires_evidence",
-      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validTransition old new = true →\n      new.stage = Auths.Product.Recovery.Stage.observedByProvider →\n        new.evidence = true ∧\n          Auths.Product.Recovery.hasLink new.link = true ∧\n            new.link = old.link ∧\n              (old.stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n                (old.stage = Auths.Product.Recovery.Stage.attempting ∨\n                    old.stage = Auths.Product.Recovery.Stage.unknown) ∧\n                  old.link = Auths.Product.Recovery.Link.verified)) ∧\n  ∀ (first : Auths.Product.Recovery.AttemptView) (rest : List Auths.Product.Recovery.AttemptView),\n    first.stage = Auths.Product.Recovery.Stage.attempting →\n      Auths.Product.Recovery.consistent first = true →\n        Auths.Product.Recovery.validChain (first :: rest) →\n          ∀ (index : ℕ) (bound : index < rest.length),\n            rest[index].stage = Auths.Product.Recovery.Stage.observedByProvider →\n              rest[index].evidence = true ∧\n                rest[index].link = first.link ∧\n                  Auths.Product.Recovery.hasLink first.link = true ∧\n                    ((first :: rest)[index].stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n                      ((first :: rest)[index].stage = Auths.Product.Recovery.Stage.attempting ∨\n                          (first :: rest)[index].stage = Auths.Product.Recovery.Stage.unknown) ∧\n                        first.link = Auths.Product.Recovery.Link.verified)"
+      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validTransition old new = true →\n      new.stage = Auths.Product.Recovery.Stage.observedByProvider →\n        new.evidence = true ∧\n          Auths.Product.Recovery.hasLink new.link = true ∧\n            new.link = old.link ∧\n              (old.stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n                (old.stage = Auths.Product.Recovery.Stage.entryGranted ∨\n                    old.stage = Auths.Product.Recovery.Stage.unknown) ∧\n                  old.link = Auths.Product.Recovery.Link.verified)) ∧\n  ∀ (first : Auths.Product.Recovery.AttemptView) (rest : List Auths.Product.Recovery.AttemptView),\n    first.stage = Auths.Product.Recovery.Stage.reserved →\n      Auths.Product.Recovery.consistent first = true →\n        Auths.Product.Recovery.validChain (first :: rest) →\n          ∀ (index : ℕ) (bound : index < rest.length),\n            rest[index].stage = Auths.Product.Recovery.Stage.observedByProvider →\n              rest[index].evidence = true ∧\n                rest[index].link = first.link ∧\n                  Auths.Product.Recovery.hasLink first.link = true ∧\n                    ((first :: rest)[index].stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n                      ((first :: rest)[index].stage = Auths.Product.Recovery.Stage.entryGranted ∨\n                          (first :: rest)[index].stage = Auths.Product.Recovery.Stage.unknown) ∧\n                        first.link = Auths.Product.Recovery.Link.verified)"
     },
     {
       "axioms": [
@@ -1617,7 +1653,7 @@
       "kind": "theorem",
       "module": "Auths.Product.Recovery",
       "name": "Auths.Product.Recovery.terminal_stages_final",
-      "statement": "(∀ (stage : Auths.Product.Recovery.Stage),\n    Auths.Product.Recovery.terminalStage stage = true ↔\n      stage = Auths.Product.Recovery.Stage.notEntered ∨\n        stage = Auths.Product.Recovery.Stage.observed ∨ stage = Auths.Product.Recovery.Stage.observedByProvider) ∧\n  (∀ (old new : Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.terminalStage old.stage = true → Auths.Product.Recovery.validTransition old new = false) ∧\n    ∀ (views : List Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.validChain views →\n        ∀ (index : ℕ) (bound : index < views.length),\n          Auths.Product.Recovery.terminalStage views[index].stage = true → index + 1 = views.length"
+      "statement": "(∀ (stage : Auths.Product.Recovery.Stage),\n    Auths.Product.Recovery.terminalStage stage = true ↔\n      stage = Auths.Product.Recovery.Stage.notEntered ∨\n        stage = Auths.Product.Recovery.Stage.observed ∨\n          stage = Auths.Product.Recovery.Stage.observedByProvider ∨ stage = Auths.Product.Recovery.Stage.acknowledged) ∧\n  (∀ (old new : Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.terminalStage old.stage = true → Auths.Product.Recovery.validTransition old new = false) ∧\n    ∀ (views : List Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.validChain views →\n        ∀ (index : ℕ) (bound : index < views.length),\n          Auths.Product.Recovery.terminalStage views[index].stage = true → index + 1 = views.length"
     },
     {
       "axioms": [
@@ -1638,7 +1674,7 @@
       "kind": "theorem",
       "module": "Auths.Product.SubmitOrder",
       "name": "Auths.Product.SubmitOrder.lease_requires_verified_claim",
-      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event) (mode : Auths.Product.SubmitOrder.Mode),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.lease mode →\n    event = Auths.Product.SubmitOrder.Event.reload true ∧\n      (Auths.Product.SubmitOrder.stateAfter plan pre).phase = Auths.Product.SubmitOrder.Phase.reload mode ∧\n        (∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument) ∧\n          (mode = Auths.Product.SubmitOrder.Mode.reobserve →\n              Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                Auths.Product.SubmitOrder.Phase.claim\n                (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.replay)) ∧\n            (mode ≠ Auths.Product.SubmitOrder.Mode.reobserve →\n              Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                Auths.Product.SubmitOrder.Phase.claim\n                (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.inserted))"
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.lease →\n    event = Auths.Product.SubmitOrder.Event.reload true ∧\n      (Auths.Product.SubmitOrder.stateAfter plan pre).phase = Auths.Product.SubmitOrder.Phase.reload ∧\n        (∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument) ∧\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            Auths.Product.SubmitOrder.Phase.claim\n            (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.reserved)"
     },
     {
       "axioms": [
@@ -1648,7 +1684,7 @@
       "kind": "theorem",
       "module": "Auths.Product.SubmitOrder",
       "name": "Auths.Product.SubmitOrder.send_requires_lease_and_deadline",
-      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    event = Auths.Product.SubmitOrder.Event.deadline true ∧\n      (Auths.Product.SubmitOrder.stateAfter plan pre).phase = Auths.Product.SubmitOrder.Phase.deadline ∧\n        (∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument) ∧\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n              Auths.Product.SubmitOrder.Phase.claim\n              (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.inserted) ∧\n            Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                (Auths.Product.SubmitOrder.Phase.lease Auths.Product.SubmitOrder.Mode.entry)\n                (Auths.Product.SubmitOrder.Event.lease true) ∧\n              (plan.preEntry = true →\n                  Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                    Auths.Product.SubmitOrder.Phase.preEntry\n                    (Auths.Product.SubmitOrder.Event.preEntry Auths.Product.SubmitOrder.PreEntryResult.satisfied)) ∧\n                Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                  Auths.Product.SubmitOrder.Phase.entryReload (Auths.Product.SubmitOrder.Event.reload true)"
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    event = Auths.Product.SubmitOrder.Event.granted true ∧\n      (Auths.Product.SubmitOrder.stateAfter plan pre).phase = Auths.Product.SubmitOrder.Phase.grant ∧\n        (∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument) ∧\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n              Auths.Product.SubmitOrder.Phase.claim\n              (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.reserved) ∧\n            Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                Auths.Product.SubmitOrder.Phase.lease (Auths.Product.SubmitOrder.Event.lease true) ∧\n              (plan.preEntry = true →\n                  Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                    Auths.Product.SubmitOrder.Phase.preEntry\n                    (Auths.Product.SubmitOrder.Event.preEntry Auths.Product.SubmitOrder.PreEntryResult.satisfied)) ∧\n                Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                    Auths.Product.SubmitOrder.Phase.entryReload (Auths.Product.SubmitOrder.Event.reload true) ∧\n                  Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                    Auths.Product.SubmitOrder.Phase.deadline (Auths.Product.SubmitOrder.Event.deadline true)"
     },
     {
       "axioms": [
@@ -1658,7 +1694,7 @@
       "kind": "theorem",
       "module": "Auths.Product.SubmitOrder",
       "name": "Auths.Product.SubmitOrder.send_requires_credential_checks",
-      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n        (Auths.Product.SubmitOrder.Phase.prefixGuard Auths.Product.SubmitOrder.Mode.entry)\n        (Auths.Product.SubmitOrder.Event.prefixGuard true) ∧\n      (plan.accountRead = true →\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            (Auths.Product.SubmitOrder.Phase.account Auths.Product.SubmitOrder.Mode.entry)\n            (Auths.Product.SubmitOrder.Event.account Auths.Product.SubmitOrder.AccountResult.equal)) ∧\n        ∀ index < plan.deniedReads,\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            (Auths.Product.SubmitOrder.Phase.denied Auths.Product.SubmitOrder.Mode.entry index)\n            (Auths.Product.SubmitOrder.Event.denied Auths.Product.SubmitOrder.DeniedResult.refused)"
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n        Auths.Product.SubmitOrder.Phase.prefixGuard (Auths.Product.SubmitOrder.Event.prefixGuard true) ∧\n      (plan.accountRead = true →\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            Auths.Product.SubmitOrder.Phase.account\n            (Auths.Product.SubmitOrder.Event.account Auths.Product.SubmitOrder.AccountResult.equal)) ∧\n        ∀ index < plan.deniedReads,\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            (Auths.Product.SubmitOrder.Phase.denied index)\n            (Auths.Product.SubmitOrder.Event.denied Auths.Product.SubmitOrder.DeniedResult.refused)"
     },
     {
       "axioms": [
@@ -1692,6 +1728,33 @@
     },
     {
       "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.response_stops_without_read",
+      "statement": "∀ (state : Auths.Product.SubmitOrder.State),\n  state.phase = Auths.Product.SubmitOrder.Phase.recordResponse →\n    Auths.Product.SubmitOrder.nextStep state\n        (Auths.Product.SubmitOrder.Event.response Auths.Product.SubmitOrder.ResponseRecord.recorded) =\n      Auths.Product.SubmitOrder.stop state Auths.Product.SubmitOrder.Stop.response"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.replay_returns_stored",
+      "statement": "∀ (state : Auths.Product.SubmitOrder.State),\n  state.phase = Auths.Product.SubmitOrder.Phase.claim →\n    Auths.Product.SubmitOrder.nextStep state\n        (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.replay) =\n      Auths.Product.SubmitOrder.stop state Auths.Product.SubmitOrder.Stop.stored"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.refused_grant_stops_without_send",
+      "statement": "∀ (state : Auths.Product.SubmitOrder.State),\n  state.phase = Auths.Product.SubmitOrder.Phase.grant →\n    Auths.Product.SubmitOrder.nextStep state (Auths.Product.SubmitOrder.Event.granted false) =\n      Auths.Product.SubmitOrder.stop state Auths.Product.SubmitOrder.Stop.grantUnavailable"
+    },
+    {
+      "axioms": [
         "propext",
         "Quot.sound"
       ],
@@ -1718,7 +1781,7 @@
       "kind": "theorem",
       "module": "Auths.Product.SubmitOrder",
       "name": "Auths.Product.SubmitOrder.post_claim_refusal_records_not_entered",
-      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event) (refusal : Auths.Product.SubmitOrder.Refusal),\n  ((Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n        Auths.Product.SubmitOrder.Action.recordNotEntered refusal ↔\n      Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n          Auths.Product.SubmitOrder.Phase.claim\n          (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.inserted) ∧\n        Auths.Product.SubmitOrder.refusalOf (Auths.Product.SubmitOrder.stateAfter plan pre) event = some refusal) ∧\n    ((Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n        Auths.Product.SubmitOrder.Action.recordNotEntered refusal →\n      (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).state.phase =\n          Auths.Product.SubmitOrder.Phase.recordNotEntered ∧\n        (Auths.Product.SubmitOrder.Emitted (Auths.Product.SubmitOrder.steps plan pre)\n            Auths.Product.SubmitOrder.Action.send →\n          refusal = Auths.Product.SubmitOrder.Refusal.transportNotEntered))"
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event) (refusal : Auths.Product.SubmitOrder.Refusal),\n  ((Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n        Auths.Product.SubmitOrder.Action.recordNotEntered refusal ↔\n      Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n          Auths.Product.SubmitOrder.Phase.claim\n          (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.reserved) ∧\n        Auths.Product.SubmitOrder.refusalOf (Auths.Product.SubmitOrder.stateAfter plan pre) event = some refusal) ∧\n    ((Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n        Auths.Product.SubmitOrder.Action.recordNotEntered refusal →\n      (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).state.phase =\n          Auths.Product.SubmitOrder.Phase.recordNotEntered ∧\n        ¬Auths.Product.SubmitOrder.Emitted (Auths.Product.SubmitOrder.steps plan pre)\n            Auths.Product.SubmitOrder.Action.send)"
     },
     {
       "axioms": [

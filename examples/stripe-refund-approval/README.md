@@ -8,8 +8,8 @@ day. The Stripe key lives only in the Auths gateway, which also checks the
 key and the payment with Stripe before each refund. An auditor checks every
 refund afterwards, offline.
 
-**10 steps. The unattended run of all of them (step 10) took 8.1 s on an
-Apple-silicon laptop once the wheel and gateway were built.** Building the
+**10 steps. Step 10 runs the local double with a finite scripted operator reviewer;
+its report records actual timing and does not establish an independent human trial.** Building the
 gateway the first time takes a few minutes.
 
 | Who | Holds | Can do |
@@ -131,32 +131,47 @@ python mock_stripe.py --ledger "$WORK/ledger.jsonl" \
 # it prints its port, for example 54321
 ```
 
-**5. Install the gateway with the Stripe key on stdin, and start it.**
+**5. Stage the credential, independently approve its reads, and start the gateway.**
+
+The separate development operator owns a read-only actor and an exact-effect
+reviewer. For this local double, `--simulation` selects a finite scripted
+reviewer; it is not evidence of human review. Omit that flag for interactive
+operation: `literal-review.txt` preserves the complete native renderer text and
+`signing-request.json` preserves its native request in the private operator
+directory; the operator reads both and answers through its owner-only consent FIFO.
+Neither mode gives these signing keys to the refund application.
 
 ```sh
+python native_operator.py --directory "$WORK/operator" setup \
+  --facts "$WORK/state/setup.json" --key-directory "$WORK/state/keys" \
+  --gateway "$(command -v auths-gateway)" --simulation
 mkdir -m 700 "$WORK/gateway"
 printf '%s\n' "$STRIPE_KEY" | auths-gateway install --state-dir "$WORK/gateway" \
   --recipe recipe.json --profile-lock profile.lock.json \
   --trusted-context "$WORK/state/trust/gateway.context.cbor" \
+  --effect-policy "$WORK/operator/effect-policy.json" \
   --approve-digest <recipe_digest from step 3> \
-  --provider stripe --alias refunds --account-label acct_1AuthsPlatform0 --credential-stdin \
-  --loopback-provider 54321
+  --provider stripe --alias refunds --account-label acct_1AuthsPlatform0 --credential-stdin
 unset STRIPE_KEY
+python native_operator.py --directory "$WORK/operator" publish \
+  --state "$WORK/gateway" --loopback-provider 54321
 auths-gateway observer-init --state-dir "$WORK/gateway"
+python native_operator.py --directory "$WORK/operator" activate-configuration --state "$WORK/gateway"
 auths-gateway serve --state-dir "$WORK/gateway" --app-socket "$WORK/app.sock" \
   --loopback-provider 54321 &
+python native_operator.py --directory "$WORK/operator" serve \
+  --state "$WORK/gateway" --socket "$WORK/operator.sock" &
 ```
 
-If your state directory has to be long, `serve --admin-socket PATH` moves
-the admin socket into another owner-only directory (mode 0700, owned by you,
-not reached through a symbolic link); pass the same `--admin-socket` to
-`disable`, `revoke`, `rotate`, and `doctor`.
+`install` stages the credential and performs no provider read. A key without
+`rk_test_` is refused before staging. `publish` obtains a separately authorized
+native candidate-check proof, complete exact approval, and retained provider
+checks before publishing. `observer-init` changes the reviewed configuration;
+activation explicitly compares that exact revision. Keep the printed observer
+principal and setup's `trusted_context_sha256` for the auditor.
 
-`install` makes the guard's four reads before it stores the key, and stores
-nothing if one fails: a key without `rk_test_` is refused
-(`gateway.install.credential-guard`) before any read. `observer-init` prints
-`observer_anchor.principal`: the key the gateway signs its outcomes with.
-Give it and `trusted_context_sha256` to your auditor.
+If state paths are long, `serve --admin-socket PATH` moves the admin socket to
+another owner-only directory; pass the same option to operator commands.
 
 **6. The agent asks for a refund; managers A and B approve; manager C never answers; the gateway submits.**
 
@@ -194,18 +209,19 @@ agent collects whatever responses exist, signs its exact refund, and submits:
 
 ```sh
 python refunds.py submit --state "$WORK/state" --socket "$WORK/app.sock" \
-  --operation-id refund-1 --responses "$WORK/refund-1"
+  --operation-id refund-1 --responses "$WORK/refund-1" \
+  --operator-socket "$WORK/operator.sock" --recover
 ```
 
-`submit` sends a refund to the gateway once two managers approved it, and
-decides nothing itself: only the gateway enforces the approval threshold,
-the ceiling, the per-window count and sum, and at most one run per operation
-ID. It prints the gateway's result with `"decided_by": "gateway"`, here
-`{"outcome": "observed-by-provider", "status": 200, "decided_by": "gateway",
-"bundle": "appended", ...}`: the gateway checked the key and the
-PaymentIntent (60.00 received, so at most 30.00 refundable here), sent the
-refund, and found its echo token in the refund it read back. The ledger has
-one write. The record lists the managers who approved (`"approved"`), those
+`submit` asks the separate operator for the native exact-effect approval after
+collecting the managers' signed requests, then forwards the unchanged proof,
+action and approval. The gateway alone enforces the threshold, ceiling, window
+budgets and replay rules. Its write result is `response-recorded` with status
+200. The explicit `--recover` requests a second, independently approved native
+read. The unchanged `recovery` report must show a provider-linked source at
+`observed-by-provider`; an HTTP response alone does not establish that claim.
+The audit observes the retained source after recovery. The ledger has one write.
+The record lists the managers who approved (`"approved"`), those
 who have not answered (`"pending"`, here manager C), and any who declined
 (`"declined"`). One decline beside two approvals does not stop
 the refund. When too many managers declined for two approvals to remain
@@ -226,7 +242,7 @@ gateway code.
 | `--connect-account acct_1AuthsOtherAcct`, which the grant does not list | gateway | `not-entered` `gateway.policy.scope-denied` | 0 |
 | 50.00 when 45.00 of the day's 60.00 USD is left | gateway | `not-entered` `gateway.policy.sum-exhausted` | 0 |
 | A third refund on the same UTC day | gateway | `not-entered` `gateway.policy.window-exhausted` | 0 |
-| `refund-1` requested again, with fresh approvals | gateway | `not-entered` `gateway.attempt.replay` | 0 |
+| `refund-1` requested again, with fresh approvals | gateway | `not-entered` `gateway.effect.operation-conflict` | 0 |
 | `refund-1`'s proof sent for another refund | gateway | `denied` `action-body-mismatch` | 0 |
 | The first lowered-threshold refund requested again at the installed threshold, after the window is full | gateway | `not-entered` `gateway.policy.window-exhausted`: a verification denial claims nothing, so this is not a replay | 0 |
 | Managers B and C run `auths approve … --decline` | managers B and C | `not-submitted` (`approvers-declined`): manager A's approval alone cannot make a quorum, so nothing is sent | 0 |
@@ -363,7 +379,7 @@ that check. It checks every result, including exactly two Stripe writes
 Stripe call at all for the refusals before the lease, the `Idempotency-Key`
 each write carried, `Stripe-Version` on every request, `Stripe-Account` on
 every request about the refund and on none that tests the key, refund 1's
-read-back, and the audit's `http_status` of 200 and 400.
+separately authorized read-back, and the audit's `http_status` of 200 and 400.
 It prints timings. It then restores the gateway's store from a backup taken
 before the first refund, which keeps the shared connection record but no
 claim, and resubmits refund 1's approved proof. With the claim gone the
@@ -389,7 +405,9 @@ The same journey runs from the npm package, `@auths-dev/sdk`, against the
 same recipe, gateway, and Stripe double. `typescript/refunds.ts` and
 `typescript/journey.ts` are the TypeScript `refunds.py` and `journey.py`, and
 `generated.ts` is the command contract the package's `auths generate`
-wrote from the same `profile.toml`. You need Node 20.6+ and Rust. From
+wrote from the same `profile.toml`. The application needs Node 20.6+ and Rust. Its separate operator helper also
+uses the installed Python SDK from step 1; this is not TypeScript read-proof
+authoring evidence. From
 `typescript/`:
 
 ```sh
@@ -401,11 +419,10 @@ npm --prefix ../../../bindings/typescript run build
 npm pack ../../../bindings/typescript && mv auths-dev-sdk-*.tgz auths-dev-sdk.tgz
 npm install && npm run build
 cargo install --locked --path ../../../product/runtime/auths-gateway --features loopback-provider
-node build/journey.js --gateway "$(command -v auths-gateway)"
+node build/journey.js --gateway "$(command -v auths-gateway)" --python "$(command -v python)"
 ```
 
-The last command took 7.0 s on an Apple-silicon laptop once the package and
-gateway were built. Each `python refunds.py …` step above is
+The command runs the finite scripted reviewer only against the local double. Each `python refunds.py …` step above is
 `node build/refunds.js …` with the same flags (`--precheck` included) and
 prints the same JSON records, each manager runs `npx auths approve …` with
 the same flags, and `journey.js` takes the same test-mode options as

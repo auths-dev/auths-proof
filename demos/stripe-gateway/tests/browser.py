@@ -16,8 +16,8 @@ def test_packaged_workbench_and_unsigned_evidence():
         expect(page.locator('#approval-review')).to_contain_text('create_refund_v1')
         for case, outcome in [('approval-insufficient', 'DENIED'),
                               ('approval-duplicate', 'NOT-SUBMITTED'),
-                              ('above-boundary', 'NOT-ENTERED'), ('exact', 'OBSERVED-BY-PROVIDER'),
-                              ('replay', 'NOT-ENTERED'), ('lost-response', 'UNKNOWN')]:
+                              ('above-boundary', 'NOT-ENTERED'), ('exact', 'RESPONSE-RECORDED'), ('recover-exact', 'RECOVERY-REPORT'),
+                              ('replay', 'OBSERVED-BY-PROVIDER'), ('lost-response', 'UNKNOWN')]:
             page.locator('#experiment').select_option(case)
             page.locator('#submit').click()
             expect(page.locator('#outcome')).to_have_text(outcome, timeout=45000)

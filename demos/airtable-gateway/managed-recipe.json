@@ -1,0 +1,125 @@
+{
+  "schema": "auths.gateway-recipe-source/3",
+  "profile_schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+  "service": "airtable-gateway-demo",
+  "tool": "set_demo_status_v1",
+  "operator_namespace": "airtable-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.airtable.com",
+  "write": {
+    "method": "PATCH",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v0"
+      },
+      {
+        "kind": "fixed",
+        "value": "appQD3Qf0YFBCW9bV"
+      },
+      {
+        "kind": "fixed",
+        "value": "tblBx2jwe0IsPYRKT"
+      },
+      {
+        "kind": "field",
+        "name": "record_id"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "fields": {
+            "kind": "object",
+            "fields": {
+              "DemoStatus": {
+                "kind": "field",
+                "name": "replacement"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "observation": {
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v0"
+      },
+      {
+        "kind": "fixed",
+        "value": "appQD3Qf0YFBCW9bV"
+      },
+      {
+        "kind": "fixed",
+        "value": "tblBx2jwe0IsPYRKT"
+      },
+      {
+        "kind": "field",
+        "name": "record_id"
+      }
+    ],
+    "json_pointer": "/fields/DemoStatus",
+    "expected_field": "replacement",
+    "maximum_response_bytes": 16384
+  },
+  "echo": {
+    "write": {
+      "kind": "json-pointer",
+      "pointer": "/fields/auths_echo"
+    },
+    "observe": "/fields/auths_echo"
+  },
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.",
+      "A separately approved bounded GET can retain the PrivateNote string of this JSON record as private UTF-8 content. Releasing it to the exact local recipient requires a separate native disclosure proof, exact approval and authenticated channel; acquisition does not disclose it."
+    ],
+    "fields": {
+      "record_id": {
+        "kind": "identifier",
+        "label": "Record id"
+      },
+      "replacement": {
+        "kind": "text",
+        "label": "Replacement"
+      }
+    }
+  },
+  "content": {
+    "schema": "auths.gateway-content-read/1",
+    "resource_field": "record_id",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v0"
+      },
+      {
+        "kind": "fixed",
+        "value": "appQD3Qf0YFBCW9bV"
+      },
+      {
+        "kind": "fixed",
+        "value": "tblBx2jwe0IsPYRKT"
+      },
+      {
+        "kind": "field",
+        "name": "record_id"
+      }
+    ],
+    "query": [],
+    "projection": {
+      "kind": "json-string",
+      "pointer": "/fields/PrivateNote"
+    },
+    "maximum_response_bytes": 1024,
+    "maximum_content_bytes": 512
+  }
+}

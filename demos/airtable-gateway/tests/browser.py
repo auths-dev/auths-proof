@@ -16,8 +16,8 @@ def test_packaged_workbench_and_unsigned_evidence():
         expect(page.locator('#approval-review')).to_contain_text('set_demo_status_v1')
         for case, outcome in [('approval-insufficient', 'DENIED'),
                               ('approval-duplicate', 'NOT-SUBMITTED'),
-                              ('unsupported-value', 'NOT-ENTERED'), ('rate-limit', 'FIELD READ · VALUE MISMATCH'), ('exact', 'OBSERVED-BY-PROVIDER'),
-                              ('replay', 'NOT-ENTERED'), ('lost-response', 'UNKNOWN')]:
+                              ('unsupported-value', 'NOT-ENTERED'), ('rate-limit', 'RESPONSE-RECORDED'), ('exact', 'RESPONSE-RECORDED'), ('recover-exact', 'RECOVERY-REPORT'),
+                              ('replay', 'OBSERVED-BY-PROVIDER'), ('lost-response', 'UNKNOWN')]:
             page.locator('#experiment').select_option(case)
             page.locator('#submit').click()
             expect(page.locator('#outcome')).to_have_text(outcome, timeout=45000)

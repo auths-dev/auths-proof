@@ -1,6 +1,18 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "f2a19e3434038b75ee191b50b5c06ffa0847063d70f63e3cc6e8582893e99b98",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "content": {
+        "kind": "text",
+        "label": "content"
+      }
+    }
+  },
+  "digest": "269bd2aea8420678ed985bb80b2e129acb84463924ab4687ba38ef317af86129",
   "operator_namespace": "todoist-demo",
   "service": "todoist-gateway-demo",
   "tool": "create_task_v1",

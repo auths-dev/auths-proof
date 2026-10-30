@@ -1,0 +1,59 @@
+{
+  "schema": "auths.gateway-disclosure-delivery-fixture/1",
+  "scope": "native application client with a control-frame shim, real Unix socket pairs and installed native file fence; no installed app dispatcher, independent processes, hostile UID isolation or PostgreSQL claim",
+  "native_application_client_protocol_switch": true,
+  "authenticated_delivery": {
+    "revision": 3,
+    "stage": "acknowledged",
+    "reserved_deliveries": 1,
+    "reserved_bytes": 25,
+    "policy_count_counters": 0,
+    "policy_byte_counters": 0
+  },
+  "lost_ack": {
+    "revision": 3,
+    "stage": "unknown",
+    "reserved_deliveries": 1,
+    "reserved_bytes": 25,
+    "policy_count_counters": 0,
+    "policy_byte_counters": 0
+  },
+  "late_ack": {
+    "revision": 4,
+    "stage": "acknowledged",
+    "reserved_deliveries": 1,
+    "reserved_bytes": 25,
+    "policy_count_counters": 0,
+    "policy_byte_counters": 0
+  },
+  "competing_live_channels": {
+    "revision": 3,
+    "stage": "acknowledged",
+    "reserved_deliveries": 1,
+    "reserved_bytes": 25,
+    "policy_count_counters": 0,
+    "policy_byte_counters": 0
+  },
+  "approval_expired_after_authentication_refused": true,
+  "configuration_changed_after_authentication_refused": true,
+  "corrupt_source_after_authentication_refused": true,
+  "retained_authentication_corruption_refused": true,
+  "dropped_permit": {
+    "revision": 2,
+    "stage": "unknown",
+    "reserved_deliveries": 1,
+    "reserved_bytes": 25,
+    "policy_count_counters": 0,
+    "policy_byte_counters": 0
+  },
+  "reopened_grant_cannot_redeliver": true,
+  "disable_after_authentication_refuses_entry": true,
+  "wrong_recipient_signing_key_refused": true,
+  "changed_authentication_fields_refused": true,
+  "wrong_os_uid_refused": true,
+  "fresh_challenge_substitution_refused": true,
+  "wrong_key_response_refused": true,
+  "duplicate_unknown_noncanonical_oversized_frames_refused": true,
+  "noncanonical_and_oversized_authentication_refused": true,
+  "historical_authentication_grants_no_socket": true
+}

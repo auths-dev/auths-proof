@@ -21,11 +21,13 @@ operator binds provider credentials to gateway connections.
 
 ## Unknown writes
 
-A `GatewayUnknown` result means the provider write may have happened. Do not
-retry it. Ask the gateway for the operation's signed outcome with
-`observe_outcome`, or read the provider field back through the gateway with
-`observe_read_back`. Both return gateway-signed bytes that can be attached to
-a later action or kept for an offline audit.
+An unknown outcome means the provider write may have happened. Read retained
+local history with `observe_outcome`. Acquire new evidence only with a separately
+verified read proof/action and exact approval through `recover(source_operation, proof=..., action=..., approval=...)`. Recovery
+returns bounded native JSON bytes distinguishing source facts, acquisition
+facts and the evidence decision. It does not return provider content, authorize
+a write retry, or acknowledge recipient disclosure. Unapproved provider read-back
+requests are no longer part of the application protocol.
 
 ## Operator and mechanism integration
 

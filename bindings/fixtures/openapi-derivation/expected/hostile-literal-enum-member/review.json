@@ -1,6 +1,18 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "f0488b207e27c205ba294b2b26e20f48ec4bde271792e57647e095a4443c53cc",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "a": {
+        "kind": "text",
+        "label": "a"
+      }
+    }
+  },
+  "digest": "f1bc14dae1e701f2b4a120fa0b2c6e04cbaf5a0617d588d81d45b6cd19fbe7da",
   "operator_namespace": "hostile",
   "service": "hostile",
   "tool": "hLiteralEnum_v1",

@@ -2,7 +2,7 @@
   "schema": "auths.gateway-demo-contract/1",
   "platform": "airtable",
   "family": "airtable-record-update-v1",
-  "application_boundary": "installed public GatewayClient; proof and action only",
+  "application_boundary": "installed public GatewayClient; proof, action and native exact-effect approval",
   "recipe_source": "bindings/fixtures/gateway/airtable/recipe.json; fixed base/table reviewed by qualification/reference/airtable_record.py",
   "profile_source": "bindings/fixtures/gateway/airtable/profile.toml",
   "qualification_workflow": ".github/workflows/recipe-qualification.yml",
@@ -11,5 +11,17 @@
   "simulation_evidence": "selftest.py",
   "browser_evidence": "tests/browser.py",
   "protected_qualification": false,
-  "budgets": "not applicable: the reviewed profile has no numeric argument or count-only capability"
+  "budgets": "not applicable: the reviewed profile has no numeric argument or count-only capability",
+  "managed_local_journey": {
+    "recipe_source": "demos/airtable-gateway/managed-recipe.json",
+    "native_review": "demos/airtable-gateway/managed-review.json",
+    "enabled": "authenticated owner UI in local simulation",
+    "authority": "one native gateway partition/control/journal for read, release and write; same native agent actor",
+    "evidence": "tests/owner_browser.py; authored until exact-head hosted execution",
+    "excluded": [
+      "live managed content qualification",
+      "human attention",
+      "production signing custody"
+    ]
+  }
 }

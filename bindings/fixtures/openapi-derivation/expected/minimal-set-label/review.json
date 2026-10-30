@@ -1,6 +1,22 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "6b9d1b80d7bfe89d46fcac348f73c42c302671226fa18fba8909e009d569abef",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "label": {
+        "kind": "text",
+        "label": "label"
+      },
+      "note_id": {
+        "kind": "text",
+        "label": "note_id"
+      }
+    }
+  },
+  "digest": "a7d3a86fb3b2c87cc379bb61b00e11c2cd41c7eb7db711b24182701acdb6ccd0",
   "operator_namespace": "notes-demo",
   "service": "notes",
   "tool": "setNoteLabel_v1",

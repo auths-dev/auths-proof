@@ -345,7 +345,7 @@ kind = "cargo"
 layer = "product"
 path = "product/tools/auths-openapi-derive"
 core_apis = []
-protocol_versions = ["auths.gateway-recipe-source/2", "auths.openapi-derivation-record-result/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
+protocol_versions = ["auths.gateway-recipe-source/3", "auths.openapi-derivation-record-result/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
 wire_objects = []
 fixture_suites = ["bindings/fixtures/openapi-corpus", "bindings/fixtures/openapi-derivation"]
 principal_families = []
@@ -540,6 +540,7 @@ runtime-enforcement-boundary = [
   "product/integrations/auths-git-signing/tests/cli_end_to_end.rs#delegated_agent_signs_headlessly_and_revocation_denies_it",
 ]
 stateful-replay-budget-component = [
+  "qualification/reference/tests/test_ap074_information_differential.py#test_evidence_requires_each_actual_selector_and_one_pass_without_ignored_tests",
   "product/integrations/auths-git-signing/src/workflow_tests.rs#revocation_by_the_root_denies_the_revoked_grant",
   "product/integrations/auths-git-signing/src/workflow_tests.rs#invalid_revocations_fail_the_trust_instead_of_being_ignored",
 ]
@@ -1231,7 +1232,7 @@ proof-author-or-assembler = [
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#fresh_evidence_is_closed_to_the_reviewed_subject_and_exact_candidate_digest",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#offline_differential_requires_native_review_without_custody_or_provider_entry",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#a_dynamic_doctor_witness_must_match_the_actual_production_tuple",
-  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#replay_can_complete_an_unresolved_read_back_but_never_write_or_reacquire_after_observation",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#replay_returns_history_without_a_lease_entry_or_new_confirmation",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#observed_faults_and_changed_candidates_produce_no_passing_case",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#differential_compares_the_actual_oracle_and_gateway_commitments",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#recovery_requires_read_back_and_without_the_capability_stays_unknown",
@@ -1309,7 +1310,7 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway/fuzz"
 core_apis = ["auths-codec", "auths-model"]
-protocol_versions = ["auths.gateway-recipe-source/2", "auths.gateway-attempt/3", "auths.gateway-outcome/2", "auths.gateway-observe/2", "auths.gateway-admin-request/1"]
+protocol_versions = ["auths.gateway-recipe-source/3", "auths.gateway-attempt/16", "auths.gateway-outcome/2", "auths.gateway-observe/3", "auths.gateway-recover/1", "auths.gateway-admin-request/2"]
 wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "SignedObservation", "AdminRequestCommand"]
 fixture_suites = ["bindings/fixtures/gateway", "product/runtime/auths-gateway/fuzz/corpus"]
 principal_families = ["raw-key-v1"]
@@ -1430,8 +1431,8 @@ kind = "cargo"
 layer = "bindings"
 path = "bindings/python"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-verifier"]
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/1", "auths.openapi-derive-result/1", "auths.portable-receipt/1"]
-wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
+protocol_versions = ["auths.gateway-content/1", "auths.gateway-content-history/1", "auths.gateway-disclosure-acknowledge/1", "auths-proof/v1", "auths.gateway-submit/2", "auths.openapi-derive-result/1", "auths.portable-receipt/1"]
+wire_objects = ["AppContent", "AppContentHistory", "AppDisclosureAcknowledgement", "ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway", "bindings/fixtures/openapi-derivation", "bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
@@ -1441,9 +1442,44 @@ configuration_inputs = ["gateway-app-socket", "trusted-authority-configuration"]
 security_state = ["portable-linked-receipts"]
 
 [packages.auths-proof-python.claims]
-core-wire-consumer = ["bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_projection_is_self_contained", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture", "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes"]
-language-binding = ["bindings/python/tests/test_remote_approval.py#test_python_issues_the_native_requests", "bindings/python/tests/test_remote_approval.py#test_python_opens_every_request_vector", "bindings/python/tests/test_remote_approval.py#test_python_collects_every_vector", "bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes", "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically", "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection", "bindings/python/tests/test_gateway_outcome_v2.py#test_python_client_accepts_every_signed_outcome", "bindings/python/tests/test_gateway_outcome_v2.py#test_python_verifier_reaches_the_gateway_verdict", "bindings/python/tests/test_self_hosted_operator.py#test_trusted_context_is_the_native_compile_bound_to_one_request", "bindings/python/tests/test_self_hosted_operator.py#test_root_grant_equals_the_native_path_and_carries_the_signer_evidence", "bindings/python/tests/test_enforcement_init.py#test_double_mode_hands_the_key_on_unchanged_and_writes_only_its_digest", "bindings/python/tests/test_enforcement_init.py#test_audit_passes_the_gateway_verdict_through_and_adds_no_option"]
-runtime-enforcement-boundary = ["bindings/python/tests/test_public_api_v2.py#test_receipts_reject_direct_construction", "bindings/python/tests/test_public_api_v2.py#test_product_root_is_small_and_removed_names_are_absent", "bindings/python/tests/test_public_api_v2.py#test_local_agent_client_modules_are_not_importable", "bindings/python/tests/test_native_boundary_contract.py#test_a_python_caller_cannot_mint_a_canonical_action_for_its_own_profile", "bindings/python/tests/test_native_boundary_contract.py#test_no_native_symbol_is_exported_without_being_declared"]
+# Evidence coverage: content-control-envelopes.
+language-binding = [
+  "bindings/python/tests/test_gateway_client.py#test_content_controls_preserve_native_envelopes",
+  "bindings/python/tests/test_gateway_client.py#test_content_controls_refuse_unbounded_or_invalid_input",
+  "bindings/python/tests/test_remote_approval.py#test_python_issues_the_native_requests",
+  "bindings/python/tests/test_remote_approval.py#test_python_opens_every_request_vector",
+  "bindings/python/tests/test_remote_approval.py#test_python_collects_every_vector",
+  "bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes",
+  "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically",
+  "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus",
+  "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit",
+  "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory",
+  "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection",
+  "bindings/python/tests/test_gateway_outcome_v2.py#test_python_client_accepts_every_signed_outcome",
+  "bindings/python/tests/test_gateway_outcome_v2.py#test_python_verifier_reaches_the_gateway_verdict",
+  "bindings/python/tests/test_self_hosted_operator.py#test_trusted_context_is_the_native_compile_bound_to_one_request",
+  "bindings/python/tests/test_self_hosted_operator.py#test_root_grant_equals_the_native_path_and_carries_the_signer_evidence",
+  "bindings/python/tests/test_enforcement_init.py#test_double_mode_hands_the_key_on_unchanged_and_writes_only_its_digest",
+  "bindings/python/tests/test_enforcement_init.py#test_audit_passes_the_gateway_verdict_through_and_adds_no_option",
+  "bindings/python/tests/test_enforcement_init.py#test_native_operator_template_matches_reviewed_example",
+  "bindings/python/tests/test_enforcement_init.py#test_operator_never_signs_incomplete_native_review",
+  "bindings/python/tests/test_enforcement_init.py#test_live_operator_decline_prevents_exact_signature",
+  "bindings/python/tests/test_enforcement_init.py#test_operator_bad_peers_leave_listener_available",
+  "bindings/python/tests/test_enforcement_init.py#test_operator_peer_and_native_deadlines_are_finite",
+]
+core-wire-consumer = [
+  "bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer",
+  "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_projection_is_self_contained",
+  "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture",
+  "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes",
+]
+runtime-enforcement-boundary = [
+  "bindings/python/tests/test_public_api_v2.py#test_receipts_reject_direct_construction",
+  "bindings/python/tests/test_public_api_v2.py#test_product_root_is_small_and_removed_names_are_absent",
+  "bindings/python/tests/test_public_api_v2.py#test_local_agent_client_modules_are_not_importable",
+  "bindings/python/tests/test_native_boundary_contract.py#test_a_python_caller_cannot_mint_a_canonical_action_for_its_own_profile",
+  "bindings/python/tests/test_native_boundary_contract.py#test_no_native_symbol_is_exported_without_being_declared",
+]
 
 [packages.auths-proof-wasm]
 kind = "cargo"
@@ -1582,6 +1618,11 @@ configuration_inputs = ["connection-alias", "credential-store-kind", "provider-k
 security_state = ["connection-generation", "credential-generation", "credential-reference", "provider-account-commitment"]
 
 [packages.auths-connections.claims]
+# Evidence coverage: file-custody-process-serialization.
+stateful-replay-budget-component = [
+  "product/runtime/auths-gateway/tests/candidate_cli.rs#native_candidate_cli_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_candidate_tests.rs#native_candidate_compilation_fixture_is_current",
+]
 independent-semantic-implementation = [
   "product/runtime/auths-connections/src/model.rs#canonical_record_round_trip_is_byte_exact",
   "product/runtime/auths-connections/src/model.rs#state_changes_keep_and_rotations_set_the_credential_generation",
@@ -1600,28 +1641,48 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-execution-witness/1", "auths.gateway-commissioning-execution/1", "auths.gateway-commissioning-budget/1", "auths.qualification-commissioning-permit/2", "auths.qualification-commissioning-budget-key/1", "auths.qualification-commissioning-budget-binding/2", "auths.gateway-credential-journal/1", "auths.gateway-credential-collection/1", "auths.gateway-readiness/1", "auths.gateway-support-bundle/1", "auths.gateway-generation-floor/1", "auths.gateway-emergency-stop/1", "auths.gateway-installation/5", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.gateway-semantic-closure/1", "auths.qualification-verification-vectors/1", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/6", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/2", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/3", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-production-codes/1", "auths.gateway-custody-vectors/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
-wire_objects = ["GatewayExecutionWitness", "CommissioningBudgetSnapshot", "CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ProviderResult", "AuditedPreEntry", "EchoVerification", "AdminRequestCommand", "ListedValues"]
+protocol_versions = ["auths.gateway-disclose/1", "auths.gateway-content/1", "auths.gateway-content-history/1", "auths.gateway-disclosure-acknowledge/1", "auths.gateway-execution-witness/1", "auths.gateway-commissioning-execution/1", "auths.gateway-commissioning-budget/1", "auths.qualification-commissioning-permit/2", "auths.qualification-commissioning-budget-key/1", "auths.qualification-commissioning-budget-binding/2", "auths.gateway-credential-journal/1", "auths.gateway-credential-collection/1", "auths.gateway-readiness/1", "auths.gateway-support-bundle/2", "auths.gateway-generation-floor/1", "auths.gateway-emergency-stop/1", "auths.gateway-installation/7", "auths.effect-policy/1", "auths.effect-review-contract/1", "auths.private-effect-review/2", "auths.literal-complete-review/1", "auths.effect-configuration/2", "auths.effect-entry/3", "auths.effect-configuration-review/1", "auths.bound-effect/3", "auths.gateway-recovery-read/1", "auths.gateway-candidate-check/1", "auths.gateway-credential-candidate/1", "auths.gateway-disclosure-ack/1", "auths.gateway-disclosure/1", "auths.gateway-unix-disclosure-channel/1", "auths.gateway-disclosure-auth/1", "auths.gateway-content-read/1", "auths.gateway-content-acquisition/1", "auths.gateway-protected-content/1", "auths.gateway-recovery/2", "auths.gateway-public-evidence/1", "auths.gateway-public-commitment/1", "auths.effect-allocation/1", "auths.exact-effect-approval/1", "auths.private-effect-signing/2", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.gateway-semantic-closure/1", "auths.qualification-verification-vectors/1", "auths.gateway-operator-attestation/2", "auths.gateway-admin-request/2", "auths.gateway-admin-response/2", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/3", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/3", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/16", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/8", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/3", "auths.gateway-recover/1", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/3", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-production-codes/1", "auths.gateway-custody-vectors/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
+wire_objects = ["AppDisclosure", "AppDisclosureTarget", "AppContentResult", "ContentHistory", "AppContent", "AppContentHistory", "AppDisclosureAcknowledgement", "UnixDisclosurePolicy","ContentReadTarget", "ClosedContentRead", "DisclosureAcknowledgementRequest", "DisclosureAcknowledgement", "CandidateCredentialTarget", "CandidatePublication", "GatewayExecutionWitness", "CommissioningBudgetSnapshot", "CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "AppRecovery", "AppRecoveryResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ProviderResult", "AuditedPreEntry", "EchoVerification", "AdminRequestCommand", "ListedValues"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway", "bindings/fixtures/qualification"]
 principal_families = ["raw-key-v1", "did-key-v1", "did-keri-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
-transports = ["bounded-https", "postgresql-tls", "loopback-http-development"]
-configuration_inputs = ["commissioning-witness-file", "commissioning-binding", "commissioning-permit", "retained-commissioning-budget-floor", "operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins", "qualification-policy", "recipe-family", "provider-contract-id", "qualification-release-inputs", "deployment-clock"]
-security_state = ["permanent-commissioning-consumption", "commissioning-revocation-and-time-floor", "durable-credential-cleanup-notes", "host-generation-floor", "recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
+transports = ["uid-bound-unix-disclosure","bounded-https", "postgresql-tls", "loopback-http-development"]
+configuration_inputs = ["installed-effect-policy", "operator-configuration-revision-and-candidate", "commissioning-witness-file", "commissioning-binding", "commissioning-permit", "retained-commissioning-budget-floor", "operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins", "qualification-policy", "recipe-family", "provider-contract-id", "qualification-release-inputs", "deployment-clock"]
+security_state = ["immutable-recipient-authentication", "one-use-disclosure-grant","private-per-acquisition-content-keys", "protected-content-projection-and-refusal", "content-source-lifetime-allocations", "private-content-response-metadata", "recovery-credential-prerequisite-allocations", "fixed-window-recovery-call-and-response-byte-slots", "source-lifetime-recovery-count-and-byte-allocations", "typed-mutation-acquisition-disclosure-journal", "shared-effect-configuration", "monotonic-shared-admission-epoch", "monotonic-shared-qualification-memory", "configuration-saturation-denial", "permanent-commissioning-consumption", "commissioning-revocation-and-time-floor", "durable-credential-cleanup-notes", "host-generation-floor", "recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
 
 [packages.auths-gateway.claims]
-operational-diagnostics = [
-  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_requires_a_recent_nonfuture_sample",
-  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_refuses_links_and_untrusted_write_permissions",
-  "product/runtime/auths-gateway/src/credential_journal.rs#notes_survive_restart_and_refuse_missing_corrupt_full_or_foreign_state",
-  "product/runtime/auths-gateway/src/engine.rs#durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets",
-  "product/runtime/auths-gateway/src/readiness.rs#the_projection_names_every_check_and_retains_precise_qualification_failure",
-  "product/runtime/auths-gateway/src/engine.rs#readiness_and_emergency_stop_make_no_credential_lease",
-  "product/runtime/auths-gateway/src/engine.rs#a_restored_store_below_the_host_floor_cannot_lease_after_restart",
-  "product/runtime/auths-gateway/tests/support_bundle.rs#a_support_bundle_holds_no_planted_canary",
-]
+# Evidence coverage: content-only-installation.
+# Evidence coverage: disclosure-compilation-contract.
+# Evidence coverage: content-compilation-contract.
+# Evidence coverage: candidate-installation.
+# Evidence coverage: candidate-proposal.
+# Evidence coverage: candidate-compilation.
+# Evidence coverage: recovery-compilation.
+# Evidence coverage: effect-review.
+# Evidence coverage: effect-configuration.
 configuration-compiler = [
+  "product/runtime/auths-gateway/src/recipe/tests.rs#native_read_only_recipe_fixture_is_current",
+  "product/runtime/auths-gateway/tests/content_journey.rs#native_read_only_process_journey_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_content_tests.rs#native_content_journal_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_content_tests.rs#native_content_compilation_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_candidate_tests.rs#native_candidate_compilation_fixture_is_current",
+  "product/runtime/auths-gateway/tests/candidate_cli.rs#native_candidate_cli_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_native_tests.rs#native_recovery_acquisition_fixture_is_current",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#native_review_contract_fixture_is_current",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#effect_review_contract_is_complete_typed_and_recipe_bound",
+  "product/runtime/auths-gateway/src/effect_native_tests.rs#native_compilation_approval_and_reverification_keep_exact_request",
+  "product/runtime/auths-gateway/src/configuration.rs#native_configuration_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_epoch_tests.rs#native_file_epoch_fence_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_epoch_tests.rs#postgres_native_epoch_fence_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_scope_tests.rs#native_file_managed_scope_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_scope_tests.rs#postgres_native_managed_scope_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_entry_tests.rs#native_file_mutation_entry_order_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_entry_tests.rs#postgres_native_mutation_entry_order_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_entry_tests.rs#native_file_disclosure_entry_order_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_entry_tests.rs#postgres_native_disclosure_entry_order_fixture_is_current",
+  "product/runtime/auths-gateway/src/configuration.rs#file_configuration_changes_fence_stale_hosts_and_retain_revocations",
+  "product/runtime/auths-gateway/src/configuration.rs#postgres_configuration_changes_fence_stale_hosts_and_retain_revocations",
   "product/runtime/auths-gateway/src/recipe/tests.rs#three_independent_recipes_compile_without_provider_code",
   "product/runtime/auths-gateway/src/recipe/tests.rs#hostile_recipe_corpus_fails_with_exact_codes",
   "product/runtime/auths-gateway/src/recipe/tests.rs#github_recipe_change_invalidates_old_authorized_arguments",
@@ -1642,56 +1703,36 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe/tests.rs#credential_reads_are_fixed_and_carry_no_action_value",
   "product/runtime/auths-gateway/src/recipe/tests.rs#construction_leaf_matches_the_serde_oracle_on_json_bodies",
   "product/runtime/auths-gateway/src/recipe/tests.rs#construction_leaf_matches_the_serde_oracle_on_form_bodies",
+  "product/runtime/auths-gateway/src/native_differential_tests.rs#native_independent_mutation_differential_fixture_is_current",
+  "qualification/reference/tests/test_ap074_differential.py#test_comparator_rejects_request_response_inventory_and_recovery_drift",
   "product/runtime/auths-gateway/src/pending_vectors/recipes.rs#every_base_compiles_to_its_documented_class_and_digest",
   "product/runtime/auths-gateway/src/pending_vectors/recipes.rs#every_hostile_case_fails_with_its_code",
 ]
-principal-evidence-integration = [
-  "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",
-  "product/runtime/auths-gateway/src/observer.rs#signed_read_back_decodes_with_exact_schema_subject_and_facts",
-  "product/runtime/auths-gateway/src/observed_tests.rs#self_signed_or_forged_observations_never_satisfy",
-  "product/runtime/auths-gateway/src/observed_tests.rs#observer_in_the_authority_chain_is_refused",
-  "product/runtime/auths-gateway/src/observed_tests.rs#custody_held_observers_satisfy_requirements",
-  "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_passes_custody_conformance",
-  "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_lifecycle_gates_the_provider",
-  "product/runtime/auths-gateway/src/observed_tests.rs#production_principals_must_be_separate",
-  "product/runtime/auths-gateway/src/observed_tests.rs#observer_key_in_the_authority_chain_is_refused_by_key",
-  "product/runtime/auths-gateway/src/pending_vectors/keys.rs#key_identity_conformance",
-  "product/runtime/auths-gateway/src/pending_vectors/keys.rs#separation_compares_one_key_under_two_methods",
-  "product/runtime/auths-gateway/src/operator.rs#a_signed_attestation_authenticates_its_operator",
-  "product/runtime/auths-gateway/src/operator.rs#an_invalid_attestation_is_refused",
-  "product/runtime/auths-gateway/src/observed_tests.rs#two_of_three_root_authorizes_only_with_two_distinct_roots",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_flags_an_over_admission_without_any_order",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reports_an_exhaustion_the_bundle_does_not_show",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_reports_every_entry_unverified",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_never_passes_an_altered_proof",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_flags_a_duplicated_entry",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_flags_misfiled_proofs",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_fails_a_valid_submission_refused_while_disabled",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_fails_an_admitted_entry_whose_outcome_was_removed",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_report_names_unverified_entries",
-  "product/runtime/auths-gateway/src/audit_tests.rs#audit_flags_a_basis_that_does_not_admit_its_argument",
-  "product/runtime/auths-gateway/src/audit_tests.rs#audit_requires_the_counter_set_the_audit_derives",
-  "product/runtime/auths-gateway/src/audit_tests.rs#audit_checks_the_pre_entry_observations",
-  "product/runtime/auths-gateway/src/audit_tests.rs#audit_applies_the_account_scope_binding",
-  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_v2_vectors_are_current",
-  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verifier_accepts_every_vector_with_its_facts_and_refuses_the_rest",
-  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verdicts_follow_the_stage_condition",
-  "product/runtime/auths-gateway/src/pending_vectors/codes.rs#gateway_codes_inventory_is_closed",
-  "product/runtime/auths-gateway/src/pending_vectors/production.rs#recipes_cannot_select_custody_or_declare_qualification",
-  "product/runtime/auths-gateway/src/pending_vectors/production.rs#store_kind_vectors_match_the_closed_kind",
-  "product/runtime/auths-gateway/src/pending_vectors/production.rs#every_hostile_class_has_a_vector",
-  "product/runtime/auths-gateway/src/pending_vectors/production.rs#production_codes_await_their_epics",
-  "product/runtime/auths-gateway/src/echo_verify.rs#match_mismatch_and_absent_each_have_their_code",
-  "product/runtime/auths-gateway/src/echo_verify.rs#invalid_inputs_are_refused_with_their_codes",
-  "product/runtime/auths-gateway/tests/echo_verify.rs#echo_verify_exits_zero_only_on_a_match",
-  "product/runtime/auths-gateway/src/property_tests.rs#outcome_facts_round_trip_through_signing",
-  "product/runtime/auths-gateway/src/property_tests.rs#audit_conditions_agree_with_every_arrival_order",
-]
+# Evidence coverage: content-process-composition.
+# Evidence coverage: content-application-boundary.
+# Evidence coverage: disclosure-local-socket-file-grant.
+# Evidence coverage: content-journal-transport.
+# Evidence coverage: disclosure-acknowledgement-contract.
+# Evidence coverage: candidate-process-journey.
+# Evidence coverage: candidate-acquisition.
+# Evidence coverage: recovery-entry.
+# Evidence coverage: effect-entry.
 runtime-enforcement-boundary = [
+  "product/runtime/auths-gateway/tests/content_journey.rs#native_content_process_journey_fixture_is_current",
+  "product/runtime/auths-gateway/src/app/content_tests.rs#native_application_content_frame_fixture_is_current",
+  "product/runtime/auths-gateway/tests/application_content_cli.rs#native_application_content_cli_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_content_tests.rs#native_content_journal_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_disclosure_tests.rs#native_disclosure_acknowledgement_fixture_is_current",
+  "product/runtime/auths-gateway/tests/candidate_journey.rs#approved_candidate_process_journey_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_candidate_tests.rs#native_candidate_compilation_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_prerequisite_tests.rs#native_prerequisite_compilation_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_native_tests.rs#native_recovery_acquisition_fixture_is_current",
+  "product/runtime/auths-gateway/src/entry_tests.rs#native_admission_fixture_is_current",
+  "product/runtime/auths-gateway/src/entry_tests.rs#postgres_admission_checks_authority_before_atomic_charges",
+  "product/runtime/auths-gateway/src/entry_tests.rs#native_entry_fixture_is_current",
+  "product/runtime/auths-gateway/src/entry_tests.rs#file_grant_has_one_winner_and_no_restart_permit",
+  "product/runtime/auths-gateway/src/entry_tests.rs#postgres_grant_has_one_winner_and_no_restart_permit",
+  "product/runtime/auths-gateway/src/entry_tests.rs#postgres_reservation_restart_retains_capacity_and_requires_fresh_approval",
   "product/runtime/auths-gateway/src/qualification_tests.rs#an_engine_without_a_configured_gate_leases_nothing",
   "product/runtime/auths-gateway/src/qualification_tests.rs#a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease",
   "product/runtime/auths-gateway/src/qualification_tests.rs#a_drifted_deployment_is_stale_under_the_same_release",
@@ -1716,7 +1757,7 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/observed_tests.rs#read_back_of_another_record_cannot_license_this_write",
   "product/runtime/auths-gateway/src/observed_tests.rs#chained_step_is_refused_until_the_previous_step_is_provider_bound",
   "product/runtime/auths-gateway/src/observed_tests.rs#action_fact_policy_is_bound_into_the_pinned_configuration",
-  "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused",
+  "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_admits_a_later_gateway_clock_and_replay_returns_history",
   "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_is_cut_to_the_grant_expiry",
   "product/runtime/auths-gateway/src/observed_tests.rs#a_longer_action_window_never_extends_observation_freshness",
   "product/runtime/auths-gateway/src/bounds_tests.rs#per_principal_bounds_admit_only_actions_inside_the_signer_bound",
@@ -1764,7 +1805,74 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/onboarding.rs#a_recipe_without_a_guard_needs_no_network",
   "product/runtime/auths-gateway/src/onboarding.rs#the_loopback_build_runs_the_same_onboarding_checks",
 ]
+# Evidence coverage: disclosure-journal-admission.
+# Evidence coverage: protected-content-retention.
+# Evidence coverage: candidate-staging.
+# Evidence coverage: candidate-publication.
+# Evidence coverage: recovery-refinement.
+# Evidence coverage: effect-replay.
 stateful-replay-budget-component = [
+  "product/runtime/auths-gateway/tests/content_journey.rs#native_content_process_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_process_tests.rs#native_file_process_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_process_tests.rs#postgres_native_process_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_crash_tests.rs#native_file_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_crash_tests.rs#postgres_native_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_crash_tests.rs#native_file_mutation_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_crash_tests.rs#postgres_native_mutation_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_crash_tests.rs#native_file_disclosure_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_crash_tests.rs#postgres_native_disclosure_process_crash_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_dependency_tests.rs#native_file_dependency_order_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_dependency_tests.rs#postgres_native_dependency_order_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_recovery_actor_tests.rs#native_file_independent_recovery_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_recovery_actor_tests.rs#postgres_native_independent_recovery_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_recovery_limits_tests.rs#native_file_recovery_limits_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_recovery_limits_tests.rs#postgres_native_recovery_limits_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_recovery_history_tests.rs#native_file_recovery_history_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_recovery_history_tests.rs#postgres_native_recovery_history_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_public_evidence_tests.rs#native_file_public_mutation_evidence_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_public_evidence_tests.rs#postgres_native_public_mutation_evidence_fixture_is_current",
+  "product/runtime/auths-gateway/src/admin_boundary_tests.rs#admin_request_boundary_fixture_is_current",
+  "product/runtime/auths-gateway/src/bin/auths-gateway.rs#managed_cli_inventory_fixture_is_current",
+  "product/runtime/auths-gateway/tests/content_journey/interface_tests.rs#native_managed_interface_fixture_is_current",
+  "product/runtime/auths-gateway/tests/content_journey/interface_tests.rs#distinct_uid_managed_interface_evidence",
+  "product/runtime/auths-gateway/src/native_budget_tests.rs#native_file_window_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_budget_tests.rs#postgres_native_window_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_budget_tests.rs#native_file_mutation_window_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_budget_tests.rs#postgres_native_mutation_window_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_budget_tests.rs#native_file_disclosure_window_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_budget_tests.rs#postgres_native_disclosure_window_capacity_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_file_fault_tests.rs#native_file_io_fault_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_file_fault_tests.rs#native_file_mutation_io_fault_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_file_fault_tests.rs#native_file_disclosure_io_fault_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_postgres_fault_tests.rs#postgres_native_partial_batch_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_pg_batch_tests.rs#postgres_native_mutation_partial_batch_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_pg_batch_tests.rs#postgres_native_disclosure_partial_batch_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_postgres_commit_tests.rs#postgres_native_commit_reply_loss_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_pg_commit_tests.rs#postgres_native_mutation_commit_reply_loss_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_disclosure_pg_commit_tests.rs#postgres_native_disclosure_commit_reply_loss_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_replay_tests.rs#native_file_mutation_retained_replay_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_mutation_replay_tests.rs#postgres_native_mutation_retained_replay_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_information_replay_tests.rs#native_file_information_retained_replay_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_information_replay_tests.rs#postgres_native_information_retained_replay_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_retention_tests.rs#native_file_retention_fixture_is_current",
+  "product/runtime/auths-gateway/src/native_retention_tests.rs#postgres_native_retention_fixture_is_current",
+  "product/runtime/auths-gateway/src/store_retention_tests.rs#bounded_cursor_progress_preserves_every_durable_record_kind",
+  "product/runtime/auths-gateway/src/store_retention_tests.rs#corrupt_slot_is_not_treated_as_expired_or_absent",
+  "product/runtime/auths-gateway/src/store_retention_tests.rs#inventory_retains_the_exact_sorted_prefix_and_refuses_incomplete_scans",
+  "product/runtime/auths-gateway/src/store_retention_tests.rs#inventory_counts_nonclaim_entries_against_its_work_budget",
+  "product/runtime/auths-gateway/src/engine.rs#slot_sweep_refuses_untrusted_required_time_without_deleting_state",
+  "product/runtime/auths-gateway/src/entry_tests.rs#retained_native_authority_projection_is_required_and_bound",
+  "product/runtime/auths-gateway/src/prerequisite_race_tests.rs#file_in_flight_prerequisite_cannot_poison_shared_parent",
+  "product/runtime/auths-gateway/src/prerequisite_race_tests.rs#postgres_in_flight_prerequisite_cannot_poison_shared_parent",
+  "product/runtime/auths-gateway/src/effect_content_tests.rs#native_content_journal_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_candidate_tests.rs#native_candidate_compilation_fixture_is_current",
+  "product/runtime/auths-gateway/tests/candidate_cli.rs#native_candidate_cli_fixture_is_current",
+  "product/runtime/auths-gateway/src/effect_native_tests.rs#native_recovery_acquisition_fixture_is_current",
+  "product/runtime/auths-gateway/src/app.rs#native_application_recovery_frame_fixture_is_current",
+  "product/runtime/auths-gateway/tests/application_recovery_cli.rs#native_application_recovery_cli_fixture_is_current",
+  "product/runtime/auths-gateway/src/scenario_tests.rs#native_replay_projection_fixture_is_current",
+  "bindings/python/tests/test_gateway_client.py#test_native_replay_projection_corpus",
+  "bindings/typescript/test/unit/gateway-client.test.js#gateway decodes the native replay and reservation corpus",
   "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#capacity_survives_crash_restart_and_sweep_file",
   "product/runtime/auths-gateway/src/qualification.rs#pinned_ceremony_authenticates_separate_signer_purposes",
   "product/runtime/auths-gateway/src/commissioning_floor/tests.rs#runtime_never_creates_a_missing_floor",
@@ -1794,13 +1902,12 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#hostile_inputs_consume_nothing_and_revocation_survives_omission_postgres",
   "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#snapshots_reject_noncanonical_unknown_oversized_and_impossible_state",
   "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#consumption_never_exceeds_the_ceiling_or_charges_a_refused_action",
-
   "product/runtime/auths-gateway/src/recipe/tests.rs#durable_claim_is_one_use_across_races_and_restart",
   "product/runtime/auths-gateway/src/recipe/tests.rs#response_and_observation_are_distinct_durable_stages",
   "product/runtime/auths-gateway/src/recipe/tests.rs#read_back_links_only_an_exact_token_with_the_verified_value",
   "product/runtime/auths-gateway/src/scenario_tests.rs#record_scenarios_drive_the_counting_provider",
   "product/runtime/auths-gateway/src/scenario_tests.rs#qualification_stages_use_gateway_replay_and_recovery_witnesses",
-  "product/runtime/auths-gateway/src/scenario_tests.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
+  "product/runtime/auths-gateway/src/scenario_tests.rs#response_requires_a_separate_reference_observation_for_evidence",
   "product/runtime/auths-gateway/src/scenario_tests.rs#a_lost_claim_resends_the_same_idempotency_key",
   "product/runtime/auths-gateway/src/scenario_tests.rs#file_store_passes_attempt_store_conformance",
   "product/runtime/auths-gateway/src/scenario_tests.rs#postgres_store_passes_attempt_store_conformance",
@@ -1816,6 +1923,62 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/property_tests.rs#echo_token_and_key_are_injective",
   "product/runtime/auths-gateway/src/property_tests.rs#path_values_decode_back_and_never_add_a_segment",
   "product/runtime/auths-gateway/src/property_tests.rs#relative_ceiling_agrees_with_floor_division",
+]
+operational-diagnostics = [
+  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_requires_a_recent_nonfuture_sample",
+  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_refuses_links_and_untrusted_write_permissions",
+  "product/runtime/auths-gateway/src/credential_journal.rs#notes_survive_restart_and_refuse_missing_corrupt_full_or_foreign_state",
+  "product/runtime/auths-gateway/src/engine.rs#durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets",
+  "product/runtime/auths-gateway/src/readiness.rs#the_projection_names_every_check_and_retains_precise_qualification_failure",
+  "product/runtime/auths-gateway/src/engine.rs#readiness_and_emergency_stop_make_no_credential_lease",
+  "product/runtime/auths-gateway/src/engine.rs#a_restored_store_below_the_host_floor_cannot_lease_after_restart",
+  "product/runtime/auths-gateway/tests/support_bundle.rs#a_support_bundle_holds_no_planted_canary",
+]
+principal-evidence-integration = [
+  "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",
+  "product/runtime/auths-gateway/src/observer.rs#signed_read_back_decodes_with_exact_schema_subject_and_facts",
+  "product/runtime/auths-gateway/src/observed_tests.rs#self_signed_or_forged_observations_never_satisfy",
+  "product/runtime/auths-gateway/src/observed_tests.rs#observer_in_the_authority_chain_is_refused",
+  "product/runtime/auths-gateway/src/observed_tests.rs#custody_held_observers_satisfy_requirements",
+  "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_passes_custody_conformance",
+  "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_lifecycle_gates_the_provider",
+  "product/runtime/auths-gateway/src/observed_tests.rs#production_principals_must_be_separate",
+  "product/runtime/auths-gateway/src/observed_tests.rs#observer_key_in_the_authority_chain_is_refused_by_key",
+  "product/runtime/auths-gateway/src/pending_vectors/keys.rs#key_identity_conformance",
+  "product/runtime/auths-gateway/src/pending_vectors/keys.rs#separation_compares_one_key_under_two_methods",
+  "product/runtime/auths-gateway/src/operator.rs#a_signed_attestation_authenticates_its_operator",
+  "product/runtime/auths-gateway/src/operator.rs#an_invalid_attestation_is_refused",
+  "product/runtime/auths-gateway/src/observed_tests.rs#two_of_three_root_authorizes_only_with_two_distinct_roots",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_flags_an_over_admission_without_any_order",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reports_an_exhaustion_the_bundle_does_not_show",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_reports_every_entry_unverified",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_never_passes_an_altered_proof",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_flags_a_duplicated_entry",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_without_outcomes_flags_misfiled_proofs",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_fails_a_valid_submission_refused_while_disabled",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_fails_an_admitted_entry_whose_outcome_was_removed",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_report_names_unverified_entries",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_flags_a_basis_that_does_not_admit_its_argument",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_requires_the_counter_set_the_audit_derives",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_checks_the_pre_entry_observations",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_applies_the_account_scope_binding",
+  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_v2_vectors_are_current",
+  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verifier_accepts_every_vector_with_its_facts_and_refuses_the_rest",
+  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verdicts_follow_the_stage_condition",
+  "product/runtime/auths-gateway/src/pending_vectors/codes.rs#gateway_codes_inventory_is_closed",
+  "product/runtime/auths-gateway/src/pending_vectors/production.rs#recipes_cannot_select_custody_or_declare_qualification",
+  "product/runtime/auths-gateway/src/pending_vectors/production.rs#store_kind_vectors_match_the_closed_kind",
+  "product/runtime/auths-gateway/src/pending_vectors/production.rs#every_hostile_class_has_a_vector",
+  "product/runtime/auths-gateway/src/pending_vectors/production.rs#production_codes_await_their_epics",
+  "product/runtime/auths-gateway/src/echo_verify.rs#match_mismatch_and_absent_each_have_their_code",
+  "product/runtime/auths-gateway/src/echo_verify.rs#invalid_inputs_are_refused_with_their_codes",
+  "product/runtime/auths-gateway/tests/echo_verify.rs#echo_verify_exits_zero_only_on_a_match",
+  "product/runtime/auths-gateway/src/property_tests.rs#outcome_facts_round_trip_through_signing",
+  "product/runtime/auths-gateway/src/property_tests.rs#audit_conditions_agree_with_every_arrival_order",
 ]
 
 [packages.auths-gateway-kernel]
@@ -1936,7 +2099,7 @@ kind = "cargo"
 layer = "product"
 path = "product/stores/auths-stores"
 core_apis = ["auths-model"]
-protocol_versions = ["auths-proof/v1", "auths.lifecycle.postgresql/6"]
+protocol_versions = ["auths-proof/v1", "auths.lifecycle.postgresql/8"]
 wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "LifecycleRecordV1", "GatewayRecordEntry"]
 fixture_suites = ["product/fixtures/v1/lifecycle"]
 principal_families = []
@@ -1954,6 +2117,8 @@ stateful-replay-budget-component = [
   "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",
   "product/stores/auths-stores/src/gateway_attempt.rs#gateway_records_are_bounded_before_any_database_call",
   "product/stores/auths-stores/src/gateway_attempt.rs#expiry_is_present_exactly_for_slots_and_keys_are_distinct",
+  "product/stores/auths-stores/src/gateway_attempt.rs#fence_sets_are_bounded_distinct_and_target_durable_state",
+  "product/stores/auths-stores/src/lifecycle.rs#production_pool_and_server_identity_are_bounded",
 ]
 
 [packages."@auths-dev/sdk"]
@@ -1961,9 +2126,9 @@ kind = "npm"
 layer = "bindings"
 path = "bindings/typescript"
 core_apis = ["auths-openapi-derive-wasm", "auths-proof-wasm"]
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/1", "auths.portable-receipt/1"]
-wire_objects = ["ActionEnvelope", "CanonicalAction", "GrantStatement", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "VerifierContext"]
-fixture_suites = ["core/fixtures/v1"]
+protocol_versions = ["auths.gateway-content/1", "auths.gateway-content-history/1", "auths.gateway-disclosure-acknowledge/1", "auths-proof/v1", "auths.gateway-submit/2", "auths.portable-receipt/1"]
+wire_objects = ["AppContent", "AppContentHistory", "AppDisclosureAcknowledgement", "ActionEnvelope", "CanonicalAction", "GrantStatement", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "VerifierContext"]
+fixture_suites = ["bindings/fixtures/gateway", "core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2", "core-corpus"]
@@ -1972,9 +2137,21 @@ configuration_inputs = ["gateway-app-socket", "trusted-authority-configuration"]
 security_state = ["portable-linked-receipts"]
 
 [packages."@auths-dev/sdk".claims]
-core-wire-consumer = ["bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt v1 uses the Rust projection and needs no companion input", "bindings/typescript/test/integration/workflow/attach.test.js#attachAgent binds one canonical root authority through native Rust", "bindings/typescript/test/integration/workflow/delegation.test.js#delegate plans reviews approves and signs one attenuated child", "bindings/typescript/test/integration/workflow/client.test.js#transaction binding drives the real Rust WASM authoring ABI"]
-language-binding = ["bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt projection rejects ID and variant contradictions", "bindings/typescript/test/unit/self-hosted-authority.test.js#malformed trust or grant input is refused before native code or custody", "bindings/typescript/test/unit/self-hosted-authority.test.js#a declining or unbound root custody response issues no grant"]
-
+# Evidence coverage: content-control-envelopes.
+language-binding = [
+  "bindings/typescript/test/unit/gateway-client.test.js#native content control envelopes preserve Rust fixtures",
+  "bindings/typescript/test/unit/gateway-client.test.js#content controls reject invalid operation and ACK bounds",
+  "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface",
+  "bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt projection rejects ID and variant contradictions",
+  "bindings/typescript/test/unit/self-hosted-authority.test.js#malformed trust or grant input is refused before native code or custody",
+  "bindings/typescript/test/unit/self-hosted-authority.test.js#a declining or unbound root custody response issues no grant",
+]
+core-wire-consumer = [
+  "bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt v1 uses the Rust projection and needs no companion input",
+  "bindings/typescript/test/integration/workflow/attach.test.js#attachAgent binds one canonical root authority through native Rust",
+  "bindings/typescript/test/integration/workflow/delegation.test.js#delegate plans reviews approves and signs one attenuated child",
+  "bindings/typescript/test/integration/workflow/client.test.js#transaction binding drives the real Rust WASM authoring ABI",
+]
 runtime-enforcement-boundary = [
   "bindings/typescript/test/unit/public-api-v2.test.js#the root carries no local-agent connector or operation errors",
   "bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt projection rejects ID and variant contradictions",
@@ -2007,19 +2184,23 @@ kind = "npm"
 layer = "demos"
 path = "demos/stripe-gateway"
 core_apis = []
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/1", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/2"]
-wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle"]
+protocol_versions = ["auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3", "auths.exact-effect-approval/1", "auths.gateway-recover/1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle", "ExactEffectApproval", "GatewayRecoveryReport"]
 fixture_suites = ["demos/stripe-gateway", "qualification/simulation/live/stripe-platform"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2", "stripe-platform-refund-v1"]
 transports = ["unix", "http-local-demo", "https-provider-test-mode"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket"]
-security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket", "native-effect-policy", "private-operator-consent-channel"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history", "private-read-actor-grant", "finite-scripted-recovery-reviews", "candidate-acquisition-history"]
 
 [packages.auths-stripe-gateway-demo.claims]
 demo-conformance-fixture = ["demos/stripe-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
-runtime-enforcement-boundary = ["demos/stripe-gateway/selftest.py#test_application_isolation_and_native_audit"]
+runtime-enforcement-boundary = [
+  "demos/stripe-gateway/selftest.py#test_application_isolation_and_native_audit",
+  "demos/stripe-gateway/selftest.py#test_private_reviewer_refuses_unlisted_inputs",
+  "demos/stripe-gateway/selftest.py#test_exact_operator_consent_binding",
+]
 receipt-producer-consumer = ["demos/stripe-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
 
 [packages.auths-airtable-gateway-demo]
@@ -2027,19 +2208,28 @@ kind = "npm"
 layer = "demos"
 path = "demos/airtable-gateway"
 core_apis = []
-protocol_versions = ["auths-proof/v1", "auths.gateway-submit/1", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/2"]
-wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle"]
+protocol_versions = ["auths.airtable-gateway-demo/2", "auths-proof/v1", "auths.gateway-submit/2", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/3", "auths.exact-effect-approval/1", "auths.gateway-recover/1", "auths.private-effect-review/2", "auths.private-effect-signing/2", "auths.gateway-content-read/1", "auths.gateway-content/1", "auths.gateway-content-history/1", "auths.gateway-disclose/1", "auths.gateway-unix-disclosure-channel/1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle", "ExactEffectApproval", "GatewayRecoveryReport", "AcquisitionSnapshot", "DisclosureSnapshot"]
 fixture_suites = ["demos/airtable-gateway", "bindings/fixtures/gateway/airtable"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2", "airtable-record-update-v1"]
-transports = ["unix", "http-local-demo", "https-provider-disposable-table"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket"]
-security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history"]
+transports = ["unix", "http-local-demo", "https-provider-disposable-table", "owner-review-http-local", "native-authenticated-unix-disclosure"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket", "native-effect-policy", "private-operator-consent-channel", "owner-loopback-origin", "private-owner-login-file", "native-review-renderer", "reviewed-local-managed-recipe", "pinned-local-recipient"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history", "private-read-actor-grant", "finite-scripted-recovery-reviews", "candidate-acquisition-history", "authenticated-owner-session", "withheld-exact-approval", "pending-owner-review", "private-recipient-seed-and-output", "native-acquisition-history", "native-recipient-ack-history", "fixed-development-actor-simulator"]
 
 [packages.auths-airtable-gateway-demo.claims]
 demo-conformance-fixture = ["demos/airtable-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
-runtime-enforcement-boundary = ["demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit"]
+runtime-enforcement-boundary = [
+  "demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit",
+  "demos/airtable-gateway/selftest.py#test_private_reviewer_refuses_unlisted_inputs",
+  "demos/airtable-gateway/selftest.py#test_exact_operator_consent_binding",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_owner_channel_refuses_unauthenticated_and_cross_origin_decisions",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_complete_review_is_unchanged_and_only_its_decision_releases_the_waiter",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_expired_replaced_and_cookie_only_sessions_cannot_read_private_reviews",
+  "demos/airtable-gateway/tests/test_owner_review.py#test_unsupported_truncated_and_mismatched_review_cannot_be_presented",
+  "demos/airtable-gateway/tests/owner_browser.py#test_installed_authenticated_owner_review_and_native_recovery",
+]
 receipt-producer-consumer = ["demos/airtable-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
 
 [packages.auths-google-employee-delegation-demo]
@@ -2058,6 +2248,20 @@ configuration_inputs = ["operator-pins", "trusted-context-template", "demo-co-ex
 security_state = ["task-ledger", "challenge-ledger", "provider-attempt-ledger", "release-commitment", "broker-runtime-lock", "encrypted-employee-credentials", "company-scoped-browser-sessions"]
 
 [packages.auths-google-employee-delegation-demo.claims]
-demo-conformance-fixture = ["demos/google-employee-delegation/broker/tests/test_demo_co_contract.py#test_local_fixture_is_valid_but_never_imported_as_live"]
-runtime-enforcement-boundary = ["demos/google-employee-delegation/broker/tests/test_admission.py#test_replay_and_release_after_revocation_are_denied", "demos/google-employee-delegation/broker/tests/test_admission.py#test_two_processes_share_atomic_capacity_and_provider_byte_reservations", "demos/google-employee-delegation/broker/tests/test_admission.py#test_crashed_broker_reopens_slot_without_refunding_charges", "demos/google-employee-delegation/broker/tests/test_google_drive.py#test_deadline_interrupts_a_trickling_header_parser", "demos/google-employee-delegation/broker/tests/test_oauth_custody.py#test_offboarding_closes_admission_and_token_custody", "demos/google-employee-delegation/broker/tests/test_workbench.py#test_other_company_browser_cookie_cannot_authorize_this_workbench"]
-receipt-producer-consumer = ["demos/google-employee-delegation/broker/tests/test_task_authority.py#test_real_chain_and_exact_action_pass_read_boundary", "demos/google-employee-delegation/broker/tests/test_admission.py#test_receipt_write_failure_rolls_back_release_commitment"]
+# Evidence coverage: metadata-domain-reference.
+demo-conformance-fixture = [
+  "demos/google-employee-delegation/broker/tests/test_google_metadata_reference.py#test_metadata_reference_fixture_is_current",
+  "demos/google-employee-delegation/broker/tests/test_demo_co_contract.py#test_local_fixture_is_valid_but_never_imported_as_live",
+]
+runtime-enforcement-boundary = [
+  "demos/google-employee-delegation/broker/tests/test_admission.py#test_replay_and_release_after_revocation_are_denied",
+  "demos/google-employee-delegation/broker/tests/test_admission.py#test_two_processes_share_atomic_capacity_and_provider_byte_reservations",
+  "demos/google-employee-delegation/broker/tests/test_admission.py#test_crashed_broker_reopens_slot_without_refunding_charges",
+  "demos/google-employee-delegation/broker/tests/test_google_drive.py#test_deadline_interrupts_a_trickling_header_parser",
+  "demos/google-employee-delegation/broker/tests/test_oauth_custody.py#test_offboarding_closes_admission_and_token_custody",
+  "demos/google-employee-delegation/broker/tests/test_workbench.py#test_other_company_browser_cookie_cannot_authorize_this_workbench",
+]
+receipt-producer-consumer = [
+  "demos/google-employee-delegation/broker/tests/test_task_authority.py#test_real_chain_and_exact_action_pass_read_boundary",
+  "demos/google-employee-delegation/broker/tests/test_admission.py#test_receipt_write_failure_rolls_back_release_commitment",
+]

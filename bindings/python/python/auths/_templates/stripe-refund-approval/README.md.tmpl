@@ -91,7 +91,7 @@ bin/install-gateway < @@KEY_FILE@@
 bin/start
 bin/request --operation-id refund-1 --payment-intent pi_mock_journey --amount 1500
 bin/approve @@FIRST_MANAGER@@ requests/refund-1/@@FIRST_MANAGER@@.request   # any @@APPROVALS@@ managers
-bin/submit --operation-id refund-1
+bin/submit --operation-id refund-1 --recover
 bin/export
 bin/audit
 bin/stop
@@ -112,8 +112,11 @@ It runs `auths-gateway review` and `bound-extension`, which contact nothing.
 It refuses a project that is already set up.
 
 **`bin/install-gateway < KEY_FILE`** (operator) installs the gateway with
-the Stripe key on standard input, then creates its observer key and
-completes `audit/pins.json`. The key reaches only the gateway, which stores
+the Stripe key on standard input as an unpublished candidate. It obtains a
+separate native candidate-check proof and exact approval, executes those
+bounded reads, and publishes only from their retained results. It then creates
+the observer key, activates the exact reviewed configuration, and completes
+`audit/pins.json`. The key reaches only the gateway, which stores
 it under `enforcement/gateway/`; no file, argument, environment variable, or
 log here receives it, and a terminal on standard input is refused. The
 recipe accepts only a Stripe restricted test key, whose prefix is
@@ -125,7 +128,8 @@ test mode it never reads its standard input: the install inherits it. A
 second install is refused (`gateway.install.already-installed`).
 
 **`bin/start`** and **`bin/stop`** (operator) start and stop the gateway, and
-in double mode the counting Stripe double on 127.0.0.1. The gateway listens
+the separate operator reviewer, and in double mode the counting Stripe double
+on 127.0.0.1. The gateway listens
 on `run/app.sock` for the agent and on `run/admin.sock` for the operator.
 
 **`bin/request`**, **`bin/approve`**, **`bin/submit`** (agent and managers).
@@ -135,12 +139,27 @@ The agent writes one approval request per manager into
 `--decline` signs a decline. The agent's own approval never counts.
 `bin/submit` collects whatever responses exist; once @@APPROVALS@@ managers
 approved, the agent signs its exact refund and the assembled proof goes to
+the separate operator reviewer for a native exact-effect approval and then to
 the gateway, which alone decides the approval threshold, the ceiling, the
 per-window count and sum, and whether an operation ID may run again. One
 decline beside enough approvals does not stop a refund; when too many
 managers declined for enough approvals to remain possible, nothing is sent. Every record says who decided it in
 `decided_by`: `gateway`, `approver`, or `client`. `request --precheck` is an
 opt-in client-side pre-check, not an enforcement boundary.
+
+The reviewer has its own read-actor grant and exact-effect key under
+`operator/effects/`. Double mode is a finite scripted simulation, never a human
+approval trial. Stripe test mode saves the exact full text in `literal-review.txt`
+and its native request in `signing-request.json`, and waits for the operator's
+exact consent through the private FIFO;
+`run/operator.log` gives its path. No unattended live effect signature is made.
+All roles still share one OS user, so these paths do not establish isolation.
+
+A successful write reports `response-recorded`. `bin/submit --recover` explicitly
+asks for a fresh, separately authorized native recovery read. The unchanged
+`recovery.report` must show a provider-linked source before the audit can claim
+`observed-by-provider`; a write response alone is insufficient. Plain `submit`
+does not recover implicitly.
 
 **`bin/export`** (agent) writes `audit/bundle.json`: one entry per operation
 ID, the approval responses, the recipe, and the trusted context.

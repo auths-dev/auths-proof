@@ -1,4 +1,4 @@
-//! Attempt scenarios for attempt record `/3`: the pre-entry re-read, the
+//! Attempt scenarios for attempt record `/6`: the pre-entry re-read, the
 //! relative ceiling, the lease-time account and denied reads, account-scope
 //! headers, the retention rule, the entry deadline, and response-locator
 //! recovery.
@@ -8,19 +8,18 @@
 //! (empty when nothing is stored), the refusal code, and the lease, read, and
 //! write counts.
 //!
-//! `record_cases` are the claim, response, observation, and `unknown`
-//! scenarios of the retired attempt record `/2`, moved here unchanged when
-//! record `/3` replaced it. One `/2` scenario is not carried:
-//! `crash-after-entry-not-reobserved` asserted that a stored `attempting`
-//! record is never re-observed, which record `/3` reverses for a linked
-//! recipe; `linked-attempting-reobserved` replaces it.
+//! A response terminates submission with no automatic observation.
+//! `record_cases` retain explicit operator observation mechanics as a reference;
+//! application replay only returns stored state. Neither oracle establishes
+//! independently authorized AP074 recovery. A grant with a lost response remains
+//! unknown on replay, including when a recipe has a linked observation plan.
 
 use super::{NOW, recipes, require_current};
 use serde_json::{Map, Value, json};
 
 pub(crate) const FILE: &str = "attempt-scenarios-v3.json";
 const SCHEMA: &str = "auths.gateway-attempt-scenarios/3";
-const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/3";
+const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/16";
 const STRIPE_VERSION: &str = "2025-03-31.basil";
 const ACCOUNT: &str = "acct_TESTACCOUNT01";
 const PLATFORM: &str = "acct_TESTPLATFORM1";
@@ -167,13 +166,8 @@ fn plain_response(key: &str, status: u16, body: Value) -> Value {
     setup
 }
 
-const FULL: [&str; 4] = [
-    "attempting",
-    "attempting",
-    "response-recorded",
-    "observed-by-provider",
-];
-const REFUSED_AFTER_BASIS: [&str; 2] = ["attempting", "not-entered"];
+const FULL: [&str; 4] = ["reserved", "reserved", "entry-granted", "response-recorded"];
+const REFUSED_AFTER_BASIS: [&str; 2] = ["reserved", "not-entered"];
 
 fn relative_ceiling_cases() -> Vec<Value> {
     let intent = format!("GET /v1/payment_intents/{INTENT}");
@@ -193,7 +187,7 @@ fn relative_ceiling_cases() -> Vec<Value> {
         json!({}),
         &FULL,
         None,
-        &counts(2, 6, 2, 1),
+        &counts(1, 3, 1, 1),
     );
     boundary["basis"] = json!(1001);
     let mut mismatch = scenario(
@@ -250,7 +244,7 @@ fn relative_ceiling_cases() -> Vec<Value> {
 }
 
 fn credential_cases() -> Vec<Value> {
-    let refused = ["attempting", "not-entered"];
+    let refused = ["reserved", "not-entered"];
     let version = plain_response("GET /v1/customers", 403, Value::Null);
     vec![
         scenario(
@@ -329,7 +323,7 @@ fn account_scope_cases() -> Vec<Value> {
         json!({}),
         &FULL,
         None,
-        &counts(2, 6, 2, 1),
+        &counts(1, 3, 1, 1),
     );
     let credential_reads = |requests: &mut Vec<Value>| {
         for path in ["/v1/account", "/v1/customers", "/v1/payouts"] {
@@ -345,13 +339,6 @@ fn account_scope_cases() -> Vec<Value> {
         false,
     ));
     requests.push(stripe_request("POST", "/v1/refunds", true, true));
-    credential_reads(&mut requests);
-    requests.push(stripe_request(
-        "GET",
-        &format!("/v1/refunds/{REFUND}"),
-        true,
-        false,
-    ));
     only_action["requests"] = Value::Array(requests);
     vec![
         scenario(
@@ -389,7 +376,7 @@ fn pre_entry_cases() -> Vec<Value> {
         "pre-entry-replaced-after-observation",
         "airtable-pre-entry",
         plain_response(&record, 200, json!({"fields": {"DemoStatus": "Approved"}})),
-        &["attempting", "not-entered"],
+        &["reserved", "not-entered"],
         Some("gateway.pre-entry.condition-false"),
         &counts(1, 0, 1, 0),
     );
@@ -400,7 +387,7 @@ fn pre_entry_cases() -> Vec<Value> {
         json!({}),
         &FULL,
         None,
-        &counts(2, 0, 2, 1),
+        &counts(1, 0, 1, 1),
     );
     matching["pre_entry_observations"] = json!(1);
     vec![
@@ -410,7 +397,7 @@ fn pre_entry_cases() -> Vec<Value> {
             "pre-entry-unavailable",
             "airtable-pre-entry",
             plain_response(&record, 404, Value::Null),
-            &["attempting", "not-entered"],
+            &["reserved", "not-entered"],
             Some("gateway.pre-entry.unavailable"),
             &counts(1, 0, 1, 0),
         ),
@@ -435,7 +422,7 @@ fn pre_entry_cases() -> Vec<Value> {
 
 fn entry_and_recovery_cases() -> Vec<Value> {
     let none: [&str; 0] = [];
-    let refused_at_entry = ["attempting", "attempting", "not-entered"];
+    let refused_at_entry = ["reserved", "reserved", "not-entered"];
     vec![
         scenario(
             "idempotency-window-exceeds-retention",
@@ -451,7 +438,7 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             json!({"validity_seconds": 86_340}),
             &FULL,
             None,
-            &counts(2, 6, 2, 1),
+            &counts(1, 3, 1, 1),
         ),
         scenario(
             "entry-deadline-exceeded",
@@ -465,37 +452,41 @@ fn entry_and_recovery_cases() -> Vec<Value> {
             "transport-not-entered",
             "stripe",
             json!({"write_transport": "refused-before-send"}),
-            &refused_at_entry,
-            Some("gateway.transport.not-entered"),
+            &["reserved", "reserved", "entry-granted", "unknown"],
+            None,
             &counts(1, 3, 1, 0),
         ),
         scenario(
             "response-locator-unknown-stays-unknown",
             "stripe",
             json!({"write_transport": "timeout-after-send", "replay": "fresh-proof"}),
-            &["attempting", "attempting", "unknown"],
+            &["reserved", "reserved", "entry-granted", "unknown"],
             None,
             &counts(1, 3, 1, 1),
         ),
         scenario(
-            "linked-attempting-reobserved",
+            "linked-grant-replay-retains-unknown",
             "airtable",
-            json!({"crash": "after-write-before-response", "replay": "fresh-proof"}),
-            &["attempting", "observed-by-provider"],
+            json!({"crash": "after-write-before-response", "replay": "same-binding"}),
+            &["reserved", "entry-granted"],
             None,
-            &counts(2, 0, 1, 1),
+            &counts(1, 0, 0, 1),
         ),
     ]
 }
 
 /// The `/2` record scenarios: id, transition, and provider entries.
 const RECORD_CASES: &[(&str, &str, u64)] = &[
-    ("first-claim", "unclaimed->attempting", 0),
-    ("same-id-fresh-challenge", "attempting->replay-refused", 0),
-    ("changed-action-same-id", "attempting->replay-refused", 0),
-    ("crash-after-claim", "attempting->unknown-on-restart", 0),
-    ("complete-http-response", "attempting->response-recorded", 1),
-    ("ambiguous-transport", "attempting->unknown", 1),
+    ("first-claim", "unclaimed->reserved", 0),
+    ("same-id-fresh-challenge", "reserved->binding-conflict", 0),
+    ("changed-action-same-id", "reserved->binding-conflict", 0),
+    ("crash-after-claim", "reserved->reserved-on-restart", 0),
+    (
+        "complete-http-response",
+        "entry-granted->response-recorded",
+        1,
+    ),
+    ("ambiguous-transport", "entry-granted->unknown", 1),
     ("matching-read-back", "response-recorded->observed-match", 1),
     (
         "mismatching-read-back",

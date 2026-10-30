@@ -1,0 +1,114 @@
+{
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.",
+      "A separately approved bounded GET can retain the PrivateNote string of this JSON record as private UTF-8 content. Releasing it to the exact local recipient requires a separate native disclosure proof, exact approval and authenticated channel; acquisition does not disclose it."
+    ],
+    "fields": {
+      "record_id": {
+        "kind": "identifier",
+        "label": "Record id"
+      },
+      "replacement": {
+        "kind": "text",
+        "label": "Replacement"
+      }
+    }
+  },
+  "digest": "88f9e64b3f82ff6d369a31082d9e2b00890b0d676bb1c0c8e3610e961b1769eb",
+  "operator_namespace": "airtable-demo",
+  "service": "airtable-gateway-demo",
+  "tool": "set_demo_status_v1",
+  "origin": "https://api.airtable.com",
+  "method": "PATCH",
+  "path": [
+    "v0",
+    "appQD3Qf0YFBCW9bV",
+    "tblBx2jwe0IsPYRKT",
+    "<record_id>"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "maximum_body_bytes": 16384,
+  "has_observation": true,
+  "sends_idempotency_key": false,
+  "echo": {
+    "kind": "json-pointer",
+    "write": "/fields/auths_echo",
+    "observe": "/fields/auths_echo",
+    "disclosure": "the gateway writes a token derived from the authorized action into this provider field; the provider stores it and anyone who can read the record can read it; do not declare echo when the observation response may contain secrets"
+  },
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "linked",
+    "state_observation": "verified-locator",
+    "provider_link": "verified-locator",
+    "unknown_resolution": "gateway-reobservation",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "content_acquisition": {
+    "declaration": {
+      "schema": "auths.gateway-content-read/1",
+      "resource_field": "record_id",
+      "path": [
+        {
+          "kind": "fixed",
+          "value": "v0"
+        },
+        {
+          "kind": "fixed",
+          "value": "appQD3Qf0YFBCW9bV"
+        },
+        {
+          "kind": "fixed",
+          "value": "tblBx2jwe0IsPYRKT"
+        },
+        {
+          "kind": "field",
+          "name": "record_id"
+        }
+      ],
+      "query": [],
+      "projection": {
+        "kind": "json-string",
+        "pointer": "/fields/PrivateNote"
+      },
+      "maximum_response_bytes": 1024,
+      "maximum_content_bytes": 512
+    },
+    "method": "GET",
+    "disclosure": "independent native read authority and exact approval required; response remains private; release requires separate authorization and entry"
+  },
+  "idempotency": null,
+  "observation": {
+    "locator": "verified-locator",
+    "path": [
+      "v0",
+      "appQD3Qf0YFBCW9bV",
+      "tblBx2jwe0IsPYRKT",
+      "<record_id>"
+    ],
+    "json_pointer": "/fields/DemoStatus",
+    "expected_field": "replacement",
+    "maximum_response_bytes": 16384
+  },
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "recipe_digest": "88f9e64b3f82ff6d369a31082d9e2b00890b0d676bb1c0c8e3610e961b1769eb",
+  "verifier_configuration": "4438003caabb21ef7848726c143782b3cb4c26adac7f609c70b23917613ef035",
+  "profile_policy": "mcp-arguments-v1",
+  "bounded_policy_extension": "bounded-policy-commitment-v1"
+}

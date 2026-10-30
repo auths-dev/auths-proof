@@ -6,11 +6,11 @@ use std::{
     collections::BTreeMap,
     convert::Infallible,
     fmt,
-    fs::{self, File},
-    io::Write as _,
+    fs::{self, File, OpenOptions},
+    io::{Read as _, Write as _},
     num::NonZeroU64,
     path::{Path, PathBuf},
-    sync::{Mutex, RwLock},
+    sync::{Mutex, MutexGuard, RwLock},
     time::Instant,
 };
 use subtle::ConstantTimeEq as _;
@@ -304,6 +304,8 @@ pub struct InMemoryCredentialStore {
     maximum_bytes: usize,
 }
 
+type CredentialEntries = BTreeMap<(String, u64), StoredSecret>;
+
 /// One retained generation. Every clone, including the copy-on-write map in
 /// [`PersistentCredentialStore`], zeroizes its bytes when dropped.
 #[derive(Clone)]
@@ -541,7 +543,10 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
 /// only internal connection IDs, generations, commitment-bound secret bytes,
 /// and no provider/account/profile metadata. Deployments that require an HSM,
 /// OS keychain, or external secret manager can implement the same mechanism
-/// contract without changing callers.
+/// contract without changing callers. Every operation reloads bounded state
+/// under a stable cross-process file lock. File-lock contention fails immediately with
+/// `Unavailable`; stale handles cannot overwrite a successor or lease a
+/// generation already removed by a completed custody mutation.
 pub struct PersistentCredentialStore {
     path: PathBuf,
     entries: Mutex<BTreeMap<(String, u64), StoredSecret>>,
@@ -587,10 +592,7 @@ impl PersistentCredentialStore {
         let parent = path.parent().ok_or(CredentialStoreError::InvalidCapacity)?;
         validate_parent(parent)?;
         let entries = if path.exists() {
-            validate_secret_file(&path, maximum_bytes)?;
-            let bytes =
-                Zeroizing::new(fs::read(&path).map_err(|_| CredentialStoreError::Unavailable)?);
-            decode_persistent_entries(&bytes, maximum_entries, maximum_bytes)?
+            read_persistent_entries(&path, maximum_entries, maximum_bytes)?
         } else {
             BTreeMap::new()
         };
@@ -612,11 +614,87 @@ impl PersistentCredentialStore {
             .entries
             .lock()
             .map_err(|_| CredentialStoreError::Unavailable)?;
+        let _writer = self.writer_lock()?;
+        self.refresh(&mut entries)?;
         let mut next = entries.clone();
         let result = mutation(&mut next)?;
         persist_entries(&self.path, &next, self.maximum_bytes)?;
         *entries = next;
         Ok(result)
+    }
+
+    /// Cross-process mutations use one stable sidecar, not the database inode
+    /// that atomic rename replaces. Contention fails immediately and cannot
+    /// acknowledge custody. A reader's snapshot is ordered with these writers.
+    fn writer_lock(&self) -> Result<File, CredentialStoreError> {
+        let parent = self
+            .path
+            .parent()
+            .ok_or(CredentialStoreError::UnsafeStorage)?;
+        validate_parent(parent)?;
+        let mut name = self.path.as_os_str().to_os_string();
+        name.push(".lock");
+        let path = PathBuf::from(name);
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            options.mode(0o600);
+        }
+        let lock = match options.open(&path) {
+            Ok(lock) => lock,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                validate_secret_file(&path, 0)?;
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(&path)
+                    .map_err(|_| CredentialStoreError::Unavailable)?
+            }
+            Err(_) => return Err(CredentialStoreError::Unavailable),
+        };
+        lock.try_lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        validate_secret_file(&path, 0)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt as _;
+            let opened = lock
+                .metadata()
+                .map_err(|_| CredentialStoreError::Unavailable)?;
+            let named =
+                fs::symlink_metadata(&path).map_err(|_| CredentialStoreError::Unavailable)?;
+            if opened.dev() != named.dev() || opened.ino() != named.ino() || opened.nlink() != 1 {
+                return Err(CredentialStoreError::UnsafeStorage);
+            }
+        }
+        Ok(lock)
+    }
+
+    fn refresh(
+        &self,
+        entries: &mut BTreeMap<(String, u64), StoredSecret>,
+    ) -> Result<(), CredentialStoreError> {
+        match fs::symlink_metadata(&self.path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && entries.is_empty() => {
+                return Ok(());
+            }
+            Err(_) => return Err(CredentialStoreError::Unavailable),
+            Ok(_) => {}
+        }
+        *entries = read_persistent_entries(&self.path, self.maximum_entries, self.maximum_bytes)?;
+        Ok(())
+    }
+
+    fn current_entries(&self) -> Result<MutexGuard<'_, CredentialEntries>, CredentialStoreError> {
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let _writer = self.writer_lock()?;
+        self.refresh(&mut entries)?;
+        Ok(entries)
     }
 
     fn total_bytes(entries: &BTreeMap<(String, u64), StoredSecret>) -> usize {
@@ -641,10 +719,7 @@ impl PersistentCredentialStore {
         connection_id: &ConnectionId,
         generation: NonZeroU64,
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError> {
-        let entries = self
-            .entries
-            .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let entries = self.current_entries()?;
         retained_entry(&entries, connection_id, generation)
             .map(|(_, entry)| entry.commitment)
             .ok_or(CredentialStoreError::Unavailable)
@@ -661,10 +736,7 @@ impl PersistentCredentialStore {
         &self,
         connection_id: &ConnectionId,
     ) -> Result<Vec<NonZeroU64>, CredentialStoreError> {
-        let entries = self
-            .entries
-            .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let entries = self.current_entries()?;
         Ok(connection_generations(&entries, connection_id)
             .filter_map(NonZeroU64::new)
             .collect())
@@ -689,10 +761,7 @@ impl PersistentCredentialStore {
         record: &ConnectionRecord,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
-        let entries = self
-            .entries
-            .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let entries = self.current_entries()?;
         let stored = record_entry(&entries, record)?;
         Ok(StoredSecretLease {
             bytes: stored.bytes.clone(),
@@ -710,10 +779,7 @@ impl PersistentCredentialStore {
         &self,
         record: &ConnectionRecord,
     ) -> Result<(), CredentialStoreError> {
-        let entries = self
-            .entries
-            .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let entries = self.current_entries()?;
         record_entry(&entries, record).map(|_| ())
     }
 
@@ -976,10 +1042,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
         binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
-        let entries = self
-            .entries
-            .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let entries = self.current_entries()?;
         let stored = binding_entry(&entries, binding)?;
         Ok(StoredSecretLease {
             bytes: stored.bytes.clone(),
@@ -1047,10 +1110,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
     }
 
     async fn holds(&self, binding: &CredentialBinding) -> Result<(), CredentialStoreError> {
-        let entries = self
-            .entries
-            .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let entries = self.current_entries()?;
         binding_entry(&entries, binding).map(|_| ())
     }
 
@@ -1122,6 +1182,37 @@ fn validate_secret_file(path: &Path, maximum_bytes: usize) -> Result<(), Credent
         }
     }
     Ok(())
+}
+
+fn read_persistent_entries(
+    path: &Path,
+    maximum_entries: usize,
+    maximum_bytes: usize,
+) -> Result<BTreeMap<(String, u64), StoredSecret>, CredentialStoreError> {
+    validate_secret_file(path, maximum_bytes)?;
+    let mut file = File::open(path).map_err(|_| CredentialStoreError::Unavailable)?;
+    let length = usize::try_from(
+        file.metadata()
+            .map_err(|_| CredentialStoreError::Unavailable)?
+            .len(),
+    )
+    .map_err(|_| CredentialStoreError::Capacity)?;
+    if length > maximum_bytes {
+        return Err(CredentialStoreError::Capacity);
+    }
+    // Allocate once: growing a secret-bearing Vec can strand an unwiped copy.
+    let mut bytes = Zeroizing::new(vec![0; length]);
+    file.read_exact(&mut bytes)
+        .map_err(|_| CredentialStoreError::Unavailable)?;
+    let mut extra = Zeroizing::new([0_u8; 1]);
+    if file
+        .read(&mut *extra)
+        .map_err(|_| CredentialStoreError::Unavailable)?
+        != 0
+    {
+        return Err(CredentialStoreError::UnsafeStorage);
+    }
+    decode_persistent_entries(&bytes, maximum_entries, maximum_bytes)
 }
 
 fn persist_entries(

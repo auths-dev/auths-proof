@@ -12,8 +12,10 @@ use std::{
 
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
+// AP074: 126 gateway locals, including all six durable-entry/protocol/ACK helpers.
+// External models, opaque/external counts, warning and axiom inventories are unchanged.
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "bd588f183a80542bc1f6f1990e0cae4aefa149f304693d37e535208266bbb553";
+    "5af27f70738b276ceb61d5994b054c12bd03b764f864335707e3d8d2987926da";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (

@@ -1,4 +1,4 @@
-//! Recipe source `auths.gateway-recipe-source/2`: compilation, operator
+//! Recipe source `auths.gateway-recipe-source/3`: compilation, operator
 //! review, recovery capability, and closed request construction.
 //!
 //! The compiler parses the source once into a typed AST, refuses anything
@@ -20,8 +20,16 @@ use url::{Host, Url};
 
 pub use auths_gateway_kernel::{construct, recovery};
 
+mod content;
+pub(crate) use content::ContentProjectionSpec;
+pub use content::{CONTENT_READ_SCHEMA, ClosedContentRead, ContentProjectionError};
+mod effect_review;
 mod lower;
+mod response;
+pub(crate) use response::parse as parse_provider_response;
 mod review;
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) use effect_review::synthetic_review;
 mod runtime;
 mod source;
 mod validate;
@@ -47,7 +55,7 @@ pub(crate) use runtime::{
 use source::{CredentialSource, IdempotencySource, PathSegment, RecipeSource};
 
 /// The only recipe source schema the compiler accepts.
-pub const RECIPE_SOURCE_SCHEMA: &str = "auths.gateway-recipe-source/2";
+pub const RECIPE_SOURCE_SCHEMA: &str = "auths.gateway-recipe-source/3";
 const MAX_SOURCE_BYTES: usize = 65_536;
 const MAX_LOCK_BYTES: usize = 65_536;
 const MAX_BODY_BYTES: usize = construct::MAX_BODY_BYTES;
@@ -513,7 +521,7 @@ pub struct CompiledRecipe {
 
 impl CompiledRecipe {
     /// Compiles source against the exact generated profile lock. Only
-    /// `auths.gateway-recipe-source/2` is accepted.
+    /// `auths.gateway-recipe-source/3` is accepted.
     ///
     /// # Errors
     /// Rejects malformed, unbounded, stale, or unsafe mappings with the code
@@ -531,7 +539,17 @@ impl CompiledRecipe {
             serde_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
         let lock: ProfileLockFile = serde_json::from_slice(lock_bytes)
             .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
-        if source.schema != RECIPE_SOURCE_SCHEMA {
+        let valid_tool = match &source.write {
+            Some(_) => !matches!(
+                source.tool.as_str(),
+                crate::effect::RECOVERY_READ_TOOL
+                    | crate::effect::CANDIDATE_CHECK_TOOL
+                    | crate::effect::CONTENT_READ_TOOL
+                    | crate::effect::DISCLOSURE_TOOL
+            ),
+            None => source.tool == crate::effect::CONTENT_READ_TOOL,
+        };
+        if source.schema != RECIPE_SOURCE_SCHEMA || !valid_tool {
             return Err(GatewayRecipeError::InvalidSource);
         }
         validate_lock(&lock)?;
@@ -544,9 +562,13 @@ impl CompiledRecipe {
         let fields = parse_root_fields(&lock.command_schema)?;
         let namespace = OperatorNamespace::parse(&source.operator_namespace)?;
         validate_binding_fields(&fields, &namespace)?;
+        source.review.validate(&fields)?;
         credential_requirement(&source.credential).validate()?;
         validate_origin(&source.origin)?;
         validate::validate_source(&source, &fields)?;
+        if let Some(content) = &source.content {
+            content.validate(&fields)?;
+        }
         let canonical = serde_json_canonicalizer::to_vec(&source)
             .map_err(|_| GatewayRecipeError::InvalidSource)?;
         let mut hasher = Sha256::new();
@@ -561,6 +583,18 @@ impl CompiledRecipe {
             digest,
             plans,
         })
+    }
+
+    /// Projects the declared complete review fields from already verified arguments.
+    pub(crate) fn effect_review(
+        &self,
+        arguments: &serde_json::Map<String, Value>,
+    ) -> Result<Value, GatewayRecipeError> {
+        self.source.review.project(arguments)
+    }
+
+    pub(crate) fn service(&self) -> &str {
+        &self.source.service
     }
 
     /// Returns the domain-separated compiled-recipe digest.
@@ -581,10 +615,16 @@ impl CompiledRecipe {
         &self.namespace
     }
 
-    /// What this recipe can prove after an ambiguous write.
+    /// What a mutation recipe can prove after an ambiguous write. Content-only
+    /// recipes have no mutation recovery capability.
     #[must_use]
-    pub fn recovery(&self) -> RecoveryCapability {
-        recovery_capability(self.recovery_declarations())
+    pub fn recovery(&self) -> Option<RecoveryCapability> {
+        match self.plans.execution {
+            lower::ExecutionPlan::Mutation(_) => {
+                Some(recovery_capability(self.recovery_declarations()))
+            }
+            lower::ExecutionPlan::ContentOnly => None,
+        }
     }
 
     fn recovery_declarations(&self) -> RecoveryDeclarations {
@@ -600,7 +640,12 @@ impl CompiledRecipe {
             }
             Some(_) => StateObservation::VerifiedLocator,
         };
-        let idempotency = match &self.source.write.idempotency {
+        let idempotency = match self
+            .source
+            .write
+            .as_ref()
+            .and_then(|write| write.idempotency.as_ref())
+        {
             None => LostClaimReentry::None,
             Some(IdempotencySource::DerivedHeader { retention_seconds }) => {
                 LostClaimReentry::Declared {
@@ -719,6 +764,14 @@ impl CompiledRecipe {
         arguments: &Map<String, Value>,
         action_commitment: [u8; 32],
     ) -> Result<ClosedProviderRequest, GatewayRecipeError> {
+        let lower::ExecutionPlan::Mutation(plan) = &self.plans.execution else {
+            return Err(GatewayRecipeError::ActionMismatch);
+        };
+        let write = self
+            .source
+            .write
+            .as_ref()
+            .ok_or(GatewayRecipeError::InvalidSource)?;
         let values = self.argument_values(arguments)?;
         let operation_id = arguments
             .get("operation_id")
@@ -731,18 +784,18 @@ impl CompiledRecipe {
             .as_ref()
             .map(|_| echo_token(&self.namespace, &operation_id, &action_commitment));
         let key = matches!(
-            self.source.write.idempotency,
+            write.idempotency,
             Some(IdempotencySource::DerivedHeader { .. })
         )
         .then(|| idempotency_key(&self.namespace, &operation_id));
         let built = construct::construct_write(
-            &self.plans.write,
+            plan,
             &values,
             echo.as_deref().unwrap_or_default().as_bytes(),
             key.as_deref().unwrap_or_default().as_bytes(),
         )
         .map_err(GatewayRecipeError::from_construct)?;
-        let content_type = match self.plans.write.body {
+        let content_type = match plan.body {
             construct::BodyPlan::Json(_) => "application/json",
             construct::BodyPlan::Form(_) => "application/x-www-form-urlencoded",
         };
@@ -777,7 +830,7 @@ impl CompiledRecipe {
             action_commitment,
             echo,
             idempotency_key: key,
-            method: self.source.write.method,
+            method: write.method,
             url: ascii(built.url)?,
             content_type,
             body: built.body,
@@ -1203,6 +1256,12 @@ pub struct ClosedCredentialReads {
 }
 
 impl ClosedCredentialReads {
+    /// Whether the recipe declares no provider credential checks.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.probe.is_none() && self.account.is_none() && self.denied.is_empty()
+    }
+
     /// Returns the onboarding probe, if declared.
     #[must_use]
     pub const fn probe(&self) -> Option<&ClosedCredentialRead> {
@@ -1286,11 +1345,12 @@ impl ClosedObservationRequest {
     /// Extracts the observed value and, when an echo field is declared and
     /// present, its value from bounded response bytes. A response that is too
     /// large, not JSON, or lacks the observed value yields `None`.
+    #[cfg(any(test, feature = "testkit-harness"))]
     pub(crate) fn observed_values(&self, response: &[u8]) -> Option<(Value, Option<Value>)> {
         if response.len() > self.maximum_response_bytes {
             return None;
         }
-        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let decoded = response::parse(response)?;
         let value = decoded.pointer(&self.json_pointer)?.clone();
         let echo = self
             .echo_pointer
@@ -1308,7 +1368,7 @@ impl ClosedObservationRequest {
         if response.len() > self.maximum_response_bytes {
             return None;
         }
-        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let decoded = response::parse(response)?;
         let matched = decoded.pointer(&self.json_pointer)? == &self.expected;
         let (Some(pointer), Some(token)) = (self.echo_pointer.as_deref(), token) else {
             return Some(ReadBack::Value { matched });
@@ -1564,4 +1624,15 @@ fn valid_enum_variant(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b':' | b'-'))
+}
+
+impl CompiledRecipe {
+    /// Checks only the recipe's offline credential prefix constraint. Passing
+    /// does not establish account, capability, provider mode or read authority.
+    #[must_use]
+    pub fn credential_prefix_matches(&self, candidate: &[u8]) -> bool {
+        self.guard_checks()
+            .as_ref()
+            .is_none_or(|guard| guard.admits_secret(candidate))
+    }
 }

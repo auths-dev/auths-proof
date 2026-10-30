@@ -94,6 +94,11 @@ fn install(root: &Path, state: &Path, arguments: &[&str], secret: &[u8]) -> Outp
     run(
         Command::new(BIN)
             .arg("install")
+            .arg("--effect-policy")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../bindings/fixtures/gateway/effect-policy.json"
+            ))
             .arg("--state-dir")
             .arg(state)
             .arg("--recipe")
@@ -464,6 +469,11 @@ fn operator_attestation(root: &Path) -> PathBuf {
     let request = run(
         Command::new(BIN)
             .arg("operator-request")
+            .arg("--effect-policy")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../bindings/fixtures/gateway/effect-policy.json"
+            ))
             .arg("--recipe")
             .arg(root.join("recipe.json"))
             .arg("--profile-lock")

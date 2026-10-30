@@ -312,7 +312,8 @@ fn refusal_code(result: GatewaySubmitResult) -> String {
         GatewaySubmitResult::Denied { code }
         | GatewaySubmitResult::Indeterminate { code }
         | GatewaySubmitResult::NotEntered { code } => code,
-        GatewaySubmitResult::Unknown
+        GatewaySubmitResult::Reserved { .. }
+        | GatewaySubmitResult::Unknown
         | GatewaySubmitResult::ResponseRecorded { .. }
         | GatewaySubmitResult::Observed { .. }
         | GatewaySubmitResult::ObservedByProvider { .. } => "audit.unexpected-result".to_owned(),
@@ -439,7 +440,10 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
         schema: AUDIT_REPORT_SCHEMA,
         trusted_context_sha256: hex::encode(digest),
         recipe_digest: recipe.digest_hex(),
-        recovery: crate::recipe::recovery_document(&recipe.recovery()),
+        recovery: recipe
+            .recovery()
+            .as_ref()
+            .map_or(Value::Null, crate::recipe::recovery_document),
         observer: pins.observer.as_str().to_owned(),
         verified: count(AuditStatus::Verified),
         refused: count(AuditStatus::Refused),

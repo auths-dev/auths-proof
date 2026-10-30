@@ -2,15 +2,16 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/3`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/16`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
 //! insert-once, compare-and-swap, and sweep mechanism over opaque bounded
-//! bytes of five closed kinds: [`FileGatewayAttemptStore`] for one host, and
+//! bytes of seven closed kinds: [`FileGatewayAttemptStore`] for one host, and
 //! the multi-host `PostgresLifecycleStore`, whose production qualification is
 //! still open.
 
+use crate::effect::{ApprovedEffect, EffectBinding, EffectPolicy, ExactEffectApproval};
 use crate::recipe::ObservationTemplate;
 use crate::{
     ClosedObservationRequest, ClosedProviderRequest, LogicalOperationId, OperatorNamespace,
@@ -23,18 +24,19 @@ use base64ct::{Base64, Encoding as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BinaryHeap},
     fs::{self, File, OpenOptions},
-    io::Write as _,
+    io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
+    time::Instant,
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/3";
+const SCHEMA: &str = "auths.gateway-attempt/16";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -43,6 +45,13 @@ const LOCK_FILE: &str = ".replace.lock";
 /// A load that keeps finding a crashed batch gives up after this many
 /// rollbacks rather than spin.
 const MAX_RECOVERY_ROUNDS: usize = 8;
+/// Maintenance work is bounded even when most directory entries are retained
+/// attempts or slots that have not expired. This cursor confers no authority.
+const MAX_FILE_SWEEP_SCAN: usize = 4_096;
+/// Exact sorted inventory is read-only, never an authority lookup. Above these
+/// explicit work/output bounds it refuses rather than report a partial prefix.
+const MAX_FILE_INVENTORY_SCAN: usize = 16_384;
+const MAX_FILE_INVENTORY_KEYS: usize = 4_096;
 const MAX_RECORD_BYTES: usize = auths_stores::MAX_GATEWAY_RECORD_BYTES;
 const MAX_BATCH_ENTRIES: usize = auths_stores::MAX_GATEWAY_BATCH_ENTRIES;
 /// A slot file wraps its record in base64 with its expiry.
@@ -63,8 +72,10 @@ const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
 pub enum GatewayAttemptStage {
     /// Transport entry was durably excluded after a claim.
     NotEntered,
-    /// Transport may have started; restart projects this to `Unknown`.
-    Attempting,
+    /// Durable admission and capacity reservation; no provider entry yet.
+    Reserved,
+    /// A unique durable grant exists; external entry may have occurred.
+    EntryGranted,
     /// A complete bounded HTTP response was durably recorded.
     ResponseRecorded,
     /// Entry or effect is ambiguous; no automatic retry.
@@ -81,7 +92,8 @@ impl GatewayAttemptStage {
     const fn kernel(self) -> Stage {
         match self {
             Self::NotEntered => Stage::NotEntered,
-            Self::Attempting => Stage::Attempting,
+            Self::Reserved => Stage::Reserved,
+            Self::EntryGranted => Stage::EntryGranted,
             Self::ResponseRecorded => Stage::ResponseRecorded,
             Self::Unknown => Stage::Unknown,
             Self::Observed => Stage::Observed,
@@ -109,7 +121,7 @@ pub enum GatewayEvidenceChannel {
 
 /// Secret-free provider evidence kept for every `observed-by-provider` stage.
 /// The bytes inherit the provider data's sensitivity and must not be logged;
-/// `Debug` reports only their length.
+/// `Debug` reports only bounded non-content metadata.
 #[derive(Clone, Eq, PartialEq)]
 pub struct GatewayProviderEvidence {
     channel: GatewayEvidenceChannel,
@@ -158,12 +170,31 @@ impl std::fmt::Debug for GatewayProviderEvidence {
         formatter
             .debug_struct("GatewayProviderEvidence")
             .field("channel", &self.channel)
-            .field("locator", &self.locator)
-            .field("echo", &self.echo)
-            .field("evidence_digest", &hex::encode(self.evidence_digest))
+            .field("private", &"[redacted]")
             .field("evidence_bytes", &self.evidence.len())
             .field("observed_at", &self.observed_at)
-            .finish()
+            .finish_non_exhaustive()
+    }
+}
+
+/// Typed conservative projection of one operation in the shared journal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GatewayOperationStage {
+    /// Provider mutation facts, including supported independent observations.
+    Mutation(GatewayAttemptStage),
+    /// Provider acquisition facts; never mutation success or recipient delivery.
+    Acquisition(AcquisitionStage),
+    /// Recipient disclosure facts, never provider observations.
+    Disclosure(DisclosureStage),
+}
+
+impl GatewayOperationStage {
+    pub(crate) const fn protocol(self) -> &'static str {
+        match self {
+            Self::Mutation(_) => "mutation",
+            Self::Acquisition(_) => "acquisition",
+            Self::Disclosure(_) => "disclosure",
+        }
     }
 }
 
@@ -240,9 +271,11 @@ pub fn pre_entry_digest(observations: &[Vec<u8>]) -> Option<[u8; 32]> {
     Some(hash.finalize().into())
 }
 
-/// Secret-free persisted evidence for one logical operation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Protected persisted evidence for one logical operation. Public callers must
+/// use the native redacted projections rather than serializing these facts.
+#[derive(Clone, Eq, PartialEq)]
 pub struct GatewayAttemptSnapshot {
+    revision: u64,
     namespace: OperatorNamespace,
     operation_id: LogicalOperationId,
     action_commitment: [u8; 32],
@@ -257,10 +290,46 @@ pub struct GatewayAttemptSnapshot {
     observation_match: Option<bool>,
     observation_fact: Option<GatewayObservationFact>,
     provider_evidence: Option<GatewayProviderEvidence>,
+    public_evidence_commitment: Option<[u8; 32]>,
     pre_entry: Option<GatewayPreEntry>,
+    recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
+}
+
+impl std::fmt::Debug for GatewayAttemptSnapshot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GatewayAttemptSnapshot")
+            .field("revision", &self.revision)
+            .field("stage", &self.stage)
+            .field("private", &"[redacted]")
+            .finish_non_exhaustive()
+    }
 }
 
 impl GatewayAttemptSnapshot {
+    pub(crate) const fn public_evidence_commitment(&self) -> Option<&[u8; 32]> {
+        self.public_evidence_commitment.as_ref()
+    }
+    /// Whether this history was refined by an independently authorized read.
+    #[must_use]
+    pub const fn has_recovery_evidence(&self) -> bool {
+        self.recovery_evidence.is_some()
+    }
+
+    /// Returns the read's original receipt time, without refreshing it on replay.
+    #[must_use]
+    pub fn recovery_received_at(&self) -> Option<u64> {
+        self.recovery_evidence
+            .as_ref()
+            .map(acquisition::RecoveryEvidenceLink::received_at)
+    }
+
+    /// Returns the durable journal revision.
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
+
     /// Returns the operator namespace.
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {
@@ -472,19 +541,268 @@ impl PreEntryWire {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Record {
+struct Record<S = MutationState> {
+    revision: u64,
     schema: String,
+    binding_canonical: String,
+    authority_canonical_b64: String,
+    approval_canonical: String,
     namespace: String,
     operation_id: String,
     action_commitment: String,
     recipe_digest: String,
     nonce: String,
     evaluated_at: u64,
+    entry: Option<EntryAudit>,
+    state: S,
+}
+
+impl<S> Record<S> {
+    fn new(
+        binding: &EffectBinding,
+        approval: &ExactEffectApproval,
+        authority: &crate::effect::NativeAuthority,
+        evaluated_at: u64,
+        state: S,
+    ) -> Result<Self, GatewayAttemptError> {
+        let mut nonce = [0_u8; 16];
+        getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
+        Ok(Record {
+            revision: 1,
+            schema: SCHEMA.to_owned(),
+            binding_canonical: String::from_utf8(
+                binding
+                    .to_private_bytes()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?
+                    .to_vec(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+            authority_canonical_b64: Base64::encode_string(authority.private_bytes()),
+            approval_canonical: String::from_utf8(
+                approval
+                    .to_private_bytes()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?
+                    .to_vec(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+            namespace: binding.journal_identity().0.to_owned(),
+            operation_id: binding.journal_identity().1.to_owned(),
+            action_commitment: hex::encode(binding.journal_identity().2),
+            recipe_digest: hex::encode(binding.journal_identity().3),
+            nonce: hex::encode(nonce),
+            evaluated_at,
+            entry: None,
+            state,
+        })
+    }
+
+    fn native_authority(&self) -> Result<crate::effect::NativeAuthority, GatewayAttemptError> {
+        if self.authority_canonical_b64.len() > crate::effect::MAX_EFFECT_BYTES.div_ceil(3) * 4 {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let bytes = zeroize::Zeroizing::new(
+            Base64::decode_vec(&self.authority_canonical_b64)
+                .map_err(|_| GatewayAttemptError::Corrupt)?,
+        );
+        if Base64::encode_string(&bytes) != self.authority_canonical_b64 {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        crate::effect::NativeAuthority::from_private_bytes(&bytes)
+            .map_err(|_| GatewayAttemptError::Corrupt)
+    }
+
+    fn validate_header(&self) -> Result<EffectBinding, GatewayAttemptError> {
+        let binding = EffectBinding::from_private_bytes(self.binding_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let authority = self.native_authority()?;
+        if !binding.matches_authority(&authority) {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let approval = ExactEffectApproval::from_private_bytes(self.approval_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        binding
+            .validate_recorded_approval(&approval, self.evaluated_at)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let (namespace, operation, action, recipe) = binding.journal_identity();
+        if namespace != self.namespace
+            || operation != self.operation_id
+            || hex::encode(action) != self.action_commitment
+            || hex::encode(recipe) != self.recipe_digest
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if self.entry.as_ref().is_some_and(|entry| {
+            entry.schema != "auths.effect-entry/3"
+                || entry.revision < 2
+                || entry.revision > self.revision
+                || entry.authorization_started_at < self.evaluated_at
+                || entry.granted_at < entry.authorization_started_at
+                || entry.granted_at < self.evaluated_at
+                || entry.granted_at > MAX_JSON_INTEGER
+                || entry.effect_id != hex::encode(binding.id().as_bytes())
+                || entry.dependencies.len() >= auths_stores::MAX_GATEWAY_FENCE_RECORDS
+                || entry
+                    .dependencies
+                    .iter()
+                    .flatten()
+                    .any(|value| digest_bytes(value).is_err())
+        }) {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if let Some(entry) = &self.entry {
+            let approval =
+                ExactEffectApproval::from_private_bytes(entry.approval_canonical.as_bytes())
+                    .map_err(|_| GatewayAttemptError::Corrupt)?;
+            binding
+                .validate_recorded_approval(&approval, entry.granted_at)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            if let Some(pre_entry) = &entry.pre_entry {
+                pre_entry.decode()?;
+            }
+        }
+        if self.schema != SCHEMA
+            || self.nonce.len() != 32
+            || !self
+                .nonce
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(binding)
+    }
+
+    fn record_grant(
+        &mut self,
+        approved: &ApprovedEffect,
+        authorization_started_at: u64,
+        now: u64,
+        pre_entry: Option<PreEntryWire>,
+        dependencies: &[Option<Vec<u8>>],
+    ) -> Result<(), GatewayAttemptError> {
+        if self.entry.is_some() || authorization_started_at < self.evaluated_at {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        self.entry = Some(EntryAudit {
+            revision: self.revision,
+            authorization_started_at,
+            pre_entry,
+            approval_canonical: String::from_utf8(
+                approved
+                    .approval()
+                    .to_private_bytes()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?
+                    .to_vec(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+            schema: "auths.effect-entry/3".to_owned(),
+            granted_at: now,
+            effect_id: hex::encode(approved.effect().binding().id().as_bytes()),
+            dependencies: dependencies
+                .iter()
+                .map(|bytes| {
+                    bytes
+                        .as_deref()
+                        .map(|bytes| {
+                            auths_codec::domain_commitment("auths.effect-entry-dependency/1", bytes)
+                                .map(|digest| hex::encode(digest.as_bytes()))
+                                .map_err(|_| GatewayAttemptError::Corrupt)
+                        })
+                        .transpose()
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        });
+        Ok(())
+    }
+
+    fn map_state<T>(
+        self,
+        map: impl FnOnce(S) -> Result<T, GatewayAttemptError>,
+    ) -> Result<Record<T>, GatewayAttemptError> {
+        Ok(Record {
+            revision: self.revision,
+            schema: self.schema,
+            binding_canonical: self.binding_canonical,
+            authority_canonical_b64: self.authority_canonical_b64,
+            approval_canonical: self.approval_canonical,
+            namespace: self.namespace,
+            operation_id: self.operation_id,
+            action_commitment: self.action_commitment,
+            recipe_digest: self.recipe_digest,
+            nonce: self.nonce,
+            evaluated_at: self.evaluated_at,
+            entry: self.entry,
+            state: map(self.state)?,
+        })
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(
+    tag = "protocol",
+    content = "facts",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+enum ProtocolState {
+    Mutation(Box<MutationState>),
+    Acquisition(Box<acquisition::AcquisitionState>),
+    Disclosure(Box<disclosure::DisclosureState>),
+}
+
+mod acquisition;
+mod capacity;
+mod disclosure;
+pub use acquisition::{
+    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
+    ContentProjectionStatus, GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition,
+    RecoveryEscalation, RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts,
+    ReservedAcquisition, RetainedContent,
+};
+pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
+#[cfg(unix)]
+pub(crate) use disclosure::DisclosureEntryPermit;
+pub use disclosure::{DisclosureSnapshot, DisclosureStage};
+
+trait JournalProtocol: Clone + Sized {
+    fn wrap(self) -> ProtocolState;
+    fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError>;
+    fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError>;
+    fn validate(record: &Record<Self>) -> Result<(), GatewayAttemptError>;
+}
+
+impl JournalProtocol for MutationState {
+    fn wrap(self) -> ProtocolState {
+        ProtocolState::Mutation(Box::new(self))
+    }
+    fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError> {
+        match state {
+            ProtocolState::Mutation(state) => Ok(*state),
+            ProtocolState::Acquisition(_) | ProtocolState::Disclosure(_) => {
+                Err(GatewayAttemptError::BindingConflict)
+            }
+        }
+    }
+    fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError> {
+        record.view()
+    }
+    fn validate(record: &Record<Self>) -> Result<(), GatewayAttemptError> {
+        record.snapshot(false).map(|_| ())
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct MutationState {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    counters: Vec<CounterWire>,
     stage: GatewayAttemptStage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     refusal: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    counters: Vec<CounterWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     response_status: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -501,12 +819,33 @@ struct Record {
     provider_evidence: Option<EvidenceWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pre_entry: Option<PreEntryWire>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
+}
+
+/// Private immutable evidence of the unique acknowledged grant. It does not
+/// attest to a socket send and cannot be deserialized into a transport permit.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct EntryAudit {
+    revision: u64,
+    authorization_started_at: u64,
+    approval_canonical: String,
+    pre_entry: Option<PreEntryWire>,
+    schema: String,
+    granted_at: u64,
+    effect_id: String,
+    // None records an explicitly checked absence, distinct from empty bytes.
+    dependencies: Vec<Option<String>>,
 }
 
 /// The fields no transition may change, in a fixed order.
 #[derive(Serialize)]
 struct FixedFields<'a> {
     schema: &'a str,
+    binding_canonical: &'a str,
+    authority_canonical_b64: &'a str,
+    approval_canonical: &'a str,
     namespace: &'a str,
     operation_id: &'a str,
     action_commitment: &'a str,
@@ -522,6 +861,80 @@ fn canonical<T: Serialize>(value: &T) -> Result<Vec<u8>, GatewayAttemptError> {
 }
 
 impl Record {
+    /// One hiding projection under the existing private, immutable 128-bit
+    /// attempt nonce. Scope includes every canonical binding dimension; the
+    /// nonce and raw evidence digest never enter the public projection.
+    fn public_commitment(
+        &self,
+        label: &[u8],
+        digest: &[u8; 32],
+    ) -> Result<[u8; 32], GatewayAttemptError> {
+        use hmac::Mac as _;
+        let key = zeroize::Zeroizing::new(
+            hex::decode(&self.nonce).map_err(|_| GatewayAttemptError::Corrupt)?,
+        );
+        if key.len() != 16 {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let mut mac =
+            hmac::Hmac::<Sha256>::new_from_slice(&key).map_err(|_| GatewayAttemptError::Corrupt)?;
+        mac.update(b"auths.gateway-public-commitment/1\0");
+        let binding = self.binding_canonical.as_bytes();
+        mac.update(
+            &u32::try_from(binding.len())
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_be_bytes(),
+        );
+        mac.update(binding);
+        mac.update(
+            &u32::try_from(label.len())
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_be_bytes(),
+        );
+        mac.update(label);
+        mac.update(digest);
+        Ok(mac.finalize().into_bytes().into())
+    }
+    fn counters(&self) -> Result<Vec<GatewayCounterEntry>, GatewayAttemptError> {
+        capacity::decode_counters(&self.state.counters)
+    }
+
+    fn recovery_target(&self) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let stage_resolvable = match self.state.stage {
+            GatewayAttemptStage::EntryGranted
+            | GatewayAttemptStage::Unknown
+            | GatewayAttemptStage::ResponseRecorded => true,
+            GatewayAttemptStage::Reserved
+            | GatewayAttemptStage::NotEntered
+            | GatewayAttemptStage::Observed
+            | GatewayAttemptStage::ObservedByProvider => false,
+        };
+        if !stage_resolvable {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        self.recovery_target_data()
+    }
+
+    /// The immutable observation contract also remains available after final
+    /// evidence, so history can be checked without acquiring new authority.
+    fn recovery_target_data(
+        &self,
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let binding = self.validate_header()?;
+        let request = self
+            .observation_request()
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        let echo = self
+            .state
+            .observation_plan
+            .as_ref()
+            .filter(|plan| plan.echo_pointer.is_some())
+            .map(|_| self.echo_token())
+            .transpose()?;
+        crate::effect::RecoveryReadTarget::from_journal(binding, request, echo)
+            .map_err(|_| GatewayAttemptError::Corrupt)
+    }
+
     fn echo_token(&self) -> Result<String, GatewayAttemptError> {
         let namespace =
             OperatorNamespace::parse(&self.namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
@@ -535,55 +948,70 @@ impl Record {
     }
 
     fn link(&self) -> Link {
-        self.observation_plan
+        self.state
+            .observation_plan
             .as_ref()
             .map_or(Link::None, ObservationTemplate::link)
     }
 
     /// The projection the translated transition rule inspects.
     fn view(&self) -> Result<AttemptView, GatewayAttemptError> {
-        let reading = match (self.observation_match, self.observation_fact) {
+        let reading = match (self.state.observation_match, self.state.observation_fact) {
             (None, None) => Reading::None,
             (Some(true), None) => Reading::Match,
             (Some(false), None) => Reading::Mismatch,
             (Some(false), Some(GatewayObservationFact::EchoMismatch)) => Reading::EchoMismatch,
             (Some(true) | None, Some(_)) => return Err(GatewayAttemptError::Corrupt),
         };
-        let response = match (self.response_status, &self.response_digest) {
+        let response = match (self.state.response_status, &self.state.response_digest) {
             (None, None) => Vec::new(),
             (Some(status), Some(digest)) => canonical(&(status, digest))?,
             _ => return Err(GatewayAttemptError::Corrupt),
         };
         Ok(AttemptView {
+            protocol: transition::Protocol::Mutation,
+            revision: self.revision,
+            entry: self
+                .entry
+                .as_ref()
+                .map(canonical)
+                .transpose()?
+                .unwrap_or_default(),
             fixed: canonical(&FixedFields {
                 schema: &self.schema,
+                binding_canonical: &self.binding_canonical,
+                authority_canonical_b64: &self.authority_canonical_b64,
+                approval_canonical: &self.approval_canonical,
                 namespace: &self.namespace,
                 operation_id: &self.operation_id,
                 action_commitment: &self.action_commitment,
                 recipe_digest: &self.recipe_digest,
                 nonce: &self.nonce,
                 evaluated_at: self.evaluated_at,
-                counters: &self.counters,
-                observation_plan: self.observation_plan.as_ref(),
+                counters: &self.state.counters,
+                observation_plan: self.state.observation_plan.as_ref(),
             })?,
-            stage: self.stage.kernel(),
-            refusal: self.refusal.is_some(),
+            stage: self.state.stage.kernel(),
+            refusal: self.state.refusal.is_some(),
             pre_entry: self
+                .state
                 .pre_entry
                 .as_ref()
                 .map(canonical)
                 .transpose()?
                 .unwrap_or_default(),
             response,
+            acknowledgement: Vec::new(),
             locator: self
+                .state
                 .response_locator
                 .as_ref()
                 .map(canonical)
                 .transpose()?
                 .unwrap_or_default(),
             reading,
-            evidence: self.provider_evidence.is_some(),
-            observation: self.observation_plan.is_some(),
+            evidence: self.state.provider_evidence.is_some(),
+            observation: self.state.observation_plan.is_some(),
             link: self.link(),
         })
     }
@@ -591,34 +1019,32 @@ impl Record {
     /// The read-back request of the stored plan and locator, when one can
     /// be built.
     fn observation_request(&self) -> Option<ClosedObservationRequest> {
-        self.observation_plan
+        self.state
+            .observation_plan
             .as_ref()?
-            .request(self.response_locator.as_ref())
+            .request(self.state.response_locator.as_ref())
     }
 
-    fn counters(&self) -> Result<Vec<GatewayCounterEntry>, GatewayAttemptError> {
-        if self.counters.len() > MAX_COUNTERS {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        let counters = self
-            .counters
-            .iter()
-            .map(|entry| {
-                Ok(GatewayCounterEntry {
-                    kind: entry.kind,
-                    counter: digest_bytes(&entry.counter)?,
-                    slot: entry.slot,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if counters.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        Ok(counters)
+    fn validate_reservations(
+        &self,
+        key: GatewayAttemptKey,
+        bound: Option<&crate::bounds::BoundAdmission>,
+        snapshots: &[Option<Vec<u8>>],
+        now: u64,
+    ) -> Result<(), GatewayAttemptError> {
+        capacity::validate_reservations(
+            &self.namespace,
+            &self.operation_id,
+            &self.state.counters,
+            key,
+            bound,
+            snapshots,
+            now,
+        )
     }
 
     fn locator_valid(&self) -> bool {
-        match (&self.response_locator, &self.observation_plan) {
+        match (&self.state.response_locator, &self.state.observation_plan) {
             (None, _) => true,
             (Some(_), None) => false,
             (Some(locator), Some(plan)) => {
@@ -633,14 +1059,18 @@ impl Record {
     }
 
     fn snapshot(&self, recovered: bool) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+        if !self.validate_header()?.is_mutation() {
+            return Err(GatewayAttemptError::Corrupt);
+        }
         if self.schema != SCHEMA
             || self.nonce.len() != 32
             || !self
                 .nonce
                 .bytes()
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            || !self.refusal.as_deref().is_none_or(valid_code)
+            || !self.state.refusal.as_deref().is_none_or(valid_code)
             || !self
+                .state
                 .observation_plan
                 .as_ref()
                 .is_none_or(ObservationTemplate::valid)
@@ -656,17 +1086,22 @@ impl Record {
         let action_commitment = digest_bytes(&self.action_commitment)?;
         let recipe_digest = digest_bytes(&self.recipe_digest)?;
         let response_digest = self
+            .state
             .response_digest
             .as_deref()
             .map(digest_bytes)
             .transpose()?;
         if self
+            .state
             .response_status
             .is_some_and(|status| !(100..=599).contains(&status))
         {
             return Err(GatewayAttemptError::Corrupt);
         }
-        let provider_evidence = match &self.provider_evidence {
+        if let Some(link) = &self.state.recovery_evidence {
+            link.validate(self)?;
+        }
+        let provider_evidence = match &self.state.provider_evidence {
             Some(wire) => {
                 let locator = self
                     .observation_request()
@@ -676,30 +1111,42 @@ impl Record {
             None => None,
         };
         let pre_entry = self
-            .pre_entry
+            .entry
             .as_ref()
+            .map_or(self.state.pre_entry.as_ref(), |entry| {
+                entry.pre_entry.as_ref()
+            })
             .map(PreEntryWire::decode)
             .transpose()?;
+        let public_evidence_commitment = provider_evidence
+            .as_ref()
+            .map(|evidence| {
+                self.public_commitment(b"provider-evidence", evidence.evidence_digest())
+            })
+            .transpose()?;
         Ok(GatewayAttemptSnapshot {
+            revision: self.revision,
             namespace,
             operation_id,
             action_commitment,
             recipe_digest,
             evaluated_at: self.evaluated_at,
-            stage: if recovered && self.stage == GatewayAttemptStage::Attempting {
+            stage: if recovered && self.state.stage == GatewayAttemptStage::EntryGranted {
                 GatewayAttemptStage::Unknown
             } else {
-                self.stage
+                self.state.stage
             },
-            refusal: self.refusal.clone(),
+            refusal: self.state.refusal.clone(),
             counters: self.counters()?,
-            response_status: self.response_status,
+            response_status: self.state.response_status,
             response_digest,
-            response_locator: self.response_locator.clone(),
-            observation_match: self.observation_match,
-            observation_fact: self.observation_fact,
+            response_locator: self.state.response_locator.clone(),
+            observation_match: self.state.observation_match,
+            observation_fact: self.state.observation_fact,
             provider_evidence,
+            public_evidence_commitment,
             pre_entry,
+            recovery_evidence: self.state.recovery_evidence.clone(),
         })
     }
 }
@@ -732,6 +1179,9 @@ pub enum GatewayAttemptError {
     /// A logical ID was already claimed, regardless of proof challenge or body.
     #[error("logical operation already claimed")]
     Replay,
+    /// The logical operation exists with a different complete effect binding.
+    #[error("logical operation binding conflict")]
+    BindingConflict,
     /// The state directory is not a private, normalized local directory.
     #[error("unsafe attempt directory")]
     UnsafeDirectory,
@@ -856,15 +1306,20 @@ pub fn check_private_directory_owned_by(
 pub struct GatewayAttemptKey([u8; 32]);
 
 impl GatewayAttemptKey {
-    /// Derives the key of `operation_id` in `namespace`.
-    #[must_use]
-    pub fn for_operation(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> Self {
-        let mut hash = Sha256::new();
-        hash.update(b"auths.gateway-logical-operation/1\0");
-        hash.update(namespace.as_str().as_bytes());
-        hash.update([0]);
-        hash.update(operation_id.as_str().as_bytes());
-        Self(hash.finalize().into())
+    /// Derives a replay key from installed partition/epoch, namespace and
+    /// operation. The effect digest is deliberately excluded.
+    ///
+    /// # Errors
+    /// Refuses invalid installed policy or an encoding failure.
+    pub fn for_operation(
+        policy: &EffectPolicy,
+        namespace: &OperatorNamespace,
+        operation_id: &LogicalOperationId,
+    ) -> Result<Self, GatewayAttemptError> {
+        policy
+            .operation_key(namespace, operation_id)
+            .map(Self)
+            .map_err(|_| GatewayAttemptError::Corrupt)
     }
 
     /// Uses `bytes`, a key derived under another record kind's hash domain.
@@ -922,7 +1377,24 @@ pub enum GatewayInsert {
     },
 }
 
-/// Durable storage of opaque gateway records of five closed kinds.
+/// One bounded native decision over a snapshot held behind the adapter's
+/// writer fence. It must not perform custody, provider or nested store I/O.
+/// The adapter invokes it at most once; returning bytes does not grant entry.
+pub type GatewayFenceDecision<'a> =
+    dyn FnMut(&[Option<Vec<u8>>]) -> Result<Vec<u8>, GatewayAttemptError> + 'a;
+
+fn fence_keys(
+    keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+) -> Result<Vec<(GatewayRecordKind, [u8; 32])>, GatewayAttemptError> {
+    if keys.is_empty() || keys.len() > auths_stores::MAX_GATEWAY_FENCE_RECORDS {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    let keys: Vec<_> = keys.iter().map(|(kind, key)| (*kind, key.0)).collect();
+    auths_stores::validate_gateway_fence(&keys).map_err(postgres_error)?;
+    Ok(keys)
+}
+
+/// Durable storage of opaque gateway records of seven closed kinds.
 /// Implementations never interpret the bytes.
 ///
 /// Every implementation must pass the same conformance suite: one winner per
@@ -930,6 +1402,34 @@ pub enum GatewayInsert {
 /// sweeps of expired slots only, and fail-closed reads that never report
 /// unreadable state as absent.
 pub trait GatewayAttemptStore: Send + Sync {
+    /// Atomically inserts a fixed batch after a native decision over dependencies
+    /// under the common writer fence. The decision replaces only the first
+    /// record's bytes. Existing keys return without a decision or new charges.
+    ///
+    /// # Errors
+    /// Refuses overlapping/oversized sets, missing/corrupt dependencies as
+    /// interpreted by the decision, failed authorization, deadlines or ambiguous
+    /// durability. The combined read/write set is at most 64 records.
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError>;
+
+    /// Reads the bounded set while excluding every participating writer, calls
+    /// `decide` once, and durably replaces the first record. This is a storage
+    /// mechanism; the gateway owns validation and the one-use permit.
+    ///
+    /// # Errors
+    /// Refuses invalid sets, missing target, unavailable locking, corrupt
+    /// state, decision failures and ambiguous durability. No automatic retry.
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError>;
+
     /// Inserts every entry, or none when any key already exists.
     ///
     /// # Errors
@@ -989,7 +1489,8 @@ pub trait GatewayAttemptStore: Send + Sync {
     /// a digest and names no operation.
     ///
     /// # Errors
-    /// Returns [`GatewayAttemptError::Unavailable`] when storage fails.
+    /// Returns [`GatewayAttemptError::Unavailable`] when storage fails or its
+    /// bounded inventory cannot be completed. No partial inventory is returned.
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError>;
 }
 
@@ -1002,8 +1503,45 @@ pub trait GatewayAttemptStore: Send + Sync {
 /// `.batch.json` listing each target and its bytes, then creates the
 /// targets, then deletes the batch file; a batch file found later means the
 /// batch never returned, so its targets are deleted.
+/// Expiry maintenance inspects at most 4,096 directory entries per call and
+/// stops between entries at the common two-second cooperative work deadline.
+/// One transient directory cursor resumes later; reopening loses only progress.
+/// It never sweeps attempts, configuration, commissioning or lifetime allocations.
+/// Read-only inventory keeps at most 4,096 candidate keys and scans at most
+/// 16,384 directory entries plus one overflow probe. Above that bound, or after
+/// the cooperative two-second work deadline, it fails without partial results.
+/// Direct operation lookups remain independent of inventory size.
 pub struct FileGatewayAttemptStore {
     root: PathBuf,
+    sweep_cursor: Mutex<Option<fs::ReadDir>>,
+    #[cfg(test)]
+    io_fault: std::sync::Mutex<FileIoFault>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct FileSweepProgress {
+    inspected: usize,
+    deleted: usize,
+}
+
+/// Private test-only failures at the actual adapter's I/O call sites. Shipping
+/// builds contain neither the selector nor mutable fault state.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum FileIoPoint {
+    DataSync,
+    InstallBatch,
+    InstallTarget,
+    Replace,
+    DirectorySync,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct FileIoFault {
+    pending: Option<(FileIoPoint, usize)>,
+    injected: usize,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1068,7 +1606,12 @@ impl FileGatewayAttemptStore {
             PrivateDirectoryError::Unavailable(_) => GatewayAttemptError::Unavailable,
             _ => GatewayAttemptError::UnsafeDirectory,
         })?;
-        let store = Self { root };
+        let store = Self {
+            root,
+            sweep_cursor: Mutex::default(),
+            #[cfg(test)]
+            io_fault: std::sync::Mutex::default(),
+        };
         store.recover()?;
         Ok(store)
     }
@@ -1080,6 +1623,8 @@ impl FileGatewayAttemptStore {
             GatewayRecordKind::SumSlot => "sum-",
             GatewayRecordKind::Connection => "conn-",
             GatewayRecordKind::CommissioningBudget => "commission-",
+            GatewayRecordKind::EffectConfiguration => "config-",
+            GatewayRecordKind::EffectAllocation => "allocation-",
         };
         format!("{prefix}{}.json", hex::encode(key.as_bytes()))
     }
@@ -1089,15 +1634,93 @@ impl FileGatewayAttemptStore {
     }
 
     fn read_file(path: &Path, maximum: usize) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
+        let file = match File::open(path) {
+            Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(GatewayAttemptError::Unavailable),
         };
+        // Bound allocation before decoding, even if a record or rollback file
+        // has been replaced by an oversized file on disk.
+        let limit = u64::try_from(maximum)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let mut bytes = Vec::new();
+        file.take(limit)
+            .read_to_end(&mut bytes)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
         if bytes.is_empty() || bytes.len() > maximum {
             return Err(GatewayAttemptError::Corrupt);
         }
         Ok(Some(bytes))
+    }
+
+    /// Resumes bounded maintenance under the same fence as every writer.
+    /// The in-memory iterator is only a progress hint: losing it can delay
+    /// reclamation, never remove a retained claim or recreate entry authority.
+    fn sweep_batch(
+        &self,
+        now: u64,
+        limit: usize,
+        scan_budget: usize,
+    ) -> Result<FileSweepProgress, GatewayAttemptError> {
+        let mut progress = FileSweepProgress::default();
+        if limit == 0 || scan_budget == 0 {
+            return Ok(progress);
+        }
+        let _writer = self.exclusive()?;
+        let started = Instant::now();
+        let mut cursor = self
+            .sweep_cursor
+            .lock()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if cursor.is_none() {
+            *cursor = Some(fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?);
+        }
+        let result = (|| {
+            while progress.inspected < scan_budget.min(MAX_FILE_SWEEP_SCAN)
+                && progress.deleted < limit
+                && started.elapsed() < auths_stores::GATEWAY_FENCE_DEADLINE
+            {
+                let next = cursor
+                    .as_mut()
+                    .ok_or(GatewayAttemptError::Unavailable)?
+                    .next();
+                let entry = match next {
+                    Some(Ok(entry)) => entry,
+                    Some(Err(_)) => {
+                        *cursor = None;
+                        return Err(GatewayAttemptError::Unavailable);
+                    }
+                    None => {
+                        *cursor = None;
+                        break;
+                    }
+                };
+                progress.inspected += 1;
+                let name = entry.file_name();
+                let Some(name) = name.to_str().filter(|name| {
+                    (name.starts_with("slot-") || name.starts_with("sum-")) && valid_file_name(name)
+                }) else {
+                    continue;
+                };
+                let path = self.root.join(name);
+                let Some(bytes) = Self::read_file(&path, MAX_SLOT_FILE_BYTES)? else {
+                    continue;
+                };
+                if Self::decode_slot(&bytes)?.0 <= now {
+                    fs::remove_file(&path).map_err(|_| GatewayAttemptError::Unavailable)?;
+                    progress.deleted += 1;
+                }
+            }
+            Ok(progress)
+        })();
+        // Sync even if a later directory/record read failed after a safe
+        // expired-slot deletion. Errors cannot turn unreadable state into absence.
+        if progress.deleted > 0 {
+            self.sync_root()?;
+        }
+        result
     }
 
     /// The bytes a record's file holds: the record itself, or for a slot
@@ -1129,9 +1752,80 @@ impl FileGatewayAttemptStore {
             NamedTempFile::new_in(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?;
         pending
             .write_all(bytes)
-            .and_then(|()| pending.as_file().sync_all())
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::DataSync)?;
+        pending
+            .as_file()
+            .sync_all()
             .map_err(|_| GatewayAttemptError::Unavailable)?;
         Ok(pending)
+    }
+
+    fn sync_root(&self) -> Result<(), GatewayAttemptError> {
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::DirectorySync)?;
+        sync_directory(&self.root)
+    }
+
+    #[cfg(test)]
+    fn io_failure(&self, point: FileIoPoint) -> Result<(), GatewayAttemptError> {
+        let mut fault = self
+            .io_fault
+            .lock()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if let Some((selected, skip)) = &mut fault.pending
+            && *selected == point
+        {
+            if *skip > 0 {
+                *skip -= 1;
+            } else {
+                fault.pending = None;
+                fault.injected += 1;
+                return Err(GatewayAttemptError::Unavailable);
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn arm_io_failure(
+        &self,
+        point: FileIoPoint,
+        skip: usize,
+    ) -> Result<(), GatewayAttemptError> {
+        let mut fault = self
+            .io_fault
+            .lock()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if fault.pending.is_some() {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        fault.pending = Some((point, skip));
+        Ok(())
+    }
+
+    #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn injected_io_failures(&self) -> Result<usize, GatewayAttemptError> {
+        self.io_fault
+            .lock()
+            .map(|fault| fault.injected)
+            .map_err(|_| GatewayAttemptError::Unavailable)
+    }
+
+    fn load_locked(
+        &self,
+        kind: GatewayRecordKind,
+        key: &GatewayAttemptKey,
+    ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
+        let path = self.path_for(kind, key);
+        if kind.expires() {
+            Self::read_file(&path, MAX_SLOT_FILE_BYTES)?
+                .map(|bytes| Self::decode_slot(&bytes).map(|(_, record)| record))
+                .transpose()
+        } else {
+            Self::read_file(&path, MAX_RECORD_BYTES)
+        }
     }
 
     fn lock(&self, operation: rustix::fs::FlockOperation) -> Result<File, GatewayAttemptError> {
@@ -1145,8 +1839,33 @@ impl FileGatewayAttemptStore {
         let lock = options
             .open(self.root.join(LOCK_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        rustix::fs::flock(&lock, operation).map_err(|_| GatewayAttemptError::Unavailable)?;
-        Ok(lock)
+        let nonblocking = match operation {
+            rustix::fs::FlockOperation::LockExclusive => {
+                rustix::fs::FlockOperation::NonBlockingLockExclusive
+            }
+            rustix::fs::FlockOperation::LockShared => {
+                rustix::fs::FlockOperation::NonBlockingLockShared
+            }
+            _ => return Err(GatewayAttemptError::Unavailable),
+        };
+        let started = Instant::now();
+        loop {
+            match rustix::fs::flock(&lock, nonblocking) {
+                Ok(()) => return Ok(lock),
+                Err(error)
+                    if error == rustix::io::Errno::WOULDBLOCK
+                        || error == rustix::io::Errno::INTR => {}
+                Err(_) => return Err(GatewayAttemptError::Unavailable),
+            }
+            let Some(remaining) = auths_stores::GATEWAY_LOCK_TIMEOUT.checked_sub(started.elapsed())
+            else {
+                return Err(GatewayAttemptError::Unavailable);
+            };
+            if remaining.is_zero() {
+                return Err(GatewayAttemptError::Unavailable);
+            }
+            std::thread::sleep(remaining.min(std::time::Duration::from_millis(5)));
+        }
     }
 
     /// Serializes mutations across every process on this host.
@@ -1205,15 +1924,27 @@ impl FileGatewayAttemptStore {
                 fs::remove_file(&target_path).map_err(|_| GatewayAttemptError::Unavailable)?;
             }
         }
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         fs::remove_file(&path).map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)
+        self.sync_root()
     }
 
     fn insert_batch(
         &self,
         entries: &[GatewayRecordEntry],
         crash: Option<BatchCrash>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        validate_batch(entries)?;
+        let _lock = self.exclusive()?;
+        self.insert_batch_locked(entries, crash, None)
+    }
+
+    /// The caller holds the writer fence, including crash-batch recovery.
+    fn insert_batch_locked(
+        &self,
+        entries: &[GatewayRecordEntry],
+        crash: Option<BatchCrash>,
+        started: Option<Instant>,
     ) -> Result<GatewayInsert, GatewayAttemptError> {
         validate_batch(entries)?;
         let files = entries
@@ -1225,7 +1956,6 @@ impl FileGatewayAttemptStore {
                 ))
             })
             .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
-        let _lock = self.exclusive()?;
         for (index, (name, _)) in files.iter().enumerate() {
             if self.root.join(name).exists() {
                 return Ok(GatewayInsert::Exists { index });
@@ -1241,29 +1971,38 @@ impl FileGatewayAttemptStore {
                 })
                 .collect(),
         })?;
-        self.pending(&batch)?
+        admission_deadline(started)?;
+        let pending = self.pending(&batch)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::InstallBatch)?;
+        pending
             .persist_noclobber(self.root.join(BATCH_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         if crash == Some(BatchCrash::AfterBatchFile) {
             return Ok(GatewayInsert::Inserted);
         }
         for (index, (name, bytes)) in files.iter().enumerate() {
             if crash == Some(BatchCrash::AfterTargets(index)) {
-                sync_directory(&self.root)?;
+                self.sync_root()?;
                 return Ok(GatewayInsert::Inserted);
             }
-            self.pending(bytes)?
+            admission_deadline(started)?;
+            let pending = self.pending(bytes)?;
+            #[cfg(test)]
+            self.io_failure(FileIoPoint::InstallTarget)?;
+            pending
                 .persist_noclobber(self.root.join(name))
                 .map_err(|_| GatewayAttemptError::Unavailable)?;
         }
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         if crash == Some(BatchCrash::BeforeBatchDelete) {
             return Ok(GatewayInsert::Inserted);
         }
+        admission_deadline(started)?;
         fs::remove_file(self.root.join(BATCH_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)?;
+        self.sync_root()?;
         Ok(GatewayInsert::Inserted)
     }
 
@@ -1280,10 +2019,17 @@ impl FileGatewayAttemptStore {
 
 /// A record or batch file name this store writes.
 fn valid_file_name(name: &str) -> bool {
-    let Some(rest) = ["claim-", "slot-", "sum-", "conn-", "commission-"]
-        .iter()
-        .find_map(|prefix| name.strip_prefix(prefix))
-    else {
+    let Some(rest) = [
+        "claim-",
+        "slot-",
+        "sum-",
+        "conn-",
+        "commission-",
+        "config-",
+        "allocation-",
+    ]
+    .iter()
+    .find_map(|prefix| name.strip_prefix(prefix)) else {
         return false;
     };
     rest.strip_suffix(".json").is_some_and(|key| {
@@ -1294,7 +2040,88 @@ fn valid_file_name(name: &str) -> bool {
     })
 }
 
+fn admission_deadline(started: Option<Instant>) -> Result<(), GatewayAttemptError> {
+    if started.is_some_and(|started| started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE) {
+        return Err(GatewayAttemptError::Unavailable);
+    }
+    Ok(())
+}
+
 impl GatewayAttemptStore for FileGatewayAttemptStore {
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        validate_batch(entries)?;
+        let mut keys: Vec<_> = entries
+            .iter()
+            .map(|entry| (entry.kind, entry.key))
+            .collect();
+        keys.extend_from_slice(dependencies);
+        fence_keys(&keys)?;
+        let _lock = self.exclusive()?;
+        let started = Some(Instant::now());
+        for (index, entry) in entries.iter().enumerate() {
+            admission_deadline(started)?;
+            if self.load_locked(entry.kind, &entry.key)?.is_some() {
+                return Ok(GatewayInsert::Exists { index });
+            }
+        }
+        let snapshots = dependencies
+            .iter()
+            .map(|(kind, key)| {
+                admission_deadline(started)?;
+                self.load_locked(*kind, key)
+            })
+            .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
+        admission_deadline(started)?;
+        let next = decide(&snapshots)?;
+        let mut entries = entries.to_vec();
+        entries[0].record = next;
+        self.insert_batch_locked(&entries, None, started)
+    }
+
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError> {
+        fence_keys(keys)?;
+        let _lock = self.exclusive()?;
+        let started = Instant::now();
+        let records = keys
+            .iter()
+            .map(|(kind, key)| {
+                if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+                    return Err(GatewayAttemptError::Unavailable);
+                }
+                self.load_locked(*kind, key)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if records[0].is_none() {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        let next = decide(&records)?;
+        if next.is_empty() || next.len() > MAX_RECORD_BYTES {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let pending = self.pending(&next)?;
+        if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::Replace)?;
+        pending
+            .persist(self.path_for(keys[0].0, &keys[0].1))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        self.sync_root()
+    }
+
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
         self.claimed_keys(limit)
     }
@@ -1310,11 +2137,11 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         validate_batch(std::slice::from_ref(entry))?;
         let bytes = Self::file_bytes(entry)?;
         let _lock = self.exclusive()?;
-        match self
-            .pending(&bytes)?
-            .persist_noclobber(self.path_for(entry.kind, &entry.key))
-        {
-            Ok(_) => sync_directory(&self.root),
+        let pending = self.pending(&bytes)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::InstallTarget)?;
+        match pending.persist_noclobber(self.path_for(entry.kind, &entry.key)) {
+            Ok(_) => self.sync_root(),
             Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
                 Err(GatewayAttemptError::Replay)
             }
@@ -1328,14 +2155,7 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         key: &GatewayAttemptKey,
     ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
         let _lock = self.shared()?;
-        let path = self.path_for(kind, key);
-        if kind.expires() {
-            Self::read_file(&path, MAX_SLOT_FILE_BYTES)?
-                .map(|bytes| Self::decode_slot(&bytes).map(|(_, record)| record))
-                .transpose()
-        } else {
-            Self::read_file(&path, MAX_RECORD_BYTES)
-        }
+        self.load_locked(kind, key)
     }
 
     fn replace(
@@ -1356,44 +2176,18 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         if Self::read_file(&path, MAX_RECORD_BYTES)?.as_deref() != Some(current) {
             return Err(GatewayAttemptError::Conflict);
         }
-        self.pending(next)?
+        let pending = self.pending(next)?;
+        #[cfg(test)]
+        self.io_failure(FileIoPoint::Replace)?;
+        pending
             .persist(&path)
             .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)
+        self.sync_root()
     }
 
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
-        let _lock = self.exclusive()?;
-        let mut names: Vec<String> = fs::read_dir(&self.root)
-            .map_err(|_| GatewayAttemptError::Unavailable)?
-            .map(|entry| {
-                entry
-                    .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                    .map_err(|_| GatewayAttemptError::Unavailable)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        names.retain(|name| {
-            (name.starts_with("slot-") || name.starts_with("sum-")) && valid_file_name(name)
-        });
-        names.sort_unstable();
-        let mut deleted = 0;
-        for name in names {
-            if deleted >= limit {
-                break;
-            }
-            let path = self.root.join(&name);
-            let Some(bytes) = Self::read_file(&path, MAX_SLOT_FILE_BYTES)? else {
-                continue;
-            };
-            if Self::decode_slot(&bytes)?.0 <= now {
-                fs::remove_file(&path).map_err(|_| GatewayAttemptError::Unavailable)?;
-                deleted += 1;
-            }
-        }
-        if deleted > 0 {
-            sync_directory(&self.root)?;
-        }
-        Ok(deleted)
+        self.sweep_batch(now, limit, MAX_FILE_SWEEP_SCAN)
+            .map(|progress| progress.deleted)
     }
 }
 
@@ -1432,9 +2226,30 @@ impl Drop for PostgresGatewayAttemptStore {
 
 impl FileGatewayAttemptStore {
     fn claimed_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        self.claimed_keys_with_budget(limit, MAX_FILE_INVENTORY_SCAN)
+    }
+
+    fn claimed_keys_with_budget(
+        &self,
+        limit: usize,
+        scan_budget: usize,
+    ) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        if limit > MAX_FILE_INVENTORY_KEYS {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
         let _lock = self.shared()?;
-        let mut keys = Vec::new();
-        for entry in fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)? {
+        let started = Instant::now();
+        let mut keys = BinaryHeap::with_capacity(limit);
+        let entries = fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?;
+        for (inspected, entry) in entries.enumerate() {
+            if inspected >= scan_budget.min(MAX_FILE_INVENTORY_SCAN)
+                || started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE
+            {
+                return Err(GatewayAttemptError::Unavailable);
+            }
             let name = entry
                 .map_err(|_| GatewayAttemptError::Unavailable)?
                 .file_name();
@@ -1446,16 +2261,53 @@ impl FileGatewayAttemptStore {
             if let Some(key) = key {
                 let mut bytes = [0_u8; 32];
                 hex::decode_to_slice(key, &mut bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
-                keys.push(GatewayAttemptKey(bytes));
+                let key = GatewayAttemptKey(bytes);
+                if keys.len() < limit {
+                    keys.push(key);
+                } else if keys.peek().is_some_and(|largest| key < *largest) {
+                    let _ = keys.pop();
+                    keys.push(key);
+                }
             }
         }
-        keys.sort_unstable();
-        keys.truncate(limit);
+        let keys = keys.into_sorted_vec();
+        if started.elapsed() >= auths_stores::GATEWAY_FENCE_DEADLINE {
+            return Err(GatewayAttemptError::Unavailable);
+        }
         Ok(keys)
     }
 }
 
 impl GatewayAttemptStore for PostgresGatewayAttemptStore {
+    fn fenced_insert_all(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<GatewayInsert, GatewayAttemptError> {
+        let mechanism: Vec<_> = entries.iter().map(GatewayRecordEntry::mechanism).collect();
+        let dependencies: Vec<_> = dependencies
+            .iter()
+            .map(|(kind, key)| (*kind, key.0))
+            .collect();
+        match self
+            .store()?
+            .fenced_gateway_insert(&mechanism, &dependencies, decide)?
+        {
+            GatewayRecordInsert::Inserted => Ok(GatewayInsert::Inserted),
+            GatewayRecordInsert::Exists { index } => Ok(GatewayInsert::Exists { index }),
+        }
+    }
+
+    fn fenced_replace(
+        &self,
+        keys: &[(GatewayRecordKind, GatewayAttemptKey)],
+        decide: &mut GatewayFenceDecision<'_>,
+    ) -> Result<(), GatewayAttemptError> {
+        let keys = fence_keys(keys)?;
+        self.store()?.fenced_gateway_replace(&keys, decide)
+    }
+
     fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
         self.store()?
             .list_gateway_record_keys(GatewayRecordKind::Attempt, limit)
@@ -1507,6 +2359,12 @@ impl GatewayAttemptStore for PostgresGatewayAttemptStore {
     }
 }
 
+impl From<StoreError> for GatewayAttemptError {
+    fn from(error: StoreError) -> Self {
+        postgres_error(error)
+    }
+}
+
 const fn postgres_error(error: StoreError) -> GatewayAttemptError {
     match error {
         StoreError::Conflict => GatewayAttemptError::Conflict,
@@ -1531,43 +2389,36 @@ async fn blocking<T: Send + 'static>(
         .map_err(|_| GatewayAttemptError::Unavailable)?
 }
 
-/// The plan a reopened attempt must match: the one a new verified request
-/// resolves to, or, for the operator's re-observation, the stored one.
-#[derive(Clone, Copy)]
-enum ExpectedPlan<'a> {
-    Request(Option<&'a ObservationTemplate>),
-    Stored,
-}
-
-/// A fresh `attempting` claim record for `request`, with a random nonce and
+/// A fresh `reserved` claim record for `request`, with a random nonce and
 /// no counters.
 fn claim_record(
     request: &ClosedProviderRequest,
-    recipe_digest: [u8; 32],
+    binding: &EffectBinding,
+    approval: &ExactEffectApproval,
+    authority: &crate::effect::NativeAuthority,
     evaluated_at: u64,
 ) -> Result<Record, GatewayAttemptError> {
-    let mut nonce = [0_u8; 16];
-    getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
-    let record = Record {
-        schema: SCHEMA.to_owned(),
-        namespace: request.namespace().as_str().to_owned(),
-        operation_id: request.operation_id().as_str().to_owned(),
-        action_commitment: hex::encode(request.action_commitment()),
-        recipe_digest: hex::encode(recipe_digest),
-        nonce: hex::encode(nonce),
+    let record = Record::new(
+        binding,
+        approval,
+        authority,
         evaluated_at,
-        stage: GatewayAttemptStage::Attempting,
-        refusal: None,
-        counters: Vec::new(),
-        response_status: None,
-        response_digest: None,
-        response_locator: None,
-        observation_plan: request.observation_template().cloned(),
-        observation_match: None,
-        observation_fact: None,
-        provider_evidence: None,
-        pre_entry: None,
-    };
+        MutationState {
+            counters: Vec::new(),
+            stage: GatewayAttemptStage::Reserved,
+            refusal: None,
+            response_status: None,
+            response_digest: None,
+            response_locator: None,
+            observation_plan: request.observation_template().cloned(),
+            observation_match: None,
+            observation_fact: None,
+            provider_evidence: None,
+            recovery_evidence: None,
+            pre_entry: None,
+        },
+    );
+    let record = record?;
     record.snapshot(false)?;
     Ok(record)
 }
@@ -1576,13 +2427,34 @@ fn claim_record(
 #[derive(Clone)]
 pub struct GatewayAttempts {
     store: Arc<dyn GatewayAttemptStore>,
+    policy: EffectPolicy,
 }
 
 impl GatewayAttempts {
-    /// Uses `store` for every claim and stage change.
-    #[must_use]
-    pub fn new(store: Arc<dyn GatewayAttemptStore>) -> Self {
-        Self { store }
+    /// Uses one installed partition and epoch for every claim and lookup.
+    ///
+    /// # Errors
+    /// Refuses invalid installed policy. There is no implicit replay namespace.
+    pub fn new(
+        store: Arc<dyn GatewayAttemptStore>,
+        policy: EffectPolicy,
+    ) -> Result<Self, GatewayAttemptError> {
+        policy
+            .validate()
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        Ok(Self { store, policy })
+    }
+
+    pub(crate) fn policy(&self) -> &EffectPolicy {
+        &self.policy
+    }
+
+    fn key(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+    ) -> Result<GatewayAttemptKey, GatewayAttemptError> {
+        GatewayAttemptKey::for_operation(&self.policy, namespace, operation)
     }
 
     /// Returns the underlying mechanism.
@@ -1591,21 +2463,46 @@ impl GatewayAttempts {
         Arc::clone(&self.store)
     }
 
-    /// Claims one logical ID before credential access or transport entry. The
-    /// record keeps the request's verified action commitment, the gateway
-    /// evaluation time, and the observation plan; a later echo token is
-    /// always derived from this record.
-    ///
-    /// # Errors
-    /// An existing record, including a crashed claim, is `Replay`.
-    pub async fn claim(
+    /// Reference-store oracle only; production admission requires `ApprovedEffect`.
+    #[cfg(test)]
+    pub(crate) async fn claim(
         &self,
         request: &ClosedProviderRequest,
         recipe_digest: [u8; 32],
         evaluated_at: u64,
     ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
-        let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
-        let record = claim_record(request, recipe_digest, evaluated_at)?;
+        let binding = crate::effect::store_binding_fixture(
+            request,
+            recipe_digest,
+            crate::effect::NativeAuthority::oracle([0; 32]).commitment(),
+            &self.policy,
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let approval = crate::effect::approval_fixture(&binding, evaluated_at)
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        self.claim_binding(request, &binding, &approval, evaluated_at)
+            .await
+    }
+
+    #[cfg(test)]
+    async fn claim_binding(
+        &self,
+        request: &ClosedProviderRequest,
+        binding: &EffectBinding,
+        approval: &ExactEffectApproval,
+        evaluated_at: u64,
+    ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let key = self.key(request.namespace(), request.operation_id())?;
+        let record = claim_record(
+            request,
+            binding,
+            approval,
+            &crate::effect::NativeAuthority::oracle([0; 32]),
+            evaluated_at,
+        )?;
         let stored = encode(&record)?;
         let store = Arc::clone(&self.store);
         let entry = GatewayRecordEntry {
@@ -1614,7 +2511,12 @@ impl GatewayAttempts {
             record: stored.clone(),
             expires_at: None,
         };
-        blocking(move || store.insert(&entry)).await?;
+        let expected = record.binding_canonical.clone();
+        blocking(move || match store.insert(&entry) {
+            Err(GatewayAttemptError::Replay) => Err(existing_binding(&*store, key, &expected)),
+            result => result,
+        })
+        .await?;
         Ok(ClaimedGatewayAttempt {
             attempt: Attempt {
                 store: Arc::clone(&self.store),
@@ -1626,7 +2528,9 @@ impl GatewayAttempts {
     }
 
     /// Lists at most `limit` stored attempts as the hexadecimal digest that
-    /// keys each one and its conservative stage. Nothing else of an attempt
+    /// keys each one and its conservative stage, restricted to this installed
+    /// partition and epoch. At most `limit` raw entries are inspected; entries
+    /// in another scope can make the result shorter. Nothing else of an attempt
     /// is returned: no operation identifier, argument, or provider value.
     ///
     /// # Errors
@@ -1634,8 +2538,9 @@ impl GatewayAttempts {
     pub async fn stages(
         &self,
         limit: usize,
-    ) -> Result<Vec<(String, GatewayAttemptStage)>, GatewayAttemptError> {
+    ) -> Result<Vec<(String, GatewayOperationStage)>, GatewayAttemptError> {
         let store = Arc::clone(&self.store);
+        let policy = self.policy.clone();
         blocking(move || {
             store
                 .attempt_keys(limit)?
@@ -1643,12 +2548,44 @@ impl GatewayAttempts {
                 .filter_map(|key| {
                     let stage = store
                         .load(GatewayRecordKind::Attempt, &key)
-                        .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose())
-                        .and_then(|record| record.map(|record| record.snapshot(true)).transpose());
+                        .and_then(|bytes| bytes.map(|bytes| decode_protocol(&bytes)).transpose())
+                        .and_then(|record| {
+                            let Some(record) = record else {
+                                return Ok(None);
+                            };
+                            let binding = EffectBinding::from_private_bytes(
+                                record.binding_canonical.as_bytes(),
+                            )
+                            .map_err(|_| GatewayAttemptError::Corrupt)?;
+                            if !policy.contains(&binding) {
+                                return Ok(None);
+                            }
+                            let stage = match &record.state {
+                                ProtocolState::Disclosure(_) => GatewayOperationStage::Disclosure(
+                                    record
+                                        .map_state(disclosure::DisclosureState::extract)?
+                                        .disclosure_snapshot()?
+                                        .stage,
+                                ),
+                                ProtocolState::Mutation(_) => GatewayOperationStage::Mutation(
+                                    record
+                                        .map_state(MutationState::extract)?
+                                        .snapshot(true)?
+                                        .stage(),
+                                ),
+                                ProtocolState::Acquisition(_) => {
+                                    GatewayOperationStage::Acquisition(
+                                        record
+                                            .map_state(acquisition::AcquisitionState::extract)?
+                                            .snapshot()?
+                                            .stage,
+                                    )
+                                }
+                            };
+                            Ok(Some(stage))
+                        });
                     match stage {
-                        Ok(Some(snapshot)) => {
-                            Some(Ok((hex::encode(key.as_bytes()), snapshot.stage())))
-                        }
+                        Ok(Some(snapshot)) => Some(Ok((hex::encode(key.as_bytes()), snapshot))),
                         // Deleted between the listing and the read.
                         Ok(None) => None,
                         Err(error) => Some(Err(error)),
@@ -1659,7 +2596,7 @@ impl GatewayAttempts {
         .await
     }
 
-    /// Reads a secret-free durable snapshot. An `attempting` stage is
+    /// Reads a secret-free durable snapshot. An `entry-granted` stage is
     /// conservatively projected as `unknown`: another process may hold it, or
     /// it may have crashed.
     ///
@@ -1676,36 +2613,61 @@ impl GatewayAttempts {
             .transpose()
     }
 
-    /// Reopens a stored attempt for one read-only observation from its
-    /// stored plan. It returns `None` unless the recipe digest is unchanged,
-    /// the new verified request resolves to the same plan, and the stage can
-    /// be resolved by a read-back: an `attempting` or `unknown` record only
-    /// for a verified-locator link, and a `response-recorded` record for any
-    /// declared link whose locator is recorded. A re-observation records only
-    /// positive evidence under compare-and-swap, so it may run while the
-    /// original attempt is in flight; the in-flight process then loses its
-    /// own compare-and-swap, and no second write happens either way.
-    ///
-    /// # Errors
-    /// Malformed state is a hard failure.
-    pub async fn resume_observable(
+    /// Reads history only when the complete immutable binding matches the
+    /// approved native effect. Renewed approval is not part of that identity.
+    pub(crate) async fn read_effect(
         &self,
-        request: &ClosedProviderRequest,
+        approved: &ApprovedEffect,
+    ) -> Result<Option<GatewayAttemptSnapshot>, GatewayAttemptError> {
+        let request = &approved
+            .command()
+            .ok_or(GatewayAttemptError::InvalidTransition)?
+            .request;
+        let Some((_, record)) = self
+            .load(request.namespace(), request.operation_id())
+            .await?
+        else {
+            return Ok(None);
+        };
+        if record.binding_canonical.as_bytes()
+            != approved
+                .effect()
+                .binding()
+                .to_private_bytes()
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .as_slice()
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        record.snapshot(true).map(Some)
+    }
+
+    /// Retained source contract, including terminal history. Compiling it does
+    /// not permit a new read: acquisition entry separately requires an eligible
+    /// source under the writer fence. This enables exact read replay after a
+    /// source was refined without recreating a provider permit.
+    pub(crate) async fn retained_recovery_target(
+        &self,
+        namespace: &OperatorNamespace,
+        operation_id: &LogicalOperationId,
         recipe_digest: [u8; 32],
-    ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
-        self.resume(
-            request.namespace(),
-            request.operation_id(),
-            recipe_digest,
-            ExpectedPlan::Request(request.observation_template()),
-        )
-        .await
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        let (_, record) = self
+            .load(namespace, operation_id)
+            .await?
+            .ok_or(GatewayAttemptError::Unavailable)?;
+        record.snapshot(true)?;
+        if record.recipe_digest != hex::encode(recipe_digest)
+            || !transition::requires_entry(record.state.stage.kernel())
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        record.recovery_target_data()
     }
 
     /// Reopens a stored attempt for the operator's read-only
-    /// re-observation, under the rules of
-    /// [`Self::resume_observable`] except that the plan comes from the
-    /// stored record alone, since the operator supplies no request.
+    /// re-observation. The recipe must match and the stored stage must permit
+    /// evidence from its stored plan. Application replay cannot call this path.
     ///
     /// # Errors
     /// Malformed state is a hard failure.
@@ -1715,42 +2677,17 @@ impl GatewayAttempts {
         operation_id: &LogicalOperationId,
         recipe_digest: [u8; 32],
     ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
-        self.resume(namespace, operation_id, recipe_digest, ExpectedPlan::Stored)
-            .await
-    }
-
-    async fn resume(
-        &self,
-        namespace: &OperatorNamespace,
-        operation_id: &LogicalOperationId,
-        recipe_digest: [u8; 32],
-        expected_plan: ExpectedPlan<'_>,
-    ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
         let Some((stored, record)) = self.load(namespace, operation_id).await? else {
             return Ok(None);
         };
         record.snapshot(false)?;
-        let link = record.link();
-        let stage_resolvable = match record.stage {
-            GatewayAttemptStage::Attempting | GatewayAttemptStage::Unknown => {
-                transition::resolves_unknown(link)
-            }
-            GatewayAttemptStage::ResponseRecorded => transition::has_link(link),
-            GatewayAttemptStage::NotEntered
-            | GatewayAttemptStage::Observed
-            | GatewayAttemptStage::ObservedByProvider => false,
-        };
-        let resumable = stage_resolvable
-            && record.recipe_digest == hex::encode(recipe_digest)
-            && match expected_plan {
-                ExpectedPlan::Request(plan) => record.observation_plan.as_ref() == plan,
-                ExpectedPlan::Stored => true,
-            }
-            && record.observation_request().is_some();
+        let resumable =
+            record.recipe_digest == hex::encode(recipe_digest) && record.recovery_target().is_ok();
+        let key = self.key(namespace, operation_id)?;
         Ok(resumable.then(|| ObservableGatewayAttempt {
             attempt: Attempt {
                 store: Arc::clone(&self.store),
-                key: GatewayAttemptKey::for_operation(namespace, operation_id),
+                key,
                 stored,
                 record,
             },
@@ -1762,14 +2699,19 @@ impl GatewayAttempts {
         namespace: &OperatorNamespace,
         operation_id: &LogicalOperationId,
     ) -> Result<Option<(Vec<u8>, Record)>, GatewayAttemptError> {
-        let key = GatewayAttemptKey::for_operation(namespace, operation_id);
+        let key = self.key(namespace, operation_id)?;
         let store = Arc::clone(&self.store);
         let Some(bytes) = blocking(move || store.load(GatewayRecordKind::Attempt, &key)).await?
         else {
             return Ok(None);
         };
         let record = decode(&bytes)?;
-        if record.namespace != namespace.as_str() || record.operation_id != operation_id.as_str() {
+        let binding = EffectBinding::from_private_bytes(record.binding_canonical.as_bytes())
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        if !self.policy.contains(&binding)
+            || record.namespace != namespace.as_str()
+            || record.operation_id != operation_id.as_str()
+        {
             return Err(GatewayAttemptError::Corrupt);
         }
         Ok(Some((bytes, record)))
@@ -1790,17 +2732,22 @@ impl GatewayAttempts {
 }
 
 /// One loaded or claimed attempt and the exact bytes it was read as.
-struct Attempt {
+struct Attempt<S = MutationState> {
     store: Arc<dyn GatewayAttemptStore>,
     key: GatewayAttemptKey,
     stored: Vec<u8>,
-    record: Record,
+    record: Record<S>,
 }
 
-impl Attempt {
+impl<S: JournalProtocol> Attempt<S> {
     /// Persists `next` only as a valid stage change from the exact stored
     /// record; a concurrent change by another process is a conflict.
-    async fn advance(mut self, next: Record) -> Result<Self, GatewayAttemptError> {
+    async fn advance(mut self, mut next: Record<S>) -> Result<Self, GatewayAttemptError> {
+        next.revision = self
+            .record
+            .revision
+            .checked_add(1)
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
         if !valid_transition(&self.record, &next)? {
             return Err(GatewayAttemptError::InvalidTransition);
         }
@@ -1817,24 +2764,170 @@ impl Attempt {
     }
 }
 
-/// A durable claim token; dropping it without a result leaves `unknown` on
-/// restart and never permits another automatic write.
+fn validate_mutation_prerequisites(
+    key: GatewayAttemptKey,
+    approved: &ApprovedEffect,
+    validation: &crate::entry::EntryValidation,
+    pre_entry: Option<&PreEntryWire>,
+    prerequisites: &[crate::effect::PrerequisitePlan],
+    snapshots: &[Option<Vec<u8>>],
+    now: u64,
+) -> Result<(), GatewayAttemptError> {
+    let acquired = acquisition::validate_prerequisites(
+        key,
+        approved.effect().binding(),
+        prerequisites,
+        snapshots,
+        now,
+    )?;
+    let evidence = pre_entry
+        .map(PreEntryWire::decode)
+        .transpose()?
+        .unwrap_or_default();
+    validation
+        .validate_prerequisite_evidence(approved, &evidence, &acquired, now)
+        .map_err(|_| GatewayAttemptError::InvalidTransition)
+}
+
+/// A durable attempt handle. A reservation does not authorize transport; only
+/// a newly acknowledged grant produces a one-use provider permit.
 pub struct ClaimedGatewayAttempt {
     attempt: Attempt,
 }
 
 impl ClaimedGatewayAttempt {
+    /// Validates the native authority, dependencies and every existing slot
+    /// under the same writer fence, then persists one immutable grant. No
+    /// deserialization path can construct the returned transport permit.
+    pub(crate) async fn grant_entry(
+        self,
+        approved: Arc<ApprovedEffect>,
+        validation: crate::entry::EntryValidation,
+        authorization_started_at: u64,
+        pre_entry: &GatewayPreEntry,
+    ) -> Result<(Self, ProviderEntryPermit), GatewayAttemptError> {
+        let pre_entry = PreEntryWire::encode(pre_entry)?;
+        let request = approved
+            .command()
+            .ok_or(GatewayAttemptError::InvalidTransition)?
+            .request
+            .clone();
+        blocking(move || {
+            let mut attempt = self.attempt;
+            let dependencies = validation.dependencies();
+            let prerequisites = approved
+                .prerequisite_plans()
+                .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+            let mut keys = vec![(GatewayRecordKind::Attempt, attempt.key)];
+            keys.extend_from_slice(&dependencies);
+            keys.extend(capacity::dependencies(&attempt.record.state.counters)?);
+            let counter_end = keys.len();
+            keys.extend(acquisition::prerequisite_dependencies(
+                attempt.key,
+                &prerequisites,
+            )?);
+            let mut committed = None;
+            attempt.store.fenced_replace(&keys, &mut |snapshots| {
+                if snapshots.len() != keys.len()
+                    || snapshots[0].as_deref() != Some(attempt.stored.as_slice())
+                {
+                    return Err(GatewayAttemptError::Conflict);
+                }
+                let current = decode(
+                    snapshots[0]
+                        .as_deref()
+                        .ok_or(GatewayAttemptError::Corrupt)?,
+                )?;
+                if current.state.stage != GatewayAttemptStage::Reserved
+                    || current.binding_canonical.as_bytes()
+                        != approved
+                            .effect()
+                            .binding()
+                            .to_private_bytes()
+                            .map_err(|_| GatewayAttemptError::Corrupt)?
+                            .as_slice()
+                {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
+                let dependency_end = 1 + dependencies.len();
+                let now = validation
+                    .validate(
+                        &approved,
+                        &snapshots[1..dependency_end],
+                        authorization_started_at,
+                    )
+                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                current.validate_reservations(
+                    attempt.key,
+                    approved
+                        .command()
+                        .ok_or(GatewayAttemptError::InvalidTransition)?
+                        .bound
+                        .as_ref(),
+                    &snapshots[dependency_end..counter_end],
+                    now,
+                )?;
+                validate_mutation_prerequisites(
+                    attempt.key,
+                    &approved,
+                    &validation,
+                    pre_entry.as_ref(),
+                    &prerequisites,
+                    &snapshots[counter_end..],
+                    now,
+                )?;
+                let mut next = current.clone();
+                next.record_grant(
+                    &approved,
+                    authorization_started_at,
+                    now,
+                    pre_entry.clone(),
+                    &snapshots[1..],
+                )?;
+                next.state.stage = GatewayAttemptStage::EntryGranted;
+                if !valid_transition(&current, &next)? {
+                    return Err(GatewayAttemptError::InvalidTransition);
+                }
+                let bytes = encode(&next)?;
+                committed = Some((next, bytes.clone()));
+                Ok(bytes)
+            })?;
+            // A callback result alone is insufficient. This point is reached
+            // only after the adapter acknowledges durable publication.
+            let (record, stored) = committed.ok_or(GatewayAttemptError::Unavailable)?;
+            attempt.record = record;
+            attempt.stored = stored;
+            Ok((
+                Self { attempt },
+                ProviderEntryPermit {
+                    _approved: approved,
+                    request,
+                },
+            ))
+        })
+        .await
+    }
+
     /// Records, once and before transport entry, what was read after the
     /// lease: the pre-entry observations and the relative-ceiling basis.
     ///
     /// # Errors
-    /// Rejects an empty or repeated checkpoint and persistence failure.
+    /// Rejects an empty first checkpoint, post-grant calls and persistence failure.
+    /// A resumed reservation retains its first checkpoint; its fresh reads are
+    /// separately bound in the immutable entry audit.
     pub async fn record_checkpoint(
         self,
         pre_entry: &GatewayPreEntry,
     ) -> Result<Self, GatewayAttemptError> {
+        if self.attempt.record.state.stage != GatewayAttemptStage::Reserved {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let fresh = PreEntryWire::encode(pre_entry)?;
+        if self.attempt.record.state.pre_entry.is_some() {
+            return Ok(self);
+        }
         let mut next = self.attempt.record.clone();
-        next.pre_entry = PreEntryWire::encode(pre_entry)?;
+        next.state.pre_entry = fresh;
         Ok(Self {
             attempt: self.attempt.advance(next).await?,
         })
@@ -1851,12 +2944,12 @@ impl ClaimedGatewayAttempt {
         pre_entry: Option<&GatewayPreEntry>,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::NotEntered;
-        next.refusal = Some(refusal.to_owned());
+        next.state.stage = GatewayAttemptStage::NotEntered;
+        next.state.refusal = Some(refusal.to_owned());
         if let Some(pre_entry) = pre_entry
-            && next.pre_entry.is_none()
+            && next.state.pre_entry.is_none()
         {
-            next.pre_entry = PreEntryWire::encode(pre_entry)?;
+            next.state.pre_entry = PreEntryWire::encode(pre_entry)?;
         }
         self.attempt.advance(next).await?.record.snapshot(false)
     }
@@ -1867,7 +2960,7 @@ impl ClaimedGatewayAttempt {
     /// Persistence failure does not permit a retry.
     pub async fn record_unknown(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::Unknown;
+        next.state.stage = GatewayAttemptStage::Unknown;
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -1886,18 +2979,34 @@ impl ClaimedGatewayAttempt {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::ResponseRecorded;
-        next.response_status = Some(status);
-        next.response_digest = Some(hex::encode(digest));
-        next.response_locator = locator;
+        next.state.stage = GatewayAttemptStage::ResponseRecorded;
+        next.state.response_status = Some(status);
+        next.state.response_digest = Some(hex::encode(digest));
+        next.state.response_locator = locator;
         Ok(ObservableGatewayAttempt {
             attempt: self.attempt.advance(next).await?,
         })
     }
 }
 
-/// A stored attempt that may be advanced only by a separate read-only
-/// observation, never by another write.
+/// One-use native transport capability, constructed only after a new durable
+/// entry acknowledgement. The shared reference retains the approved effect;
+/// the permit itself is neither cloneable nor deserializable.
+pub(crate) struct ProviderEntryPermit {
+    _approved: Arc<ApprovedEffect>,
+    // Immutable clone of the exact sealed mutation request checked at grant.
+    request: ClosedProviderRequest,
+}
+
+impl ProviderEntryPermit {
+    pub(crate) fn request(&self) -> &ClosedProviderRequest {
+        &self.request
+    }
+}
+
+/// A protected view of a stored attempt and its observation contract.
+/// Production refinement requires independently acquired evidence through
+/// the recovery fence; this view grants no provider or journal-entry capability.
 pub struct ObservableGatewayAttempt {
     attempt: Attempt,
 }
@@ -1918,12 +3027,24 @@ impl ObservableGatewayAttempt {
         self.attempt.record.observation_request()
     }
 
+    /// Native private compilation target from this validated journal's plan.
+    /// It contains private data but grants no read or write authority.
+    ///
+    /// # Errors
+    /// Refuses corrupt binding data or a missing closed observation request.
+    pub fn recovery_target(
+        &self,
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
+        self.attempt.record.recovery_target()
+    }
+
     /// Returns this attempt's echo token, derived from the stored verified
     /// commitment, when the recipe declared an echo field.
     #[must_use]
     pub fn echo_token(&self) -> Option<String> {
         self.attempt
             .record
+            .state
             .observation_plan
             .as_ref()
             .filter(|plan| plan.echo_pointer.is_some())
@@ -1935,13 +3056,14 @@ impl ObservableGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure retains only the recorded response.
-    pub async fn record_observation(
+    #[cfg(test)]
+    pub(crate) async fn record_observation(
         self,
         matched: bool,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::Observed;
-        next.observation_match = Some(matched);
+        next.state.stage = GatewayAttemptStage::Observed;
+        next.state.observation_match = Some(matched);
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -1950,11 +3072,14 @@ impl ObservableGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure retains only the recorded response.
-    pub async fn record_echo_mismatch(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+    #[cfg(test)]
+    pub(crate) async fn record_echo_mismatch(
+        self,
+    ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.stage = GatewayAttemptStage::Observed;
-        next.observation_match = Some(false);
-        next.observation_fact = Some(GatewayObservationFact::EchoMismatch);
+        next.state.stage = GatewayAttemptStage::Observed;
+        next.state.observation_match = Some(false);
+        next.state.observation_fact = Some(GatewayObservationFact::EchoMismatch);
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -1965,7 +3090,8 @@ impl ObservableGatewayAttempt {
     /// # Errors
     /// Rejects a recipe without echo, empty or oversized evidence, and
     /// persistence failure.
-    pub async fn record_provider_evidence(
+    #[cfg(test)]
+    pub(crate) async fn record_provider_evidence(
         self,
         evidence: &[u8],
         observed_at: u64,
@@ -1975,6 +3101,7 @@ impl ObservableGatewayAttempt {
             .observation_request()
             .filter(|_| {
                 record
+                    .state
                     .observation_plan
                     .as_ref()
                     .is_some_and(|plan| plan.echo_pointer.is_some())
@@ -1984,7 +3111,7 @@ impl ObservableGatewayAttempt {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let mut next = record.clone();
-        next.provider_evidence = Some(EvidenceWire {
+        next.state.provider_evidence = Some(EvidenceWire {
             channel: GatewayEvidenceChannel::ReadBack,
             locator: locator.url().to_owned(),
             echo: record.echo_token()?,
@@ -1992,24 +3119,199 @@ impl ObservableGatewayAttempt {
             evidence_b64: Base64::encode_string(evidence),
             observed_at,
         });
-        next.stage = GatewayAttemptStage::ObservedByProvider;
+        next.state.stage = GatewayAttemptStage::ObservedByProvider;
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 }
 
-fn encode(record: &Record) -> Result<Vec<u8>, GatewayAttemptError> {
-    let bytes = serde_json::to_vec(record).map_err(|_| GatewayAttemptError::Corrupt)?;
+fn encode<S: JournalProtocol>(record: &Record<S>) -> Result<Vec<u8>, GatewayAttemptError> {
+    let record = record.clone();
+    let wire = record.map_state(|state| Ok(state.wrap()))?;
+    let bytes = serde_json::to_vec(&wire).map_err(|_| GatewayAttemptError::Corrupt)?;
     if bytes.is_empty() || bytes.len() > MAX_RECORD_BYTES {
         return Err(GatewayAttemptError::Corrupt);
     }
     Ok(bytes)
 }
 
+/// Existing claims never disappear. A loser compares the immutable complete
+/// binding after the insert transaction reports a collision, without minting
+/// any capability or consuming another reservation.
+fn existing_binding(
+    store: &dyn GatewayAttemptStore,
+    key: GatewayAttemptKey,
+    expected: &str,
+) -> GatewayAttemptError {
+    let checked = (|| {
+        let bytes = store
+            .load(GatewayRecordKind::Attempt, &key)?
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let record = decode_protocol(&bytes)?;
+        Ok::<_, GatewayAttemptError>(record.binding_canonical == expected)
+    })();
+    match checked {
+        Ok(true) => GatewayAttemptError::Replay,
+        Ok(false) => GatewayAttemptError::BindingConflict,
+        Err(error) => error,
+    }
+}
+
 fn decode(bytes: &[u8]) -> Result<Record, GatewayAttemptError> {
+    decode_as(bytes)
+}
+
+fn decode_as<S: JournalProtocol>(bytes: &[u8]) -> Result<Record<S>, GatewayAttemptError> {
+    decode_protocol(bytes)?.map_state(S::extract)
+}
+
+fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttemptError> {
     if bytes.is_empty() || bytes.len() > MAX_RECORD_BYTES {
         return Err(GatewayAttemptError::Corrupt);
     }
-    serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)
+    let record: Record<ProtocolState> =
+        serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+    record.validate_header()?;
+    match &record.state {
+        ProtocolState::Disclosure(_) => {
+            let typed = record
+                .clone()
+                .map_state(disclosure::DisclosureState::extract)?;
+            disclosure::DisclosureState::validate(&typed)?;
+        }
+        ProtocolState::Mutation(_) => {
+            let typed = record.clone().map_state(MutationState::extract)?;
+            MutationState::validate(&typed)?;
+        }
+        ProtocolState::Acquisition(_) => {
+            let typed = record
+                .clone()
+                .map_state(acquisition::AcquisitionState::extract)?;
+            acquisition::AcquisitionState::validate(&typed)?;
+        }
+    }
+    Ok(record)
+}
+
+/// Redacted retained content facts. History grants no current execution authority.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(
+    tag = "kind",
+    content = "snapshot",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+pub enum ContentHistory {
+    /// Provider acquisition facts; no content or recipient receipt claim.
+    Acquisition(AcquisitionSnapshot),
+    /// Separate recipient disclosure/ACK facts.
+    Disclosure(DisclosureSnapshot),
+}
+
+/// Stored facts only. No variant contains an entry permit or current authority.
+pub(crate) enum RetainedSubmission {
+    Mutation(Box<GatewayAttemptSnapshot>),
+    Acquisition(AcquisitionSnapshot),
+    Disclosure(DisclosureSnapshot),
+}
+
+impl GatewayAttempts {
+    /// Matches the native verifier's exact committed input digests and a signed
+    /// approval for that retained binding. Current approval windows and installed
+    /// keys govern new execution, not retrieval of already admitted facts.
+    pub(crate) async fn retained_submission(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+        recipe: [u8; 32],
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+    ) -> Result<Option<RetainedSubmission>, GatewayAttemptError> {
+        let key = self.key(namespace, operation)?;
+        let store = Arc::clone(&self.store);
+        let Some(bytes) = blocking(move || store.load(GatewayRecordKind::Attempt, &key)).await?
+        else {
+            return Ok(None);
+        };
+        let bytes = zeroize::Zeroizing::new(bytes);
+        let record = decode_protocol(&bytes)?;
+        let binding = record.validate_header()?;
+        if !self.policy.contains(&binding)
+            || record.namespace != namespace.as_str()
+            || record.operation_id != operation.as_str()
+            || record.recipe_digest != hex::encode(recipe)
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        // A different offered input is not a historical match. It must still
+        // pass current native verification before admission can report a
+        // changed-binding conflict; the lookup hint itself grants no authority.
+        if !record.native_authority()?.matches_inputs(proof, action) {
+            return Ok(None);
+        }
+        binding
+            .validate_historical_approval(approval)
+            .map_err(|_| GatewayAttemptError::BindingConflict)?;
+        match &record.state {
+            ProtocolState::Mutation(_) => Ok(Some(RetainedSubmission::Mutation(Box::new(
+                record.map_state(MutationState::extract)?.snapshot(true)?,
+            )))),
+            ProtocolState::Acquisition(_) => Ok(Some(RetainedSubmission::Acquisition(
+                record
+                    .map_state(acquisition::AcquisitionState::extract)?
+                    .snapshot()?,
+            ))),
+            ProtocolState::Disclosure(_) => Ok(Some(RetainedSubmission::Disclosure(
+                record
+                    .map_state(disclosure::DisclosureState::extract)?
+                    .disclosure_snapshot()?,
+            ))),
+        }
+    }
+
+    /// Loads exact local content history without reconstructing any entry permit.
+    ///
+    /// # Errors
+    /// Refuses absent, foreign or malformed state and non-content protocols.
+    pub async fn content_history(
+        &self,
+        namespace: &OperatorNamespace,
+        operation: &LogicalOperationId,
+        recipe: [u8; 32],
+    ) -> Result<ContentHistory, GatewayAttemptError> {
+        let key = self.key(namespace, operation)?;
+        let store = Arc::clone(&self.store);
+        let bytes = blocking(move || store.load(GatewayRecordKind::Attempt, &key))
+            .await?
+            .ok_or(GatewayAttemptError::Unavailable)?;
+        let bytes = zeroize::Zeroizing::new(bytes);
+        let record = decode_protocol(&bytes)?;
+        let binding = record.validate_header()?;
+        if !self.policy.contains(&binding)
+            || record.namespace != namespace.as_str()
+            || record.operation_id != operation.as_str()
+            || record.recipe_digest != hex::encode(recipe)
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        match &record.state {
+            ProtocolState::Disclosure(_) => Ok(ContentHistory::Disclosure(
+                record
+                    .map_state(disclosure::DisclosureState::extract)?
+                    .disclosure_snapshot()?,
+            )),
+            ProtocolState::Acquisition(state)
+                if matches!(state.plan, crate::effect::AcquisitionPlan::Content(_)) =>
+            {
+                Ok(ContentHistory::Acquisition(
+                    record
+                        .map_state(acquisition::AcquisitionState::extract)?
+                        .snapshot()?,
+                ))
+            }
+            _ => Err(GatewayAttemptError::BindingConflict),
+        }
+    }
 }
 
 /// The snapshot of one stored record's bytes, for the fuzz targets.
@@ -2027,8 +3329,11 @@ pub(crate) fn fuzz_transition(old: &[u8], new: &[u8]) -> Option<bool> {
 
 /// Whether `new` may replace `old`: the translated transition rule on both
 /// projections, and a fully valid `new`.
-fn valid_transition(old: &Record, new: &Record) -> Result<bool, GatewayAttemptError> {
-    Ok(transition::valid_transition(&old.view()?, &new.view()?) && new.snapshot(false).is_ok())
+fn valid_transition<S: JournalProtocol>(
+    old: &Record<S>,
+    new: &Record<S>,
+) -> Result<bool, GatewayAttemptError> {
+    Ok(transition::valid_transition(&S::view(old)?, &S::view(new)?) && S::validate(new).is_ok())
 }
 
 fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
@@ -2152,238 +3457,250 @@ fn store_exhausted(
     key: GatewayAttemptKey,
     base: &Record,
     code: &'static str,
+    admission: &Admission,
 ) -> Result<Reserved, GatewayAttemptError> {
     let mut record = base.clone();
-    record.stage = GatewayAttemptStage::NotEntered;
-    record.refusal = Some(code.to_owned());
+    record.state.stage = GatewayAttemptStage::NotEntered;
+    record.state.refusal = Some(code.to_owned());
     record.snapshot(false)?;
-    store.insert(&GatewayRecordEntry {
+    let entries = [GatewayRecordEntry {
         kind: GatewayRecordKind::Attempt,
         key,
         record: encode(&record)?,
         expires_at: None,
-    })?;
-    Ok(Reserved::Exhausted(code))
+    }];
+    match insert_claim(store, &mut record, &entries, admission, None)? {
+        GatewayInsert::Inserted => Ok(Reserved::Exhausted(code)),
+        GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
+    }
 }
 
-/// The claim record with the reserved slots, and the batch that inserts it
-/// with one slot record per count and sum counter.
-fn claim_batch(
-    key: GatewayAttemptKey,
-    base: &Record,
-    bound: &crate::bounds::BoundAdmission,
-    counts: &[u64],
-    sums: &[u64],
-    totals: &[u64],
-) -> Result<(Record, Vec<u8>, Vec<GatewayRecordEntry>), GatewayAttemptError> {
-    use crate::bounds::{count_slot_key, sum_slot_key};
-    let mut record = base.clone();
-    let mut counters: Vec<GatewayCounterEntry> = bound
-        .counts
-        .iter()
-        .zip(counts)
-        .map(|(counter, slot)| GatewayCounterEntry {
-            kind: GatewayCounterKind::Count,
-            counter: counter.key,
-            slot: *slot,
-        })
-        .chain(
-            bound
-                .sums
-                .iter()
-                .zip(sums)
-                .map(|(counter, slot)| GatewayCounterEntry {
-                    kind: GatewayCounterKind::Sum,
-                    counter: counter.key,
-                    slot: *slot,
-                }),
-        )
-        .collect();
-    counters.sort_unstable();
-    record.counters = counters
-        .iter()
-        .map(|entry| CounterWire {
-            kind: entry.kind,
-            counter: hex::encode(entry.counter),
-            slot: entry.slot,
-        })
-        .collect();
-    record.snapshot(false)?;
-    let stored = encode(&record)?;
-    let claim = hex::encode(key.as_bytes());
-    let mut entries = Vec::with_capacity(1 + counts.len() + sums.len());
-    entries.push(GatewayRecordEntry {
-        kind: GatewayRecordKind::Attempt,
-        key,
-        record: stored.clone(),
-        expires_at: None,
-    });
-    for (counter, slot) in bound.counts.iter().zip(counts) {
-        let slot_record = CountSlotRecord {
-            schema: COUNT_SLOT_SCHEMA.to_owned(),
-            counter: hex::encode(counter.key),
-            slot: *slot,
-            window_seconds: bound.window_seconds,
-            window_index: bound.window_index,
-            window_end: bound.window_end,
-            namespace: base.namespace.clone(),
-            operation_id: base.operation_id.clone(),
-            claim: claim.clone(),
-        };
-        entries.push(GatewayRecordEntry {
-            kind: GatewayRecordKind::CountSlot,
-            key: GatewayAttemptKey(count_slot_key(&counter.key, *slot)),
-            record: canonical(&slot_record)?,
-            expires_at: Some(bound.expires_at()),
-        });
-    }
-    for ((counter, slot), total) in bound.sums.iter().zip(sums).zip(totals) {
-        let slot_record = SumSlotRecord {
-            schema: SUM_SLOT_SCHEMA.to_owned(),
-            counter: hex::encode(counter.key),
-            slot: *slot,
-            amount: bound.argument,
-            cumulative: total
-                .checked_add(bound.argument)
-                .ok_or(GatewayAttemptError::Corrupt)?,
-            window_seconds: bound.window_seconds,
-            window_index: bound.window_index,
-            window_end: bound.window_end,
-            namespace: base.namespace.clone(),
-            operation_id: base.operation_id.clone(),
-            claim: claim.clone(),
-        };
-        entries.push(GatewayRecordEntry {
-            kind: GatewayRecordKind::SumSlot,
-            key: GatewayAttemptKey(sum_slot_key(&counter.key, *slot)),
-            record: canonical(&slot_record)?,
-            expires_at: Some(bound.expires_at()),
-        });
-    }
-    Ok((record, stored, entries))
-}
-
-/// Finds each counter's frontier, then inserts the claim and one slot per
-/// count and sum counter in one all-or-none batch. A full counter stores
-/// the claim alone as `not-entered`; a lost race advances that counter and
-/// retries, at most [`MAX_CLAIM_ROUNDS`] times. The count and sum checks are
-/// the translated leaves `chain_counts_admit` and `chain_sums_admit`.
+/// Reserve immutable count/sum slots using the shared candidate arithmetic.
 fn reserve_with_claim(
     store: &dyn GatewayAttemptStore,
     key: GatewayAttemptKey,
     base: &Record,
     bound: &crate::bounds::BoundAdmission,
+    admission: &Admission,
 ) -> Result<Reserved, GatewayAttemptError> {
-    use crate::bounds::{count_slot_key, sum_slot_key};
-    use auths_bounded_policy::kernel::{chain_counts_admit, chain_sums_admit};
-    let mut counts = bound
-        .counts
-        .iter()
-        .map(|counter| {
-            frontier(
-                store,
-                GatewayRecordKind::CountSlot,
-                &counter.key,
-                counter.capacity,
-                count_slot_key,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut sums = bound
-        .sums
-        .iter()
-        .map(|counter| {
-            frontier(
-                store,
-                GatewayRecordKind::SumSlot,
-                &counter.key,
-                counter.slots,
-                sum_slot_key,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut totals = sums
-        .iter()
-        .zip(&bound.sums)
-        .map(|(slot, counter)| match slot.checked_sub(1) {
-            None => Ok(0),
-            Some(previous) => cumulative(store, &counter.key, previous),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let count_capacities: Vec<u64> = bound
-        .counts
-        .iter()
-        .map(|counter| counter.capacity)
-        .collect();
-    let sum_capacities: Vec<u64> = bound.sums.iter().map(|counter| counter.capacity).collect();
+    let mut candidate = capacity::CapacityCandidate::new(store, bound)?;
     for _ in 0..MAX_CLAIM_ROUNDS {
-        let sum_slots_left = sums
-            .iter()
-            .zip(&bound.sums)
-            .all(|(slot, counter)| *slot < counter.slots);
-        if !chain_counts_admit(&counts, &count_capacities) || !sum_slots_left {
-            return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
+        if let Some(code) = candidate.refusal() {
+            return store_exhausted(store, key, base, code, admission);
         }
-        if !chain_sums_admit(&totals, bound.argument, &sum_capacities) {
-            return store_exhausted(store, key, base, "gateway.policy.sum-exhausted");
-        }
-        let (record, stored, entries) = claim_batch(key, base, bound, &counts, &sums, &totals)?;
-        match store.insert_all(&entries)? {
+        let (counters, slots) = candidate.batch(key, &base.namespace, &base.operation_id)?;
+        let mut record = base.clone();
+        record.state.counters = counters;
+        record.snapshot(false)?;
+        let mut entries = vec![GatewayRecordEntry {
+            kind: GatewayRecordKind::Attempt,
+            key,
+            record: encode(&record)?,
+            expires_at: None,
+        }];
+        entries.extend(slots);
+        match insert_claim(store, &mut record, &entries, admission, Some(&candidate))? {
             GatewayInsert::Inserted => {
                 return Ok(Reserved::Claimed {
-                    stored,
+                    stored: encode(&record)?,
                     record: Box::new(record),
                 });
             }
             GatewayInsert::Exists { index: 0 } => return Err(GatewayAttemptError::Replay),
-            GatewayInsert::Exists { index } => {
-                let position = index - 1;
-                if let Some(slot) = counts.get_mut(position) {
-                    *slot += 1;
-                } else {
-                    let position = position - counts.len();
-                    let (Some(slot), Some(total), Some(counter)) = (
-                        sums.get_mut(position),
-                        totals.get_mut(position),
-                        bound.sums.get(position),
-                    ) else {
-                        return Err(GatewayAttemptError::Corrupt);
-                    };
-                    *total = cumulative(store, &counter.key, *slot)?;
-                    *slot += 1;
-                }
-            }
+            GatewayInsert::Exists { index } => candidate.advance(store, index - 1)?,
         }
     }
     Ok(Reserved::Contended)
 }
 
+/// Current native authority captured before custody and sampled again only
+/// inside the adapter writer fence. It never grants transport entry.
+struct Admission {
+    approved: Arc<ApprovedEffect>,
+    validation: crate::entry::EntryValidation,
+    authorization_started_at: u64,
+}
+
+impl Admission {
+    fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
+        self.validation.dependencies()
+    }
+
+    fn stamp<S: JournalProtocol>(
+        &self,
+        record: &mut Record<S>,
+        snapshots: &[Option<Vec<u8>>],
+    ) -> Result<(), GatewayAttemptError> {
+        if record.revision != 1
+            || record.entry.is_some()
+            || record.validate_header()? != *self.approved.effect().binding()
+        {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let now = self
+            .validation
+            .validate(&self.approved, snapshots, self.authorization_started_at)
+            .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+        record.evaluated_at = now;
+        S::validate(record)
+    }
+}
+
+/// Capacity candidates are chosen outside the lock, but target vacancy and
+/// immutable sum predecessors are checked with current authority before insert.
+fn insert_claim(
+    store: &dyn GatewayAttemptStore,
+    record: &mut Record,
+    entries: &[GatewayRecordEntry],
+    admission: &Admission,
+    candidate: Option<&capacity::CapacityCandidate<'_>>,
+) -> Result<GatewayInsert, GatewayAttemptError> {
+    let mut dependencies = admission.dependencies();
+    let native_end = dependencies.len();
+    if let Some(candidate) = candidate {
+        dependencies.extend(candidate.dependencies());
+    }
+    store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
+        if snapshots.len() != dependencies.len() {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        admission.stamp(record, &snapshots[..native_end])?;
+        if let Some(candidate) = candidate {
+            candidate.validate_predecessors(&snapshots[native_end..])?;
+        }
+        encode(record)
+    })
+}
+
 impl GatewayAttempts {
     /// Claims one logical ID together with one slot of every count and sum
     /// counter `bound` names, in one all-or-none batch, before credential
-    /// access or transport entry. Without a bound it is [`Self::claim`].
+    /// access or transport entry. Unbounded effects insert only the claim.
     /// Slots are never released, and a replay consumes none.
     ///
     /// # Errors
-    /// An existing claim is `Replay`; a store failure stores nothing.
+    /// An identical reserved binding reopens without another charge. An existing
+    /// grant or terminal operation is `Replay`; a changed binding is
+    /// `BindingConflict`. Reopening itself never authorizes provider entry.
     pub(crate) async fn claim_bounded(
         &self,
-        request: &ClosedProviderRequest,
-        recipe_digest: [u8; 32],
+        approved: &Arc<ApprovedEffect>,
         evaluated_at: u64,
-        bound: Option<&crate::bounds::BoundAdmission>,
+        validation: crate::entry::EntryValidation,
     ) -> Result<BoundedClaim, GatewayAttemptError> {
-        let Some(bound) = bound else {
-            return self
-                .claim(request, recipe_digest, evaluated_at)
-                .await
-                .map(|claim| BoundedClaim::Claimed(Box::new(claim)));
-        };
-        let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
-        let base = claim_record(request, recipe_digest, evaluated_at)?;
+        match self
+            .claim_new_bounded(approved, evaluated_at, validation)
+            .await
+        {
+            Err(GatewayAttemptError::Replay) => {
+                let request = &approved
+                    .command()
+                    .ok_or(GatewayAttemptError::InvalidTransition)?
+                    .request;
+                let (stored, record) = self
+                    .load(request.namespace(), request.operation_id())
+                    .await?
+                    .ok_or(GatewayAttemptError::Unavailable)?;
+                if record.binding_canonical.as_bytes()
+                    != approved
+                        .effect()
+                        .binding()
+                        .to_private_bytes()
+                        .map_err(|_| GatewayAttemptError::Corrupt)?
+                        .as_slice()
+                {
+                    return Err(GatewayAttemptError::BindingConflict);
+                }
+                if record.state.stage != GatewayAttemptStage::Reserved {
+                    return Err(GatewayAttemptError::Replay);
+                }
+                // This handle grants no entry. A fresh fenced CAS still checks
+                // native authority, approval and every retained slot.
+                Ok(BoundedClaim::Claimed(Box::new(ClaimedGatewayAttempt {
+                    attempt: Attempt {
+                        store: Arc::clone(&self.store),
+                        key: self.key(request.namespace(), request.operation_id())?,
+                        stored,
+                        record,
+                    },
+                })))
+            }
+            result => result,
+        }
+    }
+
+    async fn claim_new_bounded(
+        &self,
+        approved: &Arc<ApprovedEffect>,
+        evaluated_at: u64,
+        validation: crate::entry::EntryValidation,
+    ) -> Result<BoundedClaim, GatewayAttemptError> {
+        let command = approved
+            .command()
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        let request = &command.request;
+        let binding = approved.effect().binding();
+        if !self.policy.contains(binding) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let key = self.key(request.namespace(), request.operation_id())?;
+        let expected = String::from_utf8(
+            binding
+                .to_private_bytes()
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_vec(),
+        )
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
         let store = Arc::clone(&self.store);
-        let bound = bound.clone();
-        let reserved = blocking(move || reserve_with_claim(&*store, key, &base, &bound)).await?;
+        let bound = command.bound.clone();
+        let admission = Admission {
+            approved: Arc::clone(approved),
+            validation,
+            authorization_started_at: evaluated_at,
+        };
+        let reserved = blocking(move || {
+            // History precedes candidate admission. Expiry cannot erase replay
+            // or turn an existing reservation into a new charged operation.
+            if store.load(GatewayRecordKind::Attempt, &key)?.is_some() {
+                return Err(existing_binding(&*store, key, &expected));
+            }
+            let base = claim_record(
+                &admission
+                    .approved
+                    .command()
+                    .ok_or(GatewayAttemptError::InvalidTransition)?
+                    .request,
+                admission.approved.effect().binding(),
+                admission.approved.approval(),
+                admission.approved.effect().native_authority(),
+                evaluated_at,
+            )?;
+            let result = if let Some(bound) = &bound {
+                reserve_with_claim(&*store, key, &base, bound, &admission)
+            } else {
+                let mut record = base.clone();
+                let entries = [GatewayRecordEntry {
+                    kind: GatewayRecordKind::Attempt,
+                    key,
+                    record: encode(&record)?,
+                    expires_at: None,
+                }];
+                match insert_claim(&*store, &mut record, &entries, &admission, None)? {
+                    GatewayInsert::Inserted => Ok(Reserved::Claimed {
+                        stored: encode(&record)?,
+                        record: Box::new(record),
+                    }),
+                    GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
+                }
+            };
+            match result {
+                Err(GatewayAttemptError::Replay) => {
+                    Err(existing_binding(&*store, key, &base.binding_canonical))
+                }
+                result => result,
+            }
+        })
+        .await?;
         Ok(match reserved {
             Reserved::Claimed { stored, record } => {
                 BoundedClaim::Claimed(Box::new(ClaimedGatewayAttempt {
@@ -2400,3 +3717,11 @@ impl GatewayAttempts {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "entry_tests.rs"]
+mod entry_tests;
+
+#[cfg(test)]
+#[path = "store_retention_tests.rs"]
+mod retention_tests;

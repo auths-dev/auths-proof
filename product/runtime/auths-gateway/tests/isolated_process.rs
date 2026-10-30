@@ -127,6 +127,11 @@ fn install(
 ) -> std::process::Output {
     let mut child = Command::new(BIN)
         .arg("install")
+        .arg("--effect-policy")
+        .arg(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../bindings/fixtures/gateway/effect-policy.json"
+        ))
         .arg("--state-dir")
         .arg(state)
         .arg("--recipe")

@@ -1,5 +1,5 @@
 /**
- * Proof/action-only client for a separately operated local Auths gateway. It can also
+ * Proof/action/exact-approval client for a separately operated local Auths gateway. It can also
  * ask the gateway for one read-only signed observation to attach to a later action, or
  * for the signed pre-entry observations stored for one operation.
  */
@@ -7,17 +7,16 @@
 import { createConnection } from "node:net";
 import { platform } from "node:os";
 
-const REQUEST_SCHEMA = "auths.gateway-submit/1";
-const OBSERVE_SCHEMA = "auths.gateway-observe/2";
+const REQUEST_SCHEMA = "auths.gateway-submit/2";
+const OBSERVE_SCHEMA = "auths.gateway-observe/3";
 const READ_BACK_SCHEMA = "auths.gateway-readback/1";
 const OUTCOME_SCHEMA = "auths.gateway-outcome/2";
 const OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
 const MAX_OBSERVATION_BYTES = 4_096;
 const MAX_SUBJECT_BYTES = 1_024;
-const MAX_READ_BACK_ARGUMENTS = 16;
-const MAX_ARGUMENT_BYTES = 128;
 const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES = 64 * 1024;
+const MAX_APPROVAL_BYTES = 4_096;
 const MAX_PRE_ENTRY_OBSERVATIONS = 4;
 // Room for four maximal pre-entry observations in one base64url response.
 const MAX_RESPONSE_BYTES = 32 * 1024;
@@ -26,9 +25,7 @@ const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const SUN_PATH_BYTES = platform() === "linux" ? 108 : 104;
 const MAX_SOCKET_PATH_BYTES = SUN_PATH_BYTES - 1;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const ECHO = /^auths-e1-[0-9a-f]{64}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
-const FIELD_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const BASE64URL = /^[A-Za-z0-9_-]*$/;
 
@@ -67,19 +64,22 @@ export class GatewayEndpoint {
 }
 
 /**
- * Secret-free summary of provider-held read-back evidence. The response bytes and
- * observation locator stay in the operator's attempt store; `observedAt` is gateway
+ * Public hiding summary of provider-held read-back evidence. Raw response bytes,
+ * digest and echo stay in the protected journal; `evidenceCommitment` is a native
+ * scoped HMAC, never a raw body hash; `observedAt` is gateway
  * wall-clock seconds and is not authenticated.
  */
 export type GatewayProviderEvidence = Readonly<{
   channel: "read-back";
-  echo: string;
-  evidenceDigest: string;
+  schema: "auths.gateway-public-evidence/1";
+  evidenceCommitment: string;
   observedAt: number;
 }>;
 
 /**
- * Proof decision and transport/observation stages, without effect qualification.
+ * Native decision and journal stages, without effect qualification. `reserved`
+ * has no entry grant; continuation needs fresh authorization. `indeterminate`
+ * can mean required journal state is unavailable, not that entry was absent.
  * `observed-by-provider` means a read-back returned this attempt's echo token and the
  * verified value; anyone who knows the namespace, operation ID, and action commitment
  * can compute that token, so the link holds only while no other writer of that
@@ -89,6 +89,7 @@ export type GatewayResult =
   | Readonly<{ outcome: "denied"; code: string }>
   | Readonly<{ outcome: "indeterminate"; code: string }>
   | Readonly<{ outcome: "not-entered"; code: string }>
+  | Readonly<{ outcome: "reserved"; revision: number }>
   | Readonly<{ outcome: "unknown" }>
   | Readonly<{ outcome: "response-recorded"; status: number }>
   | Readonly<{ outcome: "observed"; status: number; matched: boolean }>
@@ -193,23 +194,61 @@ function parseEvidence(value: unknown): GatewayProviderEvidence {
     throw new GatewayProtocolError("gateway returned invalid evidence");
   }
   const evidence = value as Record<string, unknown>;
-  const { channel, echo, evidence_digest: digest, observed_at: observedAt } = evidence;
+  const { schema, channel, evidence_commitment: commitment, observed_at: observedAt } = evidence;
   if (
-    !exactKeys(evidence, ["channel", "echo", "evidence_digest", "observed_at"])
+    !exactKeys(evidence, ["schema", "channel", "evidence_commitment", "observed_at"])
     || channel !== "read-back"
-    || typeof echo !== "string" || !ECHO.test(echo)
-    || typeof digest !== "string" || !DIGEST.test(digest)
+    || schema !== "auths.gateway-public-evidence/1"
+    || typeof commitment !== "string" || commitment.length !== 64 || !DIGEST.test(commitment)
     || typeof observedAt !== "number" || !Number.isSafeInteger(observedAt) || observedAt < 0
   ) {
     throw new GatewayProtocolError("gateway returned invalid evidence");
   }
-  return { channel, echo, evidenceDigest: digest, observedAt };
+  return { schema, channel, evidenceCommitment: commitment, observedAt };
+}
+
+// Wire validation only: native owners still decide every authorization and stage.
+function parseGatewayJson(bytes: Uint8Array): unknown {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) throw new TypeError("gateway JSON BOM");
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  const stack: Array<{ keys: Set<string>; key: boolean } | null> = [];
+  for (const match of text.matchAll(/"(?:\\[\s\S]|[^"\\])*"|-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|[{}\[\],:]/gu)) {
+    const token = match[0];
+    if (token === "{" || token === "[") {
+      if (stack.length >= 128) throw new TypeError("gateway JSON depth");
+      stack.push(token === "{" ? { keys: new Set<string>(), key: true } : null);
+    } else if (token === "}" || token === "]") {
+      stack.pop();
+    } else if (token === ":" || token === ",") {
+      const object = stack[stack.length - 1];
+      if (object) object.key = token === ",";
+    } else if (!token.startsWith('"')) {
+      if (!/^(?:0|[1-9][0-9]*)$/u.test(token)) throw new TypeError("gateway JSON integer");
+    } else {
+      const value = JSON.parse(token) as string;
+      for (let index = 0; index < value.length; index++) {
+        const code = value.charCodeAt(index);
+        if (code >= 0xd800 && code <= 0xdbff) {
+          const next = value.charCodeAt(++index);
+          if (!(next >= 0xdc00 && next <= 0xdfff)) throw new TypeError("gateway JSON Unicode");
+        } else if (code >= 0xdc00 && code <= 0xdfff) {
+          throw new TypeError("gateway JSON Unicode");
+        }
+      }
+      const object = stack[stack.length - 1];
+      if (object?.key) {
+        if (object.keys.size >= 16 || object.keys.has(value)) throw new TypeError("gateway JSON duplicate or oversized object");
+        object.keys.add(value);
+      }
+    }
+  }
+  return JSON.parse(text) as unknown;
 }
 
 function parseResult(bytes: Uint8Array): GatewayResult {
   let decoded: unknown;
   try {
-    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    decoded = parseGatewayJson(bytes);
   } catch {
     throw new GatewayProtocolError("gateway returned invalid JSON");
   }
@@ -223,6 +262,12 @@ function parseResult(bytes: Uint8Array): GatewayResult {
       throw new GatewayProtocolError("gateway returned invalid refusal");
     }
     return { outcome, code: value.code };
+  }
+  if (outcome === "reserved") {
+    if (!exactKeys(value, ["outcome", "revision"]) || typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 1) {
+      throw new GatewayProtocolError("gateway returned invalid reservation");
+    }
+    return { outcome, revision: value.revision };
   }
   if (outcome === "unknown" && exactKeys(value, ["outcome"])) {
     return { outcome };
@@ -252,7 +297,7 @@ function parseResult(bytes: Uint8Array): GatewayResult {
 function parseObserveResult(bytes: Uint8Array, schema: ObservationSchema): GatewayObserveResult {
   let decoded: unknown;
   try {
-    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    decoded = parseGatewayJson(bytes);
   } catch {
     throw new GatewayProtocolError("gateway returned invalid JSON");
   }
@@ -297,7 +342,7 @@ function parseRefusal(value: Record<string, unknown>): Readonly<{ outcome: "refu
 function parsePreEntryResult(bytes: Uint8Array, operationId: string): GatewayPreEntryResult {
   let decoded: unknown;
   try {
-    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    decoded = parseGatewayJson(bytes);
   } catch {
     throw new GatewayProtocolError("gateway returned invalid JSON");
   }
@@ -326,25 +371,18 @@ function parsePreEntryResult(bytes: Uint8Array, operationId: string): GatewayPre
   };
 }
 
-function readBackRequest(argumentsMap: Readonly<Record<string, string>>): Record<string, unknown> {
-  if (typeof argumentsMap !== "object" || argumentsMap === null || Array.isArray(argumentsMap)) {
-    throw new TypeError("read-back arguments must be a bounded object");
+function submission(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Record<string, string> {
+  if (!(input.proof instanceof Uint8Array) || input.proof.length < 1 || input.proof.length > MAX_PROOF_BYTES) {
+    throw new TypeError("proof must be bounded bytes");
   }
-  const entries = Object.entries(argumentsMap as Record<string, unknown>);
-  if (entries.length < 1 || entries.length > MAX_READ_BACK_ARGUMENTS) {
-    throw new TypeError("read-back arguments must be a bounded object");
+  if (!(input.action instanceof Uint8Array) || input.action.length < 1 || input.action.length > MAX_ACTION_BYTES) {
+    throw new TypeError("action must be bounded bytes");
   }
-  const checked: Record<string, string> = {};
-  for (const [name, value] of entries) {
-    if (!FIELD_NAME.test(name)) {
-      throw new TypeError("read-back argument names must be recipe field names");
-    }
-    if (typeof value !== "string" || value.includes("\0") || value.length < 1 || utf8Length(value) > MAX_ARGUMENT_BYTES) {
-      throw new TypeError("read-back argument values must be bounded strings");
-    }
-    checked[name] = value;
+  if (!(input.approval instanceof Uint8Array) || input.approval.length < 1 || input.approval.length > MAX_APPROVAL_BYTES) {
+    throw new TypeError("approval must be bounded native canonical bytes");
   }
-  return { kind: "read-back", arguments: checked };
+  return { schema: REQUEST_SCHEMA, proof_b64: encodeBase64Url(input.proof),
+    action_b64: encodeBase64Url(input.action), approval_b64: encodeBase64Url(input.approval) };
 }
 
 function concatenate(parts: readonly Uint8Array[], total: number): Uint8Array {
@@ -358,8 +396,8 @@ function concatenate(parts: readonly Uint8Array[], total: number): Uint8Array {
 }
 
 /**
- * Submit only canonical proof and action bytes, or request one read-only signed
- * observation; no credential or raw HTTP API exists.
+ * Submit exact approved effects, acquire approved recovery evidence, or inspect
+ * retained local history. No credential or raw HTTP API exists.
  */
 export class GatewayClient {
   readonly #endpoint: GatewayEndpoint;
@@ -371,31 +409,51 @@ export class GatewayClient {
     this.#endpoint = endpoint;
   }
 
-  async submit(input: Readonly<{ proof: Uint8Array; action: Uint8Array }>): Promise<GatewayResult> {
-    if (!(input.proof instanceof Uint8Array) || input.proof.length < 1 || input.proof.length > MAX_PROOF_BYTES) {
-      throw new TypeError("proof must be bounded bytes");
-    }
-    if (!(input.action instanceof Uint8Array) || input.action.length < 1 || input.action.length > MAX_ACTION_BYTES) {
-      throw new TypeError("action must be bounded bytes");
-    }
-    const payload = new TextEncoder().encode(JSON.stringify({
-      schema: REQUEST_SCHEMA,
-      proof_b64: encodeBase64Url(input.proof),
-      action_b64: encodeBase64Url(input.action),
-    }));
+  async submit(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<GatewayResult> {
+    const payload = new TextEncoder().encode(JSON.stringify(submission(input)));
     return this.#exchange(payload, "outcome may be unknown", parseResult);
   }
 
-  /**
-   * Asks the gateway to read the recipe's observed field now and sign what it read.
-   * `argumentsMap` names exactly the recipe observation path's fields (for example
-   * `{ record_id: "rec..." }`); the gateway derives URL, subject, and time itself, and
-   * the application learns the observed value. Throws `TypeError` for unbounded or
-   * non-string arguments and `GatewayProtocolError` for an unavailable or malformed
-   * exchange; a refusal is a result, not an exception.
-   */
-  async observeReadBack(argumentsMap: Readonly<Record<string, string>>): Promise<GatewayObserveResult> {
-    return this.#observe(readBackRequest(argumentsMap), READ_BACK_SCHEMA);
+  /** Returns bounded native recovery-report/refusal JSON unchanged. The separately
+   * approved read uses native admission and accounting. No provider content is
+   * disclosed. A lost response never authorizes a retry. */
+  async recover(sourceOperation: string, input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<Uint8Array> {
+    if (typeof sourceOperation !== "string" || !OPERATION_ID.test(sourceOperation)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-recover/1",
+      source_operation: sourceOperation, submission: submission(input) }));
+    return this.#exchange(payload, "recovery outcome may be unknown", (bytes) => bytes);
+  }
+
+  /** Native acquisition facts only. Resources come from the signed action;
+   * no content is released and a lost reply never permits another read. */
+  async acquireContent(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Promise<Uint8Array> {
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-content/1", submission: submission(input) }));
+    return this.#exchange(payload, "content acquisition may be unknown", (bytes) => bytes);
+  }
+
+  /** Redacted native history, unchanged, with no provider or recipient I/O. */
+  async contentHistory(operation: string): Promise<Uint8Array> {
+    if (typeof operation !== "string" || !OPERATION_ID.test(operation)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-content-history/1", operation }));
+    return this.#exchange(payload, "content history unavailable", (bytes) => bytes);
+  }
+
+  /** Carries canonical ACK bytes produced by the native recipient client.
+   * Rust alone checks signatures and retained grants; this never redelivers. */
+  async acknowledgeDisclosure(operation: string, acknowledgement: Uint8Array): Promise<Uint8Array> {
+    if (typeof operation !== "string" || !OPERATION_ID.test(operation)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    if (!(acknowledgement instanceof Uint8Array) || acknowledgement.length < 1 || acknowledgement.length > 4096) {
+      throw new TypeError("acknowledgement must be 1-4096 native canonical bytes");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-disclosure-acknowledge/1",
+      operation, acknowledgement_b64: encodeBase64Url(acknowledgement) }));
+    return this.#exchange(payload, "disclosure acknowledgement persistence may be unknown", (bytes) => bytes);
   }
 
   /**

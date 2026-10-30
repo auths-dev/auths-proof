@@ -8,10 +8,12 @@
 //! Everything here is test infrastructure: the root and observer keys come
 //! from public fixed seeds.
 
+#[cfg(feature = "testkit-harness")]
+pub mod authoring;
+
 use crate::engine::{
     GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, VerifiedCommand,
     gateway_verifier_configuration, observe_outcome, observe_pre_entry, observe_read_back,
-    verify_detailed,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
 use crate::recipe::GuardChecks;
@@ -20,8 +22,8 @@ use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
-    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttempts, GatewayObserver, RequestHeader,
+    ClosedCredentialRead, CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts,
+    GatewayObserver, RequestHeader,
 };
 use auths_codec::{encode_observation_requirements, evidence_id, grant_signing_preimage};
 use auths_model::{
@@ -207,7 +209,8 @@ pub(crate) fn recipe_sources(
         {"kind": "field", "name": "record_id"}
     ]);
     let source = json!({
-        "schema": "auths.gateway-recipe-source/2", "profile_schema_digest": digest,
+        "schema": "auths.gateway-recipe-source/3", "profile_schema_digest": digest,
+        "review": crate::recipe::synthetic_review(&schema["fields"]),
         "service": SERVICE, "tool": TOOL, "operator_namespace": NAMESPACE,
         "credential": {"kind": "bearer"}, "origin": ORIGIN,
         "write": {"method": "PATCH", "path": path, "body": {"kind": "json", "value": {
@@ -369,6 +372,7 @@ pub(crate) fn context_with_roots(
         depth,
         composition,
         &[RAW_KEY_V1],
+        &[call(&Map::new())?],
     )
 }
 
@@ -389,9 +393,62 @@ pub(crate) fn context_accepting(
         1,
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         methods,
+        &[call(&Map::new())?],
     )
 }
 
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) fn context_for_tool(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    tool: &McpToolCall,
+) -> Result<TrustedContext, HarnessError> {
+    context_for_tools(root, observer, now, std::slice::from_ref(tool))
+}
+
+pub(crate) fn context_for_tools(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    tools: &[McpToolCall],
+) -> Result<TrustedContext, HarnessError> {
+    context_for(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        tools,
+    )
+}
+
+/// Native test trust for explicit independent roots and closed tool permissions.
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+pub(crate) fn context_for_tools_with_roots(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    now: u64,
+    tools: &[McpToolCall],
+) -> Result<TrustedContext, HarnessError> {
+    context_for(
+        roots,
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        tools,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust fixture keeps each explicit bound visible"
+)]
 fn context_for(
     roots: &[&Signer],
     observer: &PrincipalId,
@@ -400,13 +457,21 @@ fn context_for(
     depth: u16,
     composition: CompositionRequirement,
     methods: &[&str],
+    tools: &[McpToolCall],
 ) -> Result<TrustedContext, HarnessError> {
+    let unbound = tools.first().ok_or(HarnessError::Fixture("tools"))?;
+    if tools.len() > 16 || tools.iter().any(|tool| tool.service() != unbound.service()) {
+        return Err(HarnessError::Fixture("tools"));
+    }
+    let permissions = tools
+        .iter()
+        .map(|tool| fixture(tool.permission(), "permission"))
+        .collect::<Result<Vec<_>, _>>()?;
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
     };
     let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
-    let unbound = call(&Map::new())?;
     let mut anchors = Vec::with_capacity(roots.len());
     for (index, root) in roots.iter().enumerate() {
         let id = if roots.len() == 1 {
@@ -420,12 +485,9 @@ fn context_for(
                 root.principal.clone(),
                 vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
                 vec![fixture(unbound.profile_ref(), "profile")?],
-                fixture(
-                    PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
-                    "permissions",
-                )?,
+                fixture(PermissionSet::new(permissions.clone()), "permissions")?,
                 vec![fixture(
-                    ResourceId::parse(&format!("mcp://{SERVICE}/")),
+                    ResourceId::parse(&format!("mcp://{}/", unbound.service())),
                     "namespace",
                 )?],
                 fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
@@ -524,6 +586,16 @@ pub(crate) fn grant_within(
     requirement: Option<ObservationRequirement>,
     validity: ValidityWindow,
 ) -> Result<SignedGrant, HarnessError> {
+    grant_for_tool(root, subject, requirement, validity, &call(&Map::new())?)
+}
+
+pub(crate) fn grant_for_tool(
+    root: &Signer,
+    subject: &PrincipalId,
+    requirement: Option<ObservationRequirement>,
+    validity: ValidityWindow,
+    unbound: &McpToolCall,
+) -> Result<SignedGrant, HarnessError> {
     let extensions = match requirement {
         None => CriticalExtensions::empty(),
         Some(requirement) => {
@@ -549,7 +621,16 @@ pub(crate) fn grant_within(
             )?
         }
     };
-    let unbound = call(&Map::new())?;
+    grant_for_tool_with_extensions(root, subject, validity, unbound, extensions)
+}
+
+pub(crate) fn grant_for_tool_with_extensions(
+    root: &Signer,
+    subject: &PrincipalId,
+    validity: ValidityWindow,
+    unbound: &McpToolCall,
+    extensions: CriticalExtensions,
+) -> Result<SignedGrant, HarnessError> {
     let statement = GrantStatement::new(
         root.principal.clone(),
         subject.clone(),
@@ -645,6 +726,16 @@ impl CountingProvider {
         url.rsplit('/').next().unwrap_or_default().to_owned()
     }
 
+    /// Test recovery still needs a journal-issued one-use read permit.
+    #[cfg(test)]
+    pub(crate) async fn acquire_leased(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse> {
+        self.leases.fetch_add(1, Ordering::SeqCst);
+        self.acquire(permit).await
+    }
+
     pub(crate) fn counts(&self) -> (usize, usize, usize) {
         (
             self.writes.load(Ordering::SeqCst),
@@ -657,8 +748,9 @@ impl CountingProvider {
 impl ProviderPort for CountingProvider {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         self.writes.fetch_add(1, Ordering::SeqCst);
         let body: Value = serde_json::from_slice(request.body())
             .map_err(|_| GatewayTransportError::NotEntered)?;
@@ -710,6 +802,50 @@ impl ProviderPort for CountingProvider {
     }
 }
 
+/// Native connection descriptor shared by the fixed-key submission and recovery
+/// tests. This is not an installed operator credential or production authority.
+pub(crate) fn fixture_connection(
+    recipe: &CompiledRecipe,
+) -> Result<auths_connections::ConnectionRecord, HarnessError> {
+    use auths_connections::{
+        ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionRecord, ConnectionState,
+        ProviderKind, SemanticId,
+    };
+    let descriptor = fixture(
+        crate::GatewayConnectionDescriptor::approve(recipe, "Authorization"),
+        "descriptor",
+    )?;
+    fixture(
+        ConnectionRecord::new(
+            fixture(ProviderKind::parse("airtable"), "provider")?,
+            fixture(ConnectionAlias::parse("synthetic"), "alias")?,
+            fixture(
+                ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA"),
+                "connection",
+            )?,
+            fixture(SemanticId::parse("auths.gateway-operation/1"), "contract")?,
+            fixture(
+                SemanticId::parse("auths.gateway-connection-descriptor/1"),
+                "schema",
+            )?,
+            fixture(descriptor.to_bytes(), "descriptor bytes")?,
+            crate::submit::account_commitment("acct_TESTHARNESS01"),
+            [5; 32],
+            std::num::NonZeroU64::MIN,
+            ConnectionState::Active,
+            vec!["gateway".to_owned()],
+            vec![fixture(
+                ConnectionProfile::new(fixture(SemanticId::parse("auths.mcp"), "profile")?, 2),
+                "profile",
+            )?],
+            0,
+            0,
+            None,
+        ),
+        "connection",
+    )
+}
+
 /// The harness's submission I/O: verification at the harness clock and the
 /// counting provider under a counted lease.
 struct HarnessIo<'a> {
@@ -717,23 +853,79 @@ struct HarnessIo<'a> {
     proof: &'a [u8],
     action: &'a [u8],
     now: u64,
+    approval: Option<crate::effect::ExactEffectApproval>,
 }
 
 impl SubmitIo for HarnessIo<'_> {
     type Lease = ();
 
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        Ok(crate::entry::EntryValidation::Oracle {
+            now: self.clock().ok_or("test.clock")?,
+        })
+    }
+
     fn clock(&self) -> Option<u64> {
         Some(self.now)
     }
 
-    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        verify_detailed(
-            &self.harness.recipe,
+    fn verify(
+        &self,
+        now: u64,
+        recipe: &CompiledRecipe,
+    ) -> Result<crate::effect::ApprovedEffect, GatewaySubmitResult> {
+        let invalid = || crate::engine::not_entered("test.effect.fixture-invalid");
+        let connection = fixture_connection(recipe).map_err(|_| invalid())?;
+        let policy = crate::effect::fixture_policy().map_err(|_| invalid())?;
+        let installed = policy.installation(
+            recipe,
             &self.harness.context,
-            now,
-            self.proof,
-            self.action,
-        )
+            &connection,
+            crate::QualificationPolicy::Optional,
+            [12; 32],
+        );
+        let effect =
+            crate::effect::compile_mutation_effect(&installed, now, self.proof, self.action)?;
+        let key = SigningKey::from_bytes(&[29; 32]);
+        let approval = if let Some(approval) = &self.approval {
+            approval.clone()
+        } else {
+            let request = effect
+                .approval_request(
+                    now,
+                    now.saturating_add(crate::effect::MAX_EFFECT_APPROVAL_SECONDS),
+                )
+                .map_err(|_| invalid())?;
+            let signature = key
+                .sign(&request.signing_message().map_err(|_| invalid())?)
+                .to_bytes();
+            request.with_signature(signature)
+        };
+        effect
+            .approve(approval, &key.verifying_key().to_bytes(), now)
+            .map_err(|_| invalid())
+    }
+
+    fn revalidate(
+        &self,
+        effect: &crate::effect::ApprovedEffect,
+        now: u64,
+    ) -> Result<(), GatewaySubmitResult> {
+        let invalid = || crate::engine::not_entered("test.effect.approval");
+        let connection = fixture_connection(&self.harness.recipe).map_err(|_| invalid())?;
+        let policy = crate::effect::fixture_policy().map_err(|_| invalid())?;
+        effect
+            .validate_for_entry(
+                &policy.installation(
+                    &self.harness.recipe,
+                    &self.harness.context,
+                    &connection,
+                    crate::QualificationPolicy::Optional,
+                    [12; 32],
+                ),
+                now,
+            )
+            .map_err(|_| invalid())
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
@@ -766,7 +958,7 @@ impl SubmitIo for HarnessIo<'_> {
     }
 
     fn account_commitment(&self) -> Option<[u8; 32]> {
-        None
+        Some(crate::submit::account_commitment("acct_TESTHARNESS01"))
     }
 
     fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
@@ -776,30 +968,17 @@ impl SubmitIo for HarnessIo<'_> {
     async fn write(
         &self,
         _lease: &(),
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.harness.provider.write(request).await
+        self.harness.provider.write(permit).await
     }
 
-    async fn action_read(
+    async fn acquire(
         &self,
         _lease: &(),
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse> {
-        self.harness
-            .provider
-            .action_read(url, headers, maximum_response_bytes)
-            .await
-    }
-
-    async fn credential_read(
-        &self,
-        _lease: &(),
-        read: &ClosedCredentialRead,
-    ) -> Option<ProviderResponse> {
-        self.harness.provider.credential_read(read).await
+        self.harness.provider.acquire(permit).await
     }
 }
 
@@ -830,7 +1009,11 @@ impl Harness {
             recipe,
             context,
             observer,
-            GatewayAttempts::new(std::sync::Arc::new(store)),
+            GatewayAttempts::new(
+                std::sync::Arc::new(store),
+                crate::effect::fixture_policy().map_err(|_| HarnessError::Store)?,
+            )
+            .map_err(|_| HarnessError::Store)?,
         ))
     }
 
@@ -861,11 +1044,22 @@ impl Harness {
 
     /// Runs the engine's submission driver at `now`. A replay never writes
     /// again.
+    #[cfg(test)]
     pub(crate) async fn submit(
         &self,
         proof: &[u8],
         action: &[u8],
         now: u64,
+    ) -> GatewaySubmitResult {
+        self.submit_with_approval(proof, action, now, None).await
+    }
+
+    async fn submit_with_approval(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        now: u64,
+        approval: Option<crate::effect::ExactEffectApproval>,
     ) -> GatewaySubmitResult {
         crate::submit::run(
             &SubmitContext {
@@ -879,14 +1073,13 @@ impl Harness {
                 proof,
                 action,
                 now,
+                approval,
             },
         )
         .await
     }
 
-    /// Mirrors the engine's observation request at `now`: a read-back leases
-    /// the credential for one read-only GET; an outcome or the pre-entry
-    /// observations read only the store.
+    /// Mirrors the engine's local history projection at `now`.
     pub(crate) async fn observe(
         &self,
         request: &GatewayObserveRequest,
@@ -906,16 +1099,22 @@ impl Harness {
             GatewayObserveRequest::PreEntry { operation_id } => {
                 observe_pre_entry(&self.store, self.recipe.namespace(), operation_id).await
             }
-            GatewayObserveRequest::ReadBack { arguments } => {
-                let Ok(target) = self.recipe.read_back_target(arguments) else {
-                    return GatewayObserveResult::Refused {
-                        code: "gateway.observer.invalid-read-back".to_owned(),
-                    };
-                };
-                self.provider.leases.fetch_add(1, Ordering::SeqCst);
-                observe_read_back(&target, &self.observer, &self.provider, || Some(now)).await
-            }
         }
+    }
+
+    /// Synthetic provider reference, never an application-socket operation.
+    pub(crate) async fn reference_read_back(
+        &self,
+        arguments: &Map<String, Value>,
+        now: u64,
+    ) -> GatewayObserveResult {
+        let Ok(target) = self.recipe.read_back_target(arguments) else {
+            return GatewayObserveResult::Refused {
+                code: "gateway.observer.invalid-read-back".to_owned(),
+            };
+        };
+        self.provider.leases.fetch_add(1, Ordering::SeqCst);
+        observe_read_back(&target, &self.observer, &self.provider, || Some(now)).await
     }
 }
 
@@ -981,9 +1180,23 @@ mod process {
     #[derive(Deserialize)]
     #[serde(tag = "command", rename_all = "kebab-case", deny_unknown_fields)]
     enum Control {
-        SetRecord { record_id: String, status: String },
-        AdvanceClock { seconds: u64 },
+        SetRecord {
+            record_id: String,
+            status: String,
+        },
+        AdvanceClock {
+            seconds: u64,
+        },
         Counts,
+        /// Fixed-key native approval for this synthetic reference, never a human approval.
+        ReferenceApproval {
+            proof_b64: String,
+            action_b64: String,
+        },
+        /// Synthetic reference only, isolated from the application protocol.
+        ReferenceReadBack {
+            record_id: String,
+        },
     }
 
     #[derive(Serialize)]
@@ -993,6 +1206,10 @@ mod process {
         writes: usize,
         reads: usize,
         leases: usize,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        observation: Option<GatewayObserveResult>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        approval_b64: Option<String>,
     }
 
     struct Application {
@@ -1001,10 +1218,36 @@ mod process {
     }
 
     impl GatewayApplication for Application {
-        async fn submit(&self, proof: &[u8], action: &[u8]) -> GatewaySubmitResult {
+        async fn submit(
+            &self,
+            proof: &[u8],
+            action: &[u8],
+            approval: crate::effect::ExactEffectApproval,
+        ) -> GatewaySubmitResult {
             self.harness
-                .submit(proof, action, self.clock.load(Ordering::SeqCst))
+                .submit_with_approval(
+                    proof,
+                    action,
+                    self.clock.load(Ordering::SeqCst),
+                    Some(approval),
+                )
                 .await
+        }
+
+        async fn recover(
+            &self,
+            _source: &str,
+            _proof: &[u8],
+            _action: &[u8],
+            _approval: crate::effect::ExactEffectApproval,
+        ) -> crate::app::AppRecoveryResult {
+            // This synthetic driver has no installed recovery authority. The
+            // production engine owns that path; never use a raw-read fallback.
+            crate::app::AppRecoveryResult::Refused {
+                result: GatewaySubmitResult::NotEntered {
+                    code: "gateway.acquisition.binding".to_owned(),
+                },
+            }
         }
 
         async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
@@ -1024,7 +1267,9 @@ mod process {
             }
         }
 
-        fn control(&self, bytes: &[u8]) -> ControlResponse {
+        async fn control(&self, bytes: &[u8]) -> ControlResponse {
+            let mut observation = None;
+            let mut approval_b64 = None;
             let ok = match serde_json::from_slice::<Control>(bytes) {
                 Ok(Control::SetRecord { record_id, status }) => {
                     matches!(status.as_str(), "Approved" | "Pending")
@@ -1040,6 +1285,42 @@ mod process {
                             .is_ok()
                 }
                 Ok(Control::Counts) => true,
+                Ok(Control::ReferenceApproval {
+                    proof_b64,
+                    action_b64,
+                }) => {
+                    // The private harness control plane uses the same native
+                    // verifier, compiler and fixed-key approval as Rust tests.
+                    // It cannot turn this oracle into production authority.
+                    approval_b64 = (|| {
+                        let proof = Base64UrlUnpadded::decode_vec(&proof_b64).ok()?;
+                        let action = Base64UrlUnpadded::decode_vec(&action_b64).ok()?;
+                        let now = self.clock.load(Ordering::SeqCst);
+                        let io = super::HarnessIo {
+                            harness: &self.harness,
+                            proof: &proof,
+                            action: &action,
+                            now,
+                            approval: None,
+                        };
+                        let effect =
+                            crate::submit::SubmitIo::verify(&io, now, &self.harness.recipe).ok()?;
+                        Some(encode(&effect.approval().to_private_bytes().ok()?))
+                    })();
+                    approval_b64.is_some()
+                }
+                Ok(Control::ReferenceReadBack { record_id }) => {
+                    let arguments = serde_json::Map::from_iter([(
+                        "record_id".to_owned(),
+                        serde_json::Value::String(record_id),
+                    )]);
+                    observation = Some(
+                        self.harness
+                            .reference_read_back(&arguments, self.clock.load(Ordering::SeqCst))
+                            .await,
+                    );
+                    true
+                }
                 Err(_) => false,
             };
             let counts = self.counts();
@@ -1049,13 +1330,15 @@ mod process {
                 writes: counts.writes,
                 reads: counts.reads,
                 leases: counts.leases,
+                observation,
+                approval_b64,
             }
         }
     }
 
     async fn control_session(mut stream: UnixStream, application: &Application) {
         if let Ok(bytes) = read_frame(&mut stream).await
-            && let Ok(response) = serde_json::to_vec(&application.control(&bytes))
+            && let Ok(response) = serde_json::to_vec(&application.control(&bytes).await)
         {
             let _ = write_frame(&mut stream, &response).await;
         }

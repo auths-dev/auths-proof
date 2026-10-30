@@ -286,7 +286,7 @@ proptest! {
     /// Against the file store and a pure model: at most one claim, and so at
     /// most one write, per logical operation; a recorded stage never
     /// changes; `not-entered` never follows a write; and a claim held by a
-    /// crashed process reads as `unknown`.
+    /// crashed process remains reserved until a grant exists.
     #[test]
     fn attempt_store_follows_the_model(steps in proptest::collection::vec(step(), 1..24)) {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime");
@@ -294,44 +294,35 @@ proptest! {
         let recipe = airtable();
         let digest = <[u8; 32]>::try_from(hex::decode(recipe.digest_hex()).expect("hex")).expect("digest");
         let root = std::fs::canonicalize(directory.path()).expect("canonical").join("attempts");
-        let open = || GatewayAttempts::new(Arc::new(FileGatewayAttemptStore::open(root.clone()).expect("store")));
+        let open = || GatewayAttempts::new(Arc::new(FileGatewayAttemptStore::open(root.clone()).expect("store")), crate::effect::fixture_policy().expect("policy")).expect("attempts");
         let mut attempts = open();
-        let mut held: BTreeMap<u8, crate::ClaimedGatewayAttempt> = BTreeMap::new();
+        let mut held: BTreeMap<u8, (crate::ClaimedGatewayAttempt, Arc<crate::effect::ApprovedEffect>)> = BTreeMap::new();
         let mut writes: BTreeMap<u8, usize> = BTreeMap::new();
         let mut recorded: BTreeMap<u8, GatewayAttemptStage> = BTreeMap::new();
         for step in steps {
             match step {
                 Step::Claim(operation) => {
-                    let request = recipe
-                        .closed_request_from_arguments(
-                            &arguments(&format!("op-{operation}"), "recTEST0000000001", "Approved"),
-                            [operation; 32],
-                        )
-                        .expect("request");
-                    match runtime.block_on(attempts.claim(&request, digest, 1_790_000_000)) {
-                        Ok(claim) => {
-                            *writes.entry(operation).or_default() += 1;
-                            held.insert(operation, claim);
-                        }
+                    let values = arguments(&format!("op-{operation}"), "recTEST0000000001", "Approved");
+                    let command = crate::scenario_tests::admitted(&recipe, &values, [operation; 32], Vec::new(), 60, Vec::new(), 1_790_000_000).expect("command");
+                    let approved = Arc::new(crate::effect::approve_driver_fixture(command, digest, 1_790_000_000, None).expect("approval"));
+                    match runtime.block_on(attempts.claim_bounded(&approved, 1_790_000_000, crate::entry::EntryValidation::Oracle { now: 1_790_000_000 })) {
+                        Ok(crate::store::BoundedClaim::Claimed(claim)) => { held.insert(operation, (*claim, approved)); }
                         Err(GatewayAttemptError::Replay) => {}
-                        Err(error) => prop_assert!(false, "claim failed: {error:?}"),
+                        other => prop_assert!(matches!(other, Err(GatewayAttemptError::Replay)), "unexpected claim result"),
                     }
                 }
                 Step::Finish(operation, kind) => {
-                    let Some(claim) = held.remove(&operation) else { continue };
-                    let stage = match kind {
-                        0 => runtime.block_on(claim.record_not_entered("gateway.transport.not-entered", None)).map(|snapshot| snapshot.stage()),
-                        1 => runtime.block_on(claim.record_unknown()).map(|snapshot| snapshot.stage()),
-                        2 => runtime
-                            .block_on(claim.record_response(200, [9; 32], None))
-                            .and_then(|observable| observable.snapshot())
-                            .map(|snapshot| snapshot.stage()),
-                        _ => {
-                            drop(claim);
-                            continue;
-                        }
-                    };
-                    let stage = stage.expect("recorded");
+                    let Some((claim, approved)) = held.remove(&operation) else { continue };
+                    if kind >= 3 { drop(claim); continue; }
+                    let stage = if kind == 0 {
+                        runtime.block_on(claim.record_not_entered("test.before-grant", None)).map(|snapshot| snapshot.stage())
+                    } else {
+                        let (claim, permit) = runtime.block_on(claim.grant_entry(approved, crate::entry::EntryValidation::Oracle { now: 1_790_000_000 }, 1_790_000_000, &crate::GatewayPreEntry::default(),)).expect("grant");
+                        *writes.entry(operation).or_default() += 1;
+                        drop(permit);
+                        if kind == 1 { runtime.block_on(claim.record_unknown()).map(|snapshot| snapshot.stage()) }
+                        else { runtime.block_on(claim.record_response(200, [9; 32], None)).and_then(|observable| observable.snapshot()).map(|snapshot| snapshot.stage()) }
+                    }.expect("recorded");
                     prop_assert!(!recorded.contains_key(&operation), "a recorded stage changed");
                     recorded.insert(operation, stage);
                 }
@@ -353,7 +344,7 @@ proptest! {
                 .expect("readable");
             match (recorded.get(&operation), stored) {
                 (Some(stage), Some(snapshot)) => prop_assert_eq!(snapshot.stage(), *stage),
-                (None, Some(snapshot)) => prop_assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown),
+                (None, Some(snapshot)) => prop_assert_eq!(snapshot.stage(), GatewayAttemptStage::Reserved),
                 (None, None) => prop_assert!(!writes.contains_key(&operation)),
                 (Some(_), None) => prop_assert!(false, "a recorded attempt vanished"),
             }

@@ -263,7 +263,7 @@ pub const WORKLOAD_CUSTODY: &str = "workload";
 /// encoding Fulcio and Rekor take.
 fn sign_p256(key: &P256SigningKey, message: &[u8]) -> P256Signature {
     let signature: P256Signature = p256::ecdsa::signature::Signer::sign(key, message);
-    signature.normalize_s().unwrap_or(signature)
+    signature.normalize_s()
 }
 
 fn sign_ed25519(key: &SigningKey, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
@@ -443,7 +443,7 @@ impl<'c> SigstoreKeylessSigner<'c> {
     ) -> Result<Self, WorkloadError> {
         let key = ephemeral_p256_key()?;
         let mut spki = P256_SPKI_PREFIX.to_vec();
-        spki.extend_from_slice(key.verifying_key().to_encoded_point(false).as_bytes());
+        spki.extend_from_slice(key.verifying_key().to_sec1_point(false).as_bytes());
         let token = tokens.token(SIGSTORE_AUDIENCE)?;
         let identity = TokenIdentity::read(token.as_bytes(), SIGSTORE_AUDIENCE)?;
         let proof = sign_p256(&key, identity.subject.as_bytes()).to_der();

@@ -42,6 +42,46 @@ Active or disabled connections keep the normal floor requirement. If no
 connection committed, retain the journal as an orphan cleanup obligation;
 never infer deletion from a failed install command.
 
+## First installation with credential checks
+
+For a recipe declaring credential reads, `install` retains private installation
+inputs and writes `candidate-installation.cbor` and `candidate-installation.json`
+under the state directory. It stages the secret, cleanup note and exact host
+floor, but does not publish a connection or contact the provider. Continue with
+steps 2–5 of the candidate workflow below, using that proposal. Serving ordinary
+operations requires successful publication.
+
+If installation stops after retaining the draft, resume explicitly under
+operator identity with the same secret:
+
+```sh
+credential-source | auths-gateway candidate-stage-installation \
+  --state-dir /private/installation --credential-stdin \
+  --proposal-out /private/resumed-candidate.json
+```
+
+The output must be a new absolute owner-private file. Preserve an existing
+proposal; do not overwrite it to conceal a failed or ambiguous attempt. Restaging
+reuses the draft's exact connection identity and timestamps, confirms an existing
+matching secret or stores an absent one, and refuses conflicting custody/floors.
+A missing runtime floor is a refusal, never implicit repair. This explicit
+operator action may initialize the unpublished installation floor; it cannot
+stage after a connection has been published. A failed stage can retain custody
+and cleanup notes without a connection; retain that orphan cleanup obligation.
+
+Development provider doubles are selected only on `candidate-acquire
+--loopback-provider PORT` in a feature-enabled development build. `install`
+no longer accepts a provider transport option. Recipes without credential reads
+keep the offline installation flow.
+
+The local `candidate-process-journey.json` artifact exercises these commands
+through separate production CLI processes and a counting HTTP double, including
+active/disabled rotation, replay, failed credential predicates and response loss.
+Its reviewer uses public test keys; it is not a live-provider, human-presence,
+production-custody or PostgreSQL qualification. In a production installation,
+the required signed qualification inputs must permit the candidate reads before
+acquisition. Staging alone does not bypass that gate.
+
 ## Provider-secret rotation
 
 For the web-identity reference, the operator configuration must explicitly
@@ -51,11 +91,42 @@ the write-only operator identity. The operator process reads with the former
 and creates/deletes with the latter; the serving process keeps only its
 read-only identity. Neither role needs broader permissions.
 
-Use the operator identity and `rotate-prepare --operator-process
---credential-stdin --state-dir ...`, piping the new provider secret. It runs
-the recipe's fixed credential checks and stores a successor without publishing
-it. Retain only the returned reference commitment. Then use `rotate-commit
---operator-process --state-dir ... --commitment ...` to atomically publish it.
+For a recipe with credential reads, use the approved candidate workflow:
+
+1. Under operator identity, pipe the secret to `candidate-stage-rotation
+   --credential-stdin --state-dir ... --proposal-out /private/candidate.json`.
+   The absolute output must be new. Staging writes cleanup notes and custody,
+   preserves the live record, and performs no credential lease or provider read.
+2. Run `effect-candidate-call --state-dir ... --candidate /private/candidate.json
+   --operation ... --call-out /private/call.json`. Use the normal native authoring
+   flow to obtain proof/action for this exact call. The proposal is private data,
+   not authorization.
+3. Run `effect-review --candidate /private/candidate.json --state-dir ...
+   --proof ... --action ... --not-before ... --expires-at ... --request-out ...`.
+   Review the actual requests and connection/predecessor, obtain the reviewer's
+   signature, and assemble the exact envelope with `effect-approval`.
+4. Under runtime read identity, run `candidate-acquire --state-dir ...
+   --candidate /private/candidate.json --proof ... --action ... --approval ...`.
+   It returns retained response/unknown facts. An unknown result does not permit
+   blind retry or publication.
+5. Under operator identity, run `candidate-publish` with the same state directory,
+   proposal, proof, action and approval. The connection changes only if fresh
+   native authorization and every retained credential predicate pass under the
+   writer fence. Evidence expires 30 seconds after its original grant, including
+   earlier children. `AlreadyCurrent` reports exact state without attributing a
+   prior publication to this invocation.
+
+Keep the exact private proposal across restart. A different secret at an already
+staged generation is refused; staging never deletes it implicitly. Local file
+custody serializes independent processes with a stable lock and refreshes state;
+lock contention returns unavailable without a write. The current read-bearing
+rotation API refuses `rotate`, `rotate-prepare` and commitment-only
+`rotate-commit` with `gateway.admin.candidate-approval-required`. Those commands
+remain the offline operator flow for recipes declaring no credential reads.
+Joining an already-published connection confirms the exact committed secret
+without acquiring new provider evidence. Full installed provider/custody
+qualification remains unfinished AP074 work.
+
 Check status on both hosts; each must see the same shared generation and hold
 the exact committed credential generation. The old generation remains for at
 least the fixed 20-second retirement delay. Run `credential-collect --state-dir
@@ -151,17 +222,30 @@ and rebuild authority/connection state under owner review; do not serve old
 operations as fresh. A newly created host without a floor cannot prove that a
 database is current; recover its floors before starting it.
 
-For each response-recorded or unknown operation, use `reobserve --state-dir
-... --operation-id ...` once. It uses the stored plan and a fresh read-only
-check under the declared capability. Reobserve requires an enabled connection
-because it leases a credential; a disabled or revoked connection refuses even
-this read. Only when the restored state passes the continuity and retained-floor
-checks, keep app ingress blocked on both hosts, require every other readiness
-check to pass, enable and rerun full doctor before reconciling. Do not enable
-a quarantined restore to work around a refusal. Confirmed evidence may advance the
-record; missing or delayed evidence stays unknown. Reobserve again after
-visibility returns; never issue a new provider write as recovery. Keep the
-opaque operation digest and stage only in support evidence.
+A mutation submission stops after recording its response; it does not perform
+an automatic provider observation. A `response-recorded` result is not a
+confirmation of the intended provider state.
+
+For a response-recorded or unknown operation, author a distinct bounded read
+using `effect-recovery-call`, authorize it through the native MCP flow, review
+it with `effect-review --recovery-of`, and sign its exact approval. Then use
+`recover --state-dir ... --source-operation ... --proof ... --action ...
+--approval ...`. The old unapproved `reobserve` command is refused. Each read
+reserves capacity permanently from the source's 16-attempt count/byte limit.
+Changed credentials and unimplemented ancillary/read-policy bounds fail closed.
+
+A new read requires an enabled connection. Only when restored state passes the
+continuity and retained-floor checks, keep app ingress blocked on both hosts,
+require every other readiness check to pass, enable and rerun full doctor before
+reconciling. Do not enable a quarantined restore to work around a refusal.
+`recovery-record --source-operation ... --acquisition-operation ...` can record
+fresh evidence already acquired; it performs no provider or credential I/O and
+does not borrow the writer's authority. New evidence must be no older than 30
+seconds at the journal fence. Stale, missing or inconclusive evidence leaves the
+source unresolved and charged. A repeated recorded fact is history with its
+original timestamp. No recovery command authorizes another mutation send.
+Retain only native redacted reports in support evidence. The complete installed
+AP074 recovery journey and fault evidence remain under implementation.
 
 ## Rolling upgrade
 

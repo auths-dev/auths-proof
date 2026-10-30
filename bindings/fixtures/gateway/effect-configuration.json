@@ -1,0 +1,7 @@
+{
+  "schema": "auths.effect-configuration-fixture/2",
+  "scope": "native configuration encoding and revision identity; no entry claim",
+  "configuration_key_sha256": "sha256:50533db03f8136227439a0c1a63b8e829bf48ba405b57edadb2e4f889d150bc4",
+  "record_canonical": "{\"epoch\":1,\"installation\":[11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11],\"qualification\":{\"bundle\":null,\"memory\":{\"accepted_index_issued_at\":0,\"accepted_revocation_sequence\":0,\"blocked\":false,\"revoked_qualifications\":[],\"revoked_signers\":[]}},\"revision\":1,\"schema\":\"auths.effect-configuration/2\"}",
+  "revision_token_sha256": "sha256:152bef9fd72de7dc523b2bb6092e438f58ded6926d614d9f06674be981e5b39c"
+}

@@ -1,0 +1,191 @@
+{
+  "schema": "auths.native-postgres-commit-reply-loss/1",
+  "scope": "full native acquisition engine in separate OS workers; actual TLS PostgreSQL COMMIT paused by a schema-local deferred trigger, opaque TCP reply suppression/disconnection and independent committed/aborted-state observation; real bounded authority/exact approvals, local custody and HTTP; fixed public test keys and maintained clock",
+  "excluded": [
+    "TLS decryption or forged adapter error",
+    "PostgreSQL power failure or whole-store rollback",
+    "mutation/disclosure commit fault matrices",
+    "hostile OS containment or human review",
+    "live provider qualification"
+  ],
+  "cases": [
+    {
+      "schedule": {
+        "phase": "admission",
+        "outcome": "committed"
+      },
+      "commit_observed_at_server_deferred_trigger": true,
+      "actual_adapter_commit_error": true,
+      "independently_observed_retained_phase": "reserved",
+      "end_to_end_tls_preserved": true,
+      "actual_http_reads_before_reopen": 0,
+      "new_execution_allowed": true,
+      "actual_http_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_and_sum_slot": true,
+      "terminal_journal_and_execution_witness_unchanged": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "admission",
+        "outcome": "aborted"
+      },
+      "commit_observed_at_server_deferred_trigger": true,
+      "actual_adapter_commit_error": true,
+      "independently_observed_retained_phase": null,
+      "end_to_end_tls_preserved": true,
+      "actual_http_reads_before_reopen": 0,
+      "new_execution_allowed": true,
+      "actual_http_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_and_sum_slot": true,
+      "terminal_journal_and_execution_witness_unchanged": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "entry",
+        "outcome": "committed"
+      },
+      "commit_observed_at_server_deferred_trigger": true,
+      "actual_adapter_commit_error": true,
+      "independently_observed_retained_phase": "entry-granted",
+      "end_to_end_tls_preserved": true,
+      "actual_http_reads_before_reopen": 0,
+      "new_execution_allowed": false,
+      "actual_http_reads_after_reopen": 0,
+      "native_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "one_allocation_count_and_sum_slot": true,
+      "terminal_journal_and_execution_witness_unchanged": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "entry",
+        "outcome": "aborted"
+      },
+      "commit_observed_at_server_deferred_trigger": true,
+      "actual_adapter_commit_error": true,
+      "independently_observed_retained_phase": "reserved",
+      "end_to_end_tls_preserved": true,
+      "actual_http_reads_before_reopen": 0,
+      "new_execution_allowed": true,
+      "actual_http_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_and_sum_slot": true,
+      "terminal_journal_and_execution_witness_unchanged": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "response",
+        "outcome": "committed"
+      },
+      "commit_observed_at_server_deferred_trigger": true,
+      "actual_adapter_commit_error": true,
+      "independently_observed_retained_phase": "content-response-recorded",
+      "end_to_end_tls_preserved": true,
+      "actual_http_reads_before_reopen": 1,
+      "new_execution_allowed": false,
+      "actual_http_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "one_allocation_count_and_sum_slot": true,
+      "terminal_journal_and_execution_witness_unchanged": true,
+      "signed_inputs_unchanged": true
+    },
+    {
+      "schedule": {
+        "phase": "response",
+        "outcome": "aborted"
+      },
+      "commit_observed_at_server_deferred_trigger": true,
+      "actual_adapter_commit_error": true,
+      "independently_observed_retained_phase": "entry-granted",
+      "end_to_end_tls_preserved": true,
+      "actual_http_reads_before_reopen": 1,
+      "new_execution_allowed": false,
+      "actual_http_reads_after_reopen": 1,
+      "native_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "one_allocation_count_and_sum_slot": true,
+      "terminal_journal_and_execution_witness_unchanged": true,
+      "signed_inputs_unchanged": true
+    }
+  ]
+}

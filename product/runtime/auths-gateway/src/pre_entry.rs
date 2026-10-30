@@ -20,7 +20,6 @@ use auths_model::{
 };
 use auths_ports::ProfilePolicy as _;
 use auths_profile_mcp::McpArgumentsPolicy;
-use serde_json::Value;
 
 /// One selected requirement, resolved against the verified action.
 #[derive(Clone, Debug)]
@@ -152,7 +151,7 @@ pub(crate) fn sign_observations(
     if body.len() > read.maximum_response_bytes() {
         return None;
     }
-    let document: Value = serde_json::from_slice(body).ok()?;
+    let document = crate::recipe::parse_provider_response(body)?;
     pointers
         .iter()
         .map(|pointer| {
@@ -222,4 +221,44 @@ pub(crate) fn evaluate(
     } else {
         PreEntryResult::Unavailable
     }
+}
+
+/// Verifies the retained signatures and ties every fact to the exact acquired
+/// response and original conservative observation time. No key access or I/O.
+pub(crate) fn verify_recorded(
+    observer: &PrincipalId,
+    read: &ClosedActionRead,
+    pointers: &[String],
+    body: &[u8],
+    observed_at: u64,
+    encoded: &[Vec<u8>],
+) -> Option<Vec<PreEntryObservation>> {
+    if body.len() > read.maximum_response_bytes() || pointers.len() != encoded.len() {
+        return None;
+    }
+    let document = crate::recipe::parse_provider_response(body)?;
+    pointers
+        .iter()
+        .zip(encoded)
+        .map(|(pointer, bytes)| {
+            let signed = crate::observer::verify_signed(bytes, observer, READ_BACK_SCHEMA)?;
+            let statement = signed.statement();
+            let facts =
+                ObservationFacts::new(read_back_facts(document.pointer(pointer)?, None).ok()?)
+                    .ok()?;
+            let subject = read.subject(pointer);
+            if statement.subject().as_str() != subject
+                || statement.observed_at().get() != observed_at
+                || statement.facts() != &facts
+            {
+                return None;
+            }
+            Some(PreEntryObservation {
+                subject,
+                observed_at,
+                facts,
+                bytes: bytes.clone(),
+            })
+        })
+        .collect()
 }

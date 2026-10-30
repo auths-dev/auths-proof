@@ -23,29 +23,31 @@ const fn listed(from: Stage, to: Stage) -> bool {
     matches!(
         (from, to),
         (
-            Stage::Attempting,
-            Stage::Attempting
-                | Stage::NotEntered
-                | Stage::Unknown
-                | Stage::ResponseRecorded
-                | Stage::ObservedByProvider
-        ) | (Stage::Unknown, Stage::ObservedByProvider)
-            | (
-                Stage::ResponseRecorded,
-                Stage::Observed | Stage::ObservedByProvider
-            )
+            Stage::Reserved,
+            Stage::Reserved | Stage::EntryGranted | Stage::NotEntered
+        ) | (
+            Stage::EntryGranted,
+            Stage::Unknown | Stage::ResponseRecorded | Stage::ObservedByProvider
+        ) | (
+            Stage::Unknown,
+            Stage::ResponseRecorded | Stage::ObservedByProvider
+        ) | (
+            Stage::ResponseRecorded,
+            Stage::Observed | Stage::ObservedByProvider
+        )
     )
 }
 
-const FIXED: [&str; 8] = [
+const FIXED: [&str; 9] = [
     "schema",
+    "binding_canonical",
+    "approval_canonical",
     "namespace",
     "operation_id",
     "action_commitment",
     "recipe_digest",
     "nonce",
     "evaluated_at",
-    "counters",
 ];
 
 fuzz_target!(|data: &[u8]| {
@@ -68,6 +70,17 @@ fuzz_target!(|data: &[u8]| {
     ) else {
         panic!("valid records are JSON");
     };
+    let revision = old["revision"].as_u64().expect("old revision");
+    assert!(revision < 9_007_199_254_740_991);
+    assert_eq!(new["revision"].as_u64(), Some(revision + 1));
+    if from != Stage::Reserved || to != Stage::EntryGranted {
+        assert_eq!(old.get("entry"), new.get("entry"), "entry grant changed");
+    }
+    assert_eq!(old["state"]["protocol"], new["state"]["protocol"]);
+    assert_eq!(
+        old["state"]["facts"]["counters"],
+        new["state"]["facts"]["counters"]
+    );
     for field in FIXED {
         assert_eq!(old.get(field), new.get(field), "{field} changed");
     }

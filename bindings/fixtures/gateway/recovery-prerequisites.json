@@ -1,0 +1,926 @@
+{
+  "schema": "auths.recovery-prerequisite-fixture/1",
+  "scope": "native signed recovery compilation and actual credential predicates; file dependency/restart histories use oracle entry; no installed provider/PostgreSQL claim",
+  "cases": [
+    {
+      "history": "recorded",
+      "native_evidence_eligible": true,
+      "oracle_journal_grant": true,
+      "children": [
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 65536,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 27,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 403,
+          "response_bytes": 2,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 403,
+          "response_bytes": 2,
+          "response_version_ok": true
+        }
+      ],
+      "reopened_parent": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "prerequisite_acquisitions": [
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "commitment_domain": "auths.gateway-account/1",
+            "expected_account_commitment": [
+              211,
+              137,
+              141,
+              250,
+              238,
+              251,
+              144,
+              251,
+              244,
+              138,
+              249,
+              139,
+              90,
+              91,
+              110,
+              174,
+              184,
+              145,
+              125,
+              218,
+              248,
+              246,
+              26,
+              88,
+              244,
+              34,
+              169,
+              159,
+              47,
+              19,
+              232,
+              36
+            ],
+            "json_pointer": "/id",
+            "kind": "account"
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 65536,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/account"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 0,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/customers"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 1,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/payouts"
+          }
+        }
+      ],
+      "unadmitted_parent_refused": true,
+      "substituted_membership_witness_refused": true
+    },
+    {
+      "history": "missing",
+      "native_evidence_eligible": false,
+      "oracle_journal_grant": false,
+      "children": [],
+      "reopened_parent": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "prerequisite_acquisitions": [
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "commitment_domain": "auths.gateway-account/1",
+            "expected_account_commitment": [
+              211,
+              137,
+              141,
+              250,
+              238,
+              251,
+              144,
+              251,
+              244,
+              138,
+              249,
+              139,
+              90,
+              91,
+              110,
+              174,
+              184,
+              145,
+              125,
+              218,
+              248,
+              246,
+              26,
+              88,
+              244,
+              34,
+              169,
+              159,
+              47,
+              19,
+              232,
+              36
+            ],
+            "json_pointer": "/id",
+            "kind": "account"
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 65536,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/account"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 0,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/customers"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 1,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/payouts"
+          }
+        }
+      ],
+      "unadmitted_parent_refused": true,
+      "substituted_membership_witness_refused": true
+    },
+    {
+      "history": "lost-permit",
+      "native_evidence_eligible": false,
+      "oracle_journal_grant": false,
+      "children": [
+        {
+          "revision": 2,
+          "stage": "unknown",
+          "reserved_calls": 1,
+          "reserved_bytes": 65536,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": null,
+          "response_bytes": null,
+          "response_version_ok": null
+        },
+        {
+          "revision": 2,
+          "stage": "unknown",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": null,
+          "response_bytes": null,
+          "response_version_ok": null
+        },
+        {
+          "revision": 2,
+          "stage": "unknown",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": null,
+          "response_bytes": null,
+          "response_version_ok": null
+        }
+      ],
+      "reopened_parent": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "prerequisite_acquisitions": [
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "commitment_domain": "auths.gateway-account/1",
+            "expected_account_commitment": [
+              211,
+              137,
+              141,
+              250,
+              238,
+              251,
+              144,
+              251,
+              244,
+              138,
+              249,
+              139,
+              90,
+              91,
+              110,
+              174,
+              184,
+              145,
+              125,
+              218,
+              248,
+              246,
+              26,
+              88,
+              244,
+              34,
+              169,
+              159,
+              47,
+              19,
+              232,
+              36
+            ],
+            "json_pointer": "/id",
+            "kind": "account"
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 65536,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/account"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 0,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/customers"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 1,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/payouts"
+          }
+        }
+      ],
+      "unadmitted_parent_refused": true,
+      "substituted_membership_witness_refused": true
+    },
+    {
+      "history": "stale",
+      "native_evidence_eligible": false,
+      "oracle_journal_grant": false,
+      "children": [
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 65536,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 27,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 403,
+          "response_bytes": 2,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 403,
+          "response_bytes": 2,
+          "response_version_ok": true
+        }
+      ],
+      "reopened_parent": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "prerequisite_acquisitions": [
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "commitment_domain": "auths.gateway-account/1",
+            "expected_account_commitment": [
+              211,
+              137,
+              141,
+              250,
+              238,
+              251,
+              144,
+              251,
+              244,
+              138,
+              249,
+              139,
+              90,
+              91,
+              110,
+              174,
+              184,
+              145,
+              125,
+              218,
+              248,
+              246,
+              26,
+              88,
+              244,
+              34,
+              169,
+              159,
+              47,
+              19,
+              232,
+              36
+            ],
+            "json_pointer": "/id",
+            "kind": "account"
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 65536,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/account"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 0,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/customers"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 1,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/payouts"
+          }
+        }
+      ],
+      "unadmitted_parent_refused": true,
+      "substituted_membership_witness_refused": true
+    },
+    {
+      "history": "wrong-account",
+      "native_evidence_eligible": false,
+      "oracle_journal_grant": true,
+      "children": [
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 65536,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 19,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 403,
+          "response_bytes": 2,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 403,
+          "response_bytes": 2,
+          "response_version_ok": true
+        }
+      ],
+      "reopened_parent": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "prerequisite_acquisitions": [
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "commitment_domain": "auths.gateway-account/1",
+            "expected_account_commitment": [
+              211,
+              137,
+              141,
+              250,
+              238,
+              251,
+              144,
+              251,
+              244,
+              138,
+              249,
+              139,
+              90,
+              91,
+              110,
+              174,
+              184,
+              145,
+              125,
+              218,
+              248,
+              246,
+              26,
+              88,
+              244,
+              34,
+              169,
+              159,
+              47,
+              19,
+              232,
+              36
+            ],
+            "json_pointer": "/id",
+            "kind": "account"
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 65536,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/account"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 0,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/customers"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 1,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/payouts"
+          }
+        }
+      ],
+      "unadmitted_parent_refused": true,
+      "substituted_membership_witness_refused": true
+    },
+    {
+      "history": "excess-capability",
+      "native_evidence_eligible": false,
+      "oracle_journal_grant": true,
+      "children": [
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 65536,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 27,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 2,
+          "response_version_ok": true
+        },
+        {
+          "revision": 3,
+          "stage": "response-recorded",
+          "reserved_calls": 1,
+          "reserved_bytes": 16384,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": 200,
+          "response_bytes": 2,
+          "response_version_ok": true
+        }
+      ],
+      "reopened_parent": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "prerequisite_acquisitions": [
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "commitment_domain": "auths.gateway-account/1",
+            "expected_account_commitment": [
+              211,
+              137,
+              141,
+              250,
+              238,
+              251,
+              144,
+              251,
+              244,
+              138,
+              249,
+              139,
+              90,
+              91,
+              110,
+              174,
+              184,
+              145,
+              125,
+              218,
+              248,
+              246,
+              26,
+              88,
+              244,
+              34,
+              169,
+              159,
+              47,
+              19,
+              232,
+              36
+            ],
+            "json_pointer": "/id",
+            "kind": "account"
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 65536,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/account"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 0,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/customers"
+          }
+        },
+        {
+          "disclosure": "none",
+          "maximum_calls": 1,
+          "maximum_evidence_age_seconds": 30,
+          "maximum_transport_seconds": 15,
+          "purpose": {
+            "index": 1,
+            "kind": "denied-capability",
+            "refused_statuses": [
+              403
+            ]
+          },
+          "request": {
+            "headers": [
+              [
+                "Stripe-Version",
+                "2025-03-31.basil"
+              ]
+            ],
+            "maximum_response_bytes": 16384,
+            "method": "GET",
+            "url": "https://api.stripe.com/v1/payouts"
+          }
+        }
+      ],
+      "unadmitted_parent_refused": true,
+      "substituted_membership_witness_refused": true
+    }
+  ]
+}

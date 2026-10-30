@@ -18,8 +18,103 @@ A production deployment keeps three principals apart.
 | Operator | The gateway host, its admin socket, and the provider credentials | A signed operator attestation at install |
 | Observer | The key that signs what the gateway saw, in qualified custody | Observer anchors of the trusted context |
 
+AP074 installations require an explicit effect policy. Generate its canonical
+bytes with native code and the human approver's public Ed25519 key:
+
+```text
+auths-gateway effect-policy --partition <partition> --epoch 1 \
+  --approver-public-key <64-hex-public-key> > effect-policy.json
+```
+
+The policy contains no signing key. Protect it as operator configuration. Never
+choose a new epoch merely because a journal is missing. The same policy must be
+passed to `operator-request` and `install`; the operator signature binds its
+partition, epoch and approver. Installation schema `/6` and operator attestation
+schema `/2` reject the obsolete formats; reinstall disposable prelaunch state.
+This configuration is a foundation for exact-effect approval, not evidence that
+transactional entry fencing has been completed.
+
+The application submission schema is now `auths.gateway-submit/2`; it requires
+canonical native exact-effect approval in addition to proof and action. The
+commissioning path requires the same approval. Resource-authority approvals in
+the proof remain separate requirements and cannot substitute for it.
+
+The private operator flow is:
+
+```text
+auths-gateway effect-review --state-dir <private-state> --proof proof.cbor --action action.cbor \
+  --not-before <unix-seconds> --expires-at <unix-seconds> --request-out <absolute-new-request-file>
+auths-gateway effect-approval --request <request-file> --signature-hex <external-ed25519-signature>
+auths-gateway submit --app-socket <socket> --proof proof.cbor --action action.cbor --approval <approval-file>
+```
+
+`effect-review` emits private JSON containing the native review, signing request
+and `signing_message_hex`. The external approver signs those exact decoded
+32 message bytes with Ed25519; do not independently hash or reconstruct them.
+Keep review/request/approval files on the authorized private channel. The
+`effect-approval` command only assembles canonical data; submission independently
+checks the installed signer, effect binding and validity interval. Missing,
+obsolete or invalid approvals are refused before credential leasing.
+
+For an independently authorized recovery read, first obtain the native private
+call from an observable retained source, then authorize that exact call through
+the native MCP authoring flow. Use a new logical operation ID for the read:
+
+```text
+auths-gateway effect-recovery-call --state-dir <private-state> \
+  --source-operation <retained-operation> --recovery-operation <new-read-operation>
+auths-gateway effect-review --state-dir <private-state> --recovery-of <retained-operation> \
+  --proof read-proof.cbor --action read-action.cbor --not-before <unix-seconds> \
+  --expires-at <unix-seconds> --request-out <absolute-new-request-file>
+```
+
+These are private authoring/review operations. They perform no credential lease,
+provider call or admission. The writer's proof or exact approval cannot serve as
+the read's authority. Source and current connection/generation must match in this
+compiler; changed credentials and managed read-policy bounds currently refuse.
+A compiled read cannot be sent through mutation `submit`. The native runtime now
+has a separate recovery acquisition entry point with permanent count/byte
+allocation and a durable one-use grant. It refuses recipes needing additional
+credential reads until those reads are accounted for. The commands above still
+perform authoring/review only. After signing the exact review request and
+assembling `read-approval.json`, the owner-only operator socket accepts:
+
+```text
+auths-gateway recover --state-dir <private-state> --source-operation <retained-operation> \
+  --proof read-proof.cbor --action read-action.cbor --approval read-approval.json
+auths-gateway recovery-record --state-dir <private-state> \
+  --source-operation <retained-operation> --acquisition-operation <new-read-operation>
+```
+
+Mutation submission records the response and stops without a provider read-back.
+It cannot report newly observed provider state from the write response alone.
+
+`recover` performs the independently authorized read and then attempts evidence
+refinement. `recovery-record` only uses an already retained acquisition response;
+it performs no credential or provider I/O. The original writer's expired proof
+is never reused as read authority. Freshness is checked under the journal fence:
+evidence older than 30 seconds, or with a future receipt time, cannot newly
+refine the source. A previously recorded fact remains history and does not get
+a new time on replay. Unknown sends remain unknown without supported linked
+evidence; a state match alone does not prove the original write occurred.
+
+Admin request/response `/2` removes the unapproved `reobserve` command. Native
+recovery report `/1` separates read and mutation facts and excludes provider
+content, locators, echo and private commitments. Installed transport/fault
+coverage, the authenticated approval frontend, ancillary acquisition cutovers
+and full acceptance evidence remain open AP074 requirements.
+
+Compiler `/8` exposes native candidate-check compilation for an exact staged
+first-install or rotation descriptor. The corresponding engine acquisition API
+now uses journal `/15` and entry audit `/3`: predecessor/absence, current native
+authority and all earlier check evidence are fenced before reads. It leases only
+the exact already-staged credential and returns redacted acquisition facts.
+This API does not publish credentials. The onboarding/rotation CLI staging and
+publication cutover is still pending; a recorded HTTP response alone does not
+mean that the final check passed or that a rotation is authorized.
+
 A production installation names its operator only through a signed
-`auths.gateway-operator-attestation/1` statement. `operator-request` prints
+`auths.gateway-operator-attestation/2` statement. `operator-request` prints
 the statement for the installation and the preimage the operator's own
 signer signs; the operator assembles the statement, the base64url signature,
 and at most four control-evidence objects into a file of at most 16 KiB,
@@ -27,10 +122,10 @@ readable only by its owner:
 
 ```text
 auths-gateway operator-request --recipe recipe.json --profile-lock profile.lock.json \
-  --trusted-context trusted.context.cbor --provider <provider> --alias <alias> \
+  --trusted-context trusted.context.cbor --effect-policy effect-policy.json --provider <provider> --alias <alias> \
   --deployment production --operator-principal <principal> \
   --principal-method did-key-v1 --verification-method <method> --signature-suite ed25519-v1
-auths-gateway install --deployment production --operator-attestation operator-attestation.json ...
+auths-gateway install --deployment production --effect-policy effect-policy.json --operator-attestation operator-attestation.json ...
 ```
 
 `install` and every `serve` start verify the attestation as the kernel
@@ -90,16 +185,26 @@ held which key, is operator evidence and is not produced by this code.
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
-  `auths.lifecycle.postgresql/6`; it installs only into an empty database.
-  A database created at schema 4 or earlier is disposable prelaunch state:
+  `auths.lifecycle.postgresql/8`; it installs only into an empty database.
+  A database created with an obsolete schema is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
-  `auths.gateway-attempt/3`; a store holding `/2` records is refused as
-  corrupt, so the file store's attempts directory is recreated too.
+  `auths.gateway-attempt/16`; a store holding obsolete records is refused as
+  corrupt, so the file store's attempts directory is recreated too. The journal
+  keeps typed mutation/acquisition facts under one header. Recovery allocations
+  are permanent source-lifetime count/byte reservations and are never swept.
+  Support bundle `/2` reports protocol and stage separately.
 - **Several gateway processes** may serve from the same database. Each
   logical operation is claimed once, by an insert-once row; stage changes are
   compare-and-swap on the exact stored record. A second process that loses a
-  race records nothing and answers `gateway.attempt.replay`. Gateway claims
-  do not take the lifecycle store's singleton contract-row lock.
+  grant race records nothing and loads the matching journal state. An equal
+  binding with a prior grant or terminal outcome returns history without a
+  credential lease or provider read. A reserved operation can progress only
+  through fresh authorization and the fenced single-winner grant. Changed
+  bindings return `gateway.effect.operation-conflict`. An unavailable journal
+  reports `gateway.attempt.state-unavailable`, never proof of non-entry.
+  PostgreSQL writers share the table-scoped advisory transaction fence;
+  file writers share the bounded writer lock. The lifecycle store's singleton
+  contract-row lock is not the gateway's fence.
 - **Spend limits.** A grant's bounded policy (evaluator
   `auths.gateway.argument-ceiling-window-count/2`) counts per link subject in
   fixed, epoch-aligned windows, in the attempt store: every gateway process
@@ -140,7 +245,7 @@ held which key, is operator evidence and is not produced by this code.
 - **Sockets.** `serve` keeps separate capacity for the app socket
   (`--app-capacity`, 1–1 024, default 64) and the owner-only `admin.sock`
   (4), so `auths-gateway disable`, `enable`, `revoke`, `rotate`, `status`,
-  and `reobserve` still connect while the application holds or refills the
+  and `recovery-record` still connect while the application holds or refills the
   app socket. A connection past either socket's capacity is closed at accept
   without a response. An admin change commits without waiting for any
   submission or provider call, then waits at most 20 seconds for this
@@ -157,7 +262,7 @@ held which key, is operator evidence and is not produced by this code.
   must already exist, equal its canonical path (on macOS `/tmp` resolves to
   `/private/tmp`), be owned by the gateway's UID, and grant no group or
   other permission (mode 0700 or narrower); `rotate` sends the credential
-  over this socket. Give `disable`, `enable`, `status`, `reobserve`,
+  over this socket. Give `disable`, `enable`, `status`, `recover`, `recovery-record`,
   `revoke`, `rotate`, `operator-attest`, and `doctor` the same
   `--admin-socket`; without it they look for `<state-dir>/admin.sock` and
   report `gateway.admin.socket-unavailable` naming that path. The admin
@@ -267,3 +372,76 @@ verifier reads.
 
 Git trust pins a single root anchor today; the M-of-N composition in §1
 applies to gateway trust.
+
+
+## Native content controls under AP074
+
+A content-capable installation accepts `content-acquire --app-socket ... --proof
+... --action ... --approval ...`. Its result is redacted acquisition history;
+it does not release provider content. `effect-review --content` reviews the
+native signed read action. Release is separately authorized and reviewed with
+`effect-review --disclosure <private-proposal> --binding-out <new-private-file>`.
+The proposal is the closed native `AppDisclosureTarget`: source operation,
+recipient public key, exact UID/channel policy and delivery instance. Use native
+call authoring as follows; the authenticated UI journey remains tracked by AP074.
+
+1. Save only the declared resource arguments in an owner-private JSON object.
+   Run `effect-content-call --state-dir ... --resource-arguments /private/resource.json
+   --operation ... --call-out /private/read-call.json`. The output path must be
+   new and absolute. The native parser rejects duplicates, extra fields and
+   input above 65,536 bytes. Obtain native proof/action for the returned exact
+   call, then review with `effect-review --content` and obtain exact approval.
+2. Acquire through `content-acquire`. A recorded provider response is not a
+   delivery and does not authorize release.
+3. Save the private native recipient proposal. Run `effect-disclosure-call
+   --state-dir ... --target /private/target.json --operation ...
+   --call-out /private/disclosure-call.json`. This loads retained provenance,
+   not provider content from the network. Obtain independent proof/action and
+   review with `effect-review --disclosure /private/target.json --binding-out
+   /private/expected-binding.json`, then obtain exact approval.
+
+Both authoring commands preserve native canonical calls; they create no proof,
+approval, reservation, credential lease or transport permission. Resource data
+is not a caller-controlled URL/body/limit override.
+
+`disclosure-receive` requires the trusted expected-binding file, exact byte count,
+proposal and independent proof/action/approval. Pipe the recipient's raw 32-byte
+Ed25519 seed through non-interactive stdin with `--recipient-seed-stdin`; never
+put it in command arguments. Use new absolute `--content-out` and
+`--acknowledgement-out` paths. The native client checks the pinned gateway UID
+before sending private authority. It writes private content and native ACK files
+before transmitting the ACK. Its `recipient-ack-sent` result describes the client
+send, not durable gateway acknowledgement.
+
+Use `content-history --app-socket ... --operation ...` to inspect native retained
+facts. If a received ACK was lost before persistence, `disclosure-acknowledge
+--app-socket ... --operation ... --acknowledgement <private-ack-file>` records
+that exact evidence without redelivery. A disconnect, unknown outcome or retained
+grant must not trigger an automatic repeat. Python/TypeScript expose matching
+acquisition/history/ACK control methods returning native result bytes. Recipient
+handshake, binding/ACK interpretation and signing remain in Rust.
+
+
+The `content-process-journey.json` artifact runs the real local daemon, authoring,
+review and recipient CLI with a counting HTTP double. It exercises read/release,
+ACK-loss crash/reopen/no-redelivery/late ACK, an exact write and independent
+observation, plus separate-process disable before release. Public fixed keys
+simulate signing. This establishes neither human presence, installed language
+binding integration, hostile UID/egress isolation nor PostgreSQL durability.
+
+
+A standalone content installation can omit `write` from recipe source `/3`.
+Its source and profile lock must name `auths_gateway_content_read_v1`, and the
+source must declare `content`. Include only binding/resource/account fields;
+mutation observation, echo, pre-entry, preconditions, relative ceilings and spend
+bounds are refused. The native review explicitly shows no mutation method or
+recovery capability, an empty write path and zero body allowance, alongside the
+content GET declaration. Do not interpret its null method as an unspecified
+method or substitute a default write. `RecipeReview::method` and mutation
+`recovery` return `Option` in Rust; JSON consumers receive native null values.
+
+The generated `bindings/fixtures/gateway/content-only/` files are a synthetic
+local recipe example. `read-only-process-journey.json` proves real installation,
+read-only authority, mutation refusal, one GET and separate recipient disclosure.
+It is not a Google integration or a replacement for AP070's pending metadata,
+credential-custody and Python state-owner cutover.

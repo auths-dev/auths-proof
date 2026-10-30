@@ -1,0 +1,122 @@
+{
+  "schema": "auths.application-recovery-frame-fixture/1",
+  "scope": "real Unix socket and bounded decoder with counting refusal oracle; no installed native authority or provider entry claim",
+  "request": {
+    "schema": "auths.gateway-recover/1",
+    "source_operation": "source-1",
+    "submission": {
+      "schema": "auths.gateway-submit/2",
+      "proof_b64": "AA",
+      "action_b64": "AA",
+      "approval_b64": "eyJyZXF1ZXN0Ijp7ImFwcHJvdmVyIjpbMjMyLDIxOCw5OSwxNjQsMTIsMTY2LDEzNSwyMDAsMTI0LDI1MiwyMjQsOTIsMTc4LDc0LDEyMCwxMDgsMTI2LDExNywyMDQsNzMsMTk5LDEzLDE4MSw4Nyw2MywyLDExMSwyOCwxMDYsMTM0LDIwNiwxNzBdLCJlZmZlY3QiOlsxODQsMTM1LDE3MiwyMTYsMSwyMSwxNDAsOTcsMTU5LDEwNiwyMDQsMTA1LDE1MSw4LDYwLDQ2LDE4OSwzNSw5MSw1MSwyNDUsMTM5LDE0LDY0LDIzLDMsMTEwLDIwOCwxNjYsNTAsMTU5LDYzXSwiZXhwaXJlc19hdCI6MTc5MDAwMDAzMCwibm90X2JlZm9yZSI6MTc5MDAwMDAwMCwic2NoZW1hIjoiYXV0aHMuZXhhY3QtZWZmZWN0LWFwcHJvdmFsLzEifSwic2lnbmF0dXJlX2I2NCI6ImxoWVhBQ0hLN1BueXpMVEpYTmxxVlIxdmFGYjJySGZiUmdVTkluSXlWdGF4TUlWOWIxQUd2OXZLWFZ1aUo3MFJ4M1ZycmRwYi0yYjhyRDdoWFVjZERnIn0"
+    }
+  },
+  "cases": [
+    {
+      "case": "bounded-envelope",
+      "recovery_dispatches": 1,
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "not-entered",
+          "code": "gateway.acquisition.binding"
+        }
+      }
+    },
+    {
+      "case": "obsolete-recovery-schema",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        }
+      }
+    },
+    {
+      "case": "obsolete-submit-schema",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        }
+      }
+    },
+    {
+      "case": "invalid-operation",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        }
+      }
+    },
+    {
+      "case": "null-approval",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "indeterminate",
+        "code": "gateway.submit.invalid-frame"
+      }
+    },
+    {
+      "case": "invalid-approval",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-encoding"
+        }
+      }
+    },
+    {
+      "case": "oversized-approval",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "refused",
+        "result": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        }
+      }
+    },
+    {
+      "case": "missing-approval",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "indeterminate",
+        "code": "gateway.submit.invalid-frame"
+      }
+    },
+    {
+      "case": "transport-substitution",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "indeterminate",
+        "code": "gateway.submit.invalid-frame"
+      }
+    },
+    {
+      "case": "auths.gateway-observe/2",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "indeterminate",
+        "code": "gateway.submit.invalid-frame"
+      }
+    },
+    {
+      "case": "auths.gateway-observe/3",
+      "recovery_dispatches": 0,
+      "response": {
+        "outcome": "indeterminate",
+        "code": "gateway.submit.invalid-frame"
+      }
+    }
+  ]
+}

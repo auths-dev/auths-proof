@@ -1,0 +1,116 @@
+{
+  "schema": "auths.gateway-replay-projection-fixture/1",
+  "scope": "native synthetic driver and file journal; no installed authority or independent recovery claim",
+  "unknown_replay": {
+    "result": {
+      "outcome": "unknown"
+    },
+    "additional_leases": 0,
+    "additional_reads": 0,
+    "additional_writes": 0,
+    "journal_unchanged": true
+  },
+  "response_without_observation": {
+    "result": {
+      "outcome": "response-recorded",
+      "status": 200
+    },
+    "credential_leases": 1,
+    "provider_writes": 1,
+    "provider_reads": 0,
+    "provider_evidence": false,
+    "replay_additional_leases": 0,
+    "replay_journal_unchanged": true
+  },
+  "unacknowledged_grants": [
+    {
+      "ambiguous_ack": false,
+      "state_unavailable": false,
+      "result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "provider_writes": 0,
+      "provider_reads": 0
+    },
+    {
+      "ambiguous_ack": true,
+      "state_unavailable": false,
+      "result": {
+        "outcome": "unknown"
+      },
+      "provider_writes": 0,
+      "provider_reads": 0
+    },
+    {
+      "ambiguous_ack": true,
+      "state_unavailable": true,
+      "result": {
+        "outcome": "indeterminate",
+        "code": "gateway.attempt.state-unavailable"
+      },
+      "provider_writes": 0,
+      "provider_reads": 0
+    }
+  ],
+  "concurrent_replays": {
+    "results": [
+      {
+        "outcome": "unknown"
+      },
+      {
+        "outcome": "unknown"
+      }
+    ],
+    "additional_leases": 0,
+    "additional_reads": 0,
+    "additional_writes": 0,
+    "journal_unchanged": true
+  },
+  "reserved_decoding": {
+    "valid": [
+      {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      {
+        "outcome": "reserved",
+        "revision": 9007199254740991
+      }
+    ],
+    "invalid": [
+      {
+        "outcome": "reserved"
+      },
+      {
+        "outcome": "reserved",
+        "revision": 0
+      },
+      {
+        "outcome": "reserved",
+        "revision": -1
+      },
+      {
+        "outcome": "reserved",
+        "revision": 9007199254740992
+      },
+      {
+        "outcome": "reserved",
+        "revision": true
+      },
+      {
+        "outcome": "reserved",
+        "revision": "1"
+      },
+      {
+        "outcome": "reserved",
+        "revision": 1.5
+      },
+      {
+        "outcome": "reserved",
+        "revision": 1,
+        "may_send": true
+      }
+    ]
+  }
+}

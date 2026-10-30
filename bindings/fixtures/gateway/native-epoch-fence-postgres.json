@@ -1,0 +1,56 @@
+{
+  "schema": "auths.native-epoch-fence/1",
+  "adapter": "postgres",
+  "case": {
+    "activated_epoch": 2,
+    "one_shared_partition_control": true,
+    "cached_old_epoch_entry_refused": true,
+    "same_native_proof_still_authorized": true,
+    "old_approval_new_epoch_refused": true,
+    "fresh_operator_downgrade_refused": true,
+    "stale_operator_review_refused": true,
+    "old_and_new_epoch_history_retained": true,
+    "historical_replay_recreates_no_permit_or_charge": true,
+    "previous_epoch_snapshot": {
+      "revision": 3,
+      "stage": "response-recorded",
+      "reserved_calls": 1,
+      "reserved_bytes": 1024,
+      "policy_count_counters": 0,
+      "policy_byte_counters": 0,
+      "response_status": 200,
+      "response_bytes": 21,
+      "response_version_ok": true,
+      "content_projection": {
+        "kind": "ready",
+        "bytes": 21
+      }
+    },
+    "current_epoch_snapshot": {
+      "revision": 3,
+      "stage": "response-recorded",
+      "reserved_calls": 1,
+      "reserved_bytes": 1024,
+      "policy_count_counters": 0,
+      "policy_byte_counters": 0,
+      "response_status": 200,
+      "response_bytes": 21,
+      "response_version_ok": true,
+      "content_projection": {
+        "kind": "ready",
+        "bytes": 21
+      }
+    },
+    "lifetime_allocation_slots": [
+      0,
+      1
+    ],
+    "provider_reads": 2
+  },
+  "scope": "actual native proofs and exact approvals, shared activation fence, real HTTP and two engine/store instances; public fixture keys and maintained clock",
+  "excluded": [
+    "malicious store rollback without an independent anchor",
+    "all protocol race schedules",
+    "hostile OS and live-provider qualification"
+  ]
+}

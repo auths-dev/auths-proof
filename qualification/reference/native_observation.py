@@ -78,7 +78,7 @@ def interrupted_state(tuple_value, reviewed, trusted_context_sha256, support):
             and support['deployment'] == 'production'
             and support['credential_store_kind'] == target['credential_store_kind']
             and target['store_kind'] == 'postgresql-v1'
-            and target['store_schema'] == 'auths.lifecycle.postgresql/6'
+            and target['store_schema'] == 'auths.lifecycle.postgresql/7'
             and target['credential_store_kind'] == 'aws-secrets-manager-v1',
             'qualification.observation.interrupted-tuple')
     qualification = support['qualification']
@@ -144,13 +144,12 @@ class Effects:
                 'qualification.observation.race-hosts')
         decoded = [result(value) for value in native_results]
         linked = [value for value in decoded if value[2] is not None]
-        require(linked and all(value[0] in ['observed', 'unknown']
-                or (value[0] == 'refused' and value[1] == 'gateway.attempt.replay') for value in decoded)
+        require(linked and all(value[0] in ['observed', 'unknown'] for value in decoded)
                 and all(all(value[2][field] == linked[0][2][field]
                             for field in ['channel', 'echo', 'evidence_digest']) for value in linked),
                 'qualification.observation.race-evidence')
-        # Both are actual host results; the survivor's read-only recovery can
-        # supply the link. Distinct native scopes are aggregated directly.
+        # Both are actual host results. The owner supplies the link; the
+        # follower only reads history. Distinct native scopes are aggregated.
         return self._project(tuple_value, reviewed, resources, linked[0], measure.aggregate(pairs), response,
                              status=next(value['status'] for value in native_results
                                          if value['outcome'] == 'observed-by-provider'))

@@ -10,9 +10,9 @@ use crate::bounds::{BoundAdmission, admit_bounds};
 use crate::connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry,
 };
+use crate::effect::{ApprovedEffect, ExactEffectApproval};
 use crate::observer::{
-    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
-    outcome_facts, read_back_facts,
+    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, operation_subject, outcome_facts,
 };
 use crate::recipe::{ENTRY_DEADLINE_SECONDS, GuardChecks};
 use crate::submit::{self, SubmitContext, SubmitIo};
@@ -20,10 +20,14 @@ use crate::transport::{
     GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderPort, ProviderResponse,
     WriteTransportOutcome,
 };
+#[cfg(any(test, feature = "testkit-harness"))]
 use crate::{
-    ClosedCredentialRead, ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe,
-    GatewayAttempts, GatewayConnectionDescriptor, GatewayEvidenceChannel, GatewayProviderEvidence,
-    RequestHeader,
+    ClosedObservationRequest,
+    observer::{READ_BACK_SCHEMA, read_back_facts},
+};
+use crate::{
+    ClosedProviderRequest, CompiledRecipe, GatewayAttempts, GatewayConnectionDescriptor,
+    GatewayEvidenceChannel,
 };
 use auths_connections::{
     ConnectionAlias, ConnectionCredentialStore, ConnectionProfile, ConnectionRecord,
@@ -47,11 +51,14 @@ use thiserror::Error;
 
 #[cfg(unix)]
 #[path = "commissioning_session.rs"]
-mod commissioning;
+pub(crate) mod commissioning;
 #[cfg(unix)]
 pub use commissioning::{
     CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
 };
+
+#[path = "candidate_runtime.rs"]
+mod candidate;
 
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
@@ -67,6 +74,9 @@ pub enum GatewayEngineConfigurationError {
     /// Independently installed trust is missing or unbounded.
     #[error("gateway trusted context is missing or unbounded")]
     InvalidTrust,
+    /// The independently installed effect policy is malformed or obsolete.
+    #[error("gateway effect policy is invalid")]
+    InvalidEffectPolicy,
     /// The installed recipe differs from the operator-approved digest.
     #[error("gateway recipe approval digest mismatch")]
     UnapprovedRecipe,
@@ -78,14 +88,20 @@ pub enum GatewayEngineConfigurationError {
 /// Closed, secret-free application result. A recorded response or matching
 /// read-back does not prove provider effect or exclusive causation.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "outcome", rename_all = "kebab-case")]
+#[serde(tag = "outcome", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum GatewaySubmitResult {
     /// Native proof verification denied the action.
     Denied { code: String },
-    /// Native proof verification could not reach an authorized conclusion.
+    /// Native verification or required durable state is unavailable/indeterminate.
     Indeterminate { code: String },
     /// Proof was authorized but this operation did not enter write transport.
     NotEntered { code: String },
+    /// A durable reservation exists without an entry grant. Continuing requires
+    /// fresh native authority, exact approval and a new single-winner grant.
+    Reserved {
+        #[serde(deserialize_with = "decode_journal_revision")]
+        revision: u64,
+    },
     /// Write entry/effect is ambiguous; no automatic retry is permitted.
     Unknown,
     /// A complete bounded HTTP response exists, but no read-back was recorded.
@@ -102,19 +118,70 @@ pub enum GatewaySubmitResult {
     },
 }
 
-/// Secret-free summary of stored provider evidence. The response bytes and
-/// the observation locator stay in the operator's attempt store.
+fn decode_journal_revision<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u64, D::Error> {
+    let revision = u64::deserialize(deserializer)?;
+    if !(1..=9_007_199_254_740_991).contains(&revision) {
+        return Err(serde::de::Error::custom("invalid journal revision"));
+    }
+    Ok(revision)
+}
+
+/// Schema of the public hiding evidence projection; never a private body hash.
+pub const PUBLIC_EVIDENCE_SCHEMA: &str = "auths.gateway-public-evidence/1";
+
+/// Public hiding summary of stored provider evidence. Response bytes, raw
+/// digests, echo and locator stay in the protected attempt journal.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayEvidenceSummary {
+    /// Exactly `auths.gateway-public-evidence/1`.
+    #[serde(deserialize_with = "decode_evidence_schema")]
+    pub schema: String,
     /// Evidence channel; `read-back` in this version.
     pub channel: GatewayEvidenceChannel,
-    /// The echo token found in the provider record.
-    pub echo: String,
-    /// Lowercase hexadecimal SHA-256 of the exact observation response bytes.
-    pub evidence_digest: String,
+    /// Lowercase HMAC-SHA256 under the private immutable attempt nonce and
+    /// canonical binding. Stable on replay, never a raw content digest.
+    #[serde(deserialize_with = "decode_evidence_commitment")]
+    pub evidence_commitment: String,
     /// Gateway wall-clock seconds; not authenticated.
+    #[serde(deserialize_with = "decode_evidence_time")]
     pub observed_at: u64,
+}
+
+fn decode_evidence_time<'de, D: serde::Deserializer<'de>>(decoder: D) -> Result<u64, D::Error> {
+    let value = u64::deserialize(decoder)?;
+    if value > (1_u64 << 53) - 1 {
+        return Err(serde::de::Error::custom("invalid public evidence time"));
+    }
+    Ok(value)
+}
+
+fn decode_evidence_schema<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<String, D::Error> {
+    let value = String::deserialize(decoder)?;
+    if value != PUBLIC_EVIDENCE_SCHEMA {
+        return Err(serde::de::Error::custom("invalid public evidence schema"));
+    }
+    Ok(value)
+}
+
+fn decode_evidence_commitment<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<String, D::Error> {
+    let value = String::deserialize(decoder)?;
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(serde::de::Error::custom(
+            "invalid public evidence commitment",
+        ));
+    }
+    Ok(value)
 }
 
 /// A verified submission's bounded, credential-free request projection for
@@ -171,6 +238,15 @@ pub fn review_submission(
     action: &[u8],
 ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
     let command = verify_detailed(recipe, context, now, proof, action)?;
+    review_command(&command)
+}
+
+/// Both installed effect review and the offline reference projection render
+/// the native command's compiler output, without a second request compiler.
+#[cfg(unix)]
+pub(crate) fn review_command(
+    command: &VerifiedCommand,
+) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
     let request = &command.request;
     Ok(GatewaySubmissionReview {
         schema: "auths.gateway-submission-review/1",
@@ -180,7 +256,7 @@ pub fn review_submission(
             .map(|actor| actor.as_str().to_owned())
             .collect(),
         action_commitment: hex::encode(request.action_commitment()),
-        arguments: command.arguments,
+        arguments: command.arguments.clone(),
         request: GatewayRequestReview {
             method: request.method().as_str().to_owned(),
             url: request.url().to_owned(),
@@ -198,14 +274,15 @@ pub fn review_submission(
     })
 }
 
-impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
-    fn from(evidence: &GatewayProviderEvidence) -> Self {
-        Self {
+impl GatewayEvidenceSummary {
+    pub(crate) fn from_snapshot(snapshot: &crate::GatewayAttemptSnapshot) -> Option<Self> {
+        let evidence = snapshot.provider_evidence()?;
+        Some(Self {
+            schema: PUBLIC_EVIDENCE_SCHEMA.to_owned(),
             channel: evidence.channel(),
-            echo: evidence.echo().to_owned(),
-            evidence_digest: hex::encode(evidence.evidence_digest()),
+            evidence_commitment: hex::encode(snapshot.public_evidence_commitment()?),
             observed_at: evidence.observed_at(),
-        }
+        })
     }
 }
 
@@ -215,9 +292,6 @@ impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum GatewayObserveRequest {
-    /// Read the recipe's observed field now and sign what was read.
-    /// `arguments` names exactly the observation path's fields.
-    ReadBack { arguments: Map<String, Value> },
     /// Sign the stored record of one logical operation in this
     /// installation's namespace. No provider is contacted.
     Outcome { operation_id: String },
@@ -320,6 +394,7 @@ pub struct GatewayAdminStatus {
 /// compare-and-swap without waiting for any submission or provider call.
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
+    effect_policy: crate::effect::EffectPolicy,
     trusted_context: TrustedContext,
     #[cfg(unix)]
     trusted_context_sha256: auths_recipe_qualification::Sha256Digest,
@@ -363,6 +438,63 @@ struct PreparedEntry {
     transport: GatewayHttpTransport,
 }
 
+/// A lookup hint becomes a historical identity only after the journal matches
+/// the exact native inputs, retained binding and its pinned approval signature.
+struct RetainedHistory {
+    operation: crate::LogicalOperationId,
+    submission: crate::store::RetainedSubmission,
+}
+
+/// Data-only endpoint constraints for retained history. Native compilation still
+/// owns all fresh authorization and grants; these checks bind extra API inputs
+/// to the exact historical action rather than trusting an operation-ID hint.
+enum RetainedRoute<'a> {
+    Mutation,
+    Content(Option<&'a Map<String, Value>>),
+    Recovery(&'a str),
+    Disclosure(&'a crate::effect::DisclosureTarget),
+    Candidate(&'a crate::effect::CandidateCredentialTarget),
+}
+
+impl RetainedRoute<'_> {
+    fn matches(
+        &self,
+        recipe: &CompiledRecipe,
+        operation: &crate::LogicalOperationId,
+        call: &auths_profile_mcp::McpToolCall,
+    ) -> bool {
+        if call.service() != recipe.review().service() {
+            return false;
+        }
+        match self {
+            Self::Mutation => call.name() == recipe.review().tool(),
+            Self::Content(arguments) => {
+                call.name() == crate::effect::CONTENT_READ_TOOL
+                    && arguments.is_none_or(|arguments| {
+                        call.arguments()
+                            .get("resource_arguments")
+                            .and_then(Value::as_object)
+                            == Some(arguments)
+                    })
+            }
+            Self::Recovery(source) => {
+                call.name() == crate::effect::RECOVERY_READ_TOOL
+                    && call
+                        .arguments()
+                        .get("source_operation")
+                        .and_then(Value::as_str)
+                        == Some(*source)
+            }
+            Self::Disclosure(target) => target
+                .authorization_call(recipe, operation)
+                .is_ok_and(|expected| &expected == call),
+            Self::Candidate(target) => target
+                .authorization_call(recipe, operation)
+                .is_ok_and(|expected| &expected == call),
+        }
+    }
+}
+
 impl GatewayEngine {
     /// Constructs an engine only for an exact operator-approved recipe digest.
     /// The caller must be the separately deployed gateway, never the app.
@@ -375,6 +507,7 @@ impl GatewayEngine {
         recipe: CompiledRecipe,
         approved_digest: [u8; 32],
         trusted_context_cbor: &[u8],
+        effect_policy: crate::effect::EffectPolicy,
         provider: ProviderKind,
         alias: ConnectionAlias,
         workload_id: String,
@@ -382,6 +515,12 @@ impl GatewayEngine {
         credentials: Arc<dyn ConnectionCredentialStore>,
         attempts: GatewayAttempts,
     ) -> Result<Self, GatewayEngineConfigurationError> {
+        effect_policy
+            .validate()
+            .map_err(|_| GatewayEngineConfigurationError::InvalidEffectPolicy)?;
+        if attempts.policy() != &effect_policy {
+            return Err(GatewayEngineConfigurationError::InvalidEffectPolicy);
+        }
         if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
@@ -392,6 +531,7 @@ impl GatewayEngine {
         }
         Ok(Self {
             recipe,
+            effect_policy,
             trusted_context,
             #[cfg(unix)]
             trusted_context_sha256: {
@@ -420,6 +560,105 @@ impl GatewayEngine {
             #[cfg(feature = "loopback-provider")]
             loopback_port: None,
         })
+    }
+
+    pub(crate) fn shared_configuration(
+        &self,
+    ) -> Result<crate::configuration::SharedConfiguration, &'static str> {
+        let trust = auths_codec::encode_verifier_context(&self.trusted_context)
+            .map_err(|_| "gateway.configuration.unavailable")?;
+        let trust = auths_codec::domain_commitment("auths.gateway-installed-trust/1", &trust)
+            .map_err(|_| "gateway.configuration.unavailable")?;
+        let pin = crate::configuration::digest(
+            "auths.effect-installed-configuration/1",
+            &(
+                self.recipe.digest(),
+                trust.as_bytes(),
+                &self.effect_policy,
+                self.connection.provider().as_str(),
+                self.connection.alias().as_str(),
+                &self.workload_id,
+                self.profile.id().as_str(),
+                self.profile.version(),
+                self.qualification.contract_digest()?,
+                crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
+                self.observer
+                    .as_ref()
+                    .map(|observer| observer.principal().as_str()),
+            ),
+        )?;
+        let key = self
+            .effect_policy
+            .configuration_key(self.recipe.namespace())
+            .map_err(|_| "gateway.configuration.unavailable")?;
+        Ok(crate::configuration::SharedConfiguration::new(
+            self.attempts.store(),
+            key,
+            pin,
+            self.effect_policy.epoch(),
+        ))
+    }
+
+    /// Pins operator-validated installation inputs in the shared attempt store.
+    /// Only trusted install/join callers may initialize a missing record. This
+    /// blocks on the store and must run off the async executor.
+    ///
+    /// # Errors
+    /// Refuses unavailable storage or a different already-installed policy.
+    pub fn initialize_effect_configuration(&self) -> Result<(), &'static str> {
+        self.shared_configuration()?.initialize(&self.qualification)
+    }
+
+    /// Returns the private native commitment to this candidate installation.
+    /// This is review data, never permission to replace shared configuration.
+    ///
+    /// # Errors
+    /// Refuses an invalid configuration encoding.
+    pub fn effect_configuration_candidate(&self) -> Result<[u8; 32], &'static str> {
+        Ok(self.shared_configuration()?.candidate())
+    }
+
+    /// Returns a private CAS token for explicit operator configuration review.
+    /// It grants no application or entry authority. This call blocks on storage.
+    ///
+    /// # Errors
+    /// Refuses missing or malformed shared configuration.
+    pub fn effect_configuration_revision(&self) -> Result<[u8; 32], &'static str> {
+        self.shared_configuration()?.current_revision()
+    }
+
+    /// Activates this independently validated installation after an operator
+    /// reviews the exact previous revision. Retains permanent revocation memory.
+    /// This trusted operator API blocks on storage and is absent from app frames.
+    ///
+    /// # Errors
+    /// Refuses a stale review token, corrupt state or persistence failure.
+    pub fn activate_effect_configuration(&self, expected: [u8; 32]) -> Result<(), &'static str> {
+        self.shared_configuration()?
+            .activate(expected, &self.qualification)
+    }
+
+    /// Publishes authenticated qualification changes before reporting an
+    /// operator import/reload successful. This blocks on the shared store.
+    ///
+    /// # Errors
+    /// Refuses a different trust/deployment contract or unavailable persistence.
+    pub fn publish_effect_qualification(
+        &self,
+        gate: &crate::QualificationGate,
+    ) -> Result<(), &'static str> {
+        if gate.contract_digest()? != self.qualification.contract_digest()? {
+            return Err("gateway.configuration.changed");
+        }
+        self.shared_configuration()?.publish(gate)
+    }
+
+    async fn check_effect_configuration(&self) -> Result<(), &'static str> {
+        let configuration = self.shared_configuration()?;
+        let gate = Arc::clone(&self.qualification);
+        tokio::task::spawn_blocking(move || configuration.check(&gate))
+            .await
+            .map_err(|_| "gateway.configuration.unavailable")?
     }
 
     /// Development builds only: sends provider requests to a plain-HTTP
@@ -669,41 +908,32 @@ impl GatewayEngine {
         Ok(self.drained("gateway.admin.enabled").await)
     }
 
-    /// Rotates the operator-held secret.
-    ///
-    /// The candidate must first pass every declared credential check: the
-    /// prefix, the probe, the account read against the record's commitment,
-    /// and the denied reads. A process that holds the record's current secret
-    /// commits a rotation: it stores the candidate at the next generation and
-    /// publishes the rotated record, which makes that generation the
-    /// credential generation. A process that does not hold it, because the
-    /// rotation was committed through another process, takes the candidate
-    /// into its own store at the credential generation only when its
-    /// reference commitment there equals the record's. A later disable or
-    /// enable leaves both valid.
+    /// Rotates an operator-held secret only for a recipe with no provider
+    /// credential reads. Read-bearing recipes require `stage_candidate_rotation`,
+    /// separately approved acquisition, and `publish_candidate_credential`.
+    /// A peer may take an already-published exact secret into local custody.
     ///
     /// # Errors
-    /// A refused candidate, a commitment that does not match, or a failed
-    /// durable transition never reports the rotation complete.
+    /// Refuses read-bearing recipes before custody or provider I/O, invalid
+    /// secret prefixes, substitution and unavailable durable state.
     pub async fn rotate_connection(
         &self,
         candidate: zeroize::Zeroizing<Vec<u8>>,
     ) -> Result<GatewayAdminOutcome, &'static str> {
+        self.require_offline_rotation()?;
         let current = self.load_for_admin().await?;
         let record = current.record();
         if record.state() == ConnectionState::Revoked {
             return Err("gateway.admin.connection-not-active");
         }
-        // The provider reads run before anything is stored or committed,
-        // and no submission waits on them.
-        crate::onboarding::check_candidate_credential(
-            &self.recipe,
-            self.recipe.review().credential(),
-            &candidate,
-            crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
-        )
-        .await
-        .map_err(crate::onboarding::OnboardingFailure::admin_code)?;
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !guard.admits_secret(&candidate))
+        {
+            return Err("gateway.admin.credential-guard");
+        }
         let mut candidate = candidate;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
@@ -722,6 +952,18 @@ impl GatewayEngine {
             let _ = self.credentials.revoke(record.connection_id(), next).await;
         }
         committed
+    }
+
+    /// Offline operator rotation cannot bypass any recipe-declared read.
+    fn require_offline_rotation(&self) -> Result<(), &'static str> {
+        let reads = self
+            .recipe
+            .credential_reads()
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        if !reads.is_empty() {
+            return Err("gateway.admin.candidate-approval-required");
+        }
+        Ok(())
     }
 
     /// Stores `secret` at the generation after `record`'s without changing
@@ -770,10 +1012,10 @@ impl GatewayEngine {
         }
     }
 
-    /// The first phase of a two-phase rotation: checks the candidate against
-    /// the recipe's declared credential checks, stores it at the next
-    /// generation, and returns its reference commitment. The shared record
-    /// is unchanged, so every process keeps serving the current credential.
+    /// The first phase of an offline two-phase rotation: checks the secret
+    /// prefix, stores it at the next generation and returns its reference
+    /// commitment. Recipes with provider reads require the candidate workflow.
+    /// The shared record is unchanged, so every process keeps serving the current credential.
     /// It works on a disabled connection, which is how a possibly
     /// compromised credential is replaced.
     ///
@@ -784,19 +1026,20 @@ impl GatewayEngine {
         &self,
         candidate: zeroize::Zeroizing<Vec<u8>>,
     ) -> Result<[u8; 32], &'static str> {
+        self.require_offline_rotation()?;
         let current = self.load_for_admin().await?;
         let record = current.record();
         if record.state() == ConnectionState::Revoked {
             return Err("gateway.admin.connection-not-active");
         }
-        crate::onboarding::check_candidate_credential(
-            &self.recipe,
-            self.recipe.review().credential(),
-            &candidate,
-            crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
-        )
-        .await
-        .map_err(crate::onboarding::OnboardingFailure::admin_code)?;
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !guard.admits_secret(&candidate))
+        {
+            return Err("gateway.admin.credential-guard");
+        }
         let mut candidate = candidate;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
@@ -806,7 +1049,8 @@ impl GatewayEngine {
         self.store_successor(record, secret).await
     }
 
-    /// The second phase: replaces the credential generation and reference
+    /// The second phase for recipes without provider credential reads:
+    /// replaces the credential generation and reference
     /// commitment in the shared record with one compare-and-swap, only when
     /// the store holds, at the next generation, exactly the secret
     /// `commitment` names. The superseded generation is kept for the
@@ -820,6 +1064,7 @@ impl GatewayEngine {
         &self,
         commitment: [u8; 32],
     ) -> Result<GatewayAdminOutcome, &'static str> {
+        self.require_offline_rotation()?;
         let current = self.load_for_admin().await?;
         if current.record().state() == ConnectionState::Revoked {
             return Err("gateway.admin.connection-not-active");
@@ -1068,69 +1313,19 @@ impl GatewayEngine {
         checks
     }
 
-    /// Performs the operator's read-only re-observation of one stored
-    /// attempt: one read-back from the stored plan under a fresh lease that
-    /// passes every credential check, when the recipe digest is unchanged
-    /// and the stored stage can be resolved by a read-back. It records only
-    /// positive evidence and never writes to the provider. The answer is the
-    /// recorded result, or the stored attempt's result when nothing was
-    /// recorded.
-    ///
-    /// # Errors
-    /// Returns `gateway.reobserve.not-observable` when the attempt is absent
-    /// or cannot be re-observed, and the entry refusal when the connection
-    /// cannot be leased.
-    pub async fn reobserve(&self, operation_id: &str) -> Result<GatewaySubmitResult, &'static str> {
-        let not_observable = "gateway.reobserve.not-observable";
-        let operation =
-            crate::LogicalOperationId::parse(operation_id).map_err(|_| not_observable)?;
-        let namespace = self.recipe.namespace();
-        let attempt = match self
-            .attempts
-            .resume_observable_operation(namespace, &operation, *self.recipe.digest())
-            .await
-        {
-            Ok(Some(attempt)) => attempt,
-            Ok(None) | Err(_) => return Err(not_observable),
-        };
-        let io = EngineIo {
-            engine: self,
-            proof: &[],
-            action: &[],
-            started: Instant::now(),
-            prepared: OnceLock::new(),
-            #[cfg(unix)]
-            commissioning: None,
-            #[cfg(unix)]
-            commissioned_action: OnceLock::new(),
-            #[cfg(unix)]
-            commissioning_refusal: OnceLock::new(),
-        };
-        io.prepare().await?;
-        let context = SubmitContext {
-            recipe: &self.recipe,
-            attempts: &self.attempts,
-            context: &self.trusted_context,
-            observer: self.observer.as_ref(),
-        };
-        if let Some(result) = submit::reobserve(&context, &io, attempt).await {
-            return Ok(result);
-        }
-        match self.attempts.read(namespace, &operation).await {
-            Ok(Some(snapshot)) => Ok(stored_result(&snapshot)),
-            Ok(None) | Err(_) => Err(not_observable),
-        }
-    }
-
     /// Deletes at most [`SLOT_SWEEP_LIMIT`] count and sum slots whose expiry,
     /// one full window after their window ends, is at or before the gateway
     /// clock, and returns how many were deleted. Claims are never swept.
     ///
     /// # Errors
-    /// `gateway.sweep.clock-unavailable` without a clock, and
+    /// `gateway.sweep.clock-unavailable` without the effect clock (including
+    /// untrusted time under required qualification), and
     /// `gateway.sweep.unavailable` when the store fails.
     pub async fn sweep_expired_slots(&self) -> Result<usize, &'static str> {
-        let now = wall_clock_seconds().ok_or("gateway.sweep.clock-unavailable")?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or("gateway.sweep.clock-unavailable")?;
         let deleted = self
             .attempts
             .sweep_expired(now, SLOT_SWEEP_LIMIT)
@@ -1140,16 +1335,885 @@ impl GatewayEngine {
         Ok(deleted)
     }
 
-    /// Verifies and attempts one exact action. Only proof and action bytes are
-    /// accepted from the application; trust, recipe, connection, and credential
-    /// come from the operator's installation. The admission-order step machine
-    /// directs every step: a replay never writes again, and for a linked
-    /// recipe it may perform one more read-only observation.
-    pub async fn submit(&self, proof_cbor: &[u8], action_cbor: &[u8]) -> GatewaySubmitResult {
+    /// Compiles an effect against operator-installed trust, approval policy and
+    /// the current shared connection. It reads configuration but performs no
+    /// provider I/O, credential custody or reservation. The resulting review
+    /// remains subject to full fresh admission and entry validation.
+    ///
+    /// # Errors
+    /// Refuses unavailable/rolled-back connection state, an ineligible workload,
+    /// unavailable deployment time, or native compilation failure.
+    pub async fn compile_effect(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_mutation_effect(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Builds the exact private call requiring independent native recovery
+    /// authority. Source lookup reads only the protected journal. The returned
+    /// call grants no custody, acquisition, disclosure or mutation capability.
+    ///
+    /// # Errors
+    /// Refuses an unavailable, mismatched or non-observable source, invalid
+    /// operation IDs, and a recovery operation that reuses its source ID.
+    pub async fn recovery_authorization_call(
+        &self,
+        source_operation: &str,
+        recovery_operation: &str,
+    ) -> Result<auths_profile_mcp::McpToolCall, GatewaySubmitResult> {
+        let target = self.recovery_compilation_target(source_operation).await?;
+        let operation = crate::LogicalOperationId::parse(recovery_operation)
+            .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        target
+            .authorization_call(&self.recipe, &operation)
+            .map_err(|_| not_entered("gateway.acquisition.binding"))
+    }
+
+    /// Authors a private content call from a bounded, duplicate-free JSON object
+    /// of resource arguments and the installed connection. This is data only:
+    /// native proof, exact approval and final fenced entry remain required.
+    ///
+    /// # Errors
+    /// Refuses JSON over 65,536 bytes, duplicate members, nonobjects, unsupported
+    /// resource fields, invalid operation IDs and unavailable installation state.
+    pub async fn content_authorization_call(
+        &self,
+        resource_arguments: &[u8],
+        operation: &str,
+    ) -> Result<auths_profile_mcp::McpToolCall, GatewaySubmitResult> {
+        let invalid = || not_entered("gateway.acquisition.binding");
+        let arguments = crate::recipe::parse_provider_response(resource_arguments)
+            .and_then(|value| value.as_object().cloned())
+            .ok_or_else(invalid)?;
+        let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
+        let (loaded, _) = self.effect_compilation_inputs().await?;
+        crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
+            .and_then(|target| target.authorization_call(&self.recipe, &operation))
+            .map_err(|_| invalid())
+    }
+
+    /// Authors a private disclosure call from native retained-content provenance.
+    /// No socket authentication, reservation or delivery permission is created.
+    ///
+    /// # Errors
+    /// Refuses a mismatched recipe or invalid/reused source operation ID.
+    pub fn disclosure_authorization_call(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        operation: &str,
+    ) -> Result<auths_profile_mcp::McpToolCall, GatewaySubmitResult> {
+        let invalid = || not_entered("gateway.disclosure.binding");
+        let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
+        target
+            .authorization_call(&self.recipe, &operation)
+            .map_err(|_| invalid())
+    }
+
+    /// Loads only validated retained provenance and proposes a private recipient
+    /// binding. This authenticates neither a live peer nor release authority.
+    ///
+    /// # Errors
+    /// Refuses absent, corrupt, rejected, unknown or foreign-recipe source content
+    /// and invalid keys.
+    pub async fn disclosure_target(
+        &self,
+        source_operation: &str,
+        recipient_key: [u8; 32],
+        channel: [u8; 32],
+        delivery_instance: [u8; 32],
+    ) -> Result<crate::effect::DisclosureTarget, GatewaySubmitResult> {
+        let operation = crate::LogicalOperationId::parse(source_operation)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        let source = self
+            .attempts
+            .retained_content(self.recipe.namespace(), &operation)
+            .await
+            .map_err(|_| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })?;
+        if source.source.journal_identity().3 != self.recipe.digest() {
+            return Err(not_entered("gateway.disclosure.binding"));
+        }
+        crate::effect::DisclosureTarget::new(source, recipient_key, channel, delivery_instance)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))
+    }
+
+    /// Compiles fresh native disclosure authority under current installation.
+    /// Returns private review/approval data; performs no delivery or custody.
+    ///
+    /// # Errors
+    /// Refuses changed source/installation or invalid independent release proof.
+    pub async fn compile_disclosure_effect(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_disclosure(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            target,
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Reserves an exactly approved disclosure in the shared journal, without
+    /// releasing content or granting delivery. Exact replay returns retained facts.
+    /// Current authority/configuration and source provenance are fenced together.
+    ///
+    /// # Errors
+    /// Refuses invalid authority/approval, changed installation or source, conflicts
+    /// and unavailable state. No error or reservation grants delivery permission.
+    pub async fn admit_disclosure(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        if let Some(snapshot) = self
+            .retained_disclosure(target, proof, action, &approval)
+            .await?
+        {
+            return Ok(snapshot);
+        }
+        let started = Instant::now();
+        let effect = self
+            .compile_disclosure_effect(target, proof, action)
+            .await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| not_entered("gateway.effect.approval"))?,
+        );
+        if let Some(snapshot) = self
+            .attempts
+            .read_disclosure(&approved)
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })?
+        {
+            return Ok(snapshot);
+        }
         let io = EngineIo {
             engine: self,
-            proof: proof_cbor,
-            action: action_cbor,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await.map_err(not_entered)?;
+        let validation = io.entry_validation().map_err(not_entered)?;
+        match self
+            .attempts
+            .claim_disclosure(&approved, now, validation)
+            .await
+        {
+            Ok(snapshot) => Ok(snapshot),
+            Err(crate::GatewayAttemptError::BindingConflict) => {
+                Err(not_entered("gateway.effect.operation-conflict"))
+            }
+            Err(_) => self
+                .attempts
+                .read_disclosure(&approved)
+                .await
+                .ok()
+                .flatten()
+                .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                }),
+        }
+    }
+
+    /// Authenticates one local recipient, rechecks source/authority/capacity under
+    /// the final writer fence, then consumes the unique acknowledged permit to
+    /// send exact retained bytes. Replay never authenticates or sends again.
+    ///
+    /// # Errors
+    /// Refuses native/approval/peer/channel failures before release. Lost sends,
+    /// ACKs or persistence return retained uncertainty without a retry or refund.
+    #[cfg(unix)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one typed admission, authenticated grant and evidence sequence"
+    )]
+    pub async fn disclose(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+        connection: crate::disclosure_transport::DisclosureConnection,
+    ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let retained = self
+            .retained_disclosure(target, proof, action, &approval)
+            .await?;
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::DisclosureStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self
+                .compile_disclosure_effect(target, proof, action)
+                .await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.ok_or(result),
+        };
+        if let Some(snapshot) = self
+            .attempts
+            .read_disclosure(&approved)
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })?
+            && snapshot.stage != crate::DisclosureStage::Reserved
+        {
+            return Ok(snapshot);
+        }
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            commissioning: None,
+            commissioned_action: OnceLock::new(),
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await.map_err(not_entered)?;
+        let claim = self
+            .attempts
+            .claim_disclosure(&approved, now, io.entry_validation().map_err(not_entered)?)
+            .await;
+        let snapshot = match claim {
+            Ok(snapshot) => snapshot,
+            Err(crate::GatewayAttemptError::BindingConflict) => {
+                return Err(not_entered("gateway.effect.operation-conflict"));
+            }
+            Err(_) => {
+                return self
+                    .attempts
+                    .read_disclosure(&approved)
+                    .await
+                    .ok()
+                    .flatten()
+                    .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                        code: "gateway.attempt.state-unavailable".to_owned(),
+                    });
+            }
+        };
+        if snapshot.stage != crate::DisclosureStage::Reserved {
+            return Ok(snapshot);
+        }
+        let plan = approved
+            .disclosure_plan()
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        let bytes = plan
+            .capacity()
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?
+            .maximum_bytes;
+        let channel = crate::disclosure_transport::AuthenticatedDisclosureChannel::authenticate(
+            connection,
+            approved.effect().binding(),
+            bytes,
+            plan.recipient_key(),
+        )
+        .await
+        .map_err(not_entered)?;
+        let entry_started = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let granted = self
+            .attempts
+            .grant_disclosure(
+                Arc::clone(&approved),
+                io.entry_validation().map_err(not_entered)?,
+                entry_started,
+                channel,
+            )
+            .await;
+        if let Ok((grant, permit)) = granted {
+            if let Some(ack) = crate::disclosure_transport::deliver(permit).await {
+                let operation = crate::LogicalOperationId::parse(
+                    approved.effect().binding().journal_identity().1,
+                )
+                .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+                if let Ok(snapshot) = self
+                    .attempts
+                    .acknowledge_disclosure(self.recipe.namespace(), &operation, &ack)
+                    .await
+                {
+                    return Ok(snapshot);
+                }
+            }
+            // A concurrently recorded exact late ACK wins; the reducer refuses
+            // replacing it with unknown and the final projection retains it.
+            if let Ok(snapshot) = grant.record_unknown().await {
+                return Ok(snapshot);
+            }
+        }
+        self.attempts
+            .read_disclosure(&approved)
+            .await
+            .ok()
+            .flatten()
+            .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })
+    }
+
+    /// Native compilation from the signed action's own resource arguments.
+    /// This application boundary accepts no independent URL/resource map.
+    ///
+    /// # Errors
+    /// Refuses malformed authority, unsupported content and changed installation.
+    pub async fn compile_content_action(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_content_action(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Acquires content under native authority and approval of that exact action.
+    /// The result contains retained facts only, never plaintext or a release permit.
+    ///
+    /// # Errors
+    /// Preserves native refusal/uncertainty; existing grants are never retried.
+    pub async fn acquire_content_action(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let retained = self
+            .retained_acquisition(proof, action, &approval, RetainedRoute::Content(None))
+            .await?;
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self.compile_content_action(proof, action).await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.ok_or(result),
+        };
+        self.acquire_read_approved(approved, now, started).await
+    }
+
+    /// Reads redacted content/disclosure history in this installed recipe and
+    /// partition. It performs no current authorization, custody or external I/O.
+    ///
+    /// # Errors
+    /// Refuses foreign, absent, obsolete or corrupt state without disclosing it.
+    pub async fn content_history(
+        &self,
+        operation: &str,
+    ) -> Result<crate::ContentHistory, GatewaySubmitResult> {
+        let operation = crate::LogicalOperationId::parse(operation)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        self.attempts
+            .content_history(self.recipe.namespace(), &operation, *self.recipe.digest())
+            .await
+            .map_err(|_| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })
+    }
+
+    /// Records historical recipient evidence without new delivery or capacity.
+    ///
+    /// # Errors
+    /// Refuses mismatched ACKs and absent/corrupt/foreign retained grants.
+    pub async fn acknowledge_disclosure(
+        &self,
+        operation: &str,
+        acknowledgement: &crate::effect::DisclosureAcknowledgement,
+    ) -> Result<crate::DisclosureSnapshot, GatewaySubmitResult> {
+        self.content_history(operation).await?;
+        let operation = crate::LogicalOperationId::parse(operation)
+            .map_err(|_| not_entered("gateway.disclosure.binding"))?;
+        self.attempts
+            .acknowledge_disclosure(self.recipe.namespace(), &operation, acknowledgement)
+            .await
+            .map_err(|_| not_entered("gateway.disclosure.acknowledgement"))
+    }
+
+    /// Compiles a declared content GET from exact resource arguments using
+    /// fresh independent native read authority. Performs no custody or provider
+    /// I/O and returns private review/approval data only.
+    ///
+    /// # Errors
+    /// Refuses invalid resource arguments, missing content declaration, changed
+    /// installation/configuration or invalid native read authority.
+    pub async fn compile_content_effect(
+        &self,
+        arguments: serde_json::Map<String, serde_json::Value>,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let target =
+            crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
+                .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        crate::effect::compile_content_acquisition(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            &target,
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Acquires and privately retains one exactly approved content response.
+    /// Returns redacted journal facts only; a provider response grants no
+    /// permission to disclose bytes. Replay cannot lease or fetch again.
+    ///
+    /// # Errors
+    /// Refuses invalid native authority/approval/configuration or unavailable
+    /// custody/state. Uncertain entry retains its permanent count/byte charges.
+    pub async fn acquire_content(
+        &self,
+        arguments: serde_json::Map<String, serde_json::Value>,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        let started = Instant::now();
+        let retained = self
+            .retained_acquisition(
+                proof,
+                action,
+                &approval,
+                RetainedRoute::Content(Some(&arguments)),
+            )
+            .await?;
+        if let Some(snapshot) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot.clone());
+        }
+        let current = async {
+            let effect = self
+                .compile_content_effect(arguments, proof, action)
+                .await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.ok_or(result),
+        };
+        self.acquire_read_approved(approved, now, started).await
+    }
+
+    /// Compiles independently authorized recovery through the same installed
+    /// binding and exact approval machinery as a mutation. The source writer's
+    /// authority is provenance, not current read permission. No provider I/O,
+    /// credential lease or journal update occurs here.
+    ///
+    /// # Errors
+    /// Refuses unavailable/non-observable source state, invalid independent
+    /// native read authority, changed installation, or unsupported read bounds.
+    pub async fn compile_recovery_effect(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+    ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
+        let target = self.recovery_compilation_target(source_operation).await?;
+        let (loaded, now) = self.effect_compilation_inputs().await?;
+        crate::effect::compile_recovery_acquisition(
+            &self.effect_policy.installation(
+                &self.recipe,
+                &self.trusted_context,
+                loaded.record(),
+                self.qualification.policy(),
+                self.effect_configuration_candidate().map_err(not_entered)?,
+            ),
+            &target,
+            now,
+            proof,
+            action,
+        )
+    }
+
+    /// Acquires one separately authorized bounded recovery response. The result
+    /// describes acquisition only; it does not disclose content or record a
+    /// mutation observation. Replay reads only the existing journal.
+    ///
+    /// # Errors
+    /// Refuses native/approval/configuration failures before admission. Missing
+    /// or unavailable state after uncertain persistence is indeterminate.
+    /// Account and denied-capability prerequisites use separately charged,
+    /// approved child acquisitions before final recovery entry.
+    pub async fn acquire_recovery(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        self.acquire_recovery_with_operation(source_operation, proof, action, approval)
+            .await
+            .map(|(_, snapshot)| snapshot)
+    }
+
+    async fn acquire_recovery_with_operation(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<(crate::LogicalOperationId, crate::AcquisitionSnapshot), GatewaySubmitResult> {
+        let started = Instant::now();
+        let retained = match self
+            .retained_submission(
+                proof,
+                action,
+                &approval,
+                RetainedRoute::Recovery(source_operation),
+            )
+            .await?
+        {
+            Some(RetainedHistory {
+                operation,
+                submission: crate::store::RetainedSubmission::Acquisition(snapshot),
+            }) => Some((operation, snapshot)),
+            None => None,
+            Some(_) => return Err(not_entered("gateway.effect.operation-conflict")),
+        };
+        if let Some((operation, snapshot)) = &retained
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok((operation.clone(), snapshot.clone()));
+        }
+        let current = async {
+            let effect = self
+                .compile_recovery_effect(source_operation, proof, action)
+                .await?;
+            self.approve_current_effect(effect, approval)
+        }
+        .await;
+        let (approved, now) = match current {
+            Ok(current) => current,
+            Err(result) => return retained.ok_or(result),
+        };
+        let operation =
+            crate::LogicalOperationId::parse(approved.effect().binding().journal_identity().1)
+                .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        let snapshot = self.acquire_read_approved(approved, now, started).await?;
+        Ok((operation, snapshot))
+    }
+
+    async fn acquire_read_approved(
+        &self,
+        approved: Arc<ApprovedEffect>,
+        now: u64,
+        started: Instant,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        // Retained terminal history never needs preparation or custody.
+        if let Some(snapshot) =
+            self.attempts
+                .read_acquisition(&approved)
+                .await
+                .map_err(|error| match error {
+                    crate::GatewayAttemptError::BindingConflict => {
+                        not_entered("gateway.effect.operation-conflict")
+                    }
+                    _ => GatewaySubmitResult::Indeterminate {
+                        code: "gateway.attempt.state-unavailable".to_owned(),
+                    },
+                })?
+            && snapshot.stage != crate::AcquisitionStage::Reserved
+        {
+            return Ok(snapshot);
+        }
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(None),
+            started,
+            prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await.map_err(not_entered)?;
+        let fresh = io
+            .clock()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        io.revalidate(&approved, fresh)
+            .map_err(|_| not_entered("gateway.effect.authority-unavailable"))?;
+        let validation = io.entry_validation().map_err(not_entered)?;
+        let claim = if approved.content_target().is_some() {
+            self.attempts
+                .claim_content(&approved, now, validation)
+                .await
+        } else {
+            self.attempts
+                .claim_recovery(&approved, now, validation)
+                .await
+        };
+        let reserved = match claim {
+            Ok(crate::AcquisitionClaim::Existing(snapshot)) => return Ok(snapshot),
+            Ok(crate::AcquisitionClaim::Reserved(reserved)) => reserved,
+            Err(crate::GatewayAttemptError::BindingConflict) => {
+                return Err(not_entered("gateway.effect.operation-conflict"));
+            }
+            Err(_) => return self.acquisition_projection(&approved).await,
+        };
+        match self
+            .run_read_reservation(*reserved, Arc::clone(&approved), &io)
+            .await
+        {
+            Ok(snapshot) => Ok(snapshot),
+            Err(_) => self.acquisition_projection(&approved).await,
+        }
+    }
+
+    /// Acquires and records independently approved recovery evidence. The read
+    /// operation comes from the native compiled effect or an exact historical
+    /// submission match, never an extra transport parameter. Expiry or withdrawal
+    /// prevents new entry, not retrieval of retained facts. A completed response
+    /// remains distinct from source refinement.
+    ///
+    /// # Errors
+    /// Returns a native refusal or indeterminate state. No failure authorizes
+    /// retry of a granted acquisition or the original mutation.
+    pub async fn recover(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::RecoverySnapshot, GatewaySubmitResult> {
+        let (operation, _) = self
+            .acquire_recovery_with_operation(source_operation, proof, action, approval)
+            .await?;
+        self.refine_recovery(source_operation, operation.as_str())
+            .await
+            .map_err(|code| GatewaySubmitResult::Indeterminate {
+                code: code.to_owned(),
+            })
+    }
+
+    /// Refines a retained mutation from one separately authorized, recorded
+    /// recovery acquisition. This performs journal I/O only; it never leases a
+    /// credential, sends a request or refreshes the read's receipt time. The
+    /// writer's expired or revoked authority does not erase historical facts.
+    ///
+    /// # Errors
+    /// Refuses an unrelated source/read pair, corrupt or unavailable journal,
+    /// or an unavailable deployment clock. Stale or inconclusive evidence is
+    /// returned as unchanged history with an explicit disposition.
+    pub async fn refine_recovery(
+        &self,
+        source_operation: &str,
+        read_operation: &str,
+    ) -> Result<crate::RecoverySnapshot, &'static str> {
+        let source = crate::LogicalOperationId::parse(source_operation)
+            .map_err(|_| "gateway.recovery.binding")?;
+        let read = crate::LogicalOperationId::parse(read_operation)
+            .map_err(|_| "gateway.recovery.binding")?;
+        let snapshot = self
+            .attempts
+            .refine_recovery(
+                self.recipe.namespace(),
+                &source,
+                &read,
+                *self.recipe.digest(),
+                Arc::clone(&self.qualification),
+            )
+            .await
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => "gateway.recovery.binding",
+                _ => "gateway.recovery.unavailable",
+            })?;
+        Ok(snapshot)
+    }
+
+    async fn acquisition_projection(
+        &self,
+        approved: &ApprovedEffect,
+    ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        self.attempts
+            .read_acquisition(approved)
+            .await
+            .ok()
+            .flatten()
+            .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+                code: "gateway.attempt.state-unavailable".to_owned(),
+            })
+    }
+
+    async fn run_read_reservation(
+        &self,
+        reserved: crate::ReservedAcquisition,
+        approved: Arc<ApprovedEffect>,
+        io: &EngineIo<'_>,
+    ) -> Result<crate::AcquisitionSnapshot, &'static str> {
+        let _flight = submit::InFlight::enter(io);
+        let lease = io.lease().await.ok_or("gateway.credential.unavailable")?;
+        if self
+            .recipe
+            .guard_checks()
+            .as_ref()
+            .is_some_and(|guard| !io.secret_admitted(&lease, guard))
+        {
+            return Err("gateway.credential.mode-guard");
+        }
+        submit::complete_acquisition(&self.attempts, &self.recipe, approved, reserved, io, &lease)
+            .await
+    }
+
+    async fn recovery_compilation_target(
+        &self,
+        source_operation: &str,
+    ) -> Result<crate::effect::RecoveryReadTarget, GatewaySubmitResult> {
+        let unavailable = || not_entered("gateway.recovery.not-observable");
+        let operation =
+            crate::LogicalOperationId::parse(source_operation).map_err(|_| unavailable())?;
+        self.attempts
+            .retained_recovery_target(self.recipe.namespace(), &operation, *self.recipe.digest())
+            .await
+            .map_err(|_| unavailable())
+    }
+
+    async fn effect_compilation_inputs(
+        &self,
+    ) -> Result<(LoadedConnection, u64), GatewaySubmitResult> {
+        self.check_effect_configuration()
+            .await
+            .map_err(not_entered)?;
+        let loaded = match self.connection.load().await {
+            Ok(Some(loaded)) => loaded,
+            Err(SharedConnectionError::Rollback) => {
+                return Err(not_entered("gateway.connection.restore-rollback"));
+            }
+            Ok(None) | Err(_) => return Err(not_entered("gateway.connection.unavailable")),
+        };
+        if !authorizes_entry(loaded.record(), &self.workload_id, &self.profile) {
+            return Err(not_entered("gateway.connection.unavailable"));
+        }
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        Ok((loaded, now))
+    }
+
+    /// Verifies and attempts one exactly approved action. Proof, action and
+    /// exact approval are accepted from the application; trust, recipe, connection, and credential
+    /// come from the operator's installation. The admission-order step machine
+    /// directs every step: replay returns stored facts without credential
+    /// custody or provider I/O. Recovery requires its own explicit operation.
+    pub async fn submit(
+        &self,
+        proof_cbor: &[u8],
+        action_cbor: &[u8],
+        approval: ExactEffectApproval,
+    ) -> GatewaySubmitResult {
+        let retained = match self
+            .retained_submission(proof_cbor, action_cbor, &approval, RetainedRoute::Mutation)
+            .await
+        {
+            Ok(Some(RetainedHistory {
+                submission: crate::store::RetainedSubmission::Mutation(snapshot),
+                ..
+            })) => Some(*snapshot),
+            Ok(None) => None,
+            Ok(Some(_)) => return not_entered("gateway.effect.operation-conflict"),
+            Err(result) => return result,
+        };
+        if let Some(snapshot) = &retained
+            && snapshot.stage() != crate::GatewayAttemptStage::Reserved
+        {
+            return stored_result(snapshot);
+        }
+        let approved = match self
+            .approve_submission(proof_cbor, action_cbor, approval)
+            .await
+        {
+            Ok(approved) => approved,
+            Err(result) => return retained.as_ref().map_or(result, stored_result),
+        };
+        let io = EngineIo {
+            engine: self,
+            pending: std::sync::Mutex::new(Some(approved)),
             started: Instant::now(),
             prepared: OnceLock::new(),
             #[cfg(unix)]
@@ -1171,6 +2235,151 @@ impl GatewayEngine {
         .await
     }
 
+    async fn retained_submission(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+        route: RetainedRoute<'_>,
+    ) -> Result<Option<RetainedHistory>, GatewaySubmitResult> {
+        if proof.is_empty()
+            || proof.len() > MAX_PROOF_BYTES
+            || action.is_empty()
+            || action.len() > MAX_ACTION_BYTES
+        {
+            return Err(GatewaySubmitResult::Indeterminate {
+                code: "gateway.submit.invalid-size".to_owned(),
+            });
+        }
+        // Data-only lookup hints, never a verified command. Hard decode bounds
+        // keep historical lookup independent of a newly installed trust policy.
+        // The journal must match the native committed proof AND action digests,
+        // complete binding and its own pinned approval key before exposing facts.
+        let Some(call) =
+            auths_codec::decode_canonical_action(action, &auths_model::VerifierLimits::hard())
+                .ok()
+                .and_then(|action| {
+                    auths_profile_mcp::McpToolCall::from_canonical_bytes(action.body()).ok()
+                })
+        else {
+            return Ok(None);
+        };
+        if call
+            .arguments()
+            .get("operator_namespace")
+            .and_then(Value::as_str)
+            != Some(self.recipe.namespace().as_str())
+        {
+            return Ok(None);
+        }
+        let Some(operation) = call
+            .arguments()
+            .get("operation_id")
+            .and_then(Value::as_str)
+            .and_then(|value| crate::LogicalOperationId::parse(value).ok())
+        else {
+            return Ok(None);
+        };
+        if !route.matches(&self.recipe, &operation, &call) {
+            return Ok(None);
+        }
+        self.attempts
+            .retained_submission(
+                self.recipe.namespace(),
+                &operation,
+                *self.recipe.digest(),
+                proof,
+                action,
+                approval,
+            )
+            .await
+            .map(|submission| {
+                submission.map(|submission| RetainedHistory {
+                    operation,
+                    submission,
+                })
+            })
+            .map_err(|error| match error {
+                crate::GatewayAttemptError::BindingConflict => {
+                    not_entered("gateway.effect.operation-conflict")
+                }
+                _ => GatewaySubmitResult::Indeterminate {
+                    code: "gateway.attempt.state-unavailable".to_owned(),
+                },
+            })
+    }
+
+    async fn retained_acquisition(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+        route: RetainedRoute<'_>,
+    ) -> Result<Option<crate::AcquisitionSnapshot>, GatewaySubmitResult> {
+        match self
+            .retained_submission(proof, action, approval, route)
+            .await?
+        {
+            Some(RetainedHistory {
+                submission: crate::store::RetainedSubmission::Acquisition(snapshot),
+                ..
+            }) => Ok(Some(snapshot)),
+            None => Ok(None),
+            Some(_) => Err(not_entered("gateway.effect.operation-conflict")),
+        }
+    }
+
+    async fn retained_disclosure(
+        &self,
+        target: &crate::effect::DisclosureTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: &ExactEffectApproval,
+    ) -> Result<Option<crate::DisclosureSnapshot>, GatewaySubmitResult> {
+        match self
+            .retained_submission(proof, action, approval, RetainedRoute::Disclosure(target))
+            .await?
+        {
+            Some(RetainedHistory {
+                submission: crate::store::RetainedSubmission::Disclosure(snapshot),
+                ..
+            }) => Ok(Some(snapshot)),
+            None => Ok(None),
+            Some(_) => Err(not_entered("gateway.effect.operation-conflict")),
+        }
+    }
+
+    fn approve_current_effect(
+        &self,
+        effect: crate::effect::BoundEffect,
+        approval: ExactEffectApproval,
+    ) -> Result<(Arc<ApprovedEffect>, u64), GatewaySubmitResult> {
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        let approved = effect
+            .approve(approval, self.effect_policy.approver(), now)
+            .map_err(|_| not_entered("gateway.effect.approval"))?;
+        Ok((Arc::new(approved), now))
+    }
+
+    async fn approve_submission(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<ApprovedEffect, GatewaySubmitResult> {
+        let effect = self.compile_effect(proof, action).await?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
+        effect
+            .approve(approval, self.effect_policy.approver(), now)
+            .map_err(|_| not_entered("gateway.effect.approval"))
+    }
+
     /// Loads the shared record, requires it to authorize this gateway's
     /// workload and profile, requires this process's credential store to
     /// hold the secret its credential generation names, and prepares the
@@ -1185,6 +2394,7 @@ impl GatewayEngine {
         &self,
         check_authority: impl FnOnce() -> Result<(), &'static str>,
     ) -> Result<PreparedEntry, &'static str> {
+        self.check_effect_configuration().await?;
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
             Err(SharedConnectionError::Rollback) => {
@@ -1202,6 +2412,16 @@ impl GatewayEngine {
         if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
+        Ok(PreparedEntry {
+            loaded,
+            transport: self.prepare_transport(&descriptor)?,
+        })
+    }
+
+    fn prepare_transport(
+        &self,
+        descriptor: &GatewayConnectionDescriptor,
+    ) -> Result<GatewayHttpTransport, &'static str> {
         #[cfg(feature = "loopback-provider")]
         if let Some(port) = self.loopback_port {
             return GatewayHttpTransport::prepare_loopback(
@@ -1209,17 +2429,11 @@ impl GatewayEngine {
                 descriptor.credential(),
                 port,
             )
-            .map(|transport| PreparedEntry {
-                loaded,
-                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
-            })
+            .map(|transport| transport.with_witness(Arc::clone(&self.execution_witness)))
             .map_err(|_| "gateway.transport.preparation");
         }
         GatewayHttpTransport::prepare(&self.recipe, descriptor.credential())
-            .map(|transport| PreparedEntry {
-                loaded,
-                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
-            })
+            .map(|transport| transport.with_witness(Arc::clone(&self.execution_witness)))
             .map_err(|_| "gateway.transport.preparation")
     }
 
@@ -1249,11 +2463,9 @@ impl GatewayEngine {
             .map_err(|_| ())
     }
 
-    /// Signs one observation for the application. A read-back uses the
-    /// installed connection and credential for exactly one bounded read-only
-    /// GET built from the approved recipe, after the lease passes every
-    /// declared credential check; an outcome reads only the local attempt
-    /// store. Nothing here writes to a provider or to the store.
+    /// Projects or signs retained local history for the application. This
+    /// route never leases a credential or contacts a provider. Independently
+    /// authorized provider evidence uses `recover` and its durable acquisition.
     pub async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
         if let GatewayObserveRequest::PreEntry { operation_id } = request {
             return observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await;
@@ -1278,46 +2490,18 @@ impl GatewayEngine {
             GatewayObserveRequest::PreEntry { operation_id } => {
                 observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await
             }
-            GatewayObserveRequest::ReadBack { arguments } => {
-                let Ok(target) = self.recipe.read_back_target(arguments) else {
-                    return refused("gateway.observer.invalid-read-back");
-                };
-                let Ok(prepared) = self.prepare_entry().await else {
-                    return refused("gateway.observer.connection-unavailable");
-                };
-                let Ok(lease) = self.lease(&prepared).await else {
-                    return refused("gateway.observer.credential-unavailable");
-                };
-                let port = LeasedTransport {
-                    transport: &prepared.transport,
-                    lease: &lease,
-                };
-                let prefix = self.recipe.guard_checks().is_none_or(|guard| {
-                    lease
-                        .expose(Instant::now())
-                        .is_ok_and(|secret| guard.admits_secret(secret))
-                });
-                if !submit::lease_checks(
-                    &self.recipe,
-                    &port,
-                    prefix,
-                    Some(*prepared.loaded.record().account_commitment()),
-                )
-                .await
-                {
-                    return refused("gateway.observer.credential-guard");
-                }
-                observe_read_back(&target, observer, &port, wall_clock_seconds).await
-            }
         }
     }
 }
 
-/// The result a stored attempt answers when a re-observation recorded
-/// nothing new.
-fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResult {
+/// Public journal facts, used for replay and inspection. This projection never
+/// creates authority, performs I/O or counts retained evidence as a new observation.
+pub(crate) fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResult {
     use crate::GatewayAttemptStage as Stage;
     match (snapshot.stage(), snapshot.response_status()) {
+        (Stage::Reserved, _) => GatewaySubmitResult::Reserved {
+            revision: snapshot.revision(),
+        },
         (Stage::NotEntered, _) => GatewaySubmitResult::NotEntered {
             code: snapshot
                 .refusal()
@@ -1329,13 +2513,12 @@ fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResul
             status,
             matched: snapshot.observation_match().unwrap_or(false),
         },
-        (Stage::ObservedByProvider, status) => match snapshot.provider_evidence() {
-            Some(evidence) => GatewaySubmitResult::ObservedByProvider {
-                status,
-                evidence: evidence.into(),
-            },
-            None => GatewaySubmitResult::Unknown,
-        },
+        (Stage::ObservedByProvider, status) => {
+            match GatewayEvidenceSummary::from_snapshot(snapshot) {
+                Some(evidence) => GatewaySubmitResult::ObservedByProvider { status, evidence },
+                None => GatewaySubmitResult::Unknown,
+            }
+        }
         _ => GatewaySubmitResult::Unknown,
     }
 }
@@ -1343,8 +2526,7 @@ fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResul
 /// The installed engine's I/O for one submission.
 struct EngineIo<'a> {
     engine: &'a GatewayEngine,
-    proof: &'a [u8],
-    action: &'a [u8],
+    pending: std::sync::Mutex<Option<ApprovedEffect>>,
     started: Instant,
     prepared: OnceLock<PreparedEntry>,
     #[cfg(unix)]
@@ -1358,30 +2540,106 @@ struct EngineIo<'a> {
 impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
-    fn clock(&self) -> Option<u64> {
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        let prepared = self.prepared.get().ok_or("gateway.entry.unprepared")?;
         #[cfg(unix)]
-        if self.commissioning.is_some() {
-            return Some(self.engine.qualification.commissioning_time().0);
-        }
-        wall_clock_seconds()
+        let commissioning = self
+            .commissioning
+            .map(|session| {
+                self.commissioned_action
+                    .get()
+                    .ok_or("gateway.commissioning.binding-mismatch")
+                    .and_then(|action| session.entry_authority(action))
+            })
+            .transpose()?;
+        Ok(crate::entry::EntryValidation::Installed(Box::new(
+            crate::entry::InstalledEntry {
+                recipe: self.engine.recipe.clone(),
+                trust: self.engine.trusted_context.clone(),
+                observer: self
+                    .engine
+                    .observer
+                    .as_ref()
+                    .map(|observer| observer.principal().clone()),
+                policy: self.engine.effect_policy.clone(),
+                configuration: self.engine.shared_configuration()?,
+                connection: crate::entry::EntryConnection::Installed(Box::new(
+                    prepared.loaded.clone(),
+                )),
+                connection_key: crate::connection_key(
+                    self.engine.connection.provider(),
+                    self.engine.connection.alias(),
+                ),
+                qualification: Arc::clone(&self.engine.qualification),
+                workload: self.engine.workload_id.clone(),
+                profile: self.engine.profile.clone(),
+                started: self.started,
+                #[cfg(unix)]
+                commissioning,
+            },
+        )))
     }
 
-    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        let verified = verify_detailed(
-            &self.engine.recipe,
-            &self.engine.trusted_context,
+    fn clock(&self) -> Option<u64> {
+        self.engine.qualification.effect_time()
+    }
+
+    fn verify(
+        &self,
+        now: u64,
+        _recipe: &CompiledRecipe,
+    ) -> Result<ApprovedEffect, GatewaySubmitResult> {
+        let approved = self
+            .pending
+            .lock()
+            .map_err(|_| not_entered("gateway.effect.unavailable"))?
+            .take()
+            .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
+        approved.validate_for_entry(
+            &self.engine.effect_policy.installation(
+                &self.engine.recipe,
+                &self.engine.trusted_context,
+                approved.connection(),
+                self.engine.qualification.policy(),
+                self.engine
+                    .effect_configuration_candidate()
+                    .map_err(not_entered)?,
+            ),
             now,
-            self.proof,
-            self.action,
         )?;
         #[cfg(unix)]
         if let Some(session) = self.commissioning {
-            let action = session.bind_verified(&verified).map_err(not_entered)?;
+            let action = session
+                .bind_verified(
+                    approved
+                        .command()
+                        .ok_or_else(|| not_entered("gateway.effect.protocol"))?,
+                )
+                .map_err(not_entered)?;
             self.commissioned_action
                 .set(action)
                 .map_err(|_| not_entered("gateway.commissioning.binding-mismatch"))?;
         }
-        Ok(verified)
+        Ok(approved)
+    }
+
+    fn revalidate(&self, approved: &ApprovedEffect, now: u64) -> Result<(), GatewaySubmitResult> {
+        let prepared = self
+            .prepared
+            .get()
+            .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
+        approved.validate_for_entry(
+            &self.engine.effect_policy.installation(
+                &self.engine.recipe,
+                &self.engine.trusted_context,
+                prepared.loaded.record(),
+                self.engine.qualification.policy(),
+                self.engine
+                    .effect_configuration_candidate()
+                    .map_err(not_entered)?,
+            ),
+            now,
+        )
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
@@ -1501,7 +2759,7 @@ impl SubmitIo for EngineIo<'_> {
     async fn write(
         &self,
         lease: &StoredSecretLease,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
         match self.prepared.get() {
             Some(prepared) => {
@@ -1509,41 +2767,32 @@ impl SubmitIo for EngineIo<'_> {
                     transport: &prepared.transport,
                     lease,
                 }
-                .write(request)
+                .write(permit)
                 .await
             }
             None => Err(GatewayTransportError::NotEntered),
         }
     }
 
-    async fn action_read(
+    async fn acquire_content(
         &self,
         lease: &StoredSecretLease,
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
-    ) -> Option<ProviderResponse> {
-        let prepared = self.prepared.get()?;
-        LeasedTransport {
-            transport: &prepared.transport,
-            lease,
-        }
-        .action_read(url, headers, maximum_response_bytes)
-        .await
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        self.prepared
+            .get()?
+            .transport
+            .acquire_content(permit, lease)
+            .await
     }
 
-    async fn credential_read(
+    async fn acquire(
         &self,
         lease: &StoredSecretLease,
-        read: &ClosedCredentialRead,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse> {
         let prepared = self.prepared.get()?;
-        LeasedTransport {
-            transport: &prepared.transport,
-            lease,
-        }
-        .credential_read(read)
-        .await
+        prepared.transport.acquire(permit, lease).await
     }
 }
 
@@ -1613,6 +2862,8 @@ pub(crate) fn verify_command(
 /// need of its authorized branches.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    /// Stable native branch/evidence selection and installed trust identity.
+    pub(crate) native_authority: crate::effect::NativeAuthority,
     /// Exact actors of action IDs already sealed by the native verifier.
     #[cfg(unix)]
     pub(crate) actors: Vec<auths_model::PrincipalId>,
@@ -1637,14 +2888,15 @@ pub(crate) struct VerifiedCommand {
     pub(crate) observer_refusal: Option<&'static str>,
 }
 
-/// [`verify_command`] that also reports what admission and an auditor need.
-pub(crate) fn verify_detailed(
-    recipe: &CompiledRecipe,
+/// The shared native authority boundary. This runs full core verification and
+/// preserves the exact sealed action and branch/evidence selection. Protocol
+/// compilers must still check their own service, tool, fields and accounting.
+pub(crate) fn verify_native(
     context: &TrustedContext,
     now: u64,
     proof_cbor: &[u8],
     action_cbor: &[u8],
-) -> Result<VerifiedCommand, GatewaySubmitResult> {
+) -> Result<auths_verifier::SealedVerificationResult, GatewaySubmitResult> {
     if proof_cbor.is_empty()
         || proof_cbor.len() > MAX_PROOF_BYTES
         || action_cbor.is_empty()
@@ -1672,7 +2924,7 @@ pub(crate) fn verify_detailed(
     .map_err(|_| GatewaySubmitResult::Indeterminate {
         code: "gateway.verify.invalid-input".to_owned(),
     })?;
-    let Some(action) = sealed.action() else {
+    if sealed.action().is_none() {
         let code = sealed.portable().code().code().to_owned();
         return Err(match sealed.portable().decision() {
             VerificationDecision::Denied => GatewaySubmitResult::Denied { code },
@@ -1680,7 +2932,22 @@ pub(crate) fn verify_detailed(
                 GatewaySubmitResult::Indeterminate { code }
             }
         });
-    };
+    }
+    Ok(sealed)
+}
+
+/// [`verify_command`] that also reports what admission and an auditor need.
+pub(crate) fn verify_detailed(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
+    let sealed = verify_native(context, now, proof_cbor, action_cbor)?;
+    let action = sealed
+        .action()
+        .ok_or_else(|| not_entered("gateway.action.projection"))?;
     let bound = admit_bounds(proof_cbor, action, recipe, now)?;
     let command = McpProfile
         .decode_verified(action)
@@ -1696,6 +2963,8 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
+        native_authority: crate::effect::NativeAuthority::verified(sealed.portable(), context)
+            .map_err(|_| not_entered("gateway.effect.native-authority"))?,
         #[cfg(unix)]
         actors: branches.actors,
         request,
@@ -1719,10 +2988,6 @@ pub(crate) fn not_entered(code: &'static str) -> GatewaySubmitResult {
     GatewaySubmitResult::NotEntered {
         code: code.to_owned(),
     }
-}
-
-pub(crate) fn replay_refused() -> GatewaySubmitResult {
-    not_entered("gateway.attempt.replay")
 }
 
 fn wall_clock_seconds() -> Option<u64> {
@@ -1793,6 +3058,7 @@ pub(crate) async fn observe_pre_entry(
 /// Performs one read-only observation and signs what it read. The observation
 /// time is taken before the request is sent, so the signed time is never later
 /// than the provider state the response reflects.
+#[cfg(any(test, feature = "testkit-harness"))]
 pub(crate) async fn observe_read_back(
     target: &ClosedObservationRequest,
     observer: &GatewayObserver,
@@ -1921,7 +3187,7 @@ pub(crate) mod tests {
         /// One gateway process: its own credential store over the shared
         /// attempt store.
         pub(crate) struct Host {
-            _state: tempfile::TempDir,
+            state_directory: tempfile::TempDir,
             credentials_directory: std::path::PathBuf,
             pub(crate) engine: GatewayEngine,
             pub(crate) leases: Arc<AtomicU64>,
@@ -1995,6 +3261,14 @@ pub(crate) mod tests {
                 recipe,
                 digest,
                 &trust,
+                crate::effect::EffectPolicy::new(
+                    "test-partition".to_owned(),
+                    1,
+                    ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+                        .verifying_key()
+                        .to_bytes(),
+                )
+                .expect("effect policy"),
                 provider(),
                 alias(),
                 "gateway".to_owned(),
@@ -2007,7 +3281,7 @@ pub(crate) mod tests {
             let mut engine = engine;
             engine.retirement_delay = Duration::ZERO;
             Host {
-                _state: state,
+                state_directory: state,
                 credentials_directory,
                 engine,
                 leases,
@@ -2029,6 +3303,7 @@ pub(crate) mod tests {
                 auths_connections::ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").expect("id");
             let recipe = airtable_recipe();
             crate::install_connection(
+                &recipe,
                 &first.engine.connection,
                 &*first.engine.credentials,
                 |reference| {
@@ -2063,6 +3338,12 @@ pub(crate) mod tests {
             )
             .await
             .expect("install");
+            let configuration = first.engine.shared_configuration().expect("configuration");
+            let gate = Arc::clone(&first.engine.qualification);
+            tokio::task::spawn_blocking(move || configuration.initialize(&gate))
+                .await
+                .expect("initialize task")
+                .expect("initialize configuration");
             Installation {
                 attempts,
                 connection_id,
@@ -2138,6 +3419,7 @@ pub(crate) mod tests {
             ) -> Result<ConnectionRecord, &'static str> {
                 crate::join_connection(
                     &self.engine.connection,
+                    &crate::CredentialJournal::new(self.state_directory.path().to_path_buf()),
                     &*self.engine.credentials,
                     &self.engine.recipe,
                     &candidate(secret),
@@ -2191,13 +3473,16 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn a_restored_store_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::File).await;
+            Box::pin(restored_store_floor(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
         #[ignore = "requires the TLS PostgreSQL fixture"]
         async fn postgres_restore_below_the_host_floor_cannot_lease_after_restart() {
-            restored_store_floor(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(restored_store_floor(
+                crate::store_testkit::Backend::Postgres,
+            ))
+            .await;
         }
 
         async fn restored_store_floor(backend: crate::store_testkit::Backend) {
@@ -2896,6 +4181,41 @@ pub(crate) mod tests {
         }
 
         #[tokio::test]
+        async fn slot_sweep_refuses_untrusted_required_time_without_deleting_state() {
+            let mut installation = installation(8).await;
+            let raw = installation.attempts.raw();
+            let entry = crate::store::GatewayRecordEntry {
+                kind: crate::GatewayRecordKind::CountSlot,
+                key: crate::GatewayAttemptKey::from_bytes([91; 32]),
+                record: b"public-untrusted-clock-slot".to_vec(),
+                expires_at: Some(1),
+            };
+            raw.insert(&entry).expect("slot");
+            let clock = Arc::new(crate::FixedClock::at(100));
+            clock.trust_is(false);
+            installation.first.engine.qualification = Arc::new(crate::QualificationGate::new(
+                crate::QualificationPolicy::Required,
+                None,
+                None,
+                Box::new(clock),
+                auths_recipe_qualification::VerifierState::default(),
+            ));
+            assert_eq!(
+                installation.first.engine.sweep_expired_slots().await,
+                Err("gateway.sweep.clock-unavailable")
+            );
+            assert_eq!(
+                raw.load(entry.kind, &entry.key).expect("slot"),
+                Some(entry.record)
+            );
+            assert_eq!(
+                installation.first.engine.last_sweep.load(Ordering::SeqCst),
+                0
+            );
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
+        }
+
+        #[tokio::test]
         async fn an_obsolete_record_is_refused_as_state() {
             let installation = installation(8).await;
             let host = &installation.first;
@@ -2939,6 +4259,7 @@ pub(crate) mod tests {
                 auths_connections::ConnectionId::parse("conn_BBBBBBBBBBBBBBBBBBBBBA").expect("id");
             let recipe = airtable_recipe();
             let refused = crate::install_connection(
+                &recipe,
                 &second.engine.connection,
                 &*second.engine.credentials,
                 |reference| {

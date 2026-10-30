@@ -1,0 +1,35 @@
+{
+  "command_schema": {
+    "fields": {
+      "operation_id": {
+        "kind": "string",
+        "maximum": 128,
+        "minimum": 1
+      },
+      "operator_namespace": {
+        "type": "enum",
+        "variants": [
+          "airtable-demo"
+        ]
+      },
+      "recipe_digest": {
+        "kind": "string",
+        "maximum": 64,
+        "minimum": 64
+      },
+      "record_id": {
+        "kind": "string",
+        "maximum": 43,
+        "minimum": 17
+      }
+    },
+    "kind": "object"
+  },
+  "generator_format": 2,
+  "profile": "airtable-gateway-record-update",
+  "schema": "auths.self-hosted-profile-lock/1",
+  "schema_digest": "3dba7f501f17177fb10cf5562d01e09ee43de37e3546e37c8c5d59087eb05076",
+  "service": "airtable-gateway-demo",
+  "tool": "auths_gateway_content_read_v1",
+  "version": 1
+}

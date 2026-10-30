@@ -76,7 +76,7 @@ PAYMENT_INTENT = "pi_mock_journey"
 REFUNDED_PAYMENT_INTENT = "pi_mock_refunded"
 # A connected account the grant does not list.
 OTHER_ACCOUNT = "acct_1AuthsOtherAcct"
-SUBMIT_SCHEMA = "auths.gateway-submit/1"
+SUBMIT_SCHEMA = "auths.gateway-submit/2"
 # Words only the gateway's submit result may carry.
 GATEWAY_OUTCOMES = {
     "denied",
@@ -100,7 +100,7 @@ BEFORE_LEASE = {
     "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
     "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
     "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
-    "refund-1-replay": ("not-entered", "gateway.attempt.replay"),
+    "refund-1-replay": ("not-entered", "gateway.effect.operation-conflict"),
     "refund-8-reuse": ("denied", "action-body-mismatch"),
     "refund-2-retry": ("not-entered", "gateway.policy.window-exhausted"),
 }
@@ -356,16 +356,17 @@ def check_modes() -> Dict[str, int]:
             wrong.append(f"{path} {oct(path.stat().st_mode & 0o777)}")
         directories += 1
         for name in files:
-            if name == "signing.seed":
+            if name in ("signing.seed", "reviewer.seed"):
                 seeds += 1
                 mode = (path / name).stat().st_mode & 0o777
                 if mode != 0o600:
                     wrong.append(f"{path / name} {oct(mode)}")
     expect(not wrong, f"modes: {wrong}")
-    homes = {"operator", "agent"} | {
+    homes = {"operator", "operator/reader", "operator/effects", "agent"} | {
         str(Path("managers") / name) for name in read_json(PROJECT / "operator" / "setup.json")["managers"]
     }
-    held = {str(path.parent.relative_to(PROJECT)) for path in PROJECT.glob("**/signing.seed")}
+    held = {str(path.parent.relative_to(PROJECT)) for pattern in ("**/signing.seed", "**/reviewer.seed")
+            for path in PROJECT.glob(pattern)}
     expect(held == homes and seeds == len(homes), f"key homes {sorted(held)}, expected {sorted(homes)}")
     return {"directories_0700": directories, "key_files_0600": seeds}
 
@@ -558,6 +559,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
                 folder.name,
                 "--socket",
                 str(WITNESS_SOCKET),
+                "--recover",
             )
             expect(status == 0, f"{case}: bin/submit: {record} {submit_stderr}")
             return record
@@ -603,6 +605,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
                 str(proof),
                 "--action",
                 str(action),
+                "--approval", str(PROJECT / "operator" / "effects" / "adversarial-substitution.approval"),
             ],
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -765,6 +768,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
                 str(proof_path),
                 "--action",
                 str(action_path),
+                "--approval", str(PROJECT / "operator" / "effects" / "adversarial-substitution.approval"),
             ],
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -816,10 +820,13 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         "refund-1",
         results["refund-1"],
         frames["refund-1"],
-        "observed-by-provider",
+        "response-recorded",
         status=200,
         action_b64=requests["refund-1"]["action_b64"],
     )
+    expect(results["refund-1"]["recovery"]["report"]["source"]["provider_linked"] is True
+           and results["refund-1"]["recovery"]["report"]["source"]["stage"] == "observed-by-provider",
+           "refund-1 requires a separate native linked recovery report")
     expect(results["refund-1"].get("bundle") == "appended", f"refund-1: {results['refund-1']}")
     expect(
         results["refund-1"].get("approved") == sorted([manager_a, manager_b])
@@ -1083,9 +1090,11 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         }
     }
 
-    # A second install is refused before the gateway reads a provider: the
-    # value piped here is not a key.
-    status, second, stderr = commands.run("install-gateway", stdin=b"not-a-provider-key\n")
+    # A syntactically eligible synthetic value reaches the already-installed
+    # guard. No second provider read or publication may occur.
+    before_install = len(lines(RUN / "ledger.jsonl"))
+    status, second, stderr = commands.run("install-gateway", stdin=b"rk_test_mock_second_install\n")
+    expect(len(lines(RUN / "ledger.jsonl")) == before_install, "second install entered provider transport")
     expect(
         status != 0 and second.get("error") == "gateway.install.already-installed",
         f"second install: {status} {second} {stderr.strip()}",

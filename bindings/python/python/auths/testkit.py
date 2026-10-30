@@ -387,8 +387,14 @@ def ephemeral_ed25519_signer() -> object:
 class DevelopmentEd25519IdentityKey:
     """Ephemeral test-only key for identity examples and conformance fixtures."""
 
-    def __init__(self) -> None:
-        self._key = _DevelopmentEd25519Key.generate()
+    def __init__(self, seed: _Optional[bytes] = None) -> None:
+        if seed is not None and (type(seed) is not bytes or len(seed) != 32):
+            raise ValueError("development Ed25519 seed must be 32 bytes")
+        self._key = (
+            _DevelopmentEd25519Key.generate()
+            if seed is None
+            else _DevelopmentEd25519Key.from_seed(seed)
+        )
 
     @property
     def public_key(self) -> bytes:
@@ -398,8 +404,15 @@ class DevelopmentEd25519IdentityKey:
         return bytes(self._key.sign(bytes(preimage)))
 
 
-def development_ed25519_identity_key() -> DevelopmentEd25519IdentityKey:
-    return DevelopmentEd25519IdentityKey()
+def development_ed25519_identity_key(
+    seed: _Optional[bytes] = None,
+) -> DevelopmentEd25519IdentityKey:
+    """Test-only native key, optionally from a private local fixture seed.
+
+    Seed import supports native recipient process demonstrations. This provides
+    no production custody or secret-erasure guarantee for Python byte objects.
+    """
+    return DevelopmentEd25519IdentityKey(seed)
 
 
 class fixtures:

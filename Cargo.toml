@@ -261,7 +261,7 @@ reqwest = { version = "0.13.4", default-features = false, features = ["blocking"
 postgres = { version = "0.19.12", default-features = false }
 r2d2 = "0.8.10"
 r2d2_postgres = "0.18.2"
-rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 rustix = { version = "1.1.4", default-features = false, features = ["fs", "net", "process"] }
 seccompiler = "0.5.0"
 zeroize = { version = "1.9.0", features = ["derive"] }
@@ -270,7 +270,7 @@ rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
 serde_json_canonicalizer = "0.3.2"
 tempfile = "3.27.0"
 tar = { version = "0.4.44", default-features = false }
-tokio = { version = "1.48.0", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.53.3", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-postgres = { version = "0.7.18", default-features = false, features = ["runtime"] }
 tokio-postgres-rustls = { version = "0.14.0", default-features = false, features = ["ring"] }
 tower = { version = "0.5.3", features = ["util"] }
@@ -285,7 +285,7 @@ bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
 clap = { version = "4.5.60", features = ["derive"] }
 ed25519-dalek = { version = "2.2.0", default-features = false, features = ["alloc", "zeroize"] }
 hex = "0.4.3"
-p256 = { version = "0.13.2", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
+p256 = { version = "0.14.0", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
 pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
 proc-macro2 = { version = "1.0.107", default-features = false, features = ["span-locations"] }
@@ -299,15 +299,15 @@ syn = { version = "2.0.119", default-features = false, features = ["full", "pars
 subtle = { version = "2.6.1", default-features = false }
 minicbor = { version = "2.3.0", default-features = false, features = ["alloc"] }
 rustls-pki-types = { version = "1.15.1", default-features = false, features = ["alloc"] }
-rustls-webpki = { version = "0.103.13", default-features = false, features = ["alloc", "ring"] }
+rustls-webpki = { version = "0.103.16", default-features = false, features = ["alloc", "ring"] }
 ring = { version = "0.17.14", default-features = false }
 x509-parser = { version = "0.18.1", default-features = false }
 thiserror = { version = "2.0.19", default-features = false }
 unicode-normalization = "0.1.25"
 uuid = { version = "1.24.0", default-features = false, features = ["serde"] }
-webpki-roots = "1.0.9"
+webpki-roots = "1.0.10"
 wasm-bindgen = "=0.2.118"
-zstd = { version = "0.13.3", default-features = false }
+zstd = { version = "0.14.3", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

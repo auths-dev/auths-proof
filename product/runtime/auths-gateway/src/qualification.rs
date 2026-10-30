@@ -23,9 +23,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub const QUALIFICATION_POLICY_REFUSED: &str = "gateway.install.qualification-policy";
 
 /// The schema identifier of the production lifecycle store.
-pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/6";
+pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/8";
 /// The schema identifier of the development file store.
-pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/3";
+pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/16";
 
 /// The public qualification root this gateway build pins. A reviewed release
 /// supplies only the offline ceremony's public artifact here. A root alone
@@ -383,10 +383,106 @@ impl QualificationGate {
         }
     }
 
+    pub(crate) fn contract_digest(&self) -> Result<[u8; 32], &'static str> {
+        crate::configuration::digest(
+            "auths.effect-qualification-contract/1",
+            &(
+                self.policy.as_str(),
+                self.root.as_ref().map(|root| root.digest().to_hex()),
+                &self.deployment,
+            ),
+        )
+    }
+
+    pub(crate) fn shared_snapshot(
+        &self,
+        previous: &crate::configuration::QualificationMemory,
+    ) -> crate::configuration::QualificationSnapshot {
+        let mut memory = previous.clone();
+        memory.merge(&self.verifier_state());
+        let held = self.held();
+        if let Some(held) = &held {
+            let mut remembered = memory.state();
+            held.verified.remember(&mut remembered);
+            memory.merge(&remembered);
+        }
+        crate::configuration::QualificationSnapshot {
+            bundle: held.map(|held| held.digest),
+            memory,
+        }
+    }
+
+    /// Freezes the published bundle and monotonic memory once inside the
+    /// writer fence. Concurrent local reloads cannot change the evidence used
+    /// later in this same grant decision.
+    pub(crate) fn entry_snapshot(
+        &self,
+        shared: &crate::configuration::QualificationSnapshot,
+    ) -> Result<FencedQualification, &'static str> {
+        let held = self.held();
+        if shared.memory.blocked || shared.bundle != held.as_ref().map(|held| held.digest) {
+            return Err("gateway.configuration.qualification-changed");
+        }
+        let mut memory = shared.memory.clone();
+        memory.merge(&self.verifier_state());
+        if memory.blocked {
+            return Err("gateway.configuration.qualification-unavailable");
+        }
+        let now = self.clock.now().ok_or("gateway.verify.clock-unavailable")?;
+        let trusted = self.clock.trust() == ClockTrustState::Trusted;
+        if self.policy == QualificationPolicy::Required && !trusted {
+            return Err("gateway.qualification.clock-untrusted");
+        }
+        Ok(FencedQualification {
+            policy: self.policy,
+            deployment: self.deployment.clone(),
+            held,
+            state: memory.state(),
+            now,
+            trusted,
+        })
+    }
+
+    /// Adopts shared monotonic memory, but grants no qualification. Ordinary
+    /// entry must still call the native qualification check; commissioning
+    /// must verify its separate exact permit against this same memory.
+    pub(crate) fn accept_shared(
+        &self,
+        shared: &crate::configuration::QualificationSnapshot,
+    ) -> Result<(), &'static str> {
+        if shared.memory.blocked {
+            return Err("gateway.configuration.qualification-unavailable");
+        }
+        let held = self.held();
+        if shared.bundle != held.as_ref().map(|held| held.digest) {
+            return Err("gateway.configuration.qualification-changed");
+        }
+        let mut local = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut merged = shared.memory.clone();
+        merged.merge(&local);
+        if merged.blocked {
+            return Err("gateway.configuration.qualification-unavailable");
+        }
+        *local = merged.state();
+        Ok(())
+    }
+
     /// The installation's policy.
     #[must_use]
     pub const fn policy(&self) -> QualificationPolicy {
         self.policy
+    }
+
+    /// Samples the existing deployment clock for native effect evaluation.
+    /// Required-policy deployments refuse an untrusted clock. This sample is
+    /// not an entry fence; admission must sample again under its transaction.
+    pub(crate) fn effect_time(&self) -> Option<u64> {
+        if self.policy == QualificationPolicy::Required
+            && self.clock.trust() != ClockTrustState::Trusted
+        {
+            return None;
+        }
+        self.clock.now()
     }
 
     /// Verifies `bundle` under the pinned root and replaces the verified
@@ -516,6 +612,35 @@ impl QualificationGate {
         match self.status().code {
             None => Ok(()),
             Some(code) => Err(code),
+        }
+    }
+}
+
+/// Immutable qualification evidence sampled under the attempt fence.
+pub(crate) struct FencedQualification {
+    policy: QualificationPolicy,
+    deployment: Option<QualificationTuple>,
+    held: Option<Arc<Loaded>>,
+    pub(crate) state: VerifierState,
+    pub(crate) now: u64,
+    pub(crate) trusted: bool,
+}
+
+impl FencedQualification {
+    pub(crate) fn check(&self) -> Result<(), &'static str> {
+        if self.policy == QualificationPolicy::Optional {
+            return Ok(());
+        }
+        let (Some(deployment), Some(held)) = (&self.deployment, &self.held) else {
+            return Err("gateway.qualification.unavailable");
+        };
+        match held
+            .verified
+            .evaluate(deployment, self.now, self.trusted, &self.state)
+            .refusal
+        {
+            Some(refusal) => Err(qualification_code(refusal)),
+            None => Ok(()),
         }
     }
 }

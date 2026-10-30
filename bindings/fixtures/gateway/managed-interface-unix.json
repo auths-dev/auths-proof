@@ -1,0 +1,593 @@
+{
+  "schema": "auths.managed-interface-probe/1",
+  "distinct_uid": false,
+  "scope": "real native daemon, fresh runtime credential, actual local HTTP, all native application schemas, all operator commands injected on the application channel and every CLI help entry",
+  "excluded": [
+    "hostile OS or root",
+    "provider or production custody qualification",
+    "all privileged CLI execution paths",
+    "positive signed mutation outcome privacy"
+  ],
+  "first": {
+    "distinct_uid": false,
+    "cases": [
+      {
+        "case": "submit-with-read-authority",
+        "response": {
+          "outcome": "not-entered",
+          "code": "gateway.recipe.action-mismatch"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "content-replay",
+        "response": {
+          "outcome": "history",
+          "history": {
+            "kind": "acquisition",
+            "snapshot": {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 1024,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 32,
+              "response_version_ok": true,
+              "content_projection": {
+                "kind": "ready",
+                "bytes": 32
+              }
+            }
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "content-history",
+        "response": {
+          "outcome": "history",
+          "history": {
+            "kind": "acquisition",
+            "snapshot": {
+              "revision": 3,
+              "stage": "response-recorded",
+              "reserved_calls": 1,
+              "reserved_bytes": 1024,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0,
+              "response_status": 200,
+              "response_bytes": 32,
+              "response_version_ok": true,
+              "content_projection": {
+                "kind": "ready",
+                "bytes": 32
+              }
+            }
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "disclose-without-recipient-authentication",
+        "response": {
+          "outcome": "ready"
+        },
+        "post_ready_control_frames": 1
+      },
+      {
+        "case": "recover-with-acquisition-source",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.recovery.not-observable"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "observe-outcome",
+        "response": {
+          "outcome": "refused",
+          "code": "gateway.observer.not-provisioned"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "observe-pre-entry",
+        "response": {
+          "outcome": "refused",
+          "code": "gateway.observer.store-unavailable"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "forged-ack",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.disclosure.acknowledgement"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:disable",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:enable",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:revoke",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:rotate",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:rotate-prepare",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:rotate-commit",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:status",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:execution-witness",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:qualification-reload",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:recover",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:recovery-record",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "auths.gateway-submit/1",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.submit.invalid-frame"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "auths.gateway-observe/2",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.submit.invalid-frame"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "auths.gateway-recover/0",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.submit.invalid-frame"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "auths.gateway-content/0",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.submit.invalid-frame"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "auths.gateway-disclose/0",
+        "response": {
+          "outcome": "refused",
+          "result": {
+            "outcome": "not-entered",
+            "code": "gateway.submit.invalid-frame"
+          }
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "reobserve",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "raw-http",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "credential-export",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "retry",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "refund",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "resolve-as-not-entered",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "oversized-advertised-frame",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "http-on-app-socket",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      }
+    ],
+    "admin_commands_closed": [],
+    "cli": [
+      {
+        "command": "app-recover",
+        "help_accessible": true
+      },
+      {
+        "command": "audit",
+        "help_accessible": true
+      },
+      {
+        "command": "bound-extension",
+        "help_accessible": true
+      },
+      {
+        "command": "candidate-acquire",
+        "help_accessible": true
+      },
+      {
+        "command": "candidate-publish",
+        "help_accessible": true
+      },
+      {
+        "command": "candidate-stage-installation",
+        "help_accessible": true
+      },
+      {
+        "command": "candidate-stage-rotation",
+        "help_accessible": true
+      },
+      {
+        "command": "commissioning-init",
+        "help_accessible": true
+      },
+      {
+        "command": "commissioning-submit",
+        "help_accessible": true
+      },
+      {
+        "command": "content-acquire",
+        "help_accessible": true
+      },
+      {
+        "command": "content-history",
+        "help_accessible": true
+      },
+      {
+        "command": "credential-collect",
+        "help_accessible": true
+      },
+      {
+        "command": "disable",
+        "help_accessible": true
+      },
+      {
+        "command": "disclosure-acknowledge",
+        "help_accessible": true
+      },
+      {
+        "command": "disclosure-receive",
+        "help_accessible": true
+      },
+      {
+        "command": "doctor",
+        "help_accessible": true
+      },
+      {
+        "command": "echo-verify",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-approval",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-candidate-call",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-configuration-activate",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-configuration-review",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-content-call",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-disclosure-call",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-policy",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-recovery-call",
+        "help_accessible": true
+      },
+      {
+        "command": "effect-review",
+        "help_accessible": true
+      },
+      {
+        "command": "enable",
+        "help_accessible": true
+      },
+      {
+        "command": "execution-witness",
+        "help_accessible": true
+      },
+      {
+        "command": "help",
+        "help_accessible": true
+      },
+      {
+        "command": "install",
+        "help_accessible": true
+      },
+      {
+        "command": "observe",
+        "help_accessible": true
+      },
+      {
+        "command": "observer-init",
+        "help_accessible": true
+      },
+      {
+        "command": "observer-show",
+        "help_accessible": true
+      },
+      {
+        "command": "operator-attest",
+        "help_accessible": true
+      },
+      {
+        "command": "operator-request",
+        "help_accessible": true
+      },
+      {
+        "command": "probe",
+        "help_accessible": true
+      },
+      {
+        "command": "qualification-candidate",
+        "help_accessible": true
+      },
+      {
+        "command": "qualification-import",
+        "help_accessible": true
+      },
+      {
+        "command": "qualification-status",
+        "help_accessible": true
+      },
+      {
+        "command": "readiness-probe",
+        "help_accessible": true
+      },
+      {
+        "command": "recover",
+        "help_accessible": true
+      },
+      {
+        "command": "recovery-record",
+        "help_accessible": true
+      },
+      {
+        "command": "review",
+        "help_accessible": true
+      },
+      {
+        "command": "review-submission",
+        "help_accessible": true
+      },
+      {
+        "command": "revoke",
+        "help_accessible": true
+      },
+      {
+        "command": "rotate",
+        "help_accessible": true
+      },
+      {
+        "command": "rotate-commit",
+        "help_accessible": true
+      },
+      {
+        "command": "rotate-prepare",
+        "help_accessible": true
+      },
+      {
+        "command": "serve",
+        "help_accessible": true
+      },
+      {
+        "command": "status",
+        "help_accessible": true
+      },
+      {
+        "command": "submit",
+        "help_accessible": true
+      },
+      {
+        "command": "support-bundle",
+        "help_accessible": true
+      }
+    ],
+    "private_cli": [],
+    "direct_provider": [
+      {
+        "credential": "absent",
+        "status": 401
+      },
+      {
+        "credential": "public-fixture-guess",
+        "status": 401
+      }
+    ],
+    "private_files_inaccessible": null
+  },
+  "replay": {
+    "distinct_uid": false,
+    "cases": [
+      {
+        "case": "disclosure-replay-after-owner-ack",
+        "response": {
+          "outcome": "history",
+          "history": {
+            "kind": "disclosure",
+            "snapshot": {
+              "revision": 3,
+              "stage": "acknowledged",
+              "reserved_deliveries": 1,
+              "reserved_bytes": 32,
+              "policy_count_counters": 0,
+              "policy_byte_counters": 0
+            }
+          }
+        },
+        "post_ready_control_frames": 0
+      }
+    ],
+    "admin_commands_closed": [],
+    "cli": [],
+    "private_cli": [],
+    "direct_provider": [
+      {
+        "credential": "absent",
+        "status": 401
+      },
+      {
+        "credential": "public-fixture-guess",
+        "status": 401
+      }
+    ],
+    "private_files_inaccessible": null
+  },
+  "private_source_journal_unchanged": true,
+  "provider_authorized_calls": 1,
+  "direct_provider_refusals": 4,
+  "no_new_custody_or_provider_entries": true,
+  "recipient_key_and_uid_guard_precede_content": true,
+  "trusted_recipient_positive_control": true,
+  "public_channels_exclude_plaintext_encodings_and_raw_digests": true
+}

@@ -1,0 +1,237 @@
+{
+  "schema": "auths.gateway-disclosure-journal-fixture/1",
+  "scope": "native installed file admission with real retained HTTP source; no authenticated delivery; synthetic grant assumptions only; no independent process, PostgreSQL or isolation claim",
+  "expired_approval_refused": true,
+  "changed_source_refused": true,
+  "disabled_connection_refused": true,
+  "concurrent_same_operation_one_allocation": true,
+  "changed_binding_conflicts": true,
+  "record_mutations_and_obsolete_schema_refused": true,
+  "ack_before_grant_refused": true,
+  "cross_protocol_refused": true,
+  "reopened_replay_preserves_record": true,
+  "ack_history": {
+    "assumption": "test-only synthetic retained grants, no recipient authentication or delivery",
+    "foreign_ack_refused": true,
+    "concurrent_exact_ack_preserves_revision": true,
+    "ack_after_connection_disable": true,
+    "acknowledged": {
+      "revision": 3,
+      "stage": "acknowledged",
+      "reserved_deliveries": 1,
+      "reserved_bytes": 25,
+      "policy_count_counters": 1,
+      "policy_byte_counters": 1
+    },
+    "late_acknowledged": {
+      "revision": 4,
+      "stage": "acknowledged",
+      "reserved_deliveries": 1,
+      "reserved_bytes": 25,
+      "policy_count_counters": 1,
+      "policy_byte_counters": 1
+    }
+  },
+  "history": [
+    {
+      "operation": "release-0",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      }
+    },
+    {
+      "operation": "release-1",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      }
+    },
+    {
+      "operation": "release-policy-exhausted",
+      "snapshot": {
+        "revision": 1,
+        "stage": "not-entered",
+        "refusal": "gateway.policy.sum-exhausted",
+        "reserved_deliveries": 0,
+        "reserved_bytes": 0,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-2",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-3",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-4",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-5",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-6",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-7",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-8",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-9",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-10",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-11",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-12",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-13",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-14",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-15",
+      "snapshot": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 25,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    },
+    {
+      "operation": "release-16",
+      "snapshot": {
+        "revision": 1,
+        "stage": "not-entered",
+        "refusal": "gateway.disclosure.exhausted",
+        "reserved_deliveries": 0,
+        "reserved_bytes": 0,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      }
+    }
+  ]
+}

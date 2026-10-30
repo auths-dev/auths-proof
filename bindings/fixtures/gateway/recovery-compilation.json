@@ -1,0 +1,175 @@
+{
+  "schema": "auths.gateway-recovery-compilation-fixture/1",
+  "scope": "native signed read proof and file-derived target; test-only source grant; no acquisition entry or provider claim",
+  "binding_canonical": "{\"action\":[171,198,202,225,243,203,65,91,5,214,168,65,4,109,110,228,223,140,16,10,188,212,112,248,120,129,3,82,154,100,197,149],\"approval_policy\":{\"approver\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\"kind\":\"exact\"},\"compiler\":\"auths.gateway-effect-compiler/8\",\"configuration\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\"connection\":[51,165,232,152,226,144,194,158,190,140,194,107,99,106,39,36,10,136,122,171,178,54,63,148,95,123,198,1,95,53,195,59],\"credential_generation\":1,\"epoch\":1,\"namespace\":\"observer-demo\",\"native_authority\":[197,245,160,82,8,110,148,140,240,36,214,36,182,137,105,78,44,176,85,247,151,99,31,116,4,136,208,0,175,104,44,2],\"operation\":\"read-1\",\"partition\":\"recovery-fixture\",\"protocol\":{\"kind\":\"acquisition\",\"maximum_response_bytes\":16384,\"projection\":[105,134,52,231,249,30,88,84,230,35,83,29,92,17,43,152,6,214,85,94,244,140,91,183,56,236,34,27,17,189,56,177],\"request\":[66,7,73,6,121,132,117,195,238,29,134,42,43,244,234,224,113,249,243,111,126,216,98,129,25,87,60,118,61,28,67,54]},\"qualification_policy\":\"optional\",\"recipe\":[68,7,238,237,159,243,173,8,184,72,245,187,69,8,157,227,71,18,84,143,251,26,232,160,123,118,234,145,105,190,162,200],\"reservations\":[{\"amount\":16384,\"ceiling\":262144,\"key\":[224,89,127,47,134,10,66,191,228,118,95,64,174,22,174,223,117,65,27,148,166,116,190,81,50,2,61,50,176,5,115,58],\"unit\":\"response-bytes\",\"window\":{\"kind\":\"source-lifetime\"}},{\"amount\":1,\"ceiling\":16,\"key\":[251,243,131,10,106,52,47,231,117,25,236,226,215,203,59,215,151,56,57,169,180,99,211,142,165,11,9,105,230,75,71,71],\"unit\":\"acquisition-count\",\"window\":{\"kind\":\"source-lifetime\"}}],\"schema\":\"auths.bound-effect/3\",\"scope\":{\"kind\":\"unscoped\"}}",
+  "effect_id": "70ac806f6bb2257f44fcb1affacab6355b37db22de02d52ebc6c15f5c749497e",
+  "authorization_call": {
+    "arguments": {
+      "maximum_response_bytes": 16384,
+      "operation_id": "read-1",
+      "operator_namespace": "observer-demo",
+      "read_contract": "698634e7f91e5854e623531d5c112b9806d6555ef48c5bb738ec221b11bd38b1",
+      "recipe_digest": "4407eeed9ff3ad08b848f5bb45089de34712548ffb1ae8a07b76ea9169bea2c8",
+      "source_effect": "4808e5ed05822ddd1d9244fe6c33b5eaaef0fb8f4624fda7567bd91d4e32182f",
+      "source_operation": "source-1"
+    },
+    "name": "auths_gateway_recovery_read_v1",
+    "profile": "auths.mcp",
+    "profile_version": 2,
+    "service": "gateway-observer-test"
+  },
+  "literal_review": "{\n  \"schema\": \"auths.private-effect-review/2\",\n  \"effect_id_hex\": \"70ac806f6bb2257f44fcb1affacab6355b37db22de02d52ebc6c15f5c749497e\",\n  \"binding_canonical\": \"{\\\"action\\\":[171,198,202,225,243,203,65,91,5,214,168,65,4,109,110,228,223,140,16,10,188,212,112,248,120,129,3,82,154,100,197,149],\\\"approval_policy\\\":{\\\"approver\\\":[232,218,99,164,12,166,135,200,124,252,224,92,178,74,120,108,126,117,204,73,199,13,181,87,63,2,111,28,106,134,206,170],\\\"kind\\\":\\\"exact\\\"},\\\"compiler\\\":\\\"auths.gateway-effect-compiler/8\\\",\\\"configuration\\\":[12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],\\\"connection\\\":[51,165,232,152,226,144,194,158,190,140,194,107,99,106,39,36,10,136,122,171,178,54,63,148,95,123,198,1,95,53,195,59],\\\"credential_generation\\\":1,\\\"epoch\\\":1,\\\"namespace\\\":\\\"observer-demo\\\",\\\"native_authority\\\":[197,245,160,82,8,110,148,140,240,36,214,36,182,137,105,78,44,176,85,247,151,99,31,116,4,136,208,0,175,104,44,2],\\\"operation\\\":\\\"read-1\\\",\\\"partition\\\":\\\"recovery-fixture\\\",\\\"protocol\\\":{\\\"kind\\\":\\\"acquisition\\\",\\\"maximum_response_bytes\\\":16384,\\\"projection\\\":[105,134,52,231,249,30,88,84,230,35,83,29,92,17,43,152,6,214,85,94,244,140,91,183,56,236,34,27,17,189,56,177],\\\"request\\\":[66,7,73,6,121,132,117,195,238,29,134,42,43,244,234,224,113,249,243,111,126,216,98,129,25,87,60,118,61,28,67,54]},\\\"qualification_policy\\\":\\\"optional\\\",\\\"recipe\\\":[68,7,238,237,159,243,173,8,184,72,245,187,69,8,157,227,71,18,84,143,251,26,232,160,123,118,234,145,105,190,162,200],\\\"reservations\\\":[{\\\"amount\\\":16384,\\\"ceiling\\\":262144,\\\"key\\\":[224,89,127,47,134,10,66,191,228,118,95,64,174,22,174,223,117,65,27,148,166,116,190,81,50,2,61,50,176,5,115,58],\\\"unit\\\":\\\"response-bytes\\\",\\\"window\\\":{\\\"kind\\\":\\\"source-lifetime\\\"}},{\\\"amount\\\":1,\\\"ceiling\\\":16,\\\"key\\\":[251,243,131,10,106,52,47,231,117,25,236,226,215,203,59,215,151,56,57,169,180,99,211,142,165,11,9,105,230,75,71,71],\\\"unit\\\":\\\"acquisition-count\\\",\\\"window\\\":{\\\"kind\\\":\\\"source-lifetime\\\"}}],\\\"schema\\\":\\\"auths.bound-effect/3\\\",\\\"scope\\\":{\\\"kind\\\":\\\"unscoped\\\"}}\",\n  \"binding\": {\n    \"schema\": \"auths.bound-effect/3\",\n    \"namespace\": \"observer-demo\",\n    \"partition\": \"recovery-fixture\",\n    \"epoch\": 1,\n    \"operation\": \"read-1\",\n    \"action\": [\n      171,\n      198,\n      202,\n      225,\n      243,\n      203,\n      65,\n      91,\n      5,\n      214,\n      168,\n      65,\n      4,\n      109,\n      110,\n      228,\n      223,\n      140,\n      16,\n      10,\n      188,\n      212,\n      112,\n      248,\n      120,\n      129,\n      3,\n      82,\n      154,\n      100,\n      197,\n      149\n    ],\n    \"native_authority\": [\n      197,\n      245,\n      160,\n      82,\n      8,\n      110,\n      148,\n      140,\n      240,\n      36,\n      214,\n      36,\n      182,\n      137,\n      105,\n      78,\n      44,\n      176,\n      85,\n      247,\n      151,\n      99,\n      31,\n      116,\n      4,\n      136,\n      208,\n      0,\n      175,\n      104,\n      44,\n      2\n    ],\n    \"scope\": {\n      \"kind\": \"unscoped\"\n    },\n    \"recipe\": [\n      68,\n      7,\n      238,\n      237,\n      159,\n      243,\n      173,\n      8,\n      184,\n      72,\n      245,\n      187,\n      69,\n      8,\n      157,\n      227,\n      71,\n      18,\n      84,\n      143,\n      251,\n      26,\n      232,\n      160,\n      123,\n      118,\n      234,\n      145,\n      105,\n      190,\n      162,\n      200\n    ],\n    \"compiler\": \"auths.gateway-effect-compiler/8\",\n    \"connection\": [\n      51,\n      165,\n      232,\n      152,\n      226,\n      144,\n      194,\n      158,\n      190,\n      140,\n      194,\n      107,\n      99,\n      106,\n      39,\n      36,\n      10,\n      136,\n      122,\n      171,\n      178,\n      54,\n      63,\n      148,\n      95,\n      123,\n      198,\n      1,\n      95,\n      53,\n      195,\n      59\n    ],\n    \"credential_generation\": 1,\n    \"qualification_policy\": \"optional\",\n    \"configuration\": [\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12,\n      12\n    ],\n    \"approval_policy\": {\n      \"kind\": \"exact\",\n      \"approver\": [\n        232,\n        218,\n        99,\n        164,\n        12,\n        166,\n        135,\n        200,\n        124,\n        252,\n        224,\n        92,\n        178,\n        74,\n        120,\n        108,\n        126,\n        117,\n        204,\n        73,\n        199,\n        13,\n        181,\n        87,\n        63,\n        2,\n        111,\n        28,\n        106,\n        134,\n        206,\n        170\n      ]\n    },\n    \"reservations\": [\n      {\n        \"key\": [\n          224,\n          89,\n          127,\n          47,\n          134,\n          10,\n          66,\n          191,\n          228,\n          118,\n          95,\n          64,\n          174,\n          22,\n          174,\n          223,\n          117,\n          65,\n          27,\n          148,\n          166,\n          116,\n          190,\n          81,\n          50,\n          2,\n          61,\n          50,\n          176,\n          5,\n          115,\n          58\n        ],\n        \"unit\": \"response-bytes\",\n        \"amount\": 16384,\n        \"ceiling\": 262144,\n        \"window\": {\n          \"kind\": \"source-lifetime\"\n        }\n      },\n      {\n        \"key\": [\n          251,\n          243,\n          131,\n          10,\n          106,\n          52,\n          47,\n          231,\n          117,\n          25,\n          236,\n          226,\n          215,\n          203,\n          59,\n          215,\n          151,\n          56,\n          57,\n          169,\n          180,\n          99,\n          211,\n          142,\n          165,\n          11,\n          9,\n          105,\n          230,\n          75,\n          71,\n          71\n        ],\n        \"unit\": \"acquisition-count\",\n        \"amount\": 1,\n        \"ceiling\": 16,\n        \"window\": {\n          \"kind\": \"source-lifetime\"\n        }\n      }\n    ],\n    \"protocol\": {\n      \"kind\": \"acquisition\",\n      \"request\": [\n        66,\n        7,\n        73,\n        6,\n        121,\n        132,\n        117,\n        195,\n        238,\n        29,\n        134,\n        42,\n        43,\n        244,\n        234,\n        224,\n        113,\n        249,\n        243,\n        111,\n        126,\n        216,\n        98,\n        129,\n        25,\n        87,\n        60,\n        118,\n        61,\n        28,\n        67,\n        54\n      ],\n      \"projection\": [\n        105,\n        134,\n        52,\n        231,\n        249,\n        30,\n        88,\n        84,\n        230,\n        35,\n        83,\n        29,\n        92,\n        17,\n        43,\n        152,\n        6,\n        214,\n        85,\n        94,\n        244,\n        140,\n        91,\n        183,\n        56,\n        236,\n        34,\n        27,\n        17,\n        189,\n        56,\n        177\n      ],\n      \"maximum_response_bytes\": 16384\n    }\n  },\n  \"installation\": {\n    \"provider\": \"airtable\",\n    \"alias\": \"synthetic\",\n    \"connection_id\": \"conn_AAAAAAAAAAAAAAAAAAAAAA\",\n    \"credential_generation\": 1,\n    \"connection_contract\": \"auths.gateway-operation/1\"\n  },\n  \"native\": {\n    \"protocol\": \"acquisition\",\n    \"actors\": [\n      \"key:sha256:tKI26y6V4MRuq3tGZoxJePcW5yzy3YZbqXUvX3MKnZg\"\n    ],\n    \"action_commitment\": \"abc6cae1f3cb415b05d6a841046d6ee4df8c100abcd470f8788103529a64c595\",\n    \"arguments\": {\n      \"maximum_response_bytes\": 16384,\n      \"operation_id\": \"read-1\",\n      \"operator_namespace\": \"observer-demo\",\n      \"read_contract\": \"698634e7f91e5854e623531d5c112b9806d6555ef48c5bb738ec221b11bd38b1\",\n      \"recipe_digest\": \"4407eeed9ff3ad08b848f5bb45089de34712548ffb1ae8a07b76ea9169bea2c8\",\n      \"source_effect\": \"4808e5ed05822ddd1d9244fe6c33b5eaaef0fb8f4624fda7567bd91d4e32182f\",\n      \"source_operation\": \"source-1\"\n    },\n    \"method\": \"GET\",\n    \"prerequisite_acquisitions\": [],\n    \"recovery\": {\n      \"schema\": \"auths.gateway-recovery-read/1\",\n      \"source_effect\": \"4808e5ed05822ddd1d9244fe6c33b5eaaef0fb8f4624fda7567bd91d4e32182f\",\n      \"source_operation\": \"source-1\",\n      \"request\": {\n        \"url\": \"https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001\",\n        \"headers\": [],\n        \"maximum_response_bytes\": 16384\n      },\n      \"json_pointer\": \"/fields/DemoStatus\",\n      \"expected\": \"Approved\",\n      \"echo_pointer\": \"/fields/auths_echo\",\n      \"echo\": \"auths-e1-325bc692d30250d578fd0c2c660c9ff54b93d68fbce1f4b9af0c794c1985e74b\",\n      \"maximum_attempts\": 16,\n      \"maximum_transport_seconds\": 15,\n      \"maximum_evidence_age_seconds\": 30,\n      \"disclosure\": \"none\"\n    }\n  },\n  \"semantic\": {\n    \"contract\": \"auths.gateway-recovery-read/1\",\n    \"recovery\": {\n      \"schema\": \"auths.gateway-recovery-read/1\",\n      \"source_effect\": \"4808e5ed05822ddd1d9244fe6c33b5eaaef0fb8f4624fda7567bd91d4e32182f\",\n      \"source_operation\": \"source-1\",\n      \"request\": {\n        \"url\": \"https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001\",\n        \"headers\": [],\n        \"maximum_response_bytes\": 16384\n      },\n      \"json_pointer\": \"/fields/DemoStatus\",\n      \"expected\": \"Approved\",\n      \"echo_pointer\": \"/fields/auths_echo\",\n      \"echo\": \"auths-e1-325bc692d30250d578fd0c2c660c9ff54b93d68fbce1f4b9af0c794c1985e74b\",\n      \"maximum_attempts\": 16,\n      \"maximum_transport_seconds\": 15,\n      \"maximum_evidence_age_seconds\": 30,\n      \"disclosure\": \"none\"\n    },\n    \"consequences\": \"Acquire bounded provider evidence only. This does not repeat the mutation, disclose content, prove exclusive causation, refund capacity or change the original actor.\",\n    \"prerequisite_acquisitions\": []\n  },\n  \"renderer\": \"auths.literal-complete-review/1\"\n}",
+  "refused_changed_fields": [
+    "source_effect",
+    "source_operation",
+    "read_contract",
+    "maximum_response_bytes",
+    "recipe_digest",
+    "operator_namespace",
+    "operation_id",
+    "recipient"
+  ],
+  "original_writer_expired": true,
+  "separate_reader": true,
+  "mutation_admission_refused": true,
+  "source_journal_unchanged": true,
+  "reserved_mutation_recipe_refused": {
+    "source": {
+      "schema": "auths.gateway-recipe-source/3",
+      "profile_schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+      "service": "airtable-gateway-demo",
+      "tool": "auths_gateway_recovery_read_v1",
+      "operator_namespace": "airtable-demo",
+      "credential": {
+        "kind": "bearer"
+      },
+      "origin": "https://api.airtable.com",
+      "write": {
+        "method": "PATCH",
+        "path": [
+          {
+            "kind": "fixed",
+            "value": "v0"
+          },
+          {
+            "kind": "fixed",
+            "value": "appTEST0000000001"
+          },
+          {
+            "kind": "fixed",
+            "value": "tblTEST0000000001"
+          },
+          {
+            "kind": "field",
+            "name": "record_id"
+          }
+        ],
+        "body": {
+          "kind": "json",
+          "value": {
+            "kind": "object",
+            "fields": {
+              "fields": {
+                "kind": "object",
+                "fields": {
+                  "DemoStatus": {
+                    "kind": "field",
+                    "name": "replacement"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "observation": {
+        "path": [
+          {
+            "kind": "fixed",
+            "value": "v0"
+          },
+          {
+            "kind": "fixed",
+            "value": "appTEST0000000001"
+          },
+          {
+            "kind": "fixed",
+            "value": "tblTEST0000000001"
+          },
+          {
+            "kind": "field",
+            "name": "record_id"
+          }
+        ],
+        "json_pointer": "/fields/DemoStatus",
+        "expected_field": "replacement",
+        "maximum_response_bytes": 16384
+      },
+      "echo": {
+        "write": {
+          "kind": "json-pointer",
+          "pointer": "/fields/auths_echo"
+        },
+        "observe": "/fields/auths_echo"
+      },
+      "review": {
+        "schema": "auths.effect-review-contract/1",
+        "consequences": [
+          "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation."
+        ],
+        "fields": {
+          "record_id": {
+            "kind": "identifier",
+            "label": "Record id"
+          },
+          "replacement": {
+            "kind": "text",
+            "label": "Replacement"
+          }
+        }
+      }
+    },
+    "profile_lock": {
+      "command_schema": {
+        "fields": {
+          "operation_id": {
+            "kind": "string",
+            "maximum": 128,
+            "minimum": 1
+          },
+          "operator_namespace": {
+            "type": "enum",
+            "variants": [
+              "airtable-demo"
+            ]
+          },
+          "recipe_digest": {
+            "kind": "string",
+            "maximum": 64,
+            "minimum": 64
+          },
+          "record_id": {
+            "kind": "string",
+            "maximum": 43,
+            "minimum": 17
+          },
+          "replacement": {
+            "type": "enum",
+            "variants": [
+              "Approved",
+              "Pending"
+            ]
+          }
+        },
+        "kind": "object"
+      },
+      "generator_format": 2,
+      "profile": "airtable-gateway-record-update",
+      "schema": "auths.self-hosted-profile-lock/1",
+      "schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+      "service": "airtable-gateway-demo",
+      "tool": "auths_gateway_recovery_read_v1",
+      "version": 1
+    }
+  }
+}

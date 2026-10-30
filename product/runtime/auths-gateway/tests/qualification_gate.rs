@@ -78,6 +78,11 @@ fn install(root: &Path, state: &Path, arguments: &[&str]) -> Output {
     run(
         Command::new(BIN)
             .arg("install")
+            .arg("--effect-policy")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../bindings/fixtures/gateway/effect-policy.json"
+            ))
             .arg("--state-dir")
             .arg(state)
             .arg("--recipe")

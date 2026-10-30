@@ -20,12 +20,17 @@ pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
     GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
 };
+mod configuration;
 mod connection;
 mod credential_journal;
 mod echo_verify;
+pub mod effect;
 mod engine;
+mod entry;
 mod execution_witness;
 pub use execution_witness::GatewayExecutionWitness;
+#[cfg(unix)]
+pub mod disclosure_transport;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
 mod generation_floor;
@@ -92,7 +97,8 @@ pub use echo_verify::{
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
     GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
-    SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
+    PUBLIC_EVIDENCE_SCHEMA, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
+    gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;
 pub use observer::{
@@ -100,9 +106,6 @@ pub use observer::{
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,
     READ_BACK_SCHEMA, operation_subject,
 };
-#[cfg(feature = "loopback-provider")]
-pub use onboarding::check_candidate_credential_loopback;
-pub use onboarding::{OnboardingAccount, OnboardingFailure, check_candidate_credential};
 pub use operator::{
     MAX_ISSUED_AHEAD_SECONDS, MAX_OPERATOR_ATTESTATION_BYTES, MAX_OPERATOR_EVIDENCE,
     OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,
@@ -135,16 +138,53 @@ pub use separation::{
     principals_overlap,
 };
 pub use store::{
-    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
+    AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
+    ClaimedGatewayAttempt, ContentHistory, ContentProjectionStatus, DisclosureSnapshot,
+    DisclosureStage, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
     GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,
-    GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel, GatewayInsert,
-    GatewayObservationFact, GatewayPreEntry, GatewayProviderEvidence, GatewayRecordEntry,
-    GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
-    PrivateDirectoryError, check_private_directory, check_private_directory_owned_by,
-    pre_entry_digest,
+    GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel, GatewayFenceDecision,
+    GatewayInsert, GatewayObservationFact, GatewayOperationStage, GatewayPreEntry,
+    GatewayProviderEvidence, GatewayRecordEntry, GatewayRecordKind, GatewayRecoveryReport,
+    GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
+    PrivateDirectoryError, RecoveryBudget, RecoveryDisposition, RecoveryEscalation,
+    RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
+    RetainedContent, check_private_directory, check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{
     MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,
     SupportFacts, support_bundle,
 };
 pub use transport::MAX_TRANSPORT_DURATION;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_process_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_crash_tests;
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_disclosure_crash_tests;
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_mutation_crash_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_dependency_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_budget_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_file_fault_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_postgres_fault_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_postgres_commit_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_information_replay_tests;
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_mutation_replay_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_recovery_actor_tests;

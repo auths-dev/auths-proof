@@ -39,9 +39,10 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, writeFileSync,
+  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -67,7 +68,7 @@ export const MANAGERS = ["manager-a", "manager-b", "manager-c"] as const;
 // The gateway's trusted context requires approvals from this many of the
 // three managers, any of them.
 const APPROVALS_REQUIRED = 2;
-const ROLES = ["root", "agent", ...MANAGERS] as const;
+const ROLES = ["root", "agent", "reader", ...MANAGERS] as const;
 const DAY = 86_400n;
 // The test connected account the grant's scope lists; the gateway sends it as
 // `Stripe-Account` on the refund and on every read of the refund's records.
@@ -339,7 +340,10 @@ async function setup(options: Readonly<{
   const challenge = new Uint8Array(randomBytes(32));
   // The root is the only trust anchor and may delegate once, to the agent.
   // The managers are approver anchors: they approve and hold no authority.
-  const anchors = [anchor("root", principals.root!, audience, tool, 1, notBefore, expiresAt)];
+  const rootAnchor = anchor("root", principals.root!, audience, tool, 1, notBefore, expiresAt);
+  const anchors = [{ ...rootAnchor, permissions: [...rootAnchor.permissions,
+    ...["auths_gateway_candidate_check_v1", "auths_gateway_recovery_read_v1"].map((name) =>
+      ({ capability: "tools/call", resource: `${audience}/tools/${name}` }))] }];
   const approvers: ApproverAnchor[] = MANAGERS.map((name) => ({
     principal: principals[name]!, acceptedMethods: ["raw-key-v1"], notBefore, expiresAt,
   }));
@@ -569,8 +573,61 @@ function recordEntry(audit: string, entry: Entry): "appended" | "replaced" | "un
   return "unchanged";
 }
 
+/** Private bounded development operator channel; the application never signs an effect approval. */
+export function requestOperator(path: string, request: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return new Promise((resolveRequest, reject) => {
+    const connection = createConnection(path);
+    const body = Buffer.from(JSON.stringify(request));
+    const maximum = 8 * 1024 * 1024;
+    if (body.length === 0 || body.length > maximum) {
+      connection.destroy(); reject(new Error("operator.frame-bound")); return;
+    }
+    const header = Buffer.alloc(4); header.writeUInt32BE(body.length);
+    let received = Buffer.alloc(0);
+    let completed = false;
+    connection.setTimeout(620_000, () => connection.destroy(new Error("operator.review-timeout")));
+    connection.on("error", reject);
+    connection.on("connect", () => connection.write(Buffer.concat([header, body])));
+    connection.on("data", (chunk: Buffer) => {
+      received = Buffer.concat([received, chunk]);
+      if (received.length < 4) return;
+      const length = received.readUInt32BE(0);
+      if (length === 0 || length > maximum || received.length > length + 4) {
+        connection.destroy(new Error("operator.frame-bound")); return;
+      }
+      if (received.length === length + 4) {
+        try {
+          const result = JSON.parse(received.subarray(4).toString()) as Record<string, unknown>;
+          if (typeof result.error === "string") throw new Error(result.error);
+          completed = true; resolveRequest(result); connection.end();
+        } catch (error) { connection.destroy(); reject(error); }
+      }
+    });
+    connection.on("end", () => { if (!completed) reject(new Error("operator.truncated-frame")); });
+  });
+}
+
+function readEffectApproval(path: string): Uint8Array {
+  const file = openSync(path, "r");
+  try {
+    const bytes = new Uint8Array(4097);
+    let length = 0;
+    while (length < bytes.length) {
+      const count = readSync(file, bytes, length, bytes.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    // The native client enforces its public bound; parsing and signature
+    // validation remain in the gateway.
+    return bytes.subarray(0, length);
+  } finally {
+    closeSync(file);
+  }
+}
+
 async function submit(options: Readonly<{
-  state: string; socket: string; operationId: string; responses: string;
+  state: string; socket: string; operationId: string; responses: string; effectApproval?: string | undefined;
+  operatorSocket?: string | undefined; recover: boolean;
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
@@ -619,7 +676,24 @@ async function submit(options: Readonly<{
   });
   const proof = collection.assemble(action);
   const gateway = new GatewayClient(new GatewayEndpoint(resolve(options.socket)));
-  Object.assign(record, await gateway.submit({ proof, action: built.action }), { decided_by: "gateway" });
+  let approval: Uint8Array;
+  if (options.operatorSocket !== undefined) {
+    const reviewed = await requestOperator(options.operatorSocket,
+      { kind: "approve", proof: b64(proof), action: b64(built.action) });
+    approval = Buffer.from(String(reviewed.approval), "base64url");
+    record.effect_review = Object.fromEntries(Object.entries(reviewed).filter(([name]) => name !== "approval"));
+  } else {
+    approval = readEffectApproval(required(options.effectApproval, "effect-approval or operator-socket"));
+  }
+  Object.assign(record, await gateway.submit({ proof, action: built.action, approval }), { decided_by: "gateway" });
+  if (options.recover && record.outcome === "response-recorded" && record.status === 200) {
+    const read = await requestOperator(required(options.operatorSocket, "operator-socket for separate recovery"),
+      { kind: "recover", source: options.operationId });
+    record.recovery = JSON.parse(Buffer.from(await gateway.recover(options.operationId, {
+      proof: Buffer.from(String(read.proof), "base64url"), action: Buffer.from(String(read.action), "base64url"),
+      approval: Buffer.from(String(read.approval), "base64url"),
+    })).toString()) as unknown;
+  }
   const observation = await gateway.observeOutcome(options.operationId);
   const outcome = observation.outcome === "signed" ? observation.observation : null;
   record.bundle = recordEntry(join(state, "audit"), {
@@ -694,6 +768,9 @@ async function main(): Promise<void> {
       amount: { type: "string" },
       required: { type: "string" },
       responses: { type: "string" },
+      "effect-approval": { type: "string" },
+      "operator-socket": { type: "string" },
+      recover: { type: "boolean", default: false },
       out: { type: "string" },
       precheck: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
@@ -746,6 +823,9 @@ async function main(): Promise<void> {
         socket: required(values.socket, "socket"),
         operationId: required(values["operation-id"], "operation-id"),
         responses: resolve(required(values.responses, "responses")),
+        effectApproval: values["effect-approval"],
+        operatorSocket: values["operator-socket"],
+        recover: values.recover!,
       }))}\n`);
       break;
     case "export":

@@ -1,0 +1,234 @@
+{
+  "schema": "auths.native-process-crash/1",
+  "adapter": "postgres",
+  "scope": "full native content acquisition engine, fixed public fixture trust/approval/clock, separate real OS processes/custody and real local HTTP; SIGKILL inside/between actual adapter transactions and after partial response; no native decision or permit replaced",
+  "excluded": [
+    "mutation/disclosure boundary schedules",
+    "injected sync/rename/partial-batch/ambiguous-commit faults",
+    "power loss or full-store rollback",
+    "hostile OS isolation",
+    "production commissioning and human approval"
+  ],
+  "cases": [
+    {
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "before": null,
+      "provider_calls_at_kill": 0,
+      "resumed_only_without_previous_grant": true,
+      "after": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_calls_after_replays": 1,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    },
+    {
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "before": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_at_kill": 0,
+      "resumed_only_without_previous_grant": true,
+      "after": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_calls_after_replays": 1,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    },
+    {
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "before": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_at_kill": 0,
+      "resumed_only_without_previous_grant": true,
+      "after": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_calls_after_replays": 1,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    },
+    {
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "before": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_at_kill": 0,
+      "resumed_only_without_previous_grant": false,
+      "after": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_after_replays": 0,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    },
+    {
+      "pause": "during-response",
+      "sigkill": true,
+      "before": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_at_kill": 1,
+      "resumed_only_without_previous_grant": false,
+      "after": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_after_replays": 1,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    },
+    {
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "before": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_at_kill": 1,
+      "resumed_only_without_previous_grant": false,
+      "after": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "provider_calls_after_replays": 1,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    },
+    {
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "before": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_calls_at_kill": 1,
+      "resumed_only_without_previous_grant": false,
+      "after": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_calls_after_replays": 1,
+      "terminal_replays_leave_journal_and_boundary_counters_unchanged": true
+    }
+  ]
+}

@@ -1,0 +1,1210 @@
+{
+  "schema": "auths.native-disclosure-process-crash/1",
+  "adapter": "file",
+  "scope": "full native read/release authorities and exact approvals; real HTTP source and separate gateway/recipient OS processes with native authenticated Unix protocol; test-only pause after actual native content prefix write; fixed public keys, maintained clock, same UID and trusted stores",
+  "excluded": [
+    "distinct UID/hostile OS isolation",
+    "power loss and whole-store rollback",
+    "live-provider qualification and human presence",
+    "all remaining fault/concurrency/differential/performance gates"
+  ],
+  "cases": [
+    {
+      "pause": "before-reservation-commit",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": true,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-reservation-commit",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": true,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-entry-commit",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": true,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-entry-commit",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "during-delivery",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-delivery-before-ack",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": true,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-ack-commit",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-ack-commit",
+      "current_gate": "current",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-reservation-commit",
+      "current_gate": "approval-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-entry-commit",
+      "current_gate": "approval-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-delivery-before-ack",
+      "current_gate": "approval-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": true,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-ack-commit",
+      "current_gate": "approval-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-ack-commit",
+      "current_gate": "approval-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-reservation-commit",
+      "current_gate": "authority-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-entry-commit",
+      "current_gate": "authority-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-delivery-before-ack",
+      "current_gate": "authority-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": true,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-ack-commit",
+      "current_gate": "authority-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-ack-commit",
+      "current_gate": "authority-expired",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-reservation-commit",
+      "current_gate": "revoked",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-entry-commit",
+      "current_gate": "revoked",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-delivery-before-ack",
+      "current_gate": "revoked",
+      "sigkill_gateway": true,
+      "sigkill_recipient": true,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-ack-commit",
+      "current_gate": "revoked",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-ack-commit",
+      "current_gate": "revoked",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-reservation-commit",
+      "current_gate": "configuration-replaced",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-entry-commit",
+      "current_gate": "configuration-replaced",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": false,
+        "code": "gateway.disclosure.read"
+      },
+      "after_reopen": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": null,
+      "substituted_ack_fields_and_signature_refused": 0,
+      "final_history": {
+        "revision": 1,
+        "stage": "reserved",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-delivery-before-ack",
+      "current_gate": "configuration-replaced",
+      "sigkill_gateway": true,
+      "sigkill_recipient": true,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "before-ack-commit",
+      "current_gate": "configuration-replaced",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    },
+    {
+      "pause": "after-ack-commit",
+      "current_gate": "configuration-replaced",
+      "sigkill_gateway": true,
+      "sigkill_recipient": false,
+      "original_recipient": {
+        "received_full": true,
+        "bytes": 21
+      },
+      "after_reopen": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "continued_only_after_fresh_authorization": false,
+      "late_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "substituted_ack_fields_and_signature_refused": 10,
+      "final_history": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "provider_reads": 1,
+      "source_allocation_calls": 1,
+      "source_allocation_bytes": 1024,
+      "disclosure_allocation_calls": 1,
+      "disclosure_allocation_bytes": 21,
+      "native_policy_count_slots": 1,
+      "native_policy_sum_bytes": 21,
+      "original_inputs_and_source_journal_unchanged": true,
+      "replays_do_not_authenticate_or_redeliver": true,
+      "late_ack_and_exact_ack_replay_preserve_charges": true
+    }
+  ]
+}

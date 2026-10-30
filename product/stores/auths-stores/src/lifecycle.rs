@@ -34,9 +34,9 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
-const SCHEMA_VERSION: i32 = 6;
+const SCHEMA_VERSION: i32 = 8;
 const CONTRACT_ID: &str = "auths.lifecycle.transactional-store/4";
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v6.sql");
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v8.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -268,6 +268,9 @@ pub struct PostgresLifecycleStore {
     rules: Vec<LifecycleCapacityRuleV1>,
     maximum_records: usize,
     pub(crate) pool: Pool<PostgresConnectionManager<MakeRustlsConnect>>,
+    pub(crate) gateway_lock_timeout: Duration,
+    pub(crate) gateway_statement_timeout: Duration,
+    pub(crate) gateway_idle_timeout: Duration,
 }
 
 /// Connection material that is erased when its owner is dropped.
@@ -404,7 +407,7 @@ impl PostgresPoolConfig {
                 self.idle_timeout,
             ]
             .iter()
-            .any(|duration| duration.is_zero() || *duration > Duration::from_hours(24))
+            .any(|duration| duration.as_millis() == 0 || *duration > Duration::from_hours(24))
         {
             return Err(LifecycleStoreConfigurationError::InvalidPoolConfiguration);
         }
@@ -533,7 +536,7 @@ impl PostgresStoreSummary {
     /// Returns the physical schema identity.
     #[must_use]
     pub const fn schema_id(self) -> &'static str {
-        "auths.lifecycle.postgresql/6"
+        "auths.lifecycle.postgresql/8"
     }
 
     /// Returns the transactional store contract identity.
@@ -659,6 +662,9 @@ impl PostgresLifecycleStore {
             rules,
             maximum_records,
             pool: connections,
+            gateway_lock_timeout: pool.lock_timeout.min(crate::GATEWAY_LOCK_TIMEOUT),
+            gateway_statement_timeout: pool.statement_timeout.min(crate::GATEWAY_FENCE_DEADLINE),
+            gateway_idle_timeout: pool.idle_timeout.min(crate::GATEWAY_FENCE_DEADLINE),
         })
     }
 
@@ -705,7 +711,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 6,
+            schema_version: u16::try_from(SCHEMA_VERSION).map_err(|_| StoreError::Corrupt)?,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })
@@ -1785,6 +1791,13 @@ mod tests {
 
     #[test]
     fn production_pool_and_server_identity_are_bounded() {
+        for duration in [Duration::ZERO, Duration::from_nanos(999_999)] {
+            assert_eq!(
+                PostgresPoolConfig::new(1, 1, duration, duration, duration, duration),
+                Err(LifecycleStoreConfigurationError::InvalidPoolConfiguration),
+                "sub-millisecond settings must not truncate to disabled SQL timeouts"
+            );
+        }
         assert_eq!(
             PostgresPoolConfig::new(
                 2,

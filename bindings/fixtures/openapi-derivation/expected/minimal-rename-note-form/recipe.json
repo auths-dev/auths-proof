@@ -1,5 +1,24 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [],
+    "fields": {
+      "note_id": {
+        "kind": "text",
+        "label": "note_id"
+      },
+      "title": {
+        "kind": "text",
+        "label": "title"
+      },
+      "revision": {
+        "kind": "integer",
+        "label": "revision",
+        "unit": ""
+      }
+    }
+  },
   "profile_schema_digest": "edc46422990c3f827b6c762b53dc705a1d559aa6f6c217b08b25b24fcde78822",
   "service": "notes",
   "tool": "renameNote_v1",

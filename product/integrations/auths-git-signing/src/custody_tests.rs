@@ -139,7 +139,7 @@ impl Pkcs11Api for Token {
             public_key_sec1: self
                 .0
                 .verifying_key()
-                .to_encoded_point(true)
+                .to_sec1_point(true)
                 .as_bytes()
                 .to_vec(),
             p256: true,
@@ -156,7 +156,7 @@ impl Pkcs11Api for Token {
     ) -> Result<Pkcs11SignOutput, Pkcs11Failure> {
         let signature: Signature = self.0.sign(message);
         Ok(Pkcs11SignOutput {
-            signature: signature.normalize_s().unwrap_or(signature).to_vec(),
+            signature: signature.normalize_s().to_vec(),
         })
     }
 }

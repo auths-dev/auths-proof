@@ -125,7 +125,8 @@ makes the data-only gateway of
 [AP-SPEC-053](../specs/0053-declarative-credential-isolated-gateway.md), as
 generalized by [AP-SPEC-063](../specs/0063-generalized-gateway.md), the
 production mechanism for credential-isolated provider writes. Its application
-channel supplies proof and canonical action only; an operator separately
+channel supplies proof, canonical action and native exact-effect approval;
+an operator separately
 approves the typed recipe digest, trust, connection, and credential
 generation. The gateway owns the shared mechanics once: bounded request
 construction, the atomic claim, the spend limit, attempt records, recovery,

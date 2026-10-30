@@ -3,10 +3,7 @@
 // These matches separate definite pre-entry failure from ambiguous network entry.
 #![allow(clippy::manual_let_else)]
 
-use crate::{
-    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
-    RequestHeader,
-};
+use crate::{ClosedCredentialRead, CompiledRecipe, CredentialRequirement, RequestHeader};
 use auths_connections::StoredSecretLease;
 use reqwest::{
     Client,
@@ -68,6 +65,83 @@ pub(crate) struct ProviderResponse {
     pub(crate) body: Vec<u8>,
 }
 
+/// Content responses retain the transport metadata needed for projection.
+/// Ordinary credential/recovery evidence cannot be promoted to content.
+pub(crate) struct ContentProviderResponse {
+    pub(crate) status: u16,
+    pub(crate) version_ok: bool,
+    pub(crate) body: Zeroizing<Vec<u8>>,
+    pub(crate) metadata: ContentResponseMetadata,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ContentResponseMetadata {
+    media_type: ContentResponseHeader,
+    encoding: ContentResponseHeader,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+enum ContentResponseHeader {
+    Missing,
+    Single(String),
+    Invalid,
+}
+
+impl ContentResponseHeader {
+    fn capture(headers: &HeaderMap, name: HeaderName) -> Self {
+        let mut values = headers.get_all(name).iter();
+        let Some(value) = values.next() else {
+            return Self::Missing;
+        };
+        if values.next().is_some() || value.as_bytes().len() > 128 {
+            return Self::Invalid;
+        }
+        match value.to_str() {
+            Ok(value) => Self::Single(value.to_owned()),
+            Err(_) => Self::Invalid,
+        }
+    }
+    fn valid(&self) -> bool {
+        match self {
+            Self::Single(value) => value.len() <= 128 && HeaderValue::from_str(value).is_ok(),
+            Self::Missing | Self::Invalid => true,
+        }
+    }
+}
+
+impl ContentResponseMetadata {
+    fn capture(headers: &HeaderMap) -> Self {
+        Self {
+            media_type: ContentResponseHeader::capture(headers, CONTENT_TYPE),
+            encoding: ContentResponseHeader::capture(headers, reqwest::header::CONTENT_ENCODING),
+        }
+    }
+    pub(crate) fn valid(&self) -> bool {
+        self.media_type.valid() && self.encoding.valid()
+    }
+    pub(crate) fn projection_media_type(
+        &self,
+    ) -> Result<&str, crate::recipe::ContentProjectionError> {
+        use crate::recipe::ContentProjectionError;
+        if !matches!(self.encoding, ContentResponseHeader::Missing)
+            && !matches!(&self.encoding, ContentResponseHeader::Single(value) if value.eq_ignore_ascii_case("identity"))
+        {
+            return Err(ContentProjectionError::Encoding);
+        }
+        match &self.media_type {
+            ContentResponseHeader::Single(value) => Ok(value.as_str()),
+            _ => Err(ContentProjectionError::MediaType),
+        }
+    }
+}
+
 impl ProviderResponse {
     /// Whether the status is 2xx.
     pub(crate) const fn success(&self) -> bool {
@@ -85,15 +159,40 @@ impl ProviderResponse {
 /// is the pinned HTTPS transport holding one credential lease; tests supply a
 /// counting provider. No method may retry a write.
 pub(crate) trait ProviderPort {
+    /// Shared sealed acquisition path, including counting test providers.
+    #[cfg(any(test, feature = "testkit-harness"))]
+    async fn acquire(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse> {
+        match permit.request() {
+            crate::store::AcquisitionRequest::Content(_) => None,
+            crate::store::AcquisitionRequest::Recovery(read) => {
+                self.action_read(read.url(), read.headers(), read.maximum_response_bytes())
+                    .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Action(read),
+            ) => {
+                self.action_read(read.url(), read.headers(), read.maximum_response_bytes())
+                    .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Credential(read),
+            ) => self.credential_read(read).await,
+        }
+    }
+
     /// Sends one closed write after a durable claim.
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
     /// Performs one bounded GET of an action read or observation and returns
     /// the complete response, or `None` after a transport failure or an
     /// oversized body.
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn action_read(
         &self,
         url: &str,
@@ -102,6 +201,7 @@ pub(crate) trait ProviderPort {
     ) -> Option<ProviderResponse>;
 
     /// Performs one credential read with the leased secret.
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse>;
 }
 
@@ -109,11 +209,12 @@ pub(crate) trait ProviderPort {
 impl<P: ProviderPort> ProviderPort for &P {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        (**self).write(request).await
+        (**self).write(permit).await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn action_read(
         &self,
         url: &str,
@@ -125,6 +226,7 @@ impl<P: ProviderPort> ProviderPort for &P {
             .await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse> {
         (**self).credential_read(read).await
     }
@@ -139,11 +241,12 @@ pub(crate) struct LeasedTransport<'a> {
 impl ProviderPort for LeasedTransport<'_> {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.transport.write(request, self.lease).await
+        self.transport.write(permit, self.lease).await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn action_read(
         &self,
         url: &str,
@@ -162,6 +265,7 @@ impl ProviderPort for LeasedTransport<'_> {
             .await
     }
 
+    #[cfg(any(test, feature = "testkit-harness"))]
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse> {
         let secret = self.lease.expose(Instant::now()).ok()?;
         self.transport.credential_read(read, secret).await
@@ -249,6 +353,10 @@ impl GatewayHttpTransport {
         }
         let origin = review.origin();
         let client = Client::builder()
+            .no_gzip()
+            .no_brotli()
+            .no_deflate()
+            .no_zstd()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
@@ -275,9 +383,10 @@ impl GatewayHttpTransport {
     /// usual because the gateway never interprets a write body.
     pub(crate) async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
         lease: &StoredSecretLease,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         if request.credential_requirement() != &self.requirement || !self.owns_url(request.url()) {
             return Err(GatewayTransportError::NotEntered);
         }
@@ -345,6 +454,89 @@ impl GatewayHttpTransport {
         .await
     }
 
+    /// Consumes one newly acknowledged acquisition grant and sends its exact
+    /// native request once. No caller supplies replacement URL or byte limits.
+    pub(crate) async fn acquire(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+        lease: &StoredSecretLease,
+    ) -> Option<ProviderResponse> {
+        let secret = lease.expose(Instant::now()).ok()?;
+        match permit.request() {
+            crate::store::AcquisitionRequest::Content(_) => None,
+            crate::store::AcquisitionRequest::Recovery(request) => {
+                self.read(
+                    reqwest::Method::GET,
+                    request.url(),
+                    request.headers(),
+                    request.maximum_response_bytes(),
+                    secret,
+                )
+                .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Action(read),
+            ) => {
+                self.read(
+                    reqwest::Method::GET,
+                    read.url(),
+                    read.headers(),
+                    read.maximum_response_bytes(),
+                    secret,
+                )
+                .await
+            }
+            crate::store::AcquisitionRequest::Prerequisite(
+                crate::effect::ClosedPrerequisiteRead::Credential(read),
+            ) => self.credential_read(read, secret).await,
+        }
+    }
+
+    /// Consumes the content-only permit and sends exactly the compiler-owned
+    /// GET, including reviewed fixed query pairs. No caller URL is accepted.
+    pub(crate) async fn acquire_content(
+        &self,
+        permit: crate::store::AcquisitionEntryPermit,
+        lease: &StoredSecretLease,
+    ) -> Option<ContentProviderResponse> {
+        let crate::store::AcquisitionRequest::Content(content) = permit.request() else {
+            return None;
+        };
+        let read = content.transport();
+        if !self.owns_content_url(read.url()) {
+            return None;
+        }
+        let secret = lease.expose(Instant::now()).ok()?;
+        let credential = credential_headers(&self.requirement, secret).ok()?;
+        let mut outbound = self
+            .client
+            .get(self.target(read.url()))
+            .headers(credential)
+            .header(ACCEPT, content.media_type())
+            .header(reqwest::header::ACCEPT_ENCODING, "identity");
+        for header in read.headers() {
+            outbound = outbound.header(
+                provider_header_name(header).ok()?,
+                provider_header_value(header).ok()?,
+            );
+        }
+        let outbound = outbound.build().ok()?;
+        if let Some(witness) = &self.witness {
+            witness.read();
+        }
+        let mut response = self.client.execute(outbound).await.ok()?;
+        let status = response.status().as_u16();
+        let version_ok = self.versions_echoed(response.headers());
+        let metadata = ContentResponseMetadata::capture(response.headers());
+        let body = read_bounded(&mut response, read.maximum_response_bytes()).await?;
+        Some(ContentProviderResponse {
+            status,
+            version_ok,
+            metadata,
+            body: Zeroizing::new(body),
+        })
+    }
+
     /// One bounded read with `secret`: the complete response of any status,
     /// or `None` after a transport failure or an oversized body. Redirects
     /// are never followed, so a 3xx comes back as its own status.
@@ -404,6 +596,10 @@ impl GatewayHttpTransport {
         let review = recipe.review();
         Self {
             client: Client::builder()
+                .no_gzip()
+                .no_brotli()
+                .no_deflate()
+                .no_zstd()
                 .no_proxy()
                 .redirect(reqwest::redirect::Policy::none())
                 .pool_max_idle_per_host(0)
@@ -420,6 +616,18 @@ impl GatewayHttpTransport {
     /// Maps an owned URL onto the transport's target origin.
     fn target(&self, owned: &str) -> String {
         format!("{}{}", self.target_origin, &owned[self.origin.len()..])
+    }
+
+    fn owns_content_url(&self, candidate: &str) -> bool {
+        candidate.len() <= 8192
+            && candidate.starts_with(&self.origin)
+            && candidate.as_bytes().get(self.origin.len()) == Some(&b'/')
+            && Url::parse(candidate).is_ok_and(|url| {
+                url.origin().ascii_serialization() == self.origin
+                    && url.fragment().is_none()
+                    && url.username().is_empty()
+                    && url.password().is_none()
+            })
     }
 
     fn owns_url(&self, candidate: &str) -> bool {
@@ -447,6 +655,10 @@ fn provider_header_value(header: &RequestHeader) -> Result<HeaderValue, GatewayT
 
 fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTransportError> {
     Client::builder()
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
         .https_only(true)
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -491,14 +703,14 @@ fn credential_headers(
 }
 
 async fn read_bounded(response: &mut reqwest::Response, maximum: usize) -> Option<Vec<u8>> {
-    let mut bytes = Vec::new();
+    let mut bytes = Zeroizing::new(Vec::new());
     while let Some(chunk) = response.chunk().await.ok()? {
         if bytes.len().checked_add(chunk.len())? > maximum {
             return None;
         }
         bytes.extend_from_slice(&chunk);
     }
-    Some(bytes)
+    Some(std::mem::take(&mut *bytes))
 }
 
 fn public_ipv4(ip: Ipv4Addr) -> bool {
@@ -614,6 +826,70 @@ mod tests {
             .collect()
     }
 
+    async fn write_fixture_permit(
+        recipe: &CompiledRecipe,
+        arguments: &Value,
+    ) -> (
+        std::sync::Arc<crate::effect::ApprovedEffect>,
+        crate::store::ProviderEntryPermit,
+    ) {
+        let command = crate::scenario_tests::admitted(
+            recipe,
+            arguments.as_object().expect("arguments"),
+            [1; 32],
+            Vec::new(),
+            60,
+            Vec::new(),
+            1000,
+        )
+        .expect("command");
+        let approved = std::sync::Arc::new(
+            crate::effect::approve_driver_fixture(command, *recipe.digest(), 1000, None)
+                .expect("approval"),
+        );
+        let attempts =
+            crate::store_testkit::TestAttempts::open(crate::store_testkit::Backend::File);
+        let crate::store::BoundedClaim::Claimed(claim) = attempts
+            .attempts()
+            .claim_bounded(
+                &approved,
+                1000,
+                crate::entry::EntryValidation::Oracle { now: 1000 },
+            )
+            .await
+            .expect("claim")
+        else {
+            panic!("claim refused")
+        };
+        let (_granted, permit) = claim
+            .grant_entry(
+                std::sync::Arc::clone(&approved),
+                crate::entry::EntryValidation::Oracle { now: 1000 },
+                1000,
+                &crate::GatewayPreEntry::default(),
+            )
+            .await
+            .expect("durable grant");
+        (approved, permit)
+    }
+
+    fn assert_idempotency_heads(heads: &[String], recipe: &CompiledRecipe, declared: bool) {
+        let expected = idempotency_key(
+            recipe.namespace(),
+            &LogicalOperationId::parse("run-1").expect("operation"),
+        );
+        let sent = if declared {
+            vec![expected.as_str()]
+        } else {
+            Vec::new()
+        };
+        assert_eq!(idempotency_values(&heads[0]), sent, "declared={declared}");
+        assert!(
+            idempotency_values(&heads[1]).is_empty(),
+            "the read-back never sends the key"
+        );
+    }
+
     #[tokio::test]
     async fn write_sends_the_derived_idempotency_key_only_when_declared_and_read_back_never_does() {
         let lease = test_lease().await;
@@ -634,9 +910,8 @@ mod tests {
             let arguments = json!({"operation_id": "run-1", "record_id": "recTEST0000000001",
                 "replacement": "Approved", "operator_namespace": recipe.namespace().as_str(),
                 "recipe_digest": recipe.digest_hex()});
-            let request = recipe
-                .closed_request_from_arguments(arguments.as_object().expect("arguments"), [1; 32])
-                .expect("request");
+            let (approved, permit) = write_fixture_permit(&recipe, &arguments).await;
+            let request = &approved.command().expect("mutation command").request;
             let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
                 .await
                 .expect("bind");
@@ -644,6 +919,10 @@ mod tests {
             let provider = tokio::spawn(async move { capture_heads(&listener, 2).await });
             let transport = GatewayHttpTransport {
                 client: Client::builder()
+                    .no_gzip()
+                    .no_brotli()
+                    .no_deflate()
+                    .no_zstd()
                     .no_proxy()
                     .redirect(reqwest::redirect::Policy::none())
                     .pool_max_idle_per_host(0)
@@ -673,7 +952,7 @@ mod tests {
             );
             assert_eq!(witness.snapshot().read_transport_entries, 0);
             assert!(matches!(
-                transport.write(&request, &lease).await,
+                transport.write(permit, &lease).await,
                 Ok(WriteTransportOutcome::ResponseRecorded { status: 200, .. })
             ));
             let observation = request.observation().expect("observation");
@@ -701,20 +980,7 @@ mod tests {
             let heads = provider.await.expect("provider");
             assert!(heads[0].starts_with("patch /v0/"), "{}", heads[0]);
             assert!(heads[1].starts_with("get /v0/"), "{}", heads[1]);
-            let expected = idempotency_key(
-                recipe.namespace(),
-                &LogicalOperationId::parse("run-1").expect("operation"),
-            );
-            let sent = if declared {
-                vec![expected.as_str()]
-            } else {
-                Vec::new()
-            };
-            assert_eq!(idempotency_values(&heads[0]), sent, "declared={declared}");
-            assert!(
-                idempotency_values(&heads[1]).is_empty(),
-                "the read-back never sends the key"
-            );
+            assert_idempotency_heads(&heads, &recipe, declared);
         }
     }
 

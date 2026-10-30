@@ -2,22 +2,31 @@
 """Separate operator: disposable resources, independent trust, gateway installation."""
 import argparse
 import asyncio
+from dataclasses import dataclass
 import os
 import re
 from pathlib import Path
 import secrets
 import signal
+import socketserver
+import struct
+import threading
 import subprocess
 import sys
 import time
+from typing import Optional
 
-from auths.authoring import approval_requests, approve, open_approval_request, propose_mcp_approval
-from auths.self_hosted import (ApprovalRequirement, ApproverAnchor, AssurancePolicy,
+from auths.adapters.custody import PublicControlEvidence
+from auths.authoring import (GrantEvidence, approval_requests, approve, collect_approvals,
+                             open_approval_request, propose_mcp_approval, sign_approval_action)
+from auths.testkit import development_ed25519_identity_key
+from auths.self_hosted import (ExactMcpTool, StringField, IntegerField, OptionalField,
+                              ApprovalRequirement, ApproverAnchor, AssurancePolicy,
                               AssuranceRequirement, Permission, Profile, TrustAnchor,
                               TrustedContextRequest, author_root_grant, compile_trusted_context,
                               load_signer_file)
 from demo_common import Refusal, b64, canonical, decode, digest, read, require, unb64, write
-from app import LABELS, approval_target
+from app import Application, LABELS, approval_target
 
 HERE = Path(__file__).resolve().parent
 HOME = Path('/run/demo')
@@ -27,6 +36,7 @@ POOL = PRIVATE / 'resource-pool.json'
 APP_UID, APP_GID = 62004, 62005
 ENVIRONMENT = {'PATH': '/opt/consumer/bin:/usr/local/bin:/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'}
 MANAGERS = ('manager-a', 'manager-b', 'manager-c')
+READ_TOOLS = ('auths_gateway_candidate_check_v1', 'auths_gateway_recovery_read_v1')
 APPROVALS_REQUIRED = 2
 ACTION_VALIDITY_SECONDS = 1800
 
@@ -73,7 +83,7 @@ async def authority(binary, resources, directory, mode):
     app.mkdir(mode=0o700)
     require(private.is_dir() and not private.is_symlink() and private.stat().st_uid == 0
             and private.stat().st_mode & 0o777 == 0o700, 'demo.operator-private-directory-required')
-    for name, parent in [('root', private), ('actor', app),
+    for name, parent in [('root', private), ('reader', private), ('actor', app),
                          *((name, private) for name in MANAGERS)]:
         write(parent / (name + '.seed'), secrets.token_bytes(32), new=True)
         write(parent / (name + '.json'), canonical({'schema': 'auths.approval-signer/1',
@@ -86,6 +96,8 @@ async def authority(binary, resources, directory, mode):
     now, expires = int(time.time()), int(time.time()) + 3600
     audience = 'mcp://stripe-platform-refunds'
     permission = Permission('tools/call', audience + '/tools/create_refund_v1')
+    permissions = (permission,) + tuple(Permission('tools/call', audience + '/tools/' + tool)
+                                        for tool in READ_TOOLS)
     policy = AssurancePolicy('raw-key-baseline', tuple(AssuranceRequirement(*row) for row in [
         ('root', 'every', 'self-certifying-identifier'),
         ('actor', 'every', 'self-certifying-identifier'),
@@ -108,7 +120,7 @@ async def authority(binary, resources, directory, mode):
                 for item in grant.evidence]}
             limits[name] = {'count': count, 'sum': capacity, 'ceiling': 2000, 'window_seconds': window}
         anchors = [TrustAnchor('operator-root', root.descriptor.principal, ('raw-key-v1',),
-                   (Profile('auths.mcp', 2),), (permission,), (audience,), (audience,),
+                   (Profile('auths.mcp', 2),), permissions, (audience,), (audience,),
                    now - 3600, expires, 1, 'raw-key-baseline')]
         approver_principals = tuple(managers[name].descriptor.principal for name in MANAGERS)
         options = {'anchors': anchors, 'assurance': policy,
@@ -118,6 +130,17 @@ async def authority(binary, resources, directory, mode):
                        now - 3600, expires) for principal in approver_principals),
                    'approval_requirements': (ApprovalRequirement(approver_principals,
                        APPROVALS_REQUIRED),)}
+        reader = load_signer_file(private / 'reader.json').signer
+        try:
+            read_grant = await author_root_grant(signer=root, subject=reader.descriptor.principal,
+                profile=Profile('auths.mcp', 2), permissions=permissions[1:], audiences=[audience],
+                not_before=now - 3600, expires_at=expires, remaining_depth=0,
+                assurance_floor='raw-key-baseline', requested_at=now)
+            write(private / 'read-grant.json', canonical({'bytes': b64(read_grant.signed_grant),
+                'evidence': [{'type': item.evidence_type, 'media_type': item.media_type,
+                              'bytes': b64(item.bytes)} for item in read_grant.evidence]}), new=True)
+        finally:
+            await reader.aclose()
         template = compile_trusted_context(**options)
         challenges = [secrets.token_bytes(32), secrets.token_bytes(32)]
         contexts = [compile_trusted_context(**options,
@@ -192,6 +215,76 @@ async def authority(binary, resources, directory, mode):
             await signer.aclose()
 
 
+@dataclass(frozen=True)
+class CandidateCheck:
+    operation_id: str
+    operator_namespace: str
+    recipe_digest: str
+    candidate_connection: str
+    expected_previous: Optional[str]
+    read_contract: str
+    maximum_response_bytes: int
+
+
+@dataclass(frozen=True)
+class RecoveryRead:
+    operation_id: str
+    operator_namespace: str
+    recipe_digest: str
+    source_effect: str
+    source_operation: str
+    read_contract: str
+    maximum_response_bytes: int
+
+
+def read_contract(call):
+    """Closed transport shape only; the native gateway owns every read binding."""
+    name = call['name']
+    require(name in READ_TOOLS, 'demo.unlisted-read-tool')
+    command_type = CandidateCheck if name == READ_TOOLS[0] else RecoveryRead
+    fields = {key: StringField(min_length=1, max_length=128)
+              for key in command_type.__annotations__}
+    fields['maximum_response_bytes'] = IntegerField(1, 1048576)
+    if command_type is CandidateCheck:
+        fields['expected_previous'] = OptionalField(StringField(min_length=64, max_length=64))
+    contract = ExactMcpTool(service=call['service'], name=name,
+                            command_type=command_type, fields=fields)
+    return contract, contract.validate_arguments(call['arguments'])
+
+
+def operator_consent(directory, name):
+    """Bounded owner-only consent for the already saved exact native review.
+
+    The Docker operator reads the complete literal review and signing request
+    and writes one exact token to this private FIFO. The app cannot access it.
+    This is development custody, not an authenticated remote approval inbox.
+    """
+    consent = directory / 'consent'
+    os.mkfifo(consent, mode=0o600)
+    descriptor = os.open(consent, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    try:
+        print('Operator review required: read ' + str(directory / 'literal-review.txt')
+              + ' and its literal-review.json signing request through the trusted container operator shell; then write "approve '
+              + name + '" followed by a newline to ' + str(consent), flush=True)
+        deadline, response = time.monotonic() + 600, b''
+        while time.monotonic() < deadline:
+            require(len(response) < 256, 'demo.operator-review-response-bound')
+            try:
+                part = os.read(descriptor, 256 - len(response))
+            except BlockingIOError:
+                part = b''
+            response += part
+            if b'\n' in response:
+                require(response == ('approve ' + name + '\n').encode(),
+                        'demo.operator-review-declined')
+                return
+            time.sleep(0.05)
+        raise Refusal('demo.operator-review-expired')
+    finally:
+        os.close(descriptor)
+        consent.unlink(missing_ok=True)
+
+
 class Operator:
     def __init__(self, mode):
         require(os.getuid() == 0, 'demo.operator-root-required')
@@ -204,6 +297,7 @@ class Operator:
         self.sockets.mkdir(mode=0o750)
         os.chown(self.sockets, 0, APP_GID)
         self.port = None
+        self.effect_reviewer = development_ed25519_identity_key()
 
     def start_gateway(self, host):
         socket_path = self.sockets / ('app' + str(host) + '.sock')
@@ -260,30 +354,194 @@ class Operator:
         plan = asyncio.run(authority(self.binary, resources, HOME, self.mode))
         attempts = HOME / 'attempts'
         attempts.mkdir(mode=0o700)
+        effect_policy = PRIVATE / 'effect-policy.json'
+        write(effect_policy, gateway(self.binary, 'effect-policy', '--partition', 'stripe-demo',
+            '--epoch', '1', '--approver-public-key', self.effect_reviewer.public_key.hex()), new=True)
         for host in range(3):
             state = HOME / ('gateway' + str(host))
             args = [self.binary, 'install', '--state-dir', state, '--recipe', HERE / 'recipe.json',
                     '--profile-lock', HERE / 'profile.lock.json', '--trusted-context',
-                    HOME / 'private' / ('context-' + str(1 if host == 2 else 0) + '.cbor'), '--approve-digest', plan['recipe_digest'],
-                    '--provider', 'stripe', '--alias', 'demo' + str(host), '--credential-stdin',
-                    '--attempt-store', attempts, '--account-label', resources['platform']]
-            # Each installation checks the account and restricted credential.
-            # All three share the operation/budget store; no simulation join
-            # may accidentally probe the live provider with a synthetic key.
-            if self.port is not None:
-                args.extend(['--loopback-provider', self.port])
+                    PRIVATE / 'context-0.cbor', '--effect-policy', effect_policy,
+                    '--approve-digest', plan['recipe_digest'], '--provider', 'stripe',
+                    '--alias', 'demo', '--credential-stdin', '--attempt-store', attempts]
+            args.extend(['--account-label', resources['platform']] if host == 0 else ['--join'])
             child(args, stdin=(self.keys['runtime'] + '\n').encode())
+            proposal = state / 'candidate-installation.json'
+            if proposal.exists():
+                call = PRIVATE / 'candidate-call.json'
+                gateway(self.binary, 'effect-candidate-call', '--state-dir', state,
+                    '--candidate', proposal, '--operation', 'install-check', '--call-out', call)
+                proof, action = asyncio.run(self.read_packet(decode(read(call)), plan))
+                approved = self.exact_approval(state, 'install-check', proof, action,
+                                                '--candidate', proposal)
+                require(approved is not None, 'demo.candidate-effect-approval-unavailable')
+                arguments = ['--state-dir', state, '--candidate', proposal, '--proof', approved[0],
+                             '--action', approved[1], '--approval', approved[2]]
+                local = ['--loopback-provider', self.port] if self.port is not None else []
+                gateway(self.binary, 'candidate-acquire', *arguments, *local)
+                gateway(self.binary, 'candidate-publish', *arguments)
         # A shared software observer exists only in this labeled development
         # deployment. It is never a production signing-custody claim.
         gateway(self.binary, 'observer-init', '--state-dir', HOME / 'gateway0')
         for host in [1, 2]:
             write(HOME / ('gateway' + str(host)) / 'observer.seed', read(HOME / 'gateway0' / 'observer.seed'), new=True)
         self.observer = decode(gateway(self.binary, 'observer-show', '--state-dir', HOME / 'gateway0'))
+        configuration = gateway(self.binary, 'effect-configuration-review',
+                                '--state-dir', HOME / 'gateway0')
+        write(PRIVATE / 'configuration-review.json', configuration, new=True)
+        reviewed = decode(configuration)
+        gateway(self.binary, 'effect-configuration-activate', '--state-dir', HOME / 'gateway0',
+                '--expected-revision', reviewed['previous_revision_hex'],
+                '--expected-candidate', reviewed['candidate_hex'])
         write(HOME / 'private' / 'pins.json', canonical({'trusted_context_sha256':
             digest(read(HOME / 'private' / 'context-0.cbor')), 'observer': self.observer}), new=True)
         for host in range(3):
             self.start_gateway(host)
+        self.prepare_exact_approvals(plan)
+        self.start_recovery_reviews(plan)
         return plan
+
+    async def read_packet(self, call, plan):
+        """Managers simulate separately authorizing a native-authored read call."""
+        contract, command = read_contract(call)
+        grant = decode(read(PRIVATE / 'read-grant.json'))
+        reader = load_signer_file(PRIVATE / 'reader.json').signer
+        managers = [load_signer_file(PRIVATE / (name + '.json')).signer for name in MANAGERS]
+        try:
+            proposal = propose_mcp_approval(contract=contract, command=command,
+                required=APPROVALS_REQUIRED, approvers=plan['approval']['principals'],
+                actor=reader.descriptor.principal, actor_grant=unb64(grant['bytes']),
+                challenge=unb64(plan['challenges'][0]), evaluation_time=int(time.time()),
+                validity_seconds=ACTION_VALIDITY_SECONDS)
+            responses = []
+            for signer in managers[:APPROVALS_REQUIRED]:
+                request = next(item for item in approval_requests(proposal)
+                               if item.approver == signer.descriptor.principal)
+                responses.append((await approve(open_approval_request(request.text,
+                    now=int(time.time())), signer)).text)
+            signed = await sign_approval_action(proposal, reader, grants=[
+                GrantEvidence(unb64(grant['bytes']), tuple(PublicControlEvidence(
+                    item['type'], item['media_type'], unb64(item['bytes']))
+                    for item in grant['evidence']))])
+            return collect_approvals(proposal, responses).assemble(signed), proposal.action
+        finally:
+            await reader.aclose()
+            for signer in managers:
+                await signer.aclose()
+
+    def exact_approval(self, state, name, proof, action, *mode):
+        """Scripted reviewer over complete native literal output; no human-trial claim."""
+        directory = PRIVATE / name
+        directory.mkdir(mode=0o700)
+        proof_path, action_path = directory / 'proof', directory / 'action'
+        request, approval = directory / 'request', directory / 'approval'
+        write(proof_path, proof, new=True)
+        write(action_path, action, new=True)
+        now = int(time.time())
+        output = child([self.binary, 'effect-review', '--state-dir', state,
+            '--proof', proof_path, '--action', action_path, '--not-before', str(now - 1),
+            '--expires-at', str(now + ACTION_VALIDITY_SECONDS), '--request-out', request,
+            '--binding-out', directory / 'binding',
+            *mode], check=False)
+        if output.returncode != 0:
+            return None
+        review = decode(output.stdout)
+        require(review['schema'] == 'auths.private-effect-signing/2'
+                and review['renderer'] == 'auths.literal-complete-review/1'
+                and type(review['literal_review']) is str and review['literal_review'],
+                'demo.native-effect-review-required')
+        write(directory / 'literal-review.json', output.stdout, new=True)
+        write(directory / 'literal-review.txt', review['literal_review'].encode('utf-8'), new=True)
+        if self.mode == 'live':
+            operator_consent(directory, name)
+        signature = self.effect_reviewer.sign(bytes.fromhex(review['signing_message_hex']))
+        write(approval, gateway(self.binary, 'effect-approval', '--request', request,
+                               '--signature-hex', signature.hex()), new=True)
+        return proof_path, action_path, approval
+
+    def prepare_exact_approvals(self, plan):
+        """Preapprove finite scripted mutations; refusals use an explicitly substituted approval."""
+        application = Application(HOME / 'app', [self.sockets / ('app' + str(host) + '.sock')
+                                                for host in range(3)])
+        values, reviews = {}, {}
+        for label in LABELS:
+            proof, action, _ = asyncio.run(application.packet(label))
+            result = self.exact_approval(HOME / 'gateway0', 'effect-' + label, proof, action)
+            if result is not None:
+                values[label] = b64(read(result[2]))
+                review = decode(read(result[2].parent / 'literal-review.json'))
+                reviews[label] = review['literal_review']
+        require('exact' in values, 'demo.exact-effect-approval-unavailable')
+        for label in LABELS:
+            # A malformed/unauthorized action cannot be reviewed. Sending an
+            # approval for another effect is an adversarial binding substitution,
+            # never an application-created authority or a bypass.
+            values.setdefault(label, values['exact'])
+        values['exact:fresh'] = values['exact']
+        plan['effect_approvals'] = values
+        plan['effect_review'] = {'mode': ('scripted operator reviewer; not an independent human trial'
+            if self.mode == 'simulation' else 'separate private operator consent; development signing custody'),
+                                 'renderer': 'auths.literal-complete-review/1', 'reviews': reviews}
+        write(HOME / 'app/application.json', canonical(plan))
+        for path in (HOME / 'app').iterdir():
+            os.chown(path, APP_UID, APP_GID)
+
+    def prepare_recovery(self, source, sequence, plan):
+        """Produce separate read authority; deriving a call never grants entry."""
+        operation = 'read-' + source + '-' + str(sequence)
+        call = decode(gateway(self.binary, 'effect-recovery-call', '--state-dir', HOME / 'gateway0',
+            '--source-operation', source, '--recovery-operation', operation))
+        proof, action = asyncio.run(self.read_packet(call, plan))
+        approved = self.exact_approval(HOME / 'gateway0', operation, proof, action,
+                                        '--recovery-of', source)
+        require(approved is not None, 'demo.recovery-review-refused')
+        return {'proof': b64(proof), 'action': b64(action), 'approval': b64(read(approved[2])),
+                'literal_review': decode(read(approved[2].parent / 'literal-review.json'))['literal_review']}
+
+    def start_recovery_reviews(self, plan):
+        """Finite development reviewer, isolated from the application's UID.
+
+        This is an explicit operator signing channel, not native recovery
+        semantics. Live mode requires private operator consent in exact_approval.
+        """
+        operator = self
+        counts = {}
+
+        class Handler(socketserver.BaseRequestHandler):
+            def handle(self):
+                self.request.settimeout(660 if operator.mode == 'live' else 30)
+                def receive(length):
+                    output = b''
+                    while len(output) < length:
+                        block = self.request.recv(length - len(output))
+                        require(bool(block), 'demo.review-request-incomplete')
+                        output += block
+                    return output
+                try:
+                    length = struct.unpack('>I', receive(4))[0]
+                    require(0 < length <= 1024, 'demo.review-request-bound')
+                    request = decode(receive(length))
+                    require(type(request) is dict and set(request) == {'source'}
+                            and type(request['source']) is str
+                            and request['source'] in plan['cases'], 'demo.review-source-refused')
+                    source = request['source']
+                    sequence = counts.get(source, 0) + 1
+                    require(sequence <= 4, 'demo.review-attempt-limit')
+                    counts[source] = sequence
+                    response = operator.prepare_recovery(source, sequence, plan)
+                except (Refusal, ValueError, OSError, TimeoutError):
+                    response = {'code': 'demo.operator-recovery-review-refused'}
+                raw = canonical(response)
+                require(len(raw) <= 4 * 1024 * 1024, 'demo.review-response-bound')
+                self.request.sendall(struct.pack('>I', len(raw)) + raw)
+
+        path = self.sockets / 'review.sock'
+        server = socketserver.UnixStreamServer(str(path), Handler)
+        os.chown(path, 0, APP_GID)
+        os.chmod(path, 0o660)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.review_server, self.review_thread = server, thread
 
     def application(self, *arguments):
         return subprocess.run(['/opt/consumer/bin/python', str(HERE / 'app.py'), *arguments],
@@ -300,6 +558,10 @@ class Operator:
         return values
 
     def stop(self):
+        if hasattr(self, 'review_server'):
+            self.review_server.shutdown()
+            self.review_server.server_close()
+            self.review_thread.join(timeout=5)
         for process, log, _ in self.processes:
             if process.poll() is None:
                 process.terminate()

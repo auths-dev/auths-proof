@@ -1,0 +1,475 @@
+{
+  "families": [
+    {
+      "family": "airtable-record-update-v1",
+      "independent_entry_guards": null,
+      "observations": [
+        {
+          "name": "exact",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 150
+        },
+        {
+          "name": "wrong-value",
+          "native": "state-mismatch",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 141
+        },
+        {
+          "name": "wrong-echo",
+          "native": "echo-mismatch",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 86
+        },
+        {
+          "name": "null-echo",
+          "native": "state-match",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 79
+        },
+        {
+          "name": "different-resource",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 144
+        },
+        {
+          "name": "duplicate-member",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 23
+        },
+        {
+          "name": "malformed",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 1
+        },
+        {
+          "name": "nonfinite",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 14
+        },
+        {
+          "name": "at-limit",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 16384
+        },
+        {
+          "name": "over-limit",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 16385
+        },
+        {
+          "name": "over-reference-limit",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.response-bound",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 65537
+        }
+      ],
+      "recovery": {
+        "contract": "same known record can be read without a write response",
+        "native_capability": {
+          "class": "linked",
+          "declared_idempotency_retention_seconds": null,
+          "pre_entry_reread": false,
+          "provider_link": "verified",
+          "state_locator": "verified",
+          "unknown_reobservation": true,
+          "write_is_conditional": false
+        },
+        "native_with_response_target": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+        "native_without_response_target": "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001",
+        "reference_read_paths": [
+          "/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001"
+        ]
+      },
+      "requests": [
+        {
+          "contract": "both-refuse",
+          "name": "wrong-namespace",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "wrong-recipe",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "extra-field",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "empty-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "long-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "missing-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "equal-request",
+          "name": "baseline",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-operation",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "reference-pool-refuses",
+          "name": "unowned-resource",
+          "native_accepted": true,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.resource-binding"
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-value",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "both-refuse",
+          "name": "invalid-value",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.replacement"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "wrong-value-type",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.replacement"
+        }
+      ]
+    },
+    {
+      "family": "stripe-platform-refund-v1",
+      "independent_entry_guards": {
+        "baseline": null,
+        "maximum-amount": "gateway.relative-ceiling.above",
+        "other-currency": "gateway.relative-ceiling.binding-mismatch"
+      },
+      "observations": [
+        {
+          "name": "exact",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 238
+        },
+        {
+          "name": "wrong-value",
+          "native": "state-mismatch",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 235
+        },
+        {
+          "name": "wrong-echo",
+          "native": "echo-mismatch",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 174
+        },
+        {
+          "name": "null-echo",
+          "native": "state-match",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 167
+        },
+        {
+          "name": "different-resource",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 239
+        },
+        {
+          "name": "duplicate-member",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 23
+        },
+        {
+          "name": "malformed",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 1
+        },
+        {
+          "name": "nonfinite",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.invalid-json",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 14
+        },
+        {
+          "name": "at-limit",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 16384
+        },
+        {
+          "name": "over-limit",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": null,
+          "reference_complete_domain_witness": true,
+          "response_bytes": 16385
+        },
+        {
+          "name": "over-reference-limit",
+          "native": "unavailable",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.response-bound",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 65537
+        },
+        {
+          "name": "pending-refund",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 236
+        },
+        {
+          "name": "other-payment",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 236
+        },
+        {
+          "name": "other-currency",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 238
+        },
+        {
+          "name": "live-refund",
+          "native": "echo-linked",
+          "native_maximum_response_bytes": 16384,
+          "reference_code": "qualification.fresh.state-mismatch",
+          "reference_complete_domain_witness": false,
+          "response_bytes": 237
+        }
+      ],
+      "recovery": {
+        "contract": "native needs its recorded response locator; independent reference discovers one refund from an action-bound bounded listing; discovery is not a native recovery permit",
+        "native_capability": {
+          "class": "linked-after-response",
+          "declared_idempotency_retention_seconds": 86400,
+          "pre_entry_reread": false,
+          "provider_link": "response",
+          "state_locator": "response",
+          "unknown_reobservation": false,
+          "write_is_conditional": false
+        },
+        "native_with_response_target": "https://api.stripe.com/v1/refunds/re_TEST123",
+        "native_without_response_target": null,
+        "reference_read_paths": [
+          "/v1/refunds?payment_intent=pi_TEST123&limit=100",
+          "/v1/refunds/re_TEST123"
+        ]
+      },
+      "requests": [
+        {
+          "contract": "both-refuse",
+          "name": "wrong-namespace",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "wrong-recipe",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.recipe-binding"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "extra-field",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "empty-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "long-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.text-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "missing-operation",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.closed-fields"
+        },
+        {
+          "contract": "equal-request",
+          "name": "baseline",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-operation",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "reference-pool-refuses",
+          "name": "unowned-resource",
+          "native_accepted": true,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.resource-binding"
+        },
+        {
+          "contract": "equal-request",
+          "name": "minimum-amount",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "maximum-amount",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "equal-request",
+          "name": "other-currency",
+          "native_accepted": true,
+          "reference_accepted": true,
+          "reference_code": null
+        },
+        {
+          "contract": "both-refuse",
+          "name": "zero-amount",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.integer-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "negative-amount",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.integer-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "boolean-amount",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.integer-bound"
+        },
+        {
+          "contract": "both-refuse",
+          "name": "over-grant-ceiling",
+          "native_accepted": false,
+          "reference_accepted": false,
+          "reference_code": "qualification.reference.ceiling"
+        }
+      ]
+    }
+  ],
+  "native_corpus_sha256": "5a77da8180e7b57644038325ab32813f49e3b1de9561d167c079c01695c9d0c6",
+  "schema": "auths.ap074-independent-mutation-differential/1",
+  "scope": "test-only native verified compilation and response classification compared with retained independent references; no admission, provider I/O, production qualification or AP070 guarantee",
+  "source_sha256": {
+    "product/runtime/auths-gateway/src/native_differential_tests.rs": "4c9ef638d4eb38c564ed94d0c6cdc7cf0ede0bff669face453fa58809c1174f1",
+    "qualification/reference/airtable_record.py": "d5bf4d750fee75f02200d180f8654f426fe738bc86a281f1d015f391cc5e67fa",
+    "qualification/reference/ap074_differential.py": "b2f88044a9131a3d62b11f842ea1f132f70563063cc45a25d48796641266127c",
+    "qualification/reference/common.py": "604d3d6598648fbc09611e663b4048b22fa748d0f6c6f1dbbceca5d83c02a2ce",
+    "qualification/reference/fresh_evidence.py": "cb54ea66a4775c5af76fbc36c4f8c8a007c553de2b2303e80fd744aee1c54d2f",
+    "qualification/reference/provider_readback.py": "d576768208985b3544f146597d181d796f2a5e2eca5026dae3fa15cadcfe65b2",
+    "qualification/reference/stripe_platform.py": "2da918e72f0ec3aed4f5a80701748e0d37c71292806bfa38c74ffbe69055c4ec"
+  }
+}

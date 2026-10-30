@@ -1,4 +1,4 @@
-//! Recipe source `/2`: valid bases with the recovery class each compiles to,
+//! Recipe source `/3`: valid bases with the recovery class each compiles to,
 //! and hostile cases for every construct the revision adds.
 //!
 //! The bases are derived from the committed fixtures and the north-star
@@ -13,7 +13,7 @@ use sha2::{Digest as _, Sha256};
 
 pub(super) const FILE: &str = "hostile-recipes-v2.json";
 const SCHEMA: &str = "auths.gateway-hostile-recipes/2";
-const SOURCE_V2: &str = "auths.gateway-recipe-source/2";
+const SOURCE_SCHEMA: &str = "auths.gateway-recipe-source/3";
 const STRIPE_VERSION: &str = "2025-03-31.basil";
 
 const AIRTABLE: &[u8] =
@@ -98,11 +98,11 @@ fn airtable_pre_entry_lock() -> Value {
     )
 }
 
-/// A committed recipe under the `/2` schema, with its echo placement in the
+/// A committed recipe under the `/3` schema, with its echo placement in the
 /// `/2` object form.
 fn revised(bytes: &[u8]) -> Value {
     let mut recipe = parse(bytes);
-    recipe["schema"] = json!(SOURCE_V2);
+    recipe["schema"] = json!(SOURCE_SCHEMA);
     if let Some(pointer) = recipe.pointer("/echo/write").and_then(Value::as_str) {
         let pointer = pointer.to_owned();
         recipe["echo"]["write"] = json!({"kind": "json-pointer", "pointer": pointer});
@@ -143,7 +143,7 @@ fn stripe_plain(lock: &Value) -> Value {
 /// which declares every capability the revision adds, bound to `lock`.
 fn stripe(lock: &Value) -> Value {
     let mut recipe = parse(STRIPE);
-    assert_eq!(recipe["schema"], SOURCE_V2);
+    assert_eq!(recipe["schema"], SOURCE_SCHEMA);
     assert_eq!(recipe["provider_headers"]["Stripe-Version"], STRIPE_VERSION);
     recipe["profile_schema_digest"] = lock["schema_digest"].clone();
     recipe
@@ -242,7 +242,22 @@ fn bases() -> Value {
     let platform_lock = stripe_platform_lock();
     let plain_lock = stripe_plain_lock();
     let pre_entry_lock = airtable_pre_entry_lock();
-    let base = |recipe: Value, lock: Value, recovery: Value| json!({"recipe": recipe, "lock": lock, "recovery": recovery});
+    let base = |mut recipe: Value, lock: Value, recovery: Value| {
+        let synthetic = crate::recipe::synthetic_review(&lock["command_schema"]["fields"]);
+        let fields = recipe["review"]["fields"]
+            .as_object_mut()
+            .expect("declared review");
+        let expected = synthetic["fields"]
+            .as_object()
+            .expect("synthetic review fields");
+        fields.retain(|name, _| expected.contains_key(name));
+        for (name, declaration) in expected {
+            fields
+                .entry(name.clone())
+                .or_insert_with(|| declaration.clone());
+        }
+        json!({"recipe": recipe, "lock": lock, "recovery": recovery})
+    };
     let verified = Some("verified-locator");
     let response = Some("response-locator");
     let mut bases = json!({
@@ -1008,7 +1023,7 @@ fn document() -> Value {
         pre_entry_cases(),
     ]
     .concat();
-    json!({"schema": SCHEMA, "source_schema": SOURCE_V2, "bases": bases(), "cases": cases})
+    json!({"schema": SCHEMA, "source_schema": SOURCE_SCHEMA, "bases": bases(), "cases": cases})
 }
 
 #[test]

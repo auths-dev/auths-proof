@@ -121,6 +121,11 @@ fn a_support_bundle_holds_no_planted_canary() {
     let installed = run(
         Command::new(BIN)
             .arg("install")
+            .arg("--effect-policy")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../bindings/fixtures/gateway/effect-policy.json"
+            ))
             .arg("--state-dir")
             .arg(&state)
             .arg("--recipe")
@@ -153,7 +158,7 @@ fn a_support_bundle_holds_no_planted_canary() {
 
     let offline = bundle(&state, &planted);
     let archive: serde_json::Value = serde_json::from_slice(&offline).expect("archive");
-    assert_eq!(archive["schema"], "auths.gateway-support-bundle/1");
+    assert_eq!(archive["schema"], "auths.gateway-support-bundle/2");
     assert_eq!(archive["recipe_sha256"], digest.as_str());
     assert_eq!(archive["deployment"], "development");
     assert_eq!(archive["attempts"]["listed"], 0);

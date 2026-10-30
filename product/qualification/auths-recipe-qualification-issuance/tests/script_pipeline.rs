@@ -70,7 +70,11 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
     }
     succeed(Command::new("git").args(["init", "--quiet"]).arg(&root));
     succeed(Command::new("git").arg("-C").arg(&root).args(["add", "."]));
+    // This disposable corpus needs a source revision, not the developer's
+    // signing identity. Qualification signing is exercised separately.
     succeed(Command::new("git").arg("-C").arg(&root).args([
+        "-c",
+        "commit.gpgsign=false",
         "-c",
         "user.name=Qualification test",
         "-c",

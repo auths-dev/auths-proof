@@ -127,7 +127,7 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
         "connect_account=" + parameters["connect_account"],
     )
     managers: List[str] = list(parameters["managers"])
-    homes = {"root": OPERATOR, "agent": AGENT, **{name: MANAGERS / name for name in managers}}
+    homes = {"root": OPERATOR, "reader": OPERATOR / "reader", "agent": AGENT, **{name: MANAGERS / name for name in managers}}
     signer_files = {name: _new_key(home) for name, home in homes.items()}
     principals: Dict[str, str] = {}
     for name, path in signer_files.items():
@@ -145,7 +145,8 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
             principals[name],
             ("raw-key-v1",),
             (PROFILE,),
-            (permission,),
+            (permission, *[Permission("tools/call", audience + "/tools/" + tool) for tool in
+                ("auths_gateway_candidate_check_v1", "auths_gateway_recovery_read_v1")]),
             (audience,),
             (audience,),
             not_before,
@@ -253,6 +254,10 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
         },
     }
     write_file(OPERATOR / "setup.json", (json.dumps(facts, indent=2) + "\n").encode(), 0o644)
+    from native_operator import provision
+    asyncio.run(provision(OPERATOR / "effects", facts,
+        {name: homes[name] / "signing.seed" for name in ("root", "reader", *managers)},
+        config["gateway"]["path"], simulation=config["provider"] == "double"))
     pins = {"trusted_context_sha256": trusted_context_sha256, "observer": None}
     write_file(AUDIT / "pins.json", (json.dumps(pins, indent=2) + "\n").encode(), 0o644)
     return {"setup": facts, "deployment": list(NON_CLAIMS)}
@@ -322,6 +327,7 @@ def install_gateway(arguments: List[str]) -> Dict[str, Any]:
     command = [
         config["gateway"]["path"],
         "install",
+        "--effect-policy", str(OPERATOR / "effects" / "effect-policy.json"),
         "--state-dir",
         str(STATE),
         "--recipe",
@@ -357,7 +363,6 @@ def install_gateway(arguments: List[str]) -> Dict[str, Any]:
         started = port is None
         if port is None:
             port = _start_double(config, token_sha256)
-        command += ["--loopback-provider", str(port)]
         installed = subprocess.run(command, input=data, capture_output=True, cwd=PROJECT)
         if installed.returncode == 0:
             write_file(RUN / "double.token.sha256", f"{token_sha256}\n".encode(), replace=True)
@@ -370,12 +375,20 @@ def install_gateway(arguments: List[str]) -> Dict[str, Any]:
         installed = subprocess.run(command, stdin=None, capture_output=True, cwd=PROJECT)
     if installed.returncode != 0:
         raise CommandFailed(stable_code(installed.stderr.decode(errors="replace"), "auths.install.failed"))
+    from native_operator import Operator
+    # Staged credentials cannot enter transport until their own read proof and
+    # exact approval pass; publication uses only those retained native checks.
+    if (STATE / "candidate-installation.json").exists():
+        Operator(OPERATOR / "effects", STATE).publish(port if config["provider"] == "double" else None)
     # The gateway's line names the recipe digest; its custody wording does
     # not describe this development deployment, so it is not repeated.
-    words = installed.stdout.decode(errors="replace").split()
-    recipe_digest = words[words.index("recipe") + 1] if "recipe" in words[:-1] else None
+    recipe_digest = facts["recipe_digest"]
     observer = gateway_json(config, "observer-init", "--state-dir", str(STATE))
     principal = observer["observer_anchor"]["principal"]
+    reviewed = gateway_json(config, "effect-configuration-review", "--state-dir", str(STATE))
+    from native_operator import run as native_command
+    native_command(config["gateway"]["path"], "effect-configuration-activate", "--state-dir", str(STATE),
+        "--expected-revision", reviewed["previous_revision_hex"], "--expected-candidate", reviewed["candidate_hex"])
     pins = read_json(AUDIT / "pins.json")
     pins["observer"] = principal
     write_file(AUDIT / "pins.json", (json.dumps(pins, indent=2) + "\n").encode(), 0o644, replace=True)
@@ -445,6 +458,21 @@ def start(arguments: List[str]) -> Dict[str, Any]:
             time.sleep(0.05)
         write_file(RUN / "gateway.pid", f"{process.pid}\n".encode(), replace=True)
         running = process.pid
+    if pid_alive(RUN / "operator.pid") is None:
+        reviewer_socket = RUN / "operator.sock"
+        reviewer_socket.unlink(missing_ok=True)
+        with open(RUN / "operator.out", "wb") as out, open(RUN / "operator.log", "wb") as err:
+            reviewer = subprocess.Popen([config["python"], str(PROJECT / "lib" / "native_operator.py"),
+                "--directory", str(OPERATOR / "effects"), "serve", "--state", str(STATE),
+                "--socket", str(reviewer_socket)], stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                cwd=PROJECT, start_new_session=True)
+        deadline = time.monotonic() + 15
+        while not reviewer_socket.exists():
+            if reviewer.poll() is not None or time.monotonic() > deadline:
+                reviewer.kill()
+                raise CommandFailed("auths.operator.start-failed", log=str(RUN / "operator.log"))
+            time.sleep(0.05)
+        write_file(RUN / "operator.pid", f"{reviewer.pid}\n".encode(), replace=True)
     return {
         "started": True,
         "gateway_pid": running,
@@ -460,13 +488,13 @@ def stop(arguments: List[str]) -> Dict[str, Any]:
     argparse.ArgumentParser(prog="bin/stop").parse_args(arguments)
     checked_config(gateway=False)
     stopped = {}
-    for name in ("witness", "gateway", "double"):
+    for name in ("witness", "operator", "gateway", "double"):
         pid = stop_pid(RUN / f"{name}.pid")
         if pid is not None:
             stopped[name] = pid
     # A stopped listener leaves its socket file behind; nothing the project
     # started still listens on one.
-    for name in ("relay.sock", "app.sock", "admin.sock"):
+    for name in ("relay.sock", "operator.sock", "app.sock", "admin.sock"):
         path = RUN / name
         if path.is_socket():
             path.unlink()

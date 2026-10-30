@@ -1,0 +1,111 @@
+{
+  "schema": "auths.native-mutation-commit-reply-loss/1",
+  "cases": [
+    {
+      "phase": "admission",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independently_observed_commit_phase": "reserved",
+      "provider_writes_before_reopen": 0,
+      "new_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "exact_native_body_captured_when_sent": true,
+      "one_count_and_one_amount_sum_slot": true,
+      "all_terminal_rows_and_execution_witness_unchanged_on_replay": true
+    },
+    {
+      "phase": "admission",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independently_observed_commit_phase": null,
+      "provider_writes_before_reopen": 0,
+      "new_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "exact_native_body_captured_when_sent": true,
+      "one_count_and_one_amount_sum_slot": true,
+      "all_terminal_rows_and_execution_witness_unchanged_on_replay": true
+    },
+    {
+      "phase": "entry",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independently_observed_commit_phase": "entry-granted",
+      "provider_writes_before_reopen": 0,
+      "new_execution_allowed": false,
+      "provider_writes_after_reopen": 0,
+      "native_result": {
+        "outcome": "unknown"
+      },
+      "exact_native_body_captured_when_sent": true,
+      "one_count_and_one_amount_sum_slot": true,
+      "all_terminal_rows_and_execution_witness_unchanged_on_replay": true
+    },
+    {
+      "phase": "entry",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independently_observed_commit_phase": "reserved",
+      "provider_writes_before_reopen": 0,
+      "new_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "exact_native_body_captured_when_sent": true,
+      "one_count_and_one_amount_sum_slot": true,
+      "all_terminal_rows_and_execution_witness_unchanged_on_replay": true
+    },
+    {
+      "phase": "response",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independently_observed_commit_phase": "response-recorded",
+      "provider_writes_before_reopen": 1,
+      "new_execution_allowed": false,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "exact_native_body_captured_when_sent": true,
+      "one_count_and_one_amount_sum_slot": true,
+      "all_terminal_rows_and_execution_witness_unchanged_on_replay": true
+    },
+    {
+      "phase": "response",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independently_observed_commit_phase": "entry-granted",
+      "provider_writes_before_reopen": 1,
+      "new_execution_allowed": false,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "unknown"
+      },
+      "exact_native_body_captured_when_sent": true,
+      "one_count_and_one_amount_sum_slot": true,
+      "all_terminal_rows_and_execution_witness_unchanged_on_replay": true
+    }
+  ],
+  "scope": "full native Stripe mutation with native signed bounded proof/exact approval, separate worker OS processes, actual end-to-end TLS COMMIT replies withheld by an opaque proxy, server-deferred barrier and independent TLS transaction-outcome observer, counting local provider without deduplication; fixed public test keys/clock",
+  "excluded": [
+    "file faults",
+    "server or power failure",
+    "hostile OS and live-provider qualification"
+  ]
+}
