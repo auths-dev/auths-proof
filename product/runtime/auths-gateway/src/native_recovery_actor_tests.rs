@@ -31,6 +31,8 @@ const RECOVERY: &str = "independent-reader";
 const PEER_ENV: &str = "AUTHS_AP074_RECOVERY_ACTOR_PEER";
 const TARGET: &str = "/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001";
 
+#[path = "native_recovery_history_tests.rs"]
+mod history_tests;
 #[path = "native_recovery_limits_tests.rs"]
 mod limits_tests;
 
@@ -192,6 +194,12 @@ struct Provider {
     stop: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
     read_response: Arc<Mutex<Option<ReadResponse>>>,
+    read_pause: Arc<Mutex<Option<ReadPause>>>,
+}
+
+struct ReadPause {
+    release: std::sync::mpsc::Receiver<()>,
+    waiting: Arc<AtomicBool>,
 }
 
 /// Fault data for the provider double only; the native transport is unchanged.
@@ -247,6 +255,8 @@ impl Provider {
         let done = stop.clone();
         let read_response = Arc::new(Mutex::new(None::<ReadResponse>));
         let scripted = read_response.clone();
+        let read_pause = Arc::new(Mutex::new(None::<ReadPause>));
+        let paused = read_pause.clone();
         let worker = thread::spawn(move || {
             let mut state = Value::Null;
             while !done.load(Ordering::SeqCst) {
@@ -273,6 +283,15 @@ impl Provider {
                     assert_eq!(line, format!("GET {TARGET} HTTP/1.1"));
                     assert!(body.is_empty());
                     assert!(!state.is_null(), "read follows actual write");
+                    if let Some(pause) = paused.lock().expect("pause").take() {
+                        pause.waiting.store(true, Ordering::SeqCst);
+                        let released = pause.release.recv_timeout(
+                            crate::transport::MAX_TRANSPORT_DURATION + Duration::from_secs(15),
+                        );
+                        pause.waiting.store(false, Ordering::SeqCst);
+                        released.expect("native transport must time out before the fallback");
+                        continue;
+                    }
                 }
                 let mut response = state.clone();
                 if !outcome.echo() {
@@ -308,7 +327,18 @@ impl Provider {
             stop,
             worker: Some(worker),
             read_response,
+            read_pause,
         }
+    }
+
+    fn pause_next_read(&self) -> (std::sync::mpsc::Sender<()>, Arc<AtomicBool>) {
+        let (release, receive) = std::sync::mpsc::channel();
+        let waiting = Arc::new(AtomicBool::new(false));
+        *self.read_pause.lock().expect("pause") = Some(ReadPause {
+            release: receive,
+            waiting: Arc::clone(&waiting),
+        });
+        (release, waiting)
     }
 }
 impl Drop for Provider {

@@ -1001,6 +1001,16 @@ For this milestone, provider-entry and disclosure-entry permits are one-use, and
   continuing it, refunding charges or modifying the journal.
 - Provider idempotency may improve provider guarantees but does not override the default prohibition on Auths re-entry. Any future retry mode requires an explicit versioned protocol and evidence for key scope, retention, fencing and late requests.
 - Late valid response/ACK evidence can refine an unknown outcome. Revocation or expiry must not erase legitimate history or prevent recording a previously authorized delivery's exact ACK. Recording history confers no current execution authority.
+- The combined recovery entry point MUST use the same exact historical lookup
+  as acquisition before attempting current reader compilation. Expired or
+  withdrawn reader authority and a disabled connection prevent new entry; they
+  do not erase completed, unknown or pre-grant reserved read facts. Historical
+  recovery obtains its read operation identity from that validated journal match,
+  while new recovery obtains it from the native compiled binding. A retained
+  reservation can resume only through fresh authorization and the final grant;
+  returning its history cannot resume it. Source/read refinement still requires
+  a usable deployment clock and available journal, and never refreshes receipt
+  time or fabricates a zero-usage report on failure.
 - Read-only recovery requires its own bounded authority and accounting. It cannot borrow a revoked writer's proof, use an expired approval as current authority, acquire broader credentials or change the original actor attribution.
 
 Unresolved effects also have an operational contract. Declare finite observation

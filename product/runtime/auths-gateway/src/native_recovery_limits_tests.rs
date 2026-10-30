@@ -64,6 +64,31 @@ fn script(index: u64) -> (&'static str, Option<ReadResponse>, D, E) {
             D::AcquisitionIncomplete,
             E::EvidenceIncomplete,
         ),
+        6 => {
+            let mut body = br#"{"fields":{"DemoStatus":"Approved"}}"#.to_vec();
+            body.resize(16_384, b' ');
+            (
+                "response-byte-limit-accepted",
+                Some(response(200, &body)),
+                D::Inconclusive,
+                E::Inconclusive,
+            )
+        }
+        7 => (
+            "empty-success-response",
+            Some(response(200, b"[]")),
+            D::ResponseUnusable,
+            E::EvidenceUnusable,
+        ),
+        8 => (
+            "duplicate-response-members",
+            Some(response(
+                200,
+                br#"{"fields":{"DemoStatus":"Pending","DemoStatus":"Approved"}}"#,
+            )),
+            D::ResponseUnusable,
+            E::EvidenceUnusable,
+        ),
         _ => (
             "state-equality-without-causation",
             None,
@@ -172,6 +197,7 @@ fn matrix(backend: Backend) {
         );
         assert_eq!(record(&case.store, &operation), retained_read);
         if index == 6 {
+            assert_eq!(result.acquisition.response_bytes, Some(16_384));
             clock.set(NOW + 31);
             let at_limit = runtime
                 .block_on(engine.refine_recovery(SOURCE, &operation))

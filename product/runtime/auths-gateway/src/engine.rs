@@ -396,6 +396,13 @@ struct PreparedEntry {
     transport: GatewayHttpTransport,
 }
 
+/// A lookup hint becomes a historical identity only after the journal matches
+/// the exact native inputs, retained binding and its pinned approval signature.
+struct RetainedHistory {
+    operation: crate::LogicalOperationId,
+    submission: crate::store::RetainedSubmission,
+}
+
 /// Data-only endpoint constraints for retained history. Native compilation still
 /// owns all fresh authorization and grants; these checks bind extra API inputs
 /// to the exact historical action rather than trusting an operation-ID hint.
@@ -1876,19 +1883,39 @@ impl GatewayEngine {
         action: &[u8],
         approval: ExactEffectApproval,
     ) -> Result<crate::AcquisitionSnapshot, GatewaySubmitResult> {
+        self.acquire_recovery_with_operation(source_operation, proof, action, approval)
+            .await
+            .map(|(_, snapshot)| snapshot)
+    }
+
+    async fn acquire_recovery_with_operation(
+        &self,
+        source_operation: &str,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<(crate::LogicalOperationId, crate::AcquisitionSnapshot), GatewaySubmitResult> {
         let started = Instant::now();
-        let retained = self
-            .retained_acquisition(
+        let retained = match self
+            .retained_submission(
                 proof,
                 action,
                 &approval,
                 RetainedRoute::Recovery(source_operation),
             )
-            .await?;
-        if let Some(snapshot) = &retained
+            .await?
+        {
+            Some(RetainedHistory {
+                operation,
+                submission: crate::store::RetainedSubmission::Acquisition(snapshot),
+            }) => Some((operation, snapshot)),
+            None => None,
+            Some(_) => return Err(not_entered("gateway.effect.operation-conflict")),
+        };
+        if let Some((operation, snapshot)) = &retained
             && snapshot.stage != crate::AcquisitionStage::Reserved
         {
-            return Ok(snapshot.clone());
+            return Ok((operation.clone(), snapshot.clone()));
         }
         let current = async {
             let effect = self
@@ -1901,7 +1928,11 @@ impl GatewayEngine {
             Ok(current) => current,
             Err(result) => return retained.ok_or(result),
         };
-        self.acquire_read_approved(approved, now, started).await
+        let operation =
+            crate::LogicalOperationId::parse(approved.effect().binding().journal_identity().1)
+                .map_err(|_| not_entered("gateway.acquisition.binding"))?;
+        let snapshot = self.acquire_read_approved(approved, now, started).await?;
+        Ok((operation, snapshot))
     }
 
     async fn acquire_read_approved(
@@ -1973,8 +2004,10 @@ impl GatewayEngine {
     }
 
     /// Acquires and records independently approved recovery evidence. The read
-    /// operation comes from the native compiled effect, never an extra transport
-    /// parameter. A completed response remains distinct from source refinement.
+    /// operation comes from the native compiled effect or an exact historical
+    /// submission match, never an extra transport parameter. Expiry or withdrawal
+    /// prevents new entry, not retrieval of retained facts. A completed response
+    /// remains distinct from source refinement.
     ///
     /// # Errors
     /// Returns a native refusal or indeterminate state. No failure authorizes
@@ -1986,22 +2019,10 @@ impl GatewayEngine {
         action: &[u8],
         approval: ExactEffectApproval,
     ) -> Result<crate::RecoverySnapshot, GatewaySubmitResult> {
-        let started = Instant::now();
-        let effect = self
-            .compile_recovery_effect(source_operation, proof, action)
+        let (operation, _) = self
+            .acquire_recovery_with_operation(source_operation, proof, action, approval)
             .await?;
-        let now = self
-            .qualification
-            .effect_time()
-            .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let approved = Arc::new(
-            effect
-                .approve(approval, self.effect_policy.approver(), now)
-                .map_err(|_| not_entered("gateway.effect.approval"))?,
-        );
-        let operation = approved.effect().binding().journal_identity().1.to_owned();
-        self.acquire_read_approved(approved, now, started).await?;
-        self.refine_recovery(source_operation, &operation)
+        self.refine_recovery(source_operation, operation.as_str())
             .await
             .map_err(|code| GatewaySubmitResult::Indeterminate {
                 code: code.to_owned(),
@@ -2128,7 +2149,10 @@ impl GatewayEngine {
             .retained_submission(proof_cbor, action_cbor, &approval, RetainedRoute::Mutation)
             .await
         {
-            Ok(Some(crate::store::RetainedSubmission::Mutation(snapshot))) => Some(*snapshot),
+            Ok(Some(RetainedHistory {
+                submission: crate::store::RetainedSubmission::Mutation(snapshot),
+                ..
+            })) => Some(*snapshot),
             Ok(None) => None,
             Ok(Some(_)) => return not_entered("gateway.effect.operation-conflict"),
             Err(result) => return result,
@@ -2175,7 +2199,7 @@ impl GatewayEngine {
         action: &[u8],
         approval: &ExactEffectApproval,
         route: RetainedRoute<'_>,
-    ) -> Result<Option<crate::store::RetainedSubmission>, GatewaySubmitResult> {
+    ) -> Result<Option<RetainedHistory>, GatewaySubmitResult> {
         if proof.is_empty()
             || proof.len() > MAX_PROOF_BYTES
             || action.is_empty()
@@ -2227,6 +2251,12 @@ impl GatewayEngine {
                 approval,
             )
             .await
+            .map(|submission| {
+                submission.map(|submission| RetainedHistory {
+                    operation,
+                    submission,
+                })
+            })
             .map_err(|error| match error {
                 crate::GatewayAttemptError::BindingConflict => {
                     not_entered("gateway.effect.operation-conflict")
@@ -2248,7 +2278,10 @@ impl GatewayEngine {
             .retained_submission(proof, action, approval, route)
             .await?
         {
-            Some(crate::store::RetainedSubmission::Acquisition(snapshot)) => Ok(Some(snapshot)),
+            Some(RetainedHistory {
+                submission: crate::store::RetainedSubmission::Acquisition(snapshot),
+                ..
+            }) => Ok(Some(snapshot)),
             None => Ok(None),
             Some(_) => Err(not_entered("gateway.effect.operation-conflict")),
         }
@@ -2265,7 +2298,10 @@ impl GatewayEngine {
             .retained_submission(proof, action, approval, RetainedRoute::Disclosure(target))
             .await?
         {
-            Some(crate::store::RetainedSubmission::Disclosure(snapshot)) => Ok(Some(snapshot)),
+            Some(RetainedHistory {
+                submission: crate::store::RetainedSubmission::Disclosure(snapshot),
+                ..
+            }) => Ok(Some(snapshot)),
             None => Ok(None),
             Some(_) => Err(not_entered("gateway.effect.operation-conflict")),
         }

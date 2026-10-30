@@ -12,17 +12,20 @@ pub(crate) fn recipe() -> CompiledRecipe {
 }
 
 pub(crate) fn trust(writer_present: bool) -> Vec<u8> {
+    trust_roots(if writer_present {
+        &[0x11, 0x12]
+    } else {
+        &[0x12]
+    })
+}
+
+pub(crate) fn trust_roots(seeds: &[u8]) -> Vec<u8> {
     let recipe = recipe();
     let tools = [recipe.review().tool(), crate::effect::RECOVERY_READ_TOOL]
         .map(|tool| McpToolCall::new(recipe.review().service(), tool, Map::new()).expect("tool"));
-    let writer_root = signer(0x11);
-    let reader_root = signer(0x12);
     let observer = signer(h::OBSERVER_SEED);
-    let roots = if writer_present {
-        vec![&writer_root, &reader_root]
-    } else {
-        vec![&reader_root]
-    };
+    let signers: Vec<_> = seeds.iter().map(|seed| signer(*seed)).collect();
+    let roots: Vec<_> = signers.iter().collect();
     let context =
         h::context_for_tools_with_roots(&roots, &observer.principal, NOW, &tools).expect("trust");
     auths_codec::encode_verifier_context(&context).expect("context bytes")

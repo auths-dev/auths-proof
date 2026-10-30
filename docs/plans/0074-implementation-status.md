@@ -3458,11 +3458,11 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient, native crash, commit-reply loss and file-error corpora / fifty-six release crash histories, eight committed/aborted release transactions and eighteen file-error histories retain charges through lost grants and ACK/Unknown persistence; genuine late ACKs never authorize redelivery | Remaining adverse races, runtime links and full installed boundary evidence pending |
 | A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP and independent native recovery histories / six candidate process histories plus eight file/TLS PostgreSQL histories distinguish denial, lost/recorded response, state equality and declared echo linkage | Complete installed mutation, observation and disclosure projections |
-| A11 | Missing/multiple/unrelated/incomplete reconciliation | Native implementation and file/TLS PostgreSQL HTTP constructors now cover zero, multiple, unrelated and incomplete observations, conservative unknown state, lifetime usage and escalation | Current-head hosted confirmation; actual transport timeout and remaining A15/A22 authority/store/interface cases remain outstanding |
+| A11 | Missing/multiple/unrelated/incomplete reconciliation | Native implementation and file/TLS PostgreSQL HTTP constructors cover zero, multiple, unrelated and incomplete observations; elapsed native transport timeout; lifetime usage, escalation and conservative unavailable-store responses | Current-head hosted confirmation; full installed/interface evidence remains under A22 |
 | A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate, native acquisition plus 24 mutation and 24 disclosure worker/operator histories / actual file/TLS PostgreSQL writer-fence schedules order withdrawal around final grant | Complete dependency/revocation scopes and installed/adverse races remain required |
 | A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and native acquisition/mutation/disclosure proof/approval/observer/threshold lock waits / eligible and expired controls executed on file/TLS PostgreSQL, with zero post-authentication disclosure wire bytes on refusal | Remaining dependency/revocation scopes and installed/adverse evidence required |
 | A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls across all three protocols / 12 file/TLS PostgreSQL threshold histories preserve Authorized proof while changed selected authority invalidates the old still-current exact approval | Complete installed language/UI and remaining selected-authority/adverse boundaries required |
-| A15 | Recovery actor differs; original authority revoked | Partial / native independent writer/reader OS-process journey / eight file/TLS PostgreSQL histories execute after operator withdrawal of writer root, with original entry/identity/charges preserved and fresh independent reader approval | Other revocation scopes and full installed language/authenticated UI evidence remain required |
+| A15 | Recovery actor differs; original authority revoked | Native implementation / eight independent writer/reader OS-process histories plus eight retained-history schedules on file/TLS PostgreSQL; writer withdrawal, reader grant/approval expiry and root withdrawal preserve attribution/charges while blocking new entry | Current-head hosted confirmation; further final-entry scopes remain under A12/A13 and installed owner/interface evidence under A22 |
 | A16 | Cross-task/recipe/partition substitution | Partial / native valid-authority unscoped negatives and four shared-store file/TLS PostgreSQL partition/recipe histories / foreign approval, retained history and release provenance refused; original facts retained | Complete installed-boundary and remaining scope substitution evidence; no AP073 task implementation required |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
 | A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
@@ -3537,3 +3537,66 @@ or deployment claim is made by AP074 source work.
   freeze 422 updates identity 165, public SDK 162, vocabulary 28 and public
   surface 422 as required by the inventory generator. These source/metadata
   construction results do not replace the exact-head hosted gate.
+
+## Exact retained recovery history and elapsed timeout checkpoint
+
+- Fixed a production discrepancy in `GatewayEngine::recover`: it previously
+  recompiled the reader's current authority for every request, including exact
+  replay. `acquire_recovery` already supported exact historical retrieval. Both
+  entry points now use one acquisition helper and the same native journal match.
+  The read operation comes from either the compiled binding or a journal-validated
+  canonical-action hint whose proof/action digests, complete binding, installed
+  scope and pinned approval signature have matched. Hints alone expose no facts.
+- Reader grant/approval expiry, operator withdrawal of the reader root and a
+  disabled connection cannot erase completed, ambiguous or reserved read facts.
+  A retained reservation is returned unchanged when fresh authorization fails;
+  it cannot resume or create a permit. New inputs still need current native
+  authority, exact approval, admission and the final durable grant. Historical
+  refinement preserves the original source actor, entry, charges and response
+  receipt time; stale unresolved evidence stays stale.
+- New file and TLS PostgreSQL history constructors execute four scenarios each:
+  linked response, inconclusive response, pre-grant reservation and actual
+  elapsed transport timeout. A provider control channel withholds every response
+  byte while the maintained 15-second native deadline fires; the test then
+  releases the provider. It checks the actual elapsed interval, the provider
+  still waiting at timeout, one GET only, unknown acquisition and retained
+  capacity. No synthetic transport timeout result is supplied.
+- The pre-grant scenario lets native admission and grant validation run through
+  the real adapter, then returns a controlled error before the grant is written.
+  Later expiry/withdrawal cannot resume this reserved read. Additional controlled
+  errors at attempt load and inside the actual adapter writer fence return typed
+  unavailability without a public zero-usage report, source/read mutation or I/O.
+  These are adapter-port refusal tests, not a claim about a physical database
+  outage, filesystem/device error or power failure. Earlier syscall/transaction
+  fault artifacts retain their separate claims.
+- Each scenario preserves the source/read and all sixteen allocation-key
+  snapshots across expiry, withdrawal, unavailable-store probes and connection
+  disable. Altered proof, action, source hint or approval is refused. Previously
+  approved inputs for a different, never-entered read cannot acquire custody or
+  contact HTTP after expiry or root withdrawal.
+- Exact constructor results: file history 1 passed / 0 ignored (17.07 s); TLS
+  PostgreSQL history 1 passed / 0 ignored (17.92 s). Existing independent-reader
+  artifacts passed unchanged on file (1.73 s) and PostgreSQL (2.43 s). These are
+  required artifact construction results, not hosted qualification. Both new
+  selectors are explicit in the adapter workflow, increasing the inventory
+  from 44 to 46. No AP070 or AP073 files were changed.
+- After restricting the pre-grant fault to this exact recovery operation key,
+  both new artifacts passed unchanged: file 1 passed / 0 ignored (17.15 s),
+  TLS PostgreSQL 1 passed / 0 ignored (17.90 s). Existing exhaustion artifacts
+  passed unchanged on file (3.31 s) and PostgreSQL (4.69 s); the exact
+  CLI/daemon content journey artifact passed unchanged (3.27 s). No broad
+  local CI gate was run, and no current-head hosted completion is claimed.
+- The same batch expands the existing actual-HTTP lifetime corpus with a
+  complete 16,384-byte response at the exact declared limit, an empty successful
+  response and duplicate response members. The limit response is completely
+  recorded and compared without implying causation; empty/multiple/duplicate
+  responses are unusable. The existing 16,385-byte case remains unknown, with
+  its full reservation retained. Updated constructors passed on file (3.29 s)
+  and PostgreSQL (5.10 s), each 1 passed / 0 ignored.
+- Final exact-limit assertions passed unchanged on file (4.59 s) and TLS
+  PostgreSQL (5.63 s), each 1 passed / 0 ignored. Gateway semantic closure is
+  `7371aee21694d1783a11ce8fc8977b8db6c921df83ca6407cfb01012136525fd`;
+  its constructor and rebuilt non-update check each passed. Semantic freeze
+  423 updates identity 166, public SDK 163 and public surface 423, the only
+  changed subjects reported by the generator. The runtime orchestration change
+  adds no reducer transition, permit constructor or accounting authority.
