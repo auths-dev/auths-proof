@@ -16,7 +16,8 @@ pub use candidate::CandidatePublication;
 mod recovery;
 pub(super) use recovery::RecoveryEvidenceLink;
 pub use recovery::{
-    GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts,
+    GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition, RecoveryEscalation,
+    RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts,
 };
 
 /// Public facts about a bounded acquisition, with no content or private digest.

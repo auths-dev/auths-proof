@@ -145,9 +145,9 @@ pub use store::{
     GatewayInsert, GatewayObservationFact, GatewayOperationStage, GatewayPreEntry,
     GatewayProviderEvidence, GatewayRecordEntry, GatewayRecordKind, GatewayRecoveryReport,
     GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
-    PrivateDirectoryError, RecoveryDisposition, RecoverySnapshot, RecoverySourceFacts,
-    ReservedAcquisition, RetainedContent, check_private_directory,
-    check_private_directory_owned_by, pre_entry_digest,
+    PrivateDirectoryError, RecoveryBudget, RecoveryDisposition, RecoveryEscalation,
+    RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
+    RetainedContent, check_private_directory, check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{
     MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,

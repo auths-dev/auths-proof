@@ -745,8 +745,9 @@ mod capacity;
 mod disclosure;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
-    ContentProjectionStatus, GatewayRecoveryReport, RecoveryDisposition, RecoverySnapshot,
-    RecoverySourceFacts, ReservedAcquisition, RetainedContent,
+    ContentProjectionStatus, GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition,
+    RecoveryEscalation, RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts,
+    ReservedAcquisition, RetainedContent,
 };
 pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
 #[cfg(unix)]

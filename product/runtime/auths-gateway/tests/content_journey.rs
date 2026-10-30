@@ -956,6 +956,12 @@ fn native_content_process_journey_fixture_is_current() {
             .is_some_and(|time| time >= now)
     );
     observed["report"]["source"]["recovery_received_at"] = json!("actual-runtime-time-checked");
+    assert!(
+        observed["report"]["acquisition_received_at"]
+            .as_u64()
+            .is_some_and(|time| time >= now)
+    );
+    observed["report"]["acquisition_received_at"] = json!("actual-runtime-time-checked");
     let artifact=serde_json::to_vec_pretty(&json!({"schema":"auths.content-process-journey/1",
         "scope":"production CLI and daemon processes, native proofs/exact approval, real file custody/journal and counting loopback HTTP; public fixed signing keys simulate reviewer, actor and recipient; no human presence, UID containment, installed language package, power loss or PostgreSQL claim",
         "provider_requests":provider.calls(),"acquisition":acquired,"disclosure":disclosed,"mutation":written,"observation":observed,

@@ -84,7 +84,7 @@ impl RecoveryReadTarget {
             "echo_pointer": self.request.echo_pointer(),
             "echo": self.echo,
             "maximum_attempts": MAX_RECOVERY_ATTEMPTS,
-            "maximum_transport_seconds": 15,
+            "maximum_transport_seconds": crate::transport::MAX_TRANSPORT_DURATION.as_secs(),
             "maximum_evidence_age_seconds": MAX_RECOVERY_EVIDENCE_AGE_SECONDS,
             "disclosure": "none",
         })

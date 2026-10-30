@@ -47,6 +47,8 @@ pub use candidate::{
     CANDIDATE_CHECK_TOOL, CandidateCredentialTarget, compile_candidate_credential,
 };
 mod prerequisite;
+#[cfg(test)]
+pub(crate) use acquisition::MAX_RECOVERY_ATTEMPTS;
 pub(crate) use acquisition::{
     AcquisitionPlan, MAX_RECOVERY_EVIDENCE_AGE_SECONDS, RECOVERY_READ_TOOL, RecoveryPlan,
 };

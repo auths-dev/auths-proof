@@ -48,7 +48,7 @@
   "observation": {
     "outcome": "recovery-report",
     "report": {
-      "schema": "auths.gateway-recovery/1",
+      "schema": "auths.gateway-recovery/2",
       "source": {
         "stage": "observed-by-provider",
         "revision": 4,
@@ -68,7 +68,22 @@
         "response_bytes": 125,
         "response_version_ok": true
       },
-      "disposition": "recorded"
+      "disposition": "recorded",
+      "budget": {
+        "retained_attempts": 1,
+        "maximum_attempts": 16,
+        "maximum_response_bytes": 16384,
+        "retained_response_bytes": 16384,
+        "maximum_total_response_bytes": 262144,
+        "maximum_transport_seconds": 15,
+        "maximum_total_transport_seconds": 240,
+        "maximum_evidence_age_seconds": 30
+      },
+      "escalation": "none",
+      "next_actions": [
+        "inspect-retained-evidence"
+      ],
+      "acquisition_received_at": "actual-runtime-time-checked"
     }
   },
   "revoked_disclosure": {

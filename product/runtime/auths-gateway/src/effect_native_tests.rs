@@ -695,6 +695,12 @@ async fn exercise_recovery_refinement(
         .expect("incomplete history");
     assert_eq!(unknown.disposition, D::AcquisitionIncomplete);
     assert_eq!(unknown.source, before);
+    assert_eq!(unknown.budget.retained_attempts, 16);
+    assert_eq!(
+        unknown.report().escalation,
+        crate::RecoveryEscalation::CapacityExhausted
+    );
+    assert_eq!(unknown.acquisition_received_at, None);
     let mut outcomes = Vec::new();
     for ((name, status, version_ok, body, expected), read) in cases.into_iter().zip(&available) {
         let operation = LogicalOperationId::parse(read.effect().binding().journal_identity().1)
@@ -793,6 +799,8 @@ async fn exercise_recovery_refinement(
         };
         assert_eq!(result.disposition, expected, "{name}");
         assert_eq!(result.acquisition.reserved_calls, 1);
+        assert_eq!(result.budget, unknown.budget);
+        assert_eq!(result.acquisition_received_at, Some(NOW + 4));
         if expected == D::Recorded {
             assert_eq!(
                 result.source.stage(),

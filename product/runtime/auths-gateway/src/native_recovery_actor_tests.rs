@@ -31,6 +31,9 @@ const RECOVERY: &str = "independent-reader";
 const PEER_ENV: &str = "AUTHS_AP074_RECOVERY_ACTOR_PEER";
 const TARGET: &str = "/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001";
 
+#[path = "native_recovery_limits_tests.rs"]
+mod limits_tests;
+
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum Outcome {
@@ -188,6 +191,14 @@ struct Provider {
     requests: Arc<Mutex<Vec<Request>>>,
     stop: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
+    read_response: Arc<Mutex<Option<ReadResponse>>>,
+}
+
+/// Fault data for the provider double only; the native transport is unchanged.
+struct ReadResponse {
+    status: u16,
+    body: Vec<u8>,
+    declared_length: usize,
 }
 fn receive(stream: &mut TcpStream) -> (String, Vec<u8>) {
     stream
@@ -234,6 +245,8 @@ impl Provider {
         let captured = requests.clone();
         let stop = Arc::new(AtomicBool::new(false));
         let done = stop.clone();
+        let read_response = Arc::new(Mutex::new(None::<ReadResponse>));
+        let scripted = read_response.clone();
         let worker = thread::spawn(move || {
             let mut state = Value::Null;
             while !done.load(Ordering::SeqCst) {
@@ -268,9 +281,25 @@ impl Provider {
                         .expect("fields")
                         .remove("auths_echo");
                 }
-                let bytes = serde_json::to_vec(&response).expect("response");
-                stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n", bytes.len()).as_bytes()).expect("response header");
-                stream.write_all(&bytes).expect("response body");
+                let body = serde_json::to_vec(&response).expect("response");
+                let response = if line.starts_with("GET ") {
+                    scripted.lock().expect("script").take()
+                } else {
+                    None
+                }
+                .unwrap_or(ReadResponse {
+                    status: 200,
+                    declared_length: body.len(),
+                    body,
+                });
+                stream.write_all(format!("HTTP/1.1 {} Fixture\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n", response.status, response.declared_length).as_bytes()).expect("response header");
+                if response.body.len() > 16_384 {
+                    // This explicit oversized-response fault permits the
+                    // bounded client to close before receiving the body.
+                    let _ = stream.write_all(&response.body);
+                } else {
+                    stream.write_all(&response.body).expect("response body");
+                }
             }
         });
         Self {
@@ -278,6 +307,7 @@ impl Provider {
             requests,
             stop,
             worker: Some(worker),
+            read_response,
         }
     }
 }

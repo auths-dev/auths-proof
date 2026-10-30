@@ -1010,6 +1010,25 @@ native operator projections. Exhaustion or unavailable evidence leaves the
 effect unresolved and charged; it does not schedule an implicit retry, redelivery
 or refund. Recovery may remain unresolved indefinitely.
 
+The native `auths.gateway-recovery/2` projection reports source-lifetime retained
+observation allocations and response-byte reservations, the per-observation and
+aggregate transport deadlines, the evidence-age limit, and the selected read's
+complete-response receipt time when available. Usage is read from all sixteen
+permanent allocation rows under the same journal fence as source refinement;
+changing read operation IDs, replaying, restarting, or refusing a seventeenth
+read cannot reset it. The aggregate transport deadline is the sum of the sixteen
+observation transport deadlines, not a wall-clock completion bound or a bound on
+separately authorized prerequisite transports. Retained byte reservations are
+not actual received-byte measurements and are never refunded for failed reads.
+
+Unusable, incomplete, stale or inconclusive evidence produces native escalation
+guidance; unresolved exhaustion takes precedence. Proposed next actions are
+inspection, requesting a separately authorized observation while capacity
+remains, and escalation. These projections grant no capability and contain no
+retry, redelivery, non-entry assertion, evidence override or refund command.
+Unavailable or corrupt journal/clock inputs return typed unavailability rather
+than fabricating zero usage or an actionable report.
+
 Administrative annotations must remain distinguishable from verified provider
 evidence. Any administrative resolution that changes evidence or accounting must
 be an explicit, separately authorized command accepted by the sole reducer under
