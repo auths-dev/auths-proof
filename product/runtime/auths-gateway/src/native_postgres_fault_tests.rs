@@ -24,7 +24,7 @@ use std::{
 
 const OPERATION: &str = "postgres-partial-batch";
 
-fn ready(listener: &TcpListener) -> TcpStream {
+pub(crate) fn ready(listener: &TcpListener) -> TcpStream {
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
         match listener.accept() {

@@ -3260,6 +3260,57 @@ subject; identity161/public-SDK158 and the other counters remain unchanged. Form
 translation closure remains a002. These construction results are not new hosted
 or formal qualification.
 
+## Native mutation/disclosure PostgreSQL batch-abort checkpoint
+
+Seven new histories reject every actual admission insert prefix: three mutation
+rows (attempt/count/amount sum) and four disclosure rows (attempt/lifetime
+allocation/delivery count/byte sum). Existing owned-schema trigger/sequence controls
+run inside the maintained TLS PostgreSQL adapter transaction. An independent
+initialized worker OS process reaches each exact failure; a nontransactional
+server sequence survives rollback and equals the rejected ordinal. Complete
+gateway-table counts plus known slot/allocation keys prove that every attempted
+prefix row rolled back, with no hidden or duplicate charge.
+
+The shared witness now also requires PostgreSQL's `is_called` flag to be true.
+Without that assertion, an unused fresh sequence's initial `last_value = 1` could
+be mistaken for a first-row exception. The strengthened oracle applies to all
+eleven acquisition/mutation/disclosure prefixes; native gateway decisions and
+transaction behavior are unchanged.
+
+Failed workers perform zero custody or provider calls. Failed disclosure admission
+also sends zero wire bytes, including no native authentication challenge. Its
+original acquisition journal and source allocation rows remain byte-identical.
+After removing only the owned fixture trigger, a reopened native engine confirms
+the operation is absent and explicitly reauthorizes the unchanged signed inputs.
+Mutation sends one exact native compiled Stripe request to the counting provider,
+which performs no idempotent deduplication. Disclosure authenticates a separately
+spawned native recipient OS process over a real same-UID Unix endpoint, delivers
+the exact content and records its exact signed ACK. The original source is never
+refetched; one lifetime release allocation, one count slot and one byte-sum slot
+remain. Terminal replay performs no custody/provider work, emits no wire bytes and
+preserves all inspected attempt/charge rows.
+
+Required constructors passed with one matched, nonignored test each. After the
+sequence-witness strengthening: acquisition 1.70s, mutation 1.32s and disclosure
+2.83s. The workflow preserves all 36
+previous native selectors and adds the two exact ignored-PostgreSQL selectors for
+38. Alongside the existing four acquisition prefixes, the corpus now covers 11
+actual native admission aborts across all three protocols. New compliance anchors
+name both constructors. The testkit exposes the existing ready-marker reader and
+strengthens the sequence witness; shipping runtime/store behavior is unchanged.
+
+These are local artifact construction results, not new-head hosted acceptance.
+They cover actual server transaction aborts and fresh handles, not ambiguous
+COMMIT delivery, sync/power loss, hostile process containment or the full A06
+fault matrix. The recipient retry crosses an actual process boundary under the
+explicit same-UID fixture policy; it establishes no hostile OS qualification.
+A06 remains partial. AP070 and the paused AP073 worktree remain untouched.
+
+Native source-closure construction and rebuilt non-update verification passed.
+Semantic inventory construction advances freeze419 and only its reported changed
+identity162/public-SDK159/public-surface419 subjects. Formal translation closure
+remains a002; metadata construction is not fresh formal or hosted qualification.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -3283,7 +3334,7 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / native lifetime/acquisition histories executed; twelve mutation/disclosure count/sum/both contention histories now constructed on both adapters using prefix plus two OS contenders | New-head hosted confirmation and complete dependency-change/adverse grant schedules remain required |
 | A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
-| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, four rejected-prefix transactions and six committed/aborted reply-loss histories executed | Complete mutation/disclosure fault schedules and remaining durability cases required |
+| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen file faults, eleven rejected native admission prefixes across all protocols and six committed/aborted acquisition reply-loss histories executed | Mutation/disclosure ambiguous-commit and file I/O schedules plus remaining durability cases required |
 | A07 | Revoke between acquisition and disclosure | Partial / daemon corpus plus native file/TLS PostgreSQL worker/operator release races / withdrawal before final grant produces no post-authentication wire bytes or ACK, while grant-first records exact delivery/ACK | Complete revocation scopes and installed boundary races |
 | A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient and full native file/TLS PostgreSQL crash corpora / fifty-six release histories include partial sends, both peers killed before ACK, caller loss after ACK commit, current-authority gates, late and repeated ACKs with conserved allocations/slots | Remaining I/O-error/ambiguous-commit races and full installed boundary evidence pending |
 | A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |

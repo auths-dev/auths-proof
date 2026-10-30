@@ -9,6 +9,9 @@ const WORKER: &str = "AUTHS_AP074_MUTATION_WINDOW_PEER";
 const WINDOW: u64 = 60;
 const AMOUNT: u64 = 500;
 
+#[path = "native_mutation_pg_batch_tests.rs"]
+mod postgres_batch_tests;
+
 #[derive(Clone, Copy)]
 enum Limit {
     Count,

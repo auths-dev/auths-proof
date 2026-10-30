@@ -807,12 +807,27 @@ complete mutation/disclosure fault matrix remain separate requirements.
 
 `native-postgres-partial-batch.json` separately rejects each insert of a
 four-record native admission transaction using a server trigger confined to an
-owned test schema. A nontransactional sequence witnesses the reached row prefix;
+owned test schema. A nontransactional sequence witnesses the reached row prefix,
+including an explicit `is_called` check so an unused sequence's initial value
+cannot masquerade as a rejected first insert;
 actual gateway-table counts must show complete rollback before any credential
 lease or HTTP entry. Removing the test fault permits explicit native
 reauthorization of the unchanged operation, followed by no-I/O terminal replay.
 This is real PostgreSQL transaction-abort evidence, not commit-acknowledgement
 ambiguity, power loss or the complete mutation/disclosure fault matrix.
+
+`native-mutation-postgres-partial-batch.json` extends row-prefix rejection to all
+three rows of a real native Stripe mutation admission: attempt, count and amount
+sum. `native-disclosure-postgres-partial-batch.json` covers all four release rows:
+attempt, lifetime allocation, delivery count and byte sum, while preserving the
+already acquired source and its charges byte-for-byte. The failure workers make
+no custody or provider calls; failed release admission sends no authentication or
+content bytes. After the trigger is removed, explicit full native reauthorization
+of the unchanged signed inputs sends exactly one mutation or authenticates a
+separate native recipient OS process and records its exact ACK. Replay preserves
+all inspected rows and sends nothing. These are transaction-abort and ordinary
+reopen histories over the maintained TLS adapter, not ambiguous commit delivery,
+power loss, hostile OS containment or the complete A06 durability matrix.
 
 `native-postgres-commit-reply-loss.json` separately exercises real lost COMMIT
 replies for admission, entry and response persistence. A deferred fixture trigger

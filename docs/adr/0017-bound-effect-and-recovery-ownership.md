@@ -1328,3 +1328,29 @@ by the scheduling helper. The fixtures use explicitly public test observer keys
 and signed observation attachments; they do not qualify live-provider evidence.
 Installed language/UI parity, other authority/revocation scopes and hostile OS
 containment remain separate obligations.
+
+## Typed native admission rows roll back together
+
+Server-side insert exceptions now exercise every row position of the native
+mutation and disclosure admission batches. A nontransactional sequence in each
+owned fixture schema witnesses the actual rejected prefix; complete gateway-table
+counts and raw slot lookups verify rollback before any credential or transport
+entry. Mutation keeps its distinct attempt/count/amount-sum transaction. Disclosure
+adds its separate source-lifetime allocation and byte units, while its original
+acquisition and source charges remain byte-identical. No generic lifecycle or
+alternative admission authority is introduced.
+
+The sequence witness checks `is_called` as well as `last_value`. A fresh sequence
+can report its initial value before any insert; that state must never count as
+evidence that the first native admission row reached the trigger. This stronger
+oracle applies to the existing acquisition fixtures and both new typed matrices.
+
+Removing the owned test trigger permits explicit native reauthorization with
+unchanged proof/action/approval. Mutation sends one exact compiled request;
+disclosure authenticates a separately spawned native recipient over a real Unix
+endpoint and records its exact ACK. Terminal replay changes no inspected rows or
+execution witness and sends zero bytes. Failed release admission sends no native
+authentication challenge either. These tests use the maintained TLS transaction
+adapter and existing testkit setup/authoring, with no shipping fault branch.
+Commit acknowledgement ambiguity, actual durability/power faults, full file I/O
+matrices and hostile OS/provider qualification remain separate obligations.

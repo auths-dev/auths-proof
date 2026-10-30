@@ -189,11 +189,18 @@ impl TestAttempts {
             let mut client = admin_client();
             let row = client
                 .query_one(
-                    &format!("SELECT last_value FROM {schema}.fixture_batch_insert_sequence"),
+                    &format!(
+                        "SELECT last_value, is_called FROM {schema}.fixture_batch_insert_sequence"
+                    ),
                     &[],
                 )
                 .expect("sequence witness");
             let reached: i64 = row.get(0);
+            let called: bool = row.get(1);
+            assert!(
+                called,
+                "the native worker must actually reach the server insert trigger"
+            );
             client
                 .batch_execute(&format!(
                     "DROP TRIGGER fixture_reject_batch_insert ON {schema}.auths_gateway_records"

@@ -37,6 +37,9 @@ use kit::{CrashSetup, Input, Recipient, Role, controls, key};
 #[path = "native_disclosure_budget_tests.rs"]
 mod window_capacity_tests;
 
+#[path = "native_disclosure_pg_batch_tests.rs"]
+mod postgres_batch_tests;
+
 const SOURCE: &str = "crash-release-source";
 const RELEASE: &str = "crash-release";
 

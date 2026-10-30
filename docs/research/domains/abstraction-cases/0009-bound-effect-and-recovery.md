@@ -919,3 +919,12 @@ the existing final entry fence establish parity when a 1-of-2 proof remains
 Authorized but its selected evidence changes. Native mutation request echoes
 remain bound to the newly signed proof. All earlier order/expiry schedules are
 preserved, including independent wire-byte capture for refused disclosure.
+
+The native mutation/disclosure transaction-prefix fixtures reuse the existing
+owned-schema PostgreSQL trigger/sequence controls and protocol-specific authoring.
+All attempt and unit-specific charge rows roll back together. Disclosure preserves
+its pre-existing source and charges and requires independent recipient authority
+after a fresh native retry; mutation has no disclosure lifetime allocation. These
+are test-only vertical histories using the existing transaction and journal
+owners. No provider branch enters runtime, no new abstraction is extracted and no
+reference implementation becomes a managed decision system.
