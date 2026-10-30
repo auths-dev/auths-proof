@@ -55,8 +55,8 @@ def socket_dir() -> Iterator[Path]:
 def _provider_result(status: object = 200, **evidence: object) -> bytes:
     body = {
         "channel": "read-back",
-        "echo": _ECHO,
-        "evidence_digest": _DIGEST,
+        "schema": "auths.gateway-public-evidence/1",
+        "evidence_commitment": _DIGEST,
         "observed_at": 1_790_000_000,
     }
     body.update(evidence)
@@ -145,10 +145,25 @@ def test_result_parser_does_not_infer_effect() -> None:
             _parse_result(hostile)
 
 
+def test_result_parser_matches_native_public_evidence_corpus() -> None:
+    from auths.gateway import _parse_result
+
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/gateway/native-public-mutation-evidence-file.json"
+    corpus = json.loads(fixture.read_text())
+    for case in corpus["wire_cases"]:
+        if case["accepted"]:
+            result = _parse_result(case["response"].encode())
+            assert isinstance(result, GatewayObservedByProvider)
+            assert result.evidence.schema == "auths.gateway-public-evidence/1"
+        else:
+            with pytest.raises(GatewayProtocolError):
+                _parse_result(case["response"].encode())
+
+
 def test_result_parser_exposes_observed_by_provider_without_evidence_bytes() -> None:
     from auths.gateway import _parse_result
 
-    evidence = GatewayProviderEvidence("read-back", _ECHO, _DIGEST, 1_790_000_000)
+    evidence = GatewayProviderEvidence("read-back", "auths.gateway-public-evidence/1", _DIGEST, 1_790_000_000)
     assert _parse_result(_provider_result()) == GatewayObservedByProvider(200, evidence)
     assert _parse_result(_provider_result(None)) == GatewayObservedByProvider(
         None, evidence
@@ -159,7 +174,11 @@ def test_result_parser_exposes_observed_by_provider_without_evidence_bytes() -> 
         _provider_result(channel="webhook"),
         _provider_result(echo="auths-e1-app-supplied"),
         _provider_result(echo=_ECHO.upper()),
-        _provider_result(evidence_digest="00"),
+        _provider_result(evidence_commitment="00"),
+        _provider_result(evidence_commitment=_DIGEST + "\n"),
+        _provider_result(observed_at=1 << 53),
+        _provider_result(schema="auths.gateway-public-evidence/0"),
+        _provider_result(evidence_digest=_DIGEST),
         _provider_result(observed_at=-1),
         _provider_result(observed_at=True),
         _provider_result(evidence_b64="e30"),

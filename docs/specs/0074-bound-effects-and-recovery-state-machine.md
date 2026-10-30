@@ -876,6 +876,19 @@ hostile OS/provider qualification remain separate requirements.
 
 A provider-derived locator is not authority. If a later action depends on a response-derived resource, establish its provenance under the declared observation contract and compile a new bound effect linked to that evidence. Do not mutate an already approved effect. This requirement does not expand scope into a full create/populate product workflow.
 
+Public mutation replay evidence now uses `auths.gateway-public-evidence/1`:
+channel, a hiding `evidence_commitment`, and the original bounded receipt time.
+This result projection contains neither raw provider evidence SHA-256 nor the
+action-derived echo.
+The journal owner computes HMAC-SHA256 under its existing private immutable
+128-bit attempt nonce, with domain `auths.gateway-public-commitment/1`, a NUL,
+u32 big-endian length plus canonical binding bytes, u32 big-endian label length
+plus the `provider-evidence` label, and the private 32-byte evidence digest.
+This scopes the hiding commitment to every immutable binding dimension and the
+private record. Replay/reopen retain the same value; different records hide
+equality of identical private response bytes. Raw evidence and its digest remain
+protected journal/audit facts. This projection grants no execution authority.
+
 ### 4.4 Stage types and serialization
 
 The intended progression is:

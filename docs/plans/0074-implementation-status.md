@@ -3662,3 +3662,61 @@ or deployment claim is made by AP074 source work.
   424 updates identity 167, public SDK 164 and public surface 424, the only
   changed subjects required by the generator. No complete acceptance row or
   new hosted/Linux result is claimed from these construction checks.
+
+## Public mutation evidence hiding checkpoint
+
+- `GatewayEvidenceSummary` now uses `auths.gateway-public-evidence/1`, exposing
+  channel, a native record-scoped hiding commitment and the original receipt
+  time. The result no longer exposes the action-derived echo or raw response
+  digest. The protected journal retains full evidence, digest, attribution,
+  immutable binding, grant and all charges. No record schema or reducer edge
+  changed, and persisted facts still cannot construct an entry permit.
+- The sole journal owner computes HMAC-SHA256 using the existing private immutable
+  128-bit attempt nonce, a versioned domain, length-framed exact canonical
+  binding, a closed field label and the raw digest. Temporary decoded key bytes
+  are zeroized. Bindings receive this value and never compute it. Snapshot and
+  provider-evidence Debug now redact private locators, echoes and commitments.
+- Native file/TLS PostgreSQL constructors perform real native writes and separately
+  approved reads whose responses contain a private sentinel. Original-writer
+  replay after withdrawal returns the public hiding summary; reopening preserves
+  it without I/O. Two records with identical private response bytes have distinct
+  public commitments. Raw evidence remains complete, original source fields stay
+  fixed, and public/debug output excludes plaintext, encoded values and raw
+  evidence/action digests. Final constructors passed, each 1 passed / 0 ignored:
+  file 0.70 s, TLS PostgreSQL 0.90 s.
+- Python and TypeScript cut over directly to the new schema. Both reject old
+  evidence members, unsupported schemas, malformed commitments, unsafe times,
+  duplicate object members, non-integer number spellings and non-UTF8/BOM JSON.
+  Data parsing grants no authority. Fifteen native wire vectors are consumed by
+  both binding suites; those suites await hosted execution. The explicit native
+  adapter inventory increases from 46 to 48 selectors.
+- Integrated the CI subagent repair as `09838a19` from `1f731115`: scope the
+  permissive admin inode to untrusted probes, restore owner-only modes before
+  trusted controls, require acknowledged within the existing bounded wait, move
+  the included module below tests/content_journey to prevent Cargo auto-discovery,
+  and fix related strict lints without allowances. Compliance paths follow the
+  module move. The subagent reports actual Linux UID65534 execution passed with
+  all 32 app cases, 11 admin refusals, 52 help routes, 4 private CLI refusals and
+  36/40 private-file probes; main did not inspect CI. Combined-head hosted
+  verification remains required.
+
+- Gateway source closure is `9f470c3eed04ddaf76e41bfb9a3565fc73ef75db51578c9b14a2bd9e04744824`; construction and rebuilt check passed. Semantic freeze 425 updates identity 168, portable ABI 127, public SDK 165, vocabulary 29 and public surface 425. The required metadata constructor completed successfully. Hosted checks remain the CI agent’s responsibility.
+
+### Next mandatory privacy cutover
+
+- Signed outcomes and public pre-entry observations still expose private facts;
+  this checkpoint does not close A17 or the entire specification.
+- Replace the public signed outcome with a new schema containing a stable hiding
+  effect reference, stage/status/time/recipe facts and a hiding commitment to the
+  exact complete journal record. The seal must cover entry/fence/authority and
+  accounting metadata, not just the legacy OutcomeRecord fields. Exclude the
+  private nonce from the sealed message while using it as the MAC key.
+- Private audit must use an operator-only atomic signed-outcome plus canonical
+  journal-record opening. Its decoder must be the existing journal owner, check
+  exact proof/action commitments and scope, and compare the public seal; retain
+  every existing private outcome presence, counter, pre-entry and basis check.
+  Do not weaken audit binding or expose the opening on the application socket.
+- Public pre-entry results must contain redacted count/hiding metadata rather
+  than raw signed observations. Private audit obtains those bytes from the
+  protected journal opening. Cut over native vectors, bindings, demos/templates
+  and private audit schema directly; no legacy or dual-schema runtime readers.

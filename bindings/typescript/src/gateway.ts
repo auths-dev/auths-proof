@@ -25,7 +25,6 @@ const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const SUN_PATH_BYTES = platform() === "linux" ? 108 : 104;
 const MAX_SOCKET_PATH_BYTES = SUN_PATH_BYTES - 1;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const ECHO = /^auths-e1-[0-9a-f]{64}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
 const OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const BASE64URL = /^[A-Za-z0-9_-]*$/;
@@ -65,14 +64,15 @@ export class GatewayEndpoint {
 }
 
 /**
- * Secret-free summary of provider-held read-back evidence. The response bytes and
- * observation locator stay in the operator's attempt store; `observedAt` is gateway
+ * Public hiding summary of provider-held read-back evidence. Raw response bytes,
+ * digest and echo stay in the protected journal; `evidenceCommitment` is a native
+ * scoped HMAC, never a raw body hash; `observedAt` is gateway
  * wall-clock seconds and is not authenticated.
  */
 export type GatewayProviderEvidence = Readonly<{
   channel: "read-back";
-  echo: string;
-  evidenceDigest: string;
+  schema: "auths.gateway-public-evidence/1";
+  evidenceCommitment: string;
   observedAt: number;
 }>;
 
@@ -194,23 +194,61 @@ function parseEvidence(value: unknown): GatewayProviderEvidence {
     throw new GatewayProtocolError("gateway returned invalid evidence");
   }
   const evidence = value as Record<string, unknown>;
-  const { channel, echo, evidence_digest: digest, observed_at: observedAt } = evidence;
+  const { schema, channel, evidence_commitment: commitment, observed_at: observedAt } = evidence;
   if (
-    !exactKeys(evidence, ["channel", "echo", "evidence_digest", "observed_at"])
+    !exactKeys(evidence, ["schema", "channel", "evidence_commitment", "observed_at"])
     || channel !== "read-back"
-    || typeof echo !== "string" || !ECHO.test(echo)
-    || typeof digest !== "string" || !DIGEST.test(digest)
+    || schema !== "auths.gateway-public-evidence/1"
+    || typeof commitment !== "string" || commitment.length !== 64 || !DIGEST.test(commitment)
     || typeof observedAt !== "number" || !Number.isSafeInteger(observedAt) || observedAt < 0
   ) {
     throw new GatewayProtocolError("gateway returned invalid evidence");
   }
-  return { channel, echo, evidenceDigest: digest, observedAt };
+  return { schema, channel, evidenceCommitment: commitment, observedAt };
+}
+
+// Wire validation only: native owners still decide every authorization and stage.
+function parseGatewayJson(bytes: Uint8Array): unknown {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) throw new TypeError("gateway JSON BOM");
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  const stack: Array<{ keys: Set<string>; key: boolean } | null> = [];
+  for (const match of text.matchAll(/"(?:\\[\s\S]|[^"\\])*"|-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|[{}\[\],:]/gu)) {
+    const token = match[0];
+    if (token === "{" || token === "[") {
+      if (stack.length >= 128) throw new TypeError("gateway JSON depth");
+      stack.push(token === "{" ? { keys: new Set<string>(), key: true } : null);
+    } else if (token === "}" || token === "]") {
+      stack.pop();
+    } else if (token === ":" || token === ",") {
+      const object = stack[stack.length - 1];
+      if (object) object.key = token === ",";
+    } else if (!token.startsWith('"')) {
+      if (!/^(?:0|[1-9][0-9]*)$/u.test(token)) throw new TypeError("gateway JSON integer");
+    } else {
+      const value = JSON.parse(token) as string;
+      for (let index = 0; index < value.length; index++) {
+        const code = value.charCodeAt(index);
+        if (code >= 0xd800 && code <= 0xdbff) {
+          const next = value.charCodeAt(++index);
+          if (!(next >= 0xdc00 && next <= 0xdfff)) throw new TypeError("gateway JSON Unicode");
+        } else if (code >= 0xdc00 && code <= 0xdfff) {
+          throw new TypeError("gateway JSON Unicode");
+        }
+      }
+      const object = stack[stack.length - 1];
+      if (object?.key) {
+        if (object.keys.size >= 16 || object.keys.has(value)) throw new TypeError("gateway JSON duplicate or oversized object");
+        object.keys.add(value);
+      }
+    }
+  }
+  return JSON.parse(text) as unknown;
 }
 
 function parseResult(bytes: Uint8Array): GatewayResult {
   let decoded: unknown;
   try {
-    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    decoded = parseGatewayJson(bytes);
   } catch {
     throw new GatewayProtocolError("gateway returned invalid JSON");
   }
@@ -259,7 +297,7 @@ function parseResult(bytes: Uint8Array): GatewayResult {
 function parseObserveResult(bytes: Uint8Array, schema: ObservationSchema): GatewayObserveResult {
   let decoded: unknown;
   try {
-    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    decoded = parseGatewayJson(bytes);
   } catch {
     throw new GatewayProtocolError("gateway returned invalid JSON");
   }
@@ -304,7 +342,7 @@ function parseRefusal(value: Record<string, unknown>): Readonly<{ outcome: "refu
 function parsePreEntryResult(bytes: Uint8Array, operationId: string): GatewayPreEntryResult {
   let decoded: unknown;
   try {
-    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    decoded = parseGatewayJson(bytes);
   } catch {
     throw new GatewayProtocolError("gateway returned invalid JSON");
   }

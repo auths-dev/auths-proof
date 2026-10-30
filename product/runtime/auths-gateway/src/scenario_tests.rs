@@ -525,7 +525,7 @@ async fn reobserve_operator<P: ProviderPort>(
                 .ok()?;
             Some(GatewaySubmitResult::ObservedByProvider {
                 status,
-                evidence: snapshot.provider_evidence()?.into(),
+                evidence: crate::GatewayEvidenceSummary::from_snapshot(&snapshot)?,
             })
         }
         ReadBack::Value { matched } => {
@@ -1022,7 +1022,8 @@ async fn response_requires_a_separate_reference_observation_for_evidence() {
         result,
         GatewaySubmitResult::ObservedByProvider {
             status: Some(200),
-            evidence: evidence.into(),
+            evidence: crate::GatewayEvidenceSummary::from_snapshot(&snapshot)
+                .expect("public evidence"),
         }
     );
     assert_eq!((provider.writes(), provider.reads()), (1, 1));
@@ -1725,10 +1726,15 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
                 .await
             };
             let (outcome, code, evidence_sha256, confirmed) = match result {
-                GatewaySubmitResult::ObservedByProvider { evidence, .. } => (
+                GatewaySubmitResult::ObservedByProvider { .. } => (
                     RunOutcome::Observed,
                     "observed-by-provider".to_owned(),
-                    Some(Sha256Digest::try_from(evidence.evidence_digest).expect("evidence")),
+                    Some(
+                        Sha256Digest::try_from(hex::encode(Sha256::digest(
+                            &*provider.last_read.lock().expect("provider evidence"),
+                        )))
+                        .expect("evidence"),
+                    ),
                     u32::from(provider.reads() > reads_before),
                 ),
                 GatewaySubmitResult::ResponseRecorded { .. } => (
@@ -2048,8 +2054,18 @@ async fn conformance_unknown_and_reobserve(backend: Backend) {
         panic!("expected observed-by-provider");
     };
     assert_eq!(status, None);
-    assert_eq!(evidence.echo, original_token());
-    assert_eq!(Some(evidence.echo.as_str()), original.request.echo_token());
+    let protected = record.snapshot(&original).await;
+    let private_evidence = protected.provider_evidence().expect("protected evidence");
+    assert_eq!(private_evidence.echo(), original_token());
+    assert_eq!(Some(private_evidence.echo()), original.request.echo_token());
+    assert_eq!(
+        evidence.evidence_commitment,
+        hex::encode(
+            protected
+                .public_evidence_commitment()
+                .expect("hiding commitment")
+        )
+    );
     assert_eq!(
         record.submit(&original, &provider).await,
         resolved,

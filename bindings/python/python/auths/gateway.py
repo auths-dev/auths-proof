@@ -32,7 +32,6 @@ _MAX_PROOF_BYTES = 4 * 1024 * 1024
 _MAX_ACTION_BYTES = 64 * 1024
 # Room for four maximal pre-entry observations in one base64url response.
 _MAX_RESPONSE_BYTES = 32 * 1024
-_ECHO = re.compile(r"auths-e1-[0-9a-f]{64}")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
 _OPERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]*")
@@ -134,14 +133,14 @@ class GatewayObserved:
 class GatewayProviderEvidence:
     """Secret-free summary of provider-held read-back evidence.
 
-    The response bytes and observation locator stay in the operator's attempt
-    store. ``observed_at`` is gateway wall-clock seconds and is not
-    authenticated.
+    The response bytes, raw digest and echo stay in the protected journal.
+    ``evidence_commitment`` is a native scoped hiding commitment, not a body
+    hash. ``observed_at`` is gateway wall-clock seconds and is not authenticated.
     """
 
     channel: Literal["read-back"]
-    echo: str
-    evidence_digest: str
+    schema: Literal["auths.gateway-public-evidence/1"]
+    evidence_commitment: str
     observed_at: int
 
 
@@ -185,28 +184,59 @@ def _parse_evidence(value: object) -> GatewayProviderEvidence:
         raise GatewayProtocolError("gateway returned invalid evidence")
     evidence = cast(Mapping[str, object], value)
     channel = evidence.get("channel")
-    echo = evidence.get("echo")
-    digest = evidence.get("evidence_digest")
+    schema = evidence.get("schema")
+    commitment = evidence.get("evidence_commitment")
     observed_at = evidence.get("observed_at")
     if (
-        set(evidence) != {"channel", "echo", "evidence_digest", "observed_at"}
+        set(evidence) != {"schema", "channel", "evidence_commitment", "observed_at"}
         or channel != "read-back"
-        or not isinstance(echo, str)
-        or _ECHO.fullmatch(echo) is None
-        or not isinstance(digest, str)
-        or _DIGEST.fullmatch(digest) is None
+        or schema != "auths.gateway-public-evidence/1"
+        or not isinstance(commitment, str)
+        or _DIGEST.fullmatch(commitment) is None
         or not isinstance(observed_at, int)
         or isinstance(observed_at, bool)
-        or not 0 <= observed_at <= _MAX_U64
+        or not 0 <= observed_at <= (1 << 53) - 1
     ):
         raise GatewayProtocolError("gateway returned invalid evidence")
-    return GatewayProviderEvidence("read-back", echo, digest, observed_at)
+    return GatewayProviderEvidence("read-back", "auths.gateway-public-evidence/1", commitment, observed_at)
+
+
+def _result_integer(value: str) -> int:
+    if value.startswith("-") or len(value) > 20:
+        raise ValueError("negative gateway result integer")
+    return int(value)
+
+
+def _result_float(_value: str) -> object:
+    raise ValueError("gateway result number is not an integer")
+
+
+def _gateway_json(raw: bytes) -> object:
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise ValueError("gateway JSON BOM")
+    return cast(object, json.loads(raw.decode("utf-8"),
+                                   object_pairs_hook=_unique_result_object,
+                                   parse_int=_result_integer, parse_float=_result_float))
+
+
+def _unique_result_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if len(pairs) > 16:
+        raise ValueError("oversized gateway result object")
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate gateway result member")
+        key.encode("utf-8")
+        if isinstance(value, str):
+            value.encode("utf-8")
+        result[key] = value
+    return result
 
 
 def _parse_result(raw: bytes) -> GatewayResult:
     try:
-        decoded: object = json.loads(raw)
-    except (UnicodeDecodeError, ValueError) as error:
+        decoded: object = _gateway_json(raw)
+    except (UnicodeError, ValueError, RecursionError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid result")
@@ -334,8 +364,8 @@ def _parse_observe_result(
     raw: bytes, schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"]
 ) -> GatewayObserveResult:
     try:
-        decoded: object = json.loads(raw)
-    except (UnicodeDecodeError, ValueError) as error:
+        decoded: object = _gateway_json(raw)
+    except (UnicodeError, ValueError, RecursionError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid observation result")
@@ -390,8 +420,8 @@ def _parse_refusal(value: Mapping[str, object]) -> GatewayObservationRefused:
 
 def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryResult:
     try:
-        decoded: object = json.loads(raw)
-    except (UnicodeDecodeError, ValueError) as error:
+        decoded: object = _gateway_json(raw)
+    except (UnicodeError, ValueError, RecursionError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid pre-entry result")

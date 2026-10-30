@@ -119,12 +119,26 @@ function providerResult(status = 200, evidence = {}) {
   return JSON.stringify({
     outcome: "observed-by-provider",
     status,
-    evidence: { channel: "read-back", echo: ECHO, evidence_digest: DIGEST, observed_at: 1790000000, ...evidence },
+    evidence: { schema: "auths.gateway-public-evidence/1", channel: "read-back", evidence_commitment: DIGEST, observed_at: 1790000000, ...evidence },
   });
 }
 
+test("gateway public evidence matches the native corpus", { skip: process.platform === "win32" }, async () => {
+  const path = new URL("../../../fixtures/gateway/native-public-mutation-evidence-file.json", import.meta.url);
+  const corpus = JSON.parse(await readFile(path, "utf8"));
+  for (const item of corpus.wire_cases) {
+    if (item.accepted) {
+      const result = await replyOnce(item.response);
+      assert.equal(result.outcome, "observed-by-provider");
+      assert.equal(result.evidence.schema, "auths.gateway-public-evidence/1");
+    } else {
+      await assert.rejects(replyOnce(item.response), GatewayProtocolError, item.case);
+    }
+  }
+});
+
 test("gateway client exposes observed-by-provider without evidence bytes", { skip: process.platform === "win32" }, async () => {
-  const evidence = { channel: "read-back", echo: ECHO, evidenceDigest: DIGEST, observedAt: 1790000000 };
+  const evidence = { schema: "auths.gateway-public-evidence/1", channel: "read-back", evidenceCommitment: DIGEST, observedAt: 1790000000 };
   assert.deepEqual(await replyOnce(providerResult()), { outcome: "observed-by-provider", status: 200, evidence });
   assert.deepEqual(await replyOnce(providerResult(null)), { outcome: "observed-by-provider", status: null, evidence });
   for (const hostile of [
@@ -133,7 +147,11 @@ test("gateway client exposes observed-by-provider without evidence bytes", { ski
     providerResult(200, { channel: "webhook" }),
     providerResult(200, { echo: "auths-e1-app-supplied" }),
     providerResult(200, { echo: ECHO.toUpperCase() }),
-    providerResult(200, { evidence_digest: "00" }),
+    providerResult(200, { evidence_commitment: "00" }),
+    providerResult(200, { evidence_commitment: DIGEST + "\n" }),
+    providerResult(200, { observed_at: 2 ** 53 }),
+    providerResult(200, { schema: "auths.gateway-public-evidence/0" }),
+    providerResult(200, { evidence_digest: DIGEST }),
     providerResult(200, { observed_at: -1 }),
     providerResult(200, { evidence_b64: "e30" }),
     '{"outcome":"observed-by-provider","status":200}',

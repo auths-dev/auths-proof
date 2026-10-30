@@ -35,6 +35,8 @@ const TARGET: &str = "/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001"
 mod history_tests;
 #[path = "native_recovery_limits_tests.rs"]
 mod limits_tests;
+#[path = "native_public_evidence_tests.rs"]
+mod privacy_tests;
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

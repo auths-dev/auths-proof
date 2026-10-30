@@ -27,7 +27,7 @@ use crate::{
 };
 use crate::{
     ClosedProviderRequest, CompiledRecipe, GatewayAttempts, GatewayConnectionDescriptor,
-    GatewayEvidenceChannel, GatewayProviderEvidence,
+    GatewayEvidenceChannel,
 };
 use auths_connections::{
     ConnectionAlias, ConnectionCredentialStore, ConnectionProfile, ConnectionRecord,
@@ -128,19 +128,60 @@ fn decode_journal_revision<'de, D: serde::Deserializer<'de>>(
     Ok(revision)
 }
 
-/// Secret-free summary of stored provider evidence. The response bytes and
-/// the observation locator stay in the operator's attempt store.
+/// Schema of the public hiding evidence projection; never a private body hash.
+pub const PUBLIC_EVIDENCE_SCHEMA: &str = "auths.gateway-public-evidence/1";
+
+/// Public hiding summary of stored provider evidence. Response bytes, raw
+/// digests, echo and locator stay in the protected attempt journal.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayEvidenceSummary {
+    /// Exactly `auths.gateway-public-evidence/1`.
+    #[serde(deserialize_with = "decode_evidence_schema")]
+    pub schema: String,
     /// Evidence channel; `read-back` in this version.
     pub channel: GatewayEvidenceChannel,
-    /// The echo token found in the provider record.
-    pub echo: String,
-    /// Lowercase hexadecimal SHA-256 of the exact observation response bytes.
-    pub evidence_digest: String,
+    /// Lowercase HMAC-SHA256 under the private immutable attempt nonce and
+    /// canonical binding. Stable on replay, never a raw content digest.
+    #[serde(deserialize_with = "decode_evidence_commitment")]
+    pub evidence_commitment: String,
     /// Gateway wall-clock seconds; not authenticated.
+    #[serde(deserialize_with = "decode_evidence_time")]
     pub observed_at: u64,
+}
+
+fn decode_evidence_time<'de, D: serde::Deserializer<'de>>(decoder: D) -> Result<u64, D::Error> {
+    let value = u64::deserialize(decoder)?;
+    if value > (1_u64 << 53) - 1 {
+        return Err(serde::de::Error::custom("invalid public evidence time"));
+    }
+    Ok(value)
+}
+
+fn decode_evidence_schema<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<String, D::Error> {
+    let value = String::deserialize(decoder)?;
+    if value != PUBLIC_EVIDENCE_SCHEMA {
+        return Err(serde::de::Error::custom("invalid public evidence schema"));
+    }
+    Ok(value)
+}
+
+fn decode_evidence_commitment<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<String, D::Error> {
+    let value = String::deserialize(decoder)?;
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(serde::de::Error::custom(
+            "invalid public evidence commitment",
+        ));
+    }
+    Ok(value)
 }
 
 /// A verified submission's bounded, credential-free request projection for
@@ -233,14 +274,15 @@ pub(crate) fn review_command(
     })
 }
 
-impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
-    fn from(evidence: &GatewayProviderEvidence) -> Self {
-        Self {
+impl GatewayEvidenceSummary {
+    pub(crate) fn from_snapshot(snapshot: &crate::GatewayAttemptSnapshot) -> Option<Self> {
+        let evidence = snapshot.provider_evidence()?;
+        Some(Self {
+            schema: PUBLIC_EVIDENCE_SCHEMA.to_owned(),
             channel: evidence.channel(),
-            echo: evidence.echo().to_owned(),
-            evidence_digest: hex::encode(evidence.evidence_digest()),
+            evidence_commitment: hex::encode(snapshot.public_evidence_commitment()?),
             observed_at: evidence.observed_at(),
-        }
+        })
     }
 }
 
@@ -2471,13 +2513,12 @@ pub(crate) fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> Gateway
             status,
             matched: snapshot.observation_match().unwrap_or(false),
         },
-        (Stage::ObservedByProvider, status) => match snapshot.provider_evidence() {
-            Some(evidence) => GatewaySubmitResult::ObservedByProvider {
-                status,
-                evidence: evidence.into(),
-            },
-            None => GatewaySubmitResult::Unknown,
-        },
+        (Stage::ObservedByProvider, status) => {
+            match GatewayEvidenceSummary::from_snapshot(snapshot) {
+                Some(evidence) => GatewaySubmitResult::ObservedByProvider { status, evidence },
+                None => GatewaySubmitResult::Unknown,
+            }
+        }
         _ => GatewaySubmitResult::Unknown,
     }
 }

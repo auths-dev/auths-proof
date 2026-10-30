@@ -121,7 +121,7 @@ pub enum GatewayEvidenceChannel {
 
 /// Secret-free provider evidence kept for every `observed-by-provider` stage.
 /// The bytes inherit the provider data's sensitivity and must not be logged;
-/// `Debug` reports only their length.
+/// `Debug` reports only bounded non-content metadata.
 #[derive(Clone, Eq, PartialEq)]
 pub struct GatewayProviderEvidence {
     channel: GatewayEvidenceChannel,
@@ -170,9 +170,7 @@ impl std::fmt::Debug for GatewayProviderEvidence {
         formatter
             .debug_struct("GatewayProviderEvidence")
             .field("channel", &self.channel)
-            .field("locator", &self.locator)
-            .field("echo", &self.echo)
-            .field("evidence_digest", &hex::encode(self.evidence_digest))
+            .field("private", &"[redacted]")
             .field("evidence_bytes", &self.evidence.len())
             .field("observed_at", &self.observed_at)
             .finish()
@@ -273,8 +271,9 @@ pub fn pre_entry_digest(observations: &[Vec<u8>]) -> Option<[u8; 32]> {
     Some(hash.finalize().into())
 }
 
-/// Secret-free persisted evidence for one logical operation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Protected persisted evidence for one logical operation. Public callers must
+/// use the native redacted projections rather than serializing these facts.
+#[derive(Clone, Eq, PartialEq)]
 pub struct GatewayAttemptSnapshot {
     revision: u64,
     namespace: OperatorNamespace,
@@ -291,11 +290,26 @@ pub struct GatewayAttemptSnapshot {
     observation_match: Option<bool>,
     observation_fact: Option<GatewayObservationFact>,
     provider_evidence: Option<GatewayProviderEvidence>,
+    public_evidence_commitment: Option<[u8; 32]>,
     pre_entry: Option<GatewayPreEntry>,
     recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
 }
 
+impl std::fmt::Debug for GatewayAttemptSnapshot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GatewayAttemptSnapshot")
+            .field("revision", &self.revision)
+            .field("stage", &self.stage)
+            .field("private", &"[redacted]")
+            .finish()
+    }
+}
+
 impl GatewayAttemptSnapshot {
+    pub(crate) const fn public_evidence_commitment(&self) -> Option<&[u8; 32]> {
+        self.public_evidence_commitment.as_ref()
+    }
     /// Whether this history was refined by an independently authorized read.
     #[must_use]
     pub const fn has_recovery_evidence(&self) -> bool {
@@ -847,6 +861,40 @@ fn canonical<T: Serialize>(value: &T) -> Result<Vec<u8>, GatewayAttemptError> {
 }
 
 impl Record {
+    /// One hiding projection under the existing private, immutable 128-bit
+    /// attempt nonce. Scope includes every canonical binding dimension; the
+    /// nonce and raw evidence digest never enter the public projection.
+    fn public_commitment(
+        &self,
+        label: &[u8],
+        digest: &[u8; 32],
+    ) -> Result<[u8; 32], GatewayAttemptError> {
+        use hmac::Mac as _;
+        let key = zeroize::Zeroizing::new(
+            hex::decode(&self.nonce).map_err(|_| GatewayAttemptError::Corrupt)?,
+        );
+        if key.len() != 16 {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let mut mac =
+            hmac::Hmac::<Sha256>::new_from_slice(&key).map_err(|_| GatewayAttemptError::Corrupt)?;
+        mac.update(b"auths.gateway-public-commitment/1\0");
+        let binding = self.binding_canonical.as_bytes();
+        mac.update(
+            &u32::try_from(binding.len())
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_be_bytes(),
+        );
+        mac.update(binding);
+        mac.update(
+            &u32::try_from(label.len())
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .to_be_bytes(),
+        );
+        mac.update(label);
+        mac.update(digest);
+        Ok(mac.finalize().into_bytes().into())
+    }
     fn counters(&self) -> Result<Vec<GatewayCounterEntry>, GatewayAttemptError> {
         capacity::decode_counters(&self.state.counters)
     }
@@ -1070,6 +1118,12 @@ impl Record {
             })
             .map(PreEntryWire::decode)
             .transpose()?;
+        let public_evidence_commitment = provider_evidence
+            .as_ref()
+            .map(|evidence| {
+                self.public_commitment(b"provider-evidence", evidence.evidence_digest())
+            })
+            .transpose()?;
         Ok(GatewayAttemptSnapshot {
             revision: self.revision,
             namespace,
@@ -1090,6 +1144,7 @@ impl Record {
             observation_match: self.state.observation_match,
             observation_fact: self.state.observation_fact,
             provider_evidence,
+            public_evidence_commitment,
             pre_entry,
             recovery_evidence: self.state.recovery_evidence.clone(),
         })

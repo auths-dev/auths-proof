@@ -1,0 +1,100 @@
+{
+  "schema": "auths.native-public-mutation-evidence/1",
+  "adapter": "postgres",
+  "scope": "native writer/read proofs and exact approvals, actual HTTP, protected complete evidence and public original-writer replay after withdrawal",
+  "excluded": [
+    "signed outcome/pre-entry observation projection hardening",
+    "live provider and hostile OS qualification"
+  ],
+  "public_result": {
+    "outcome": "observed-by-provider",
+    "status": null,
+    "evidence": {
+      "schema": "auths.gateway-public-evidence/1",
+      "channel": "read-back",
+      "evidence_commitment": "native-scoped-hiding-value-checked",
+      "observed_at": 1790000001
+    }
+  },
+  "wire_cases": [
+    {
+      "case": "valid",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": true
+    },
+    {
+      "case": "obsolete-schema",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/0\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "short-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"00\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "uppercase-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "newline-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\\n\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "numeric-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":42,\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "private-echo",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000,\"echo\":\"auths-e1-private-canary\"}}",
+      "accepted": false
+    },
+    {
+      "case": "raw-digest",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000,\"evidence_digest\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\"}}",
+      "accepted": false
+    },
+    {
+      "case": "unsafe-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":9007199254740992}}",
+      "accepted": false
+    },
+    {
+      "case": "boolean-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":true}}",
+      "accepted": false
+    },
+    {
+      "case": "negative-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":-1}}",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-schema",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "fractional-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1.0}}",
+      "accepted": false
+    },
+    {
+      "case": "exponent-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1e0}}",
+      "accepted": false
+    },
+    {
+      "case": "bom",
+      "response": "﻿{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    }
+  ],
+  "same_private_bytes_have_distinct_record_scoped_commitments": true,
+  "reopen_and_replay_preserve_commitment_without_io": true,
+  "private_complete_evidence_and_original_binding_preserved": true,
+  "public_and_debug_exclude_raw_body_digest_echo_and_action_digest": true
+}

@@ -96,6 +96,8 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::limits_tests::postgres_native_recovery_limits_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current
           cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres
           } 2>&1 | tee target/ap074-native-adapter-evidence.log
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5

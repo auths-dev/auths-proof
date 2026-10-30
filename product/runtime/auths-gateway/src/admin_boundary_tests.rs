@@ -110,12 +110,7 @@ fn admin_request_boundary_fixture_is_current() {
     boundary.resize(MAX_ADMIN_REQUEST_BYTES, b' ');
     record(&mut cases, "byte-limit", boundary.clone(), true);
     boundary.push(b' ');
-    record(
-        &mut cases,
-        "byte-limit-plus-one",
-        boundary,
-        false,
-    );
+    record(&mut cases, "byte-limit-plus-one", boundary, false);
     tokio::runtime::Runtime::new()
         .expect("runtime")
         .block_on(async {
