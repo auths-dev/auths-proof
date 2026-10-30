@@ -173,7 +173,7 @@ impl std::fmt::Debug for GatewayProviderEvidence {
             .field("private", &"[redacted]")
             .field("evidence_bytes", &self.evidence.len())
             .field("observed_at", &self.observed_at)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -302,7 +302,7 @@ impl std::fmt::Debug for GatewayAttemptSnapshot {
             .field("revision", &self.revision)
             .field("stage", &self.stage)
             .field("private", &"[redacted]")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

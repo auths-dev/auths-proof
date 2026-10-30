@@ -1,5 +1,21 @@
 # AP-SPEC-074 implementation and evidence ledger
 
+## User-requested pause — 30 October 2026
+
+AP074 remains incomplete. The user requested a committed, pushed pause.
+The completed public mutation-evidence cutover is `1769057a` on PR213.
+All unfinished signed-output/private-audit work is separately committed and pushed
+at `f55aa61a720a5885d68da30daf102689f75446a3` on
+`codex/ap074-public-output-checkpoint`. Its
+[`0074-public-output-checkpoint.md`](https://github.com/auths-dev/auths-proof/blob/f55aa61a720a5885d68da30daf102689f75446a3/docs/plans/0074-public-output-checkpoint.md)
+records implemented changes, construction evidence and remaining integration work.
+That checkpoint is unfinished and must not be mistaken for a qualified PR head.
+
+Resume only on a new user request. Preserve both branches and reconcile the
+checkpoint with subsequent PR CI repairs before continuing. A17, the remaining
+acceptance/evidence items below and final exact-head qualification remain open.
+AP070 remains independent; AP073 remains paused and untouched.
+
 ## Durable goal
 
 Implement all of [AP-SPEC-074](../specs/0074-bound-effects-and-recovery-state-machine.md)
@@ -3702,21 +3718,49 @@ or deployment claim is made by AP074 source work.
 
 - Gateway source closure is `9f470c3eed04ddaf76e41bfb9a3565fc73ef75db51578c9b14a2bd9e04744824`; construction and rebuilt check passed. Semantic freeze 425 updates identity 168, portable ABI 127, public SDK 165, vocabulary 29 and public surface 425. The required metadata constructor completed successfully. Hosted checks remain the CI agent’s responsibility.
 
-### Next mandatory privacy cutover
+### Saved unfinished privacy cutover
 
-- Signed outcomes and public pre-entry observations still expose private facts;
-  this checkpoint does not close A17 or the entire specification.
-- Replace the public signed outcome with a new schema containing a stable hiding
-  effect reference, stage/status/time/recipe facts and a hiding commitment to the
-  exact complete journal record. The seal must cover entry/fence/authority and
-  accounting metadata, not just the legacy OutcomeRecord fields. Exclude the
-  private nonce from the sealed message while using it as the MAC key.
-- Private audit must use an operator-only atomic signed-outcome plus canonical
-  journal-record opening. Its decoder must be the existing journal owner, check
-  exact proof/action commitments and scope, and compare the public seal; retain
-  every existing private outcome presence, counter, pre-entry and basis check.
-  Do not weaken audit binding or expose the opening on the application socket.
-- Public pre-entry results must contain redacted count/hiding metadata rather
-  than raw signed observations. Private audit obtains those bytes from the
-  protected journal opening. Cut over native vectors, bindings, demos/templates
-  and private audit schema directly; no legacy or dual-schema runtime readers.
+- Signed outcomes and public pre-entry observations in the PR still expose
+  private facts; this checkpoint does not close A17 or the specification.
+- Branch `codex/ap074-public-output-checkpoint` preserves the in-progress direct
+  cutover to public signed outcome `/3`, redacted pre-entry history and app
+  observe `/4`, plus binding, corpus and operator export changes. Its resume note
+  distinguishes implemented source from incomplete consumers and stale metadata.
+- Public facts use a stable hiding effect reference and a hiding commitment to
+  the complete canonical journal record, excluding its nonce from the message.
+  Entry/fence/authority and accounting fields are included in the record seal.
+- The saved implementation improves the earlier proposed journal opening: the
+  operator exports the existing complete signed private outcome fact set and
+  protected pre-entry bytes from one loaded native snapshot. A separate closed
+  private outcome schema retains the existing audit decoder, presence predicate,
+  counter/pre-entry/basis checks and signature pin. No journal nonce is exported
+  and no second journal interpreter is introduced. This remains unfinished.
+- Complete SDK/demo/example/template and operator-bundle consumers atomically;
+  private outcome or pre-entry bytes must never return through an application
+  socket, UI, binding or public artifact. Preserve all current audit checks,
+  including negative/tamper cases. Reject superseded public schemas directly.
+
+## Committed pause checkpoint: bounded CI repair
+
+- Integrated the CI subagent's final four-file batch `2e31c2d7`: TypeScript API
+  declaration snapshot, closed public hiding-summary assertions in both demos,
+  and Stripe retention of the existing operator-private native exact binding.
+  Expected echoes are derived only from the private authored native binding;
+  raw public echoes or digests were not restored and linkage checks remain.
+- Fixed native redacted Debug builders with `finish_non_exhaustive`, and added
+  explicit redacted messages to private byte/digest equality assertions. No
+  sensitive values enter failure diagnostics. These address the CI subagent's
+  exact strict-lint findings without allowances or predicate changes.
+- The subagent reports that both actual installed Docker reproductions passed:
+  Airtable 36 cases and Stripe 23 cases, with production qualification false.
+  It reports 48 native selectors, 15 parser vectors, hosted Linux UID isolation
+  and exact producer/artifact hashes verified. Main did not inspect CI. Its
+  report is `/tmp/ap074-ci-1769-report.md`. Final combined-head hosted
+  qualification remains pending; no complete acceptance row is inferred.
+- Required source-closure construction and rebuilt non-update check each passed
+  (1 passed / 0 ignored). Only the semantic-freeze metadata constructor was run
+  afterward. No broad local suite or new CI-monitoring loop was started.
+- Final checkpoint source closure is
+  `93ef3b915cc48f0c0d4c0d4de7e03d0ed394e83526fbdfdc2ad19443dec5ec20`.
+  Semantic freeze 426 updates only the generator-required identity 169,
+  evolution contract 83 and public surface 426; the metadata constructor passed.

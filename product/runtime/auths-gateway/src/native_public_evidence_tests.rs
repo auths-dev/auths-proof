@@ -75,9 +75,15 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
         .source
         .provider_evidence()
         .expect("protected evidence");
-    assert!(evidence.evidence() == body);
+    assert!(
+        evidence.evidence() == body,
+        "protected evidence bytes differ"
+    );
     let digest: [u8; 32] = Sha256::digest(&body).into();
-    assert!(evidence.evidence_digest() == &digest);
+    assert!(
+        evidence.evidence_digest() == &digest,
+        "protected evidence digest differs"
+    );
     let original: Value = serde_json::from_slice(&case.original).expect("source");
     let action = hex::decode(
         original["action_commitment"]
