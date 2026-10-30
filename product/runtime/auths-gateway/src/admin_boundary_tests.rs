@@ -25,7 +25,7 @@ fn request(command: &str) -> Value {
     value
 }
 
-fn record(cases: &mut Vec<Value>, name: String, bytes: Vec<u8>, accepted: bool) {
+fn record(cases: &mut Vec<Value>, name: &str, bytes: Vec<u8>, accepted: bool) {
     let result = parse_admin_request(&bytes);
     assert_eq!(result.is_ok(), accepted, "{name}");
     if !accepted {
@@ -48,7 +48,7 @@ fn admin_request_boundary_fixture_is_current() {
         let value = request(command);
         record(
             &mut cases,
-            format!("{command}:valid"),
+            &format!("{command}:valid"),
             serde_json::to_vec(&value).expect("JSON"),
             true,
         );
@@ -65,7 +65,7 @@ fn admin_request_boundary_fixture_is_current() {
                 );
                 record(
                     &mut cases,
-                    format!(
+                    &format!(
                         "{command}:duplicate-{key}-{}",
                         if &replacement == field {
                             "same"
@@ -82,7 +82,7 @@ fn admin_request_boundary_fixture_is_current() {
         unknown["administrative_resolution"] = json!("not-entered-and-refunded");
         record(
             &mut cases,
-            format!("{command}:unknown-argument"),
+            &format!("{command}:unknown-argument"),
             serde_json::to_vec(&unknown).expect("JSON"),
             false,
         );
@@ -90,7 +90,7 @@ fn admin_request_boundary_fixture_is_current() {
         wrong_type["command"] = json!({"name":command});
         record(
             &mut cases,
-            format!("{command}:non-string-command"),
+            &format!("{command}:non-string-command"),
             serde_json::to_vec(&wrong_type).expect("JSON"),
             false,
         );
@@ -104,15 +104,15 @@ fn admin_request_boundary_fixture_is_current() {
         ("non-object", b"[]".to_vec()),
         ("trailing-data", format!(r#"{{"schema":"{ADMIN_REQUEST_SCHEMA}","command":"status"}} null"#).into_bytes()),
     ] {
-        record(&mut cases, name.to_owned(), bytes, false);
+        record(&mut cases, name, bytes, false);
     }
     let mut boundary = serde_json::to_vec(&request("status")).expect("JSON");
     boundary.resize(MAX_ADMIN_REQUEST_BYTES, b' ');
-    record(&mut cases, "byte-limit".to_owned(), boundary.clone(), true);
+    record(&mut cases, "byte-limit", boundary.clone(), true);
     boundary.push(b' ');
     record(
         &mut cases,
-        "byte-limit-plus-one".to_owned(),
+        "byte-limit-plus-one",
         boundary,
         false,
     );

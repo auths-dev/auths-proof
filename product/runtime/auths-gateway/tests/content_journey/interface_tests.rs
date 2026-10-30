@@ -52,7 +52,7 @@ fn scan_value(value: &Value, secret: &[u8]) {
         _ => {}
     }
 }
-fn checked(output: Output, secret: &[u8]) -> Value {
+fn checked(output: &Output, secret: &[u8]) -> Value {
     no_canaries(&output.stdout, secret);
     no_canaries(&output.stderr, secret);
     assert!(output.status.success(), "native process failed");
@@ -83,7 +83,7 @@ fn private_paths(root: &Path) -> Vec<PathBuf> {
 }
 fn witness(state: &Path, admin: &Path, secret: &[u8]) -> Value {
     checked(
-        cli(
+        &cli(
             "execution-witness",
             &[
                 ("--state-dir", path(state)),
@@ -99,6 +99,14 @@ fn witness(state: &Path, admin: &Path, secret: &[u8]) -> Value {
 
 fn probe(mut payload: Value, secret: &[u8]) -> Value {
     let distinct = payload["distinct_uid"].as_bool().expect("mode");
+    let admin_socket = PathBuf::from(payload["admin_socket"].as_str().expect("admin socket"));
+    let admin_directory = admin_socket.parent().expect("admin directory");
+    if distinct {
+        std::fs::set_permissions(admin_directory, std::fs::Permissions::from_mode(0o755))
+            .expect("exercise accept-time UID guard");
+        std::fs::set_permissions(&admin_socket, std::fs::Permissions::from_mode(0o666))
+            .expect("exercise peer guard beyond DAC");
+    }
     let mut child = if distinct {
         let mut command = Command::new("sudo");
         command
@@ -118,7 +126,7 @@ fn probe(mut payload: Value, secret: &[u8]) -> Value {
     };
     child
         .arg("-c")
-        .arg(include_str!("managed_interface_probe.py"))
+        .arg(include_str!("../managed_interface_probe.py"))
         .env_clear()
         .env("PATH", std::env::var_os("PATH").expect("PATH"))
         .stdin(Stdio::piped())
@@ -133,6 +141,14 @@ fn probe(mut payload: Value, secret: &[u8]) -> Value {
         .write_all(&serde_json::to_vec(&payload).expect("probe data"))
         .expect("probe input");
     let output = child.wait_with_output().expect("untrusted process output");
+    if distinct {
+        // The permissive inode is scoped to the untrusted peer probe. Trusted
+        // admin clients must still enforce a private directory and socket.
+        std::fs::set_permissions(&admin_socket, std::fs::Permissions::from_mode(0o600))
+            .expect("restore private admin socket");
+        std::fs::set_permissions(admin_directory, std::fs::Permissions::from_mode(0o700))
+            .expect("restore private admin directory");
+    }
     no_canaries(&output.stdout, secret);
     no_canaries(&output.stderr, secret);
     assert!(
@@ -171,9 +187,8 @@ fn probe(mut payload: Value, secret: &[u8]) -> Value {
     reason = "one installed native fixture checks all application interfaces against a counting provider and owned private state"
 )]
 fn run(distinct: bool) -> Value {
-    if distinct {
-        assert!(cfg!(target_os = "linux"));
-    }
+    #[cfg(not(target_os = "linux"))]
+    assert!(!distinct, "distinct-UID evidence requires Linux");
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bindings/fixtures/gateway");
     let bases: Value = serde_json::from_slice(
         &std::fs::read(fixtures.join("hostile-recipes-v2.json")).expect("recipes"),
@@ -286,7 +301,7 @@ fn run(distinct: bool) -> Value {
     );
     let mut daemon = Daemon::start_at_admin(&state, &socket, &admin_socket, provider.port);
     let acquired = checked(
-        read.execute("content-acquire", &socket, &[], &[], None),
+        &read.execute("content-acquire", &socket, &[], &[], None),
         &secret,
     );
     assert_eq!(
@@ -439,12 +454,6 @@ fn run(distinct: bool) -> Value {
         .join(format!("claim-{}.json", hex::encode(key.as_bytes())));
     let source_before = std::fs::read(&source_path).expect("private source journal");
     let before = witness(&state, &admin_socket, &secret);
-    if distinct {
-        std::fs::set_permissions(&admin_directory, std::fs::Permissions::from_mode(0o755))
-            .expect("exercise accept-time UID guard");
-        std::fs::set_permissions(&admin_socket, std::fs::Permissions::from_mode(0o666))
-            .expect("exercise peer guard beyond DAC");
-    }
     let payload = json!({"distinct_uid":distinct,"gateway_uid":uid,"gateway_pid":daemon.0.id(),"socket":socket,"state":state,"admin_socket":admin_socket,"provider_port":provider.port,"private_paths":private_paths(&root),"cases":calls,"admin_frames":admin_frames,"cli_commands":commands});
     let first = probe(payload.clone(), &secret);
     assert_eq!(witness(&state, &admin_socket, &secret), before);
@@ -460,7 +469,7 @@ fn run(distinct: bool) -> Value {
     let ack = root.join("ack");
     let expected_bytes = CONTENT.len().to_string();
     let received = checked(
-        release.execute(
+        &release.execute(
             "disclosure-receive",
             &socket,
             &[
@@ -476,9 +485,21 @@ fn run(distinct: bool) -> Value {
         &secret,
     );
     assert_eq!(received["outcome"], "recipient-ack-sent");
-    assert!(std::fs::read(&content).expect("trusted recipient content") == CONTENT);
-    let acknowledged = history(&socket, "release");
-    assert_eq!(acknowledged["history"]["snapshot"]["stage"], "acknowledged");
+    // Keep protected bytes out of assertion diagnostics.
+    assert!(
+        std::fs::read(&content).expect("trusted recipient content") == CONTENT,
+        "trusted recipient content differs"
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let acknowledged = loop {
+        let value = history(&socket, "release");
+        scan_value(&value, &secret);
+        if value["history"]["snapshot"]["stage"] == "acknowledged" {
+            break value;
+        }
+        assert!(Instant::now() < deadline, "ACK was not durably recorded");
+        thread::sleep(Duration::from_millis(10));
+    };
     let mut replay_payload = payload;
     replay_payload["private_paths"] = json!(private_paths(&root));
     replay_payload["cases"] = json!([case("disclosure-replay-after-owner-ack", &disclose)]);

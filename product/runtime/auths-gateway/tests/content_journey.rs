@@ -34,7 +34,7 @@ const SECRET: &[u8] = b"pat_public_content_journey_fixture";
 const CONTENT: &[u8] = b"PRIVATE-CONTENT-PROCESS-SENTINEL";
 const RECORD: &str = "recTEST0000000001";
 
-#[path = "content_interface_tests.rs"]
+#[path = "content_journey/interface_tests.rs"]
 mod interface_tests;
 
 fn private(path: &Path, bytes: &[u8]) {
@@ -150,12 +150,7 @@ impl Provider {
                     request.push(byte[0]);
                 }
                 let header = String::from_utf8(request).expect("header");
-                let expected = format!("Bearer {}", String::from_utf8_lossy(&secret));
-                let authenticated = header.lines().any(|line| {
-                    line.split_once(':').is_some_and(|(name, value)| {
-                        name.eq_ignore_ascii_case("authorization") && value.trim() == expected
-                    })
-                });
+                let authenticated = Self::authenticated(&header, &secret);
                 if !authenticated && refuse_unauthorized {
                     refused.fetch_add(1, Ordering::SeqCst);
                     stream.write_all(b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n").expect("unauthorized response");
@@ -215,6 +210,14 @@ impl Provider {
             join: Some(join),
             denied,
         }
+    }
+    fn authenticated(header: &str, secret: &[u8]) -> bool {
+        let expected = format!("Bearer {}", String::from_utf8_lossy(secret));
+        header.lines().any(|line| {
+            line.split_once(':').is_some_and(|(name, value)| {
+                name.eq_ignore_ascii_case("authorization") && value.trim() == expected
+            })
+        })
     }
     fn calls(&self) -> Vec<String> {
         self.calls.lock().expect("calls").clone()
