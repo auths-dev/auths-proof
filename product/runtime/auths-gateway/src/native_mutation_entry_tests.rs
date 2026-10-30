@@ -435,6 +435,8 @@ async fn selected_evidence(
     race: &Race,
     input: &mut Input,
 ) -> Option<Value> {
+    use crate::observed_tests::threshold_testkit as kit;
+
     if !matches!(
         race.scenario,
         Scenario::ObserverValid
@@ -444,7 +446,6 @@ async fn selected_evidence(
     ) {
         return None;
     }
-    use crate::observed_tests::threshold_testkit as kit;
     let threshold = matches!(
         race.scenario,
         Scenario::ThresholdValid | Scenario::ThresholdChanged
