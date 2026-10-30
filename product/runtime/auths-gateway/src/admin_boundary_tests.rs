@@ -15,6 +15,7 @@ fn request(command: &str) -> Value {
         | "execution-witness"
         | "qualification-reload" => {}
         "rotate-commit" => value["commitment"] = json!("00".repeat(32)),
+        "audit-export" => value["operation_id"] = json!("original"),
         "recover" => value["source_operation"] = json!("original"),
         "recovery-record" => {
             value["source_operation"] = json!("original");

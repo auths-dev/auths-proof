@@ -33,6 +33,7 @@ use std::{
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 pub use auths_stores::GatewayRecordKind;
 
@@ -173,7 +174,7 @@ impl std::fmt::Debug for GatewayProviderEvidence {
             .field("private", &"[redacted]")
             .field("evidence_bytes", &self.evidence.len())
             .field("observed_at", &self.observed_at)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -291,6 +292,8 @@ pub struct GatewayAttemptSnapshot {
     observation_fact: Option<GatewayObservationFact>,
     provider_evidence: Option<GatewayProviderEvidence>,
     public_evidence_commitment: Option<[u8; 32]>,
+    public_effect_reference: [u8; 32],
+    public_record_commitment: [u8; 32],
     pre_entry: Option<GatewayPreEntry>,
     recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
 }
@@ -302,11 +305,19 @@ impl std::fmt::Debug for GatewayAttemptSnapshot {
             .field("revision", &self.revision)
             .field("stage", &self.stage)
             .field("private", &"[redacted]")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 impl GatewayAttemptSnapshot {
+    pub(crate) const fn public_effect_reference(&self) -> &[u8; 32] {
+        &self.public_effect_reference
+    }
+
+    pub(crate) const fn public_record_commitment(&self) -> &[u8; 32] {
+        &self.public_record_commitment
+    }
+
     pub(crate) const fn public_evidence_commitment(&self) -> Option<&[u8; 32]> {
         self.public_evidence_commitment.as_ref()
     }
@@ -1145,6 +1156,8 @@ impl Record {
             observation_fact: self.state.observation_fact,
             provider_evidence,
             public_evidence_commitment,
+            public_effect_reference: self.public_commitment(b"action", &action_commitment)?,
+            public_record_commitment: self.record_commitment()?,
             pre_entry,
             recovery_evidence: self.state.recovery_evidence.clone(),
         })
@@ -3121,6 +3134,16 @@ impl ObservableGatewayAttempt {
         });
         next.state.stage = GatewayAttemptStage::ObservedByProvider;
         self.attempt.advance(next).await?.record.snapshot(false)
+    }
+}
+
+impl Record {
+    fn record_commitment(&self) -> Result<[u8; 32], GatewayAttemptError> {
+        use zeroize::Zeroize as _;
+        let mut message = self.clone();
+        message.nonce.zeroize();
+        let bytes = Zeroizing::new(encode(&message)?);
+        self.public_commitment(b"journal-record", &Sha256::digest(&bytes).into())
     }
 }
 

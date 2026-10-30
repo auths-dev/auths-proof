@@ -61,13 +61,12 @@ pub struct VerifiedOutcomeSummary {
 /// Verifies one outcome under the pinned `observer`.
 #[must_use]
 pub fn verify_outcome(bytes: &[u8], observer: &PrincipalId) -> Option<VerifiedOutcomeSummary> {
-    crate::observer::verify_outcome(bytes, observer)
-        .ok()
+    crate::observer::verify_public_outcome(bytes, observer)
         .map(|verified| VerifiedOutcomeSummary {
-            stage: verified.stage(),
+            stage: crate::observer::stage_name(verified.stage),
             subject: verified.subject.clone(),
             observed_at: verified.observed_at,
-            well_formed: verified.record.well_formed(),
+            well_formed: true,
         })
 }
 

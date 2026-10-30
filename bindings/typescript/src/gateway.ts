@@ -8,9 +8,9 @@ import { createConnection } from "node:net";
 import { platform } from "node:os";
 
 const REQUEST_SCHEMA = "auths.gateway-submit/2";
-const OBSERVE_SCHEMA = "auths.gateway-observe/3";
+const OBSERVE_SCHEMA = "auths.gateway-observe/4";
 const READ_BACK_SCHEMA = "auths.gateway-readback/1";
-const OUTCOME_SCHEMA = "auths.gateway-outcome/2";
+const OUTCOME_SCHEMA = "auths.gateway-outcome/3";
 const OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
 const MAX_OBSERVATION_BYTES = 4_096;
 const MAX_SUBJECT_BYTES = 1_024;
@@ -103,7 +103,7 @@ export type GatewayResult =
  */
 export type GatewaySignedObservation = Readonly<{
   outcome: "signed";
-  schema: "auths.gateway-readback/1" | "auths.gateway-outcome/2";
+  schema: "auths.gateway-readback/1" | "auths.gateway-outcome/3";
   subject: string;
   observedAt: number;
   mediaType: "application/vnd.auths.observation.v1+cbor";
@@ -115,17 +115,12 @@ export type GatewayObserveResult =
   | GatewaySignedObservation
   | Readonly<{ outcome: "refused"; code: string }>;
 
-/**
- * The signed pre-entry observations the gateway stored for one operation: each the exact
- * canonical `auths.gateway-readback/1` observation it signed after the credential lease
- * and before the write, in pointer order, and empty when none were recorded. The
- * gateway signs nothing new to answer and contacts no provider. An audit bundle carries
- * them as an entry's `pre_entry_b64`.
- */
+/** Redacted pre-entry history; protected observation bytes stay with the operator. */
 export type GatewayPreEntryObservations = Readonly<{
   outcome: "pre-entry";
   operationId: string;
-  observations: readonly Uint8Array[];
+  observations: number;
+  recordCommitment: string;
 }>;
 
 /** Closed result of a pre-entry request: the stored observations, or a refusal. */
@@ -353,22 +348,19 @@ function parsePreEntryResult(bytes: Uint8Array, operationId: string): GatewayPre
   if (value.outcome === "refused") {
     return parseRefusal(value);
   }
-  const encoded = value.observations_b64;
+  const observations = value.observations;
+  const commitment = value.record_commitment;
   if (
     value.outcome !== "pre-entry"
-    || !exactKeys(value, ["outcome", "operation_id", "observations_b64"])
+    || !exactKeys(value, ["outcome", "operation_id", "observations", "record_commitment"])
     || value.operation_id !== operationId
-    || !Array.isArray(encoded)
-    || encoded.length > MAX_PRE_ENTRY_OBSERVATIONS
-    || !encoded.every((item) => typeof item === "string")
+    || !Number.isSafeInteger(observations)
+    || (observations as number) < 0 || (observations as number) > MAX_PRE_ENTRY_OBSERVATIONS
+    || typeof commitment !== "string" || commitment.length !== 64 || !/^[0-9a-f]{64}$/u.test(commitment)
   ) {
-    throw new GatewayProtocolError("gateway returned invalid pre-entry observations");
+    throw new GatewayProtocolError("gateway returned invalid pre-entry history");
   }
-  return {
-    outcome: "pre-entry",
-    operationId,
-    observations: (encoded as string[]).map((item) => decodeBase64Url(item, MAX_OBSERVATION_BYTES)),
-  };
+  return { outcome: "pre-entry", operationId, observations: observations as number, recordCommitment: commitment };
 }
 
 function submission(input: Readonly<{ proof: Uint8Array; action: Uint8Array; approval: Uint8Array }>): Record<string, string> {

@@ -263,14 +263,14 @@ def test_client_requests_outcome_and_surfaces_refusal(socket_dir) -> None:
 
     subject = "auths-gateway://ns/operations/step-1"
     signed, seen = asyncio.run(
-        scenario(_signed(schema="auths.gateway-outcome/2", subject=subject))
+        scenario(_signed(schema="auths.gateway-outcome/3", subject=subject))
     )
     assert signed == GatewaySignedObservation(
-        "auths.gateway-outcome/2", subject, 1_790_000_000, _MEDIA_TYPE, _OBSERVATION
+        "auths.gateway-outcome/3", subject, 1_790_000_000, _MEDIA_TYPE, _OBSERVATION
     )
     assert seen == [
         {
-            "schema": "auths.gateway-observe/3",
+            "schema": "auths.gateway-observe/4",
             "request": {"kind": "outcome", "operation_id": "step-1"},
         }
     ]
@@ -297,21 +297,21 @@ def test_client_rejects_malformed_observation_frames(socket_dir) -> None:
         asyncio.run(scenario(_signed(), "step-1"))
     for hostile in [
         _signed(schema="retired"),
-        _signed(schema="auths.gateway-outcome/2", media_type="application/cbor"),
-        _signed(schema="auths.gateway-outcome/2", subject=""),
-        _signed(schema="auths.gateway-outcome/2", subject="s" * 1_025),
-        _signed(schema="auths.gateway-outcome/2", observed_at=-1),
-        _signed(schema="auths.gateway-outcome/2", observed_at=True),
-        _signed(schema="auths.gateway-outcome/2", observed_at="1790000000"),
-        _signed(schema="auths.gateway-outcome/2", observation_b64=""),
-        _signed(schema="auths.gateway-outcome/2", observation_b64=_b64(_OBSERVATION) + "="),
-        _signed(schema="auths.gateway-outcome/2", observation_b64=base64.b64encode(b"\xfb\xff").decode()),
-        _signed(schema="auths.gateway-outcome/2", observation_b64="AB"),
-        _signed(schema="auths.gateway-outcome/2", observation_b64="A"),
-        _signed(schema="auths.gateway-outcome/2", observation_b64="QUJD RA"),
-        _signed(schema="auths.gateway-outcome/2", observation_b64=_b64(b"x" * 4_097)),
-        _signed(schema="auths.gateway-outcome/2", confirmed=True),
-        _signed(schema="auths.gateway-outcome/2", observation=_b64(_OBSERVATION)),
+        _signed(schema="auths.gateway-outcome/3", media_type="application/cbor"),
+        _signed(schema="auths.gateway-outcome/3", subject=""),
+        _signed(schema="auths.gateway-outcome/3", subject="s" * 1_025),
+        _signed(schema="auths.gateway-outcome/3", observed_at=-1),
+        _signed(schema="auths.gateway-outcome/3", observed_at=True),
+        _signed(schema="auths.gateway-outcome/3", observed_at="1790000000"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=""),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=_b64(_OBSERVATION) + "="),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=base64.b64encode(b"\xfb\xff").decode()),
+        _signed(schema="auths.gateway-outcome/3", observation_b64="AB"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64="A"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64="QUJD RA"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=_b64(b"x" * 4_097)),
+        _signed(schema="auths.gateway-outcome/3", confirmed=True),
+        _signed(schema="auths.gateway-outcome/3", observation=_b64(_OBSERVATION)),
         b'{"outcome":"refused"}',
         b'{"outcome":"refused","code":""}',
         b'{"outcome":"refused","code":"x","reason":"y"}',
@@ -341,27 +341,33 @@ def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
         body: dict[str, object] = {
             "outcome": "pre-entry",
             "operation_id": "step-1",
-            "observations_b64": [_b64(_OBSERVATION)],
+            "observations": 1, "record_commitment": "01" * 32,
         }
         body.update(overrides)
         return json.dumps(body).encode()
 
     result, seen = asyncio.run(scenario(reply()))
-    assert result == GatewayPreEntryObservations("step-1", (_OBSERVATION,))
+    assert result == GatewayPreEntryObservations("step-1", 1, "01" * 32)
     assert seen == [
         {
-            "schema": "auths.gateway-observe/3",
+            "schema": "auths.gateway-observe/4",
             "request": {"kind": "pre-entry", "operation_id": "step-1"},
         }
     ]
-    empty, _ = asyncio.run(scenario(reply(observations_b64=[])))
-    assert empty == GatewayPreEntryObservations("step-1", ())
+    empty, _ = asyncio.run(scenario(reply(observations=0)))
+    assert empty == GatewayPreEntryObservations("step-1", 0, "01" * 32)
     refused, _ = asyncio.run(
         scenario(b'{"outcome":"refused","code":"gateway.observer.operation-unknown"}')
     )
     assert refused == GatewayObservationRefused("gateway.observer.operation-unknown")
     for hostile in [
         reply(operation_id="step-2"),
+        reply(observations=5),
+        reply(observations=-1),
+        reply(observations=True),
+        reply(record_commitment="01" * 31),
+        reply(record_commitment="01" * 32 + "\n"),
+        reply(record_commitment="AB" * 32),
         reply(observations_b64=[_b64(_OBSERVATION)] * 5),
         reply(observations_b64=[""]),
         reply(observations_b64=[_b64(_OBSERVATION) + "="]),

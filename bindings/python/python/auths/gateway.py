@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import Final, Literal, Mapping, Optional, Union, cast
 
 _REQUEST_SCHEMA = "auths.gateway-submit/2"
-_OBSERVE_SCHEMA = "auths.gateway-observe/3"
-_OUTCOME_SCHEMA: Final = "auths.gateway-outcome/2"
+_OBSERVE_SCHEMA = "auths.gateway-observe/4"
+_OUTCOME_SCHEMA: Final = "auths.gateway-outcome/3"
 _OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 _MAX_OBSERVATION_BYTES = 4_096
 _MAX_PRE_ENTRY_OBSERVATIONS = 4
@@ -302,11 +302,11 @@ class GatewaySignedObservation:
     observation asserts only what the gateway saw at ``observed_at`` (gateway
     wall-clock seconds, covered by the signature); it is not a write receipt
     and does not prove the fact still holds. ``schema`` is
-    ``auths.gateway-readback/1`` for a read-back and ``auths.gateway-outcome/2``
+    ``auths.gateway-readback/1`` for a read-back and ``auths.gateway-outcome/3``
     for an operation outcome.
     """
 
-    schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"]
+    schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/3"]
     subject: str
     observed_at: int
     media_type: Literal["application/vnd.auths.observation.v1+cbor"]
@@ -324,17 +324,11 @@ class GatewayObservationRefused:
 
 @dataclass(frozen=True)
 class GatewayPreEntryObservations:
-    """The signed pre-entry observations the gateway stored for one operation.
-
-    Each item is the exact canonical ``auths.gateway-readback/1`` observation
-    the gateway signed after the credential lease and before the write, in
-    pointer order; the tuple is empty when none were recorded. The gateway
-    signs nothing new to answer and contacts no provider. An audit bundle
-    carries them as an entry's ``pre_entry_b64``.
-    """
+    """Redacted pre-entry history; protected observation bytes stay with the operator."""
 
     operation_id: str
-    observations: tuple[bytes, ...]
+    observations: int
+    record_commitment: str
     outcome: Literal["pre-entry"] = "pre-entry"
 
 
@@ -361,7 +355,7 @@ def _decode_base64url(text: str, maximum: int) -> bytes:
 
 
 def _parse_observe_result(
-    raw: bytes, schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"]
+    raw: bytes, schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/3"]
 ) -> GatewayObserveResult:
     try:
         decoded: object = _gateway_json(raw)
@@ -429,26 +423,19 @@ def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryRes
     outcome = value.get("outcome")
     if outcome == "refused":
         return _parse_refusal(value)
-    encoded = value.get("observations_b64")
+    observations = value.get("observations")
+    commitment = value.get("record_commitment")
     if (
         outcome != "pre-entry"
-        or set(value) != {"outcome", "operation_id", "observations_b64"}
+        or set(value) != {"outcome", "operation_id", "observations", "record_commitment"}
         or value.get("operation_id") != operation_id
-        or not isinstance(encoded, list)
+        or type(observations) is not int
+        or not 0 <= observations <= _MAX_PRE_ENTRY_OBSERVATIONS
+        or not isinstance(commitment, str)
+        or re.fullmatch(r"[0-9a-f]{64}", commitment) is None
     ):
-        raise GatewayProtocolError("gateway returned invalid pre-entry observations")
-    items = cast("list[object]", encoded)
-    if len(items) > _MAX_PRE_ENTRY_OBSERVATIONS or not all(
-        isinstance(item, str) for item in items
-    ):
-        raise GatewayProtocolError("gateway returned invalid pre-entry observations")
-    return GatewayPreEntryObservations(
-        operation_id,
-        tuple(
-            _decode_base64url(cast(str, item), _MAX_OBSERVATION_BYTES)
-            for item in items
-        ),
-    )
+        raise GatewayProtocolError("gateway returned invalid pre-entry history")
+    return GatewayPreEntryObservations(operation_id, observations, commitment)
 
 
 def _submission(proof: bytes, action: bytes, approval: bytes) -> dict[str, str]:
@@ -600,7 +587,7 @@ class GatewayClient:
     async def _observe(
         self,
         request: Mapping[str, object],
-        schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"],
+        schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/3"],
     ) -> GatewayObserveResult:
         payload = json.dumps(
             {"schema": _OBSERVE_SCHEMA, "request": request},

@@ -62,6 +62,11 @@ admin_commands! {
     /// Read the qualification inputs the operator placed on this host again
     /// and report the resulting state.
     QualificationReload("qualification-reload") {},
+    /// Export protected audit evidence to an authenticated operator.
+    AuditExport("audit-export") {
+        /// Logical operation whose protected evidence to export.
+        operation_id: String,
+    },
     /// Acquire/refine one recovery read; a native submission follows in frame 2.
     Recover("recover") {
         /// Retained source mutation whose contract the read must bind.

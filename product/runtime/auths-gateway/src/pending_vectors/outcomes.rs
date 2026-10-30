@@ -1,4 +1,4 @@
-//! Signed outcome `/2` vectors: for each stage and fact combination, the
+//! Operator-private outcome `/1` vectors: for each stage and fact combination, the
 //! canonical observation signed by a fixed test observer and its expected
 //! facts, plus refused vectors that break the presence rule, the schema, or
 //! the signer.
@@ -31,9 +31,9 @@ use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
 use serde_json::{Map, Value, json};
 use sha2::{Digest as _, Sha256};
 
-pub(super) const FILE: &str = "outcome-v2.json";
+pub(super) const FILE: &str = "private-outcome-v1.json";
 const SCHEMA: &str = "auths.gateway-outcome-vectors/1";
-const OUTCOME_V2: &str = "auths.gateway-outcome/2";
+const PRIVATE_OUTCOME: &str = "auths.gateway-private-outcome/1";
 const OBSERVER_SEED: u8 = 0x5a;
 const OTHER_SEED: u8 = 0x5b;
 const OBSERVED_AT: u64 = NOW + 5;
@@ -247,37 +247,37 @@ fn refused() -> Vec<Refused> {
         ),
         (
             "http-status-without-response-digest",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[HTTP_200]),
         ),
         (
             "refusal-on-response-recorded",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[HTTP_200, RESPONSE, refusal("gateway.transport.not-entered")]),
         ),
         (
             "not-entered-without-refusal",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             facts("not-entered", &[]),
         ),
         (
             "observation-on-response-recorded",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[HTTP_200, RESPONSE, ("observation", Fact::Text("match"))]),
         ),
         (
             "observed-without-observation",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             facts("observed", &[HTTP_200, RESPONSE]),
         ),
         (
             "evidence-digest-on-observed",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             facts(
                 "observed",
@@ -291,7 +291,7 @@ fn refused() -> Vec<Refused> {
         ),
         (
             "relative-basis-2-pow-53",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[
                 HTTP_200,
@@ -302,25 +302,25 @@ fn refused() -> Vec<Refused> {
         ),
         (
             "relative-basis-digest-without-basis",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[HTTP_200, RESPONSE, BASIS_DIGEST]),
         ),
         (
             "http-status-99",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[("http-status", Fact::Uint(99)), RESPONSE]),
         ),
         (
             "stage-attempting",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             facts("attempting", &[]),
         ),
         (
             "unregistered-fact",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OBSERVER_SEED,
             recorded(&[
                 HTTP_200,
@@ -330,7 +330,7 @@ fn refused() -> Vec<Refused> {
         ),
         (
             "other-signer",
-            OUTCOME_V2,
+            PRIVATE_OUTCOME,
             OTHER_SEED,
             recorded(&[HTTP_200, RESPONSE]),
         ),
@@ -390,7 +390,7 @@ fn packaged_registries<R>(use_registries: impl FnOnce(&ImmutableRegistries<'_>) 
 /// Trust compiled as the SDKs compile it, pinned to the packaged
 /// configuration and bound to the verdict clock, whose observer anchor for
 /// the vector observer covers both vector namespaces.
-fn verdict_context(root: &Signer, observer: &GatewayObserver) -> Vec<u8> {
+fn verdict_context(root: &Signer, observer: &GatewayObserver, schema: &str) -> Vec<u8> {
     #[allow(
         clippy::redundant_closure_for_method_calls,
         reason = "the method path cannot name the registries' own lifetime"
@@ -417,7 +417,7 @@ fn verdict_context(root: &Signer, observer: &GatewayObserver) -> Vec<u8> {
         ObserverAnchorId::parse(h::ANCHOR).expect("anchor ID"),
         observer.principal().clone(),
         vec![PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1).expect("method")],
-        vec![ObservationSchemaId::parse(OUTCOME_V2).expect("schema")],
+        vec![ObservationSchemaId::parse(schema).expect("schema")],
         ["stripe-refunds", "airtable-demo"]
             .iter()
             .map(|namespace| {
@@ -474,10 +474,10 @@ fn verdict_context(root: &Signer, observer: &GatewayObserver) -> Vec<u8> {
 
 /// The grant requirement every verdict case carries: the outcome of
 /// `subject`, at most an hour old, in stage `observed-by-provider`.
-fn stage_requirement(subject: &str) -> ObservationRequirement {
+fn stage_requirement(subject: &str, schema: &str) -> ObservationRequirement {
     ObservationRequirement::new(
         ObserverAnchorId::parse(h::ANCHOR).expect("anchor"),
-        ObservationSchemaId::parse(OUTCOME_V2).expect("schema"),
+        ObservationSchemaId::parse(schema).expect("schema"),
         ObservationSubject::Resource(ResourceId::parse(subject).expect("subject")),
         3_600,
         vec![ObservationCondition::new(
@@ -496,7 +496,7 @@ fn stage_requirement(subject: &str) -> ObservationRequirement {
 /// One verdict case over the vector `entry`: its exact observation bytes
 /// attached to an action whose grant requires its subject's outcome in stage
 /// `observed-by-provider`.
-fn verdict(entry: &Value, context: &[u8], root: &Signer, agent: &Signer) -> Value {
+fn verdict(entry: &Value, context: &[u8], root: &Signer, agent: &Signer, schema: &str) -> Value {
     let id = entry["id"].as_str().expect("id");
     let subject = entry["subject"].as_str().expect("subject");
     let observation =
@@ -504,7 +504,7 @@ fn verdict(entry: &Value, context: &[u8], root: &Signer, agent: &Signer) -> Valu
     let grant = h::grant(
         root,
         &agent.principal,
-        Some(stage_requirement(subject)),
+        Some(stage_requirement(subject, schema)),
         NOW,
     )
     .expect("grant");
@@ -543,7 +543,7 @@ fn document() -> Value {
     let accepted: Vec<Value> = [not_entered_and_unknown(), recorded_and_observed()]
         .concat()
         .iter()
-        .map(|(id, namespace, facts)| signed(OBSERVER_SEED, OUTCOME_V2, namespace, id, facts))
+        .map(|(id, namespace, facts)| signed(OBSERVER_SEED, PRIVATE_OUTCOME, namespace, id, facts))
         .collect();
     let refused: Vec<Value> = refused()
         .iter()
@@ -555,7 +555,7 @@ fn document() -> Value {
         .collect();
     let root = Signer::new(ROOT_SEED);
     let agent = Signer::new(AGENT_SEED);
-    let context = verdict_context(&root, &observer);
+    let context = verdict_context(&root, &observer, PRIVATE_OUTCOME);
     let verdicts: Vec<Value> = accepted
         .iter()
         .chain(refused.iter().filter(|entry| {
@@ -564,11 +564,11 @@ fn document() -> Value {
                 Some("other-signer" | "outcome-v1-schema")
             )
         }))
-        .map(|entry| verdict(entry, &context, &root, &agent))
+        .map(|entry| verdict(entry, &context, &root, &agent, PRIVATE_OUTCOME))
         .collect();
     json!({
         "schema": SCHEMA,
-        "outcome_schema": OUTCOME_V2,
+        "outcome_schema": PRIVATE_OUTCOME,
         "observer": {"seed_byte": OBSERVER_SEED, "principal": observer.principal().as_str()},
         "observed_at": OBSERVED_AT,
         "accepted": accepted,
@@ -579,7 +579,7 @@ fn document() -> Value {
 }
 
 #[test]
-fn outcome_v2_vectors_are_current() {
+fn private_outcome_v1_vectors_are_current() {
     require_current(FILE, &document());
 }
 
@@ -611,7 +611,7 @@ fn outcome_verifier_accepts_every_vector_with_its_facts_and_refuses_the_rest() {
         assert_eq!(Value::Object(facts), entry["facts"], "{}", entry["id"]);
         let signed = crate::observer::OutcomeRecord::facts(&verified.record).expect("facts");
         let resigned = GatewayObserver::from_test_seed(OBSERVER_SEED)
-            .sign(OUTCOME_V2, &verified.subject, OBSERVED_AT, signed)
+            .sign(PRIVATE_OUTCOME, &verified.subject, OBSERVED_AT, signed)
             .expect("re-signed");
         assert_eq!(resigned.bytes(), bytes.as_slice(), "{}", entry["id"]);
     }
@@ -646,4 +646,66 @@ fn outcome_verdicts_follow_the_stage_condition() {
             "{id}: {case}"
         );
     }
+}
+
+/// Public projection vectors retain stage and exact scoped hiding references;
+/// the full private presence corpus above remains an independent audit oracle.
+fn public_document() -> Value {
+    let schema = crate::OUTCOME_SCHEMA;
+    let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
+    let project = |raw: &Facts| -> Facts {
+        let mut projected: Facts = vec![
+            ("effect-reference", Fact::DigestHex("public-effect-reference")),
+            ("record-commitment", Fact::DigestHex("public-record-commitment")),
+        ];
+        projected.extend(raw.iter().copied().filter(|(name, _)|
+            matches!(*name, "stage" | "evaluated-at" | "recipe-digest" | "http-status" | "refusal")));
+        projected
+    };
+    let accepted: Vec<_> = [not_entered_and_unknown(), recorded_and_observed()].concat().iter()
+        .map(|(id, namespace, facts)| signed(OBSERVER_SEED, schema, namespace, id, &project(facts)))
+        .collect();
+    let mut refused = vec![];
+    let base = project(&facts("unknown", &[]));
+    for (id, signing_schema, seed, fields) in [
+        ("outcome-v1-schema", "auths.gateway-outcome/1", OBSERVER_SEED, base.clone()),
+        ("outcome-v2-schema", "auths.gateway-outcome/2", OBSERVER_SEED, base.clone()),
+        ("private-outcome-schema", PRIVATE_OUTCOME, OBSERVER_SEED, base.clone()),
+        ("other-signer", schema, OTHER_SEED, base.clone()),
+        ("private-evidence-digest", schema, OBSERVER_SEED, { let mut fields=base.clone(); fields.push(EVIDENCE); fields }),
+        ("private-relative-basis", schema, OBSERVER_SEED, { let mut fields=base.clone(); fields.push(BASIS); fields }),
+        ("missing-record-commitment", schema, OBSERVER_SEED, base.iter().copied().filter(|(name,_)| *name != "record-commitment").collect()),
+        ("raw-action-commitment", schema, OBSERVER_SEED, { let mut fields=base.clone(); fields.push(("commitment", COMMITMENT)); fields }),
+    ] {
+        let mut value = signed(seed, signing_schema, "stripe-refunds", id, &fields);
+        value["code"] = json!("audit.outcome-invalid");
+        refused.push(value);
+    }
+    let root = Signer::new(ROOT_SEED);
+    let agent = Signer::new(AGENT_SEED);
+    let context = verdict_context(&root, &observer, schema);
+    let verdicts: Vec<_> = accepted.iter().chain(refused.iter().filter(|entry|
+        matches!(entry["id"].as_str(), Some("other-signer" | "outcome-v1-schema" | "outcome-v2-schema" | "private-outcome-schema"))))
+        .map(|entry| verdict(entry, &context, &root, &agent, schema)).collect();
+    json!({"schema":SCHEMA,"outcome_schema":schema,
+        "observer":{"seed_byte":OBSERVER_SEED,"principal":observer.principal().as_str()},
+        "observed_at":OBSERVED_AT,"accepted":accepted,"refused":refused,
+        "verdict_trusted_context_b64":Base64UrlUnpadded::encode_string(&context),"verdicts":verdicts})
+}
+
+#[test]
+fn public_outcome_v3_vectors_are_current() {
+    let document = public_document();
+    let observer = pinned_observer(&document);
+    for entry in document["accepted"].as_array().expect("accepted") {
+        let bytes = Base64::decode_vec(entry["observation_b64"].as_str().expect("bytes")).expect("base64");
+        let verified = crate::observer::verify_public_outcome(&bytes, &observer).expect("public signature");
+        assert_eq!(verified.subject, entry["subject"]);
+        assert_eq!(verified.observed_at, OBSERVED_AT);
+    }
+    for entry in document["refused"].as_array().expect("refused") {
+        let bytes = Base64::decode_vec(entry["observation_b64"].as_str().expect("bytes")).expect("base64");
+        assert!(crate::observer::verify_public_outcome(&bytes, &observer).is_none(), "{}", entry["id"]);
+    }
+    require_current("outcome-v3.json", &document);
 }

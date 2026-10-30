@@ -753,6 +753,17 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
         },
+        /// Operator-only: save protected signed audit evidence to a new 0600 file.
+        AuditExport {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            #[arg(long)]
+            operation_id: String,
+            #[arg(long)]
+            out: PathBuf,
+        },
         /// Ask the app socket for one signed observation, or for one
         /// operation's stored pre-entry observations; never a write.
         #[command(group(clap::ArgGroup::new("request").required(true).args(["outcome", "pre_entry"])))]
@@ -1209,6 +1220,8 @@ mod unix {
         /// The qualification state a reload derived.
         #[serde(skip_serializing_if = "Option::is_none")]
         qualification: Option<QualificationReport>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        audit: Option<auths_gateway::GatewayPrivateAudit>,
     }
 
     /// The gate's policy, state, and code. It names no provider and echoes
@@ -1245,6 +1258,7 @@ mod unix {
                 recovery: None,
                 commitment: None,
                 qualification: None,
+                audit: None,
             }
         }
 
@@ -2376,6 +2390,7 @@ mod unix {
         RotateCommit([u8; 32]),
         Status,
         ExecutionWitness,
+        AuditExport { operation_id: String },
         Recover {
             source_operation: String,
             submission: Box<auths_gateway::app::DecodedSubmission>,
@@ -2406,10 +2421,22 @@ mod unix {
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
             AdminRequestCommand::ExecutionWitness {} => Ok(AdminCommand::ExecutionWitness),
             AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
+            AdminRequestCommand::AuditExport { operation_id } => {
+                auths_gateway::LogicalOperationId::parse(&operation_id)
+                    .map_err(|_| "gateway.admin.invalid-frame")?;
+                Ok(AdminCommand::AuditExport { operation_id })
+            }
             AdminRequestCommand::Recover { source_operation } => {
                 let frame = Zeroizing::new(clock.read_frame(stream).await?);
                 let submission: AppSubmission =
                     serde_json::from_slice(&frame).map_err(|_| "gateway.admin.invalid-frame")?;
+                Ok(AdminCommand::AuditExport { operation_id }) => {
+                    match engine.private_audit(&operation_id).await {
+                        Ok(audit) => AdminResponse { ok: true, audit: Some(audit),
+                            ..AdminResponse::refused("gateway.admin.audit-exported") },
+                        Err(code) => AdminResponse::refused(code),
+                    }
+                }
                 Ok(AdminCommand::Recover {
                     source_operation,
                     submission: Box::new(submission.decode()?),
@@ -4969,6 +4996,22 @@ mod unix {
                     None,
                 )
                 .await
+            }
+            Command::AuditExport { state_dir, admin_socket, operation_id, out } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let response = admin_exchange(&state_dir, &admin_socket,
+                    serde_json::json!({"command":"audit-export", "operation_id":operation_id}), None).await?;
+                if response.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+                    return Err("gateway.admin.audit-refused".into());
+                }
+                let mut bytes = Zeroizing::new(serde_json::to_vec(response.get("audit")
+                    .ok_or("gateway.admin.invalid-response")?).map_err(|_| "gateway.admin.invalid-response")?);
+                bytes.push(b'\n');
+                let parent = out.parent().ok_or("gateway.state.invalid-path")?;
+                check_private_directory(parent).map_err(|cause| Failure::at("gateway.audit.unsafe-output", parent, cause))?;
+                private_file(&out, &bytes)?;
+                println!("{{\"ok\":true,\"code\":\"gateway.admin.audit-exported\"}}");
+                Ok(())
             }
             Command::ObserverInit { state_dir } => observer_init(&state_dir),
             Command::ObserverShow { state_dir } => observer_show(&state_dir),

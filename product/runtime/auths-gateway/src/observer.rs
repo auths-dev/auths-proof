@@ -22,7 +22,10 @@
 //! - `auths.gateway-readback/1`, subject the closed observation URL with the
 //!   observed JSON pointer as fragment, facts `value` and, when the recipe
 //!   declares an echo field and the record carries one, `echo`;
-//! - `auths.gateway-outcome/2`, subject
+//! - `auths.gateway-private-outcome/1` is operator-only and preserves the complete
+//!   existing audit presence contract below. Public `auths.gateway-outcome/3`
+//!   carries hiding effect/record references, stage, time, recipe and bounded status.
+//!   The private schema has subject
 //!   `auths-gateway://<namespace>/operations/<operation-id>`, whose facts
 //!   are the stored attempt's commitment, stage (a stored `entry-granted` is
 //!   reported as `unknown`), evaluation time, and recipe digest, and, as the
@@ -58,7 +61,9 @@ use zeroize::Zeroizing;
 /// Schema of an observation of a provider record the gateway read.
 pub const READ_BACK_SCHEMA: &str = "auths.gateway-readback/1";
 /// Schema of an observation of the gateway's own stored attempt record.
-pub const OUTCOME_SCHEMA: &str = "auths.gateway-outcome/2";
+pub const OUTCOME_SCHEMA: &str = "auths.gateway-outcome/3";
+/// Operator-private signed audit facts. Never returned on the application socket.
+pub const PRIVATE_OUTCOME_SCHEMA: &str = "auths.gateway-private-outcome/1";
 /// Domain of the counter-set digest an outcome carries.
 const COUNTER_SET_DOMAIN: &[u8] = b"auths.gateway-counter-set/1\0";
 /// Largest integer a JSON reader represents exactly.
@@ -543,7 +548,7 @@ const fn kernel_stage(stage: GatewayAttemptStage) -> Stage {
     }
 }
 
-fn stage_name(stage: GatewayAttemptStage) -> &'static str {
+pub(crate) fn stage_name(stage: GatewayAttemptStage) -> &'static str {
     match stage {
         GatewayAttemptStage::NotEntered => "not-entered",
         GatewayAttemptStage::Reserved => "reserved",
@@ -811,7 +816,65 @@ fn lower_hex_digest(value: &str) -> bool {
 pub(crate) fn outcome_facts(
     snapshot: &GatewayAttemptSnapshot,
 ) -> Result<Vec<ObservationFact>, GatewayObserverError> {
-    OutcomeRecord::from_snapshot(snapshot).facts()
+    let record = OutcomeRecord::from_snapshot(snapshot);
+    if !record.well_formed() {
+        return Err(GatewayObserverError::Unrepresentable);
+    }
+    let mut facts = vec![
+        fact("effect-reference", text(&hex::encode(snapshot.public_effect_reference()))?)?,
+        fact("record-commitment", text(&hex::encode(snapshot.public_record_commitment()))?)?,
+        fact("stage", text(stage_name(record.stage))?)?,
+        fact("evaluated-at", FactValue::Uint(record.evaluated_at))?,
+        fact("recipe-digest", text(&record.recipe_digest)?)?,
+    ];
+    if let Some(status) = record.http_status {
+        facts.push(fact("http-status", FactValue::Uint(u64::from(status)))?);
+    }
+    if let Some(refusal) = record.refusal {
+        facts.push(fact("refusal", text(&refusal)?)?);
+    }
+    Ok(facts)
+}
+
+/// Verified public projection. Hiding references do not expose the underlying
+/// action, response, counters, pre-entry values or relative-ceiling basis.
+pub(crate) struct PublicOutcome {
+    pub(crate) subject: String,
+    pub(crate) observed_at: u64,
+    pub(crate) stage: GatewayAttemptStage,
+}
+
+/// Strict public schema verification; private audit has a separate closed schema.
+pub(crate) fn verify_public_outcome(bytes: &[u8], observer: &PrincipalId) -> Option<PublicOutcome> {
+    let signed = verify_signed(bytes, observer, OUTCOME_SCHEMA)?;
+    let statement = signed.statement();
+    let mut fields = std::collections::BTreeMap::new();
+    for item in statement.facts().as_slice() {
+        if !matches!(item.name().as_str(), "effect-reference" | "record-commitment" | "stage" |
+            "evaluated-at" | "recipe-digest" | "http-status" | "refusal")
+            || fields.insert(item.name().as_str(), item.value()).is_some() {
+            return None;
+        }
+    }
+    let text = |name| match fields.get(name)? { FactValue::Text(value) => Some(value.as_str()), _ => None };
+    for name in ["effect-reference", "record-commitment", "recipe-digest"] {
+        if !lower_hex_digest(text(name)?) { return None; }
+    }
+    let stage = parse_stage(text("stage")?)?;
+    if stage == GatewayAttemptStage::EntryGranted { return None; }
+    let FactValue::Uint(evaluated) = fields.get("evaluated-at")? else { return None; };
+    if *evaluated > MAX_JSON_INTEGER { return None; }
+    if stage == GatewayAttemptStage::NotEntered {
+        let refusal = text("refusal")?;
+        if refusal.is_empty() || refusal.len() > MAX_REFUSAL_BYTES { return None; }
+    } else if fields.contains_key("refusal") { return None; }
+    if let Some(status) = fields.get("http-status") {
+        let FactValue::Uint(status) = status else { return None; };
+        if !(100..=599).contains(status) || !matches!(stage, GatewayAttemptStage::ResponseRecorded |
+            GatewayAttemptStage::Observed | GatewayAttemptStage::ObservedByProvider) { return None; }
+    }
+    Some(PublicOutcome { subject: statement.subject().as_str().to_owned(),
+        observed_at: statement.observed_at().get(), stage })
 }
 
 /// A signed outcome observation whose signature verified under a pinned
@@ -888,7 +951,7 @@ pub(crate) fn verify_signed(
     Some(signed)
 }
 
-/// Verifies one `auths.gateway-outcome/2` observation offline: a valid
+/// Verifies one operator-private `auths.gateway-private-outcome/1` observation offline: a valid
 /// signature of the pinned observer (see [`verify_signed`]) over a fact set
 /// the presence rule accepts, with every value in its bound.
 ///
@@ -900,7 +963,7 @@ pub(crate) fn verify_outcome(
     observer: &PrincipalId,
 ) -> Result<VerifiedOutcome, &'static str> {
     let invalid = "audit.outcome-invalid";
-    let signed = verify_signed(bytes, observer, OUTCOME_SCHEMA).ok_or(invalid)?;
+    let signed = verify_signed(bytes, observer, PRIVATE_OUTCOME_SCHEMA).ok_or(invalid)?;
     let statement = signed.statement();
     let record = OutcomeRecord::from_facts(statement.facts().as_slice()).ok_or(invalid)?;
     Ok(VerifiedOutcome {

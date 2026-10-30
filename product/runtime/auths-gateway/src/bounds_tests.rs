@@ -884,12 +884,9 @@ async fn journey_bundle(quorum: &RefundQuorum) -> Value {
     let mut entries = Vec::new();
     for (operation, submission) in quorum.journey() {
         let _ = quorum.harness.submit(&submission, NOW).await;
-        let outcome = match quorum.harness.outcome(operation, NOW + 1).await {
-            GatewayObserveResult::Signed {
-                observation_b64, ..
-            } => Some(observation_b64),
-            GatewayObserveResult::PreEntry { .. } | GatewayObserveResult::Refused { .. } => None,
-        };
+        let outcome = if quorum.harness.store.read(&namespace(), &LogicalOperationId::parse(operation).expect("operation")).await.expect("store").is_some() {
+            Some(quorum.harness.private_audit(operation, NOW + 1).await.outcome_b64)
+        } else { None };
         entries.push(json!({
             "operation_id": operation,
             "proof_b64": Base64UrlUnpadded::encode_string(&submission.proof),
@@ -1398,12 +1395,7 @@ async fn offline_audit_flags_an_over_admission_without_any_order() {
         verdict(&second.harness.submit(&submission, NOW).await),
         ("entered", None)
     );
-    let GatewayObserveResult::Signed {
-        observation_b64, ..
-    } = second.harness.outcome(operation, NOW + 1).await
-    else {
-        panic!("the second gateway signs its outcome");
-    };
+    let observation_b64 = second.harness.private_audit(operation, NOW + 1).await.outcome_b64;
     bundle["entries"][3]["outcome_b64"] = json!(observation_b64);
     let report = audit(&bundle, &pins(&first));
     assert_eq!(

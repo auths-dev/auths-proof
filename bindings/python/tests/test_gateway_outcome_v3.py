@@ -1,4 +1,4 @@
-"""Signed outcome `/2` conformance: the Python SDK accepts every vector the
+"""Signed outcome `/3` conformance: the Python SDK accepts every vector the
 gateway signs, refuses the retired schema, and its native verifier reaches
 the gateway's decision on a grant that requires the outcome's stage."""
 
@@ -22,7 +22,7 @@ from auths.gateway import (
 )
 
 FIXTURE: dict[str, Any] = json.loads(
-    (Path(__file__).parents[2] / "fixtures" / "gateway" / "outcome-v2.json").read_text()
+    (Path(__file__).parents[2] / "fixtures" / "gateway" / "outcome-v3.json").read_text()
 )
 MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 
@@ -72,8 +72,8 @@ async def _observe_outcome(socket: Path, entry: dict[str, Any], schema: str) -> 
         )
 
 
-def test_fixture_names_outcome_v2() -> None:
-    assert FIXTURE["outcome_schema"] == "auths.gateway-outcome/2"
+def test_fixture_names_outcome_v3() -> None:
+    assert FIXTURE["outcome_schema"] == "auths.gateway-outcome/3"
     assert FIXTURE["accepted"] and FIXTURE["refused"] and FIXTURE["verdicts"]
 
 
@@ -85,10 +85,10 @@ def test_python_client_accepts_every_signed_outcome(
     entry: dict[str, Any], tmp_path: Path
 ) -> None:
     result = asyncio.run(
-        _observe_outcome(tmp_path / "gateway.sock", entry, "auths.gateway-outcome/2")
+        _observe_outcome(tmp_path / "gateway.sock", entry, "auths.gateway-outcome/3")
     )
     assert result == GatewaySignedObservation(
-        "auths.gateway-outcome/2",
+        "auths.gateway-outcome/3",
         entry["subject"],
         FIXTURE["observed_at"],
         MEDIA_TYPE,

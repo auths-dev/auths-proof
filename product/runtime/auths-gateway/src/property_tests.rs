@@ -2,7 +2,7 @@
 //! relative ceiling, audit recount, signed outcomes, and attempt store.
 
 use crate::audit::{count_bound_violations, sum_bound_violations};
-use crate::observer::{OUTCOME_SCHEMA, OutcomeRecord, verify_outcome};
+use crate::observer::{PRIVATE_OUTCOME_SCHEMA, OutcomeRecord, verify_outcome};
 use crate::{
     CompiledRecipe, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptStage,
     GatewayAttempts, GatewayObserver, LogicalOperationId, OperatorNamespace, echo_token,
@@ -277,7 +277,7 @@ proptest! {
         let observer = GatewayObserver::from_test_seed(0x5a);
         let facts = record.facts().expect("an accepted record has facts");
         let signed = observer
-            .sign(OUTCOME_SCHEMA, "auths-gateway://ns/operations/op-1", 1_790_000_000, facts)
+            .sign(PRIVATE_OUTCOME_SCHEMA, "auths-gateway://ns/operations/op-1", 1_790_000_000, facts)
             .expect("signed");
         let verified = verify_outcome(signed.bytes(), observer.principal()).expect("verified");
         prop_assert_eq!(verified.record, record);

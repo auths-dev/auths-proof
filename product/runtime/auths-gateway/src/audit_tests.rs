@@ -6,7 +6,7 @@
 //! audit exists to catch a gateway, or a bundle, that says otherwise.
 
 use super::*;
-use crate::observer::{OutcomeRecord, READ_BACK_SCHEMA, read_back_facts};
+use crate::observer::{PRIVATE_OUTCOME_SCHEMA, OutcomeRecord, READ_BACK_SCHEMA, read_back_facts};
 use crate::{AuditPins, AuditReport, AuditStatus, GatewayAttemptStage, pre_entry_digest};
 use sha2::{Digest as _, Sha256};
 
@@ -146,7 +146,7 @@ fn signed_outcome(
         &LogicalOperationId::parse(operation).expect("operation"),
     );
     let signed = GatewayObserver::from_test_seed(h::OBSERVER_SEED)
-        .sign(OUTCOME_SCHEMA, &subject, NOW + 1, facts)
+        .sign(PRIVATE_OUTCOME_SCHEMA, &subject, NOW + 1, facts)
         .expect("signed outcome");
     Base64UrlUnpadded::encode_string(signed.bytes())
 }
@@ -361,21 +361,9 @@ async fn audit_checks_the_pre_entry_observations() {
         ),
         "{result:?}"
     );
-    let outcome = signed_bytes(harness.outcome("pre-entry", NOW + 31).await);
-    let GatewayObserveResult::PreEntry {
-        observations_b64, ..
-    } = harness
-        .core
-        .observe(
-            &GatewayObserveRequest::PreEntry {
-                operation_id: "pre-entry".to_owned(),
-            },
-            NOW + 31,
-        )
-        .await
-    else {
-        panic!("expected the stored pre-entry observations");
-    };
+    let private = harness.private_audit("pre-entry", NOW + 31).await;
+    let outcome = Base64UrlUnpadded::decode_vec(&private.outcome_b64).expect("private outcome");
+    let observations_b64 = private.pre_entry_b64;
     assert_eq!(observations_b64.len(), 1);
     let base = |pre_entry: Option<Vec<String>>, outcome: &[u8]| {
         let mut value = entry(

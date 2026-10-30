@@ -220,13 +220,13 @@ test("gateway recovery carries the native envelope and returns report bytes", { 
 
 test("gateway client requests an outcome and surfaces a refusal as a result", { skip: process.platform === "win32" }, async () => {
   const subject = "auths-gateway://ns/operations/step-1";
-  const signedOutcome = await observeOnce(signed({ schema: "auths.gateway-outcome/2", subject }), outcome);
+  const signedOutcome = await observeOnce(signed({ schema: "auths.gateway-outcome/3", subject }), outcome);
   assert.equal(signedOutcome.result.outcome, "signed");
-  assert.equal(signedOutcome.result.schema, "auths.gateway-outcome/2");
+  assert.equal(signedOutcome.result.schema, "auths.gateway-outcome/3");
   assert.equal(signedOutcome.result.subject, subject);
   assert.deepEqual(signedOutcome.result.observation, OBSERVATION);
   assert.deepEqual(signedOutcome.seen, [{
-    schema: "auths.gateway-observe/3",
+    schema: "auths.gateway-observe/4",
     request: { kind: "outcome", operation_id: "step-1" },
   }]);
   const refused = await observeOnce('{"outcome":"refused","code":"gateway.observer.not-provisioned"}', outcome);
@@ -238,21 +238,21 @@ test("gateway client rejects malformed observation frames", { skip: process.plat
   await assert.rejects(observeOnce(signed(), outcome), GatewayProtocolError);
   for (const hostile of [
     signed({ schema: "retired" }),
-    signed({ schema: "auths.gateway-outcome/2", media_type: "application/cbor" }),
-    signed({ schema: "auths.gateway-outcome/2", subject: "" }),
-    signed({ schema: "auths.gateway-outcome/2", subject: "s".repeat(1025) }),
-    signed({ schema: "auths.gateway-outcome/2", observed_at: -1 }),
-    signed({ schema: "auths.gateway-outcome/2", observed_at: 1.5 }),
-    signed({ schema: "auths.gateway-outcome/2", observed_at: "1790000000" }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: "" }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: `${Buffer.from(OBSERVATION).toString("base64url")}=` }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: "+/8=" }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: "AB" }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: "A" }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: "QUJD RA" }),
-    signed({ schema: "auths.gateway-outcome/2", observation_b64: Buffer.alloc(4097, 1).toString("base64url") }),
-    signed({ schema: "auths.gateway-outcome/2", confirmed: true }),
-    signed({ schema: "auths.gateway-outcome/2", observation: "AAAA" }),
+    signed({ schema: "auths.gateway-outcome/3", media_type: "application/cbor" }),
+    signed({ schema: "auths.gateway-outcome/3", subject: "" }),
+    signed({ schema: "auths.gateway-outcome/3", subject: "s".repeat(1025) }),
+    signed({ schema: "auths.gateway-outcome/3", observed_at: -1 }),
+    signed({ schema: "auths.gateway-outcome/3", observed_at: 1.5 }),
+    signed({ schema: "auths.gateway-outcome/3", observed_at: "1790000000" }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: "" }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: `${Buffer.from(OBSERVATION).toString("base64url")}=` }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: "+/8=" }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: "AB" }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: "A" }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: "QUJD RA" }),
+    signed({ schema: "auths.gateway-outcome/3", observation_b64: Buffer.alloc(4097, 1).toString("base64url") }),
+    signed({ schema: "auths.gateway-outcome/3", confirmed: true }),
+    signed({ schema: "auths.gateway-outcome/3", observation: "AAAA" }),
     '{"outcome":"refused"}',
     '{"outcome":"refused","code":""}',
     '{"outcome":"refused","code":"x","reason":"y"}',
@@ -270,18 +270,24 @@ test("gateway client requests stored pre-entry observations and refuses malforme
   const reply = (overrides = {}) => JSON.stringify({
     outcome: "pre-entry",
     operation_id: "step-1",
-    observations_b64: [Buffer.from(OBSERVATION).toString("base64url")],
+    observations: 1, record_commitment: "01".repeat(32),
     ...overrides,
   });
   const { result, seen } = await observeOnce(reply(), preEntry);
-  assert.deepEqual(result, { outcome: "pre-entry", operationId: "step-1", observations: [OBSERVATION] });
-  assert.deepEqual(seen, [{ schema: "auths.gateway-observe/3", request: { kind: "pre-entry", operation_id: "step-1" } }]);
-  const empty = await observeOnce(reply({ observations_b64: [] }), preEntry);
-  assert.deepEqual(empty.result, { outcome: "pre-entry", operationId: "step-1", observations: [] });
+  assert.deepEqual(result, { outcome: "pre-entry", operationId: "step-1", observations: 1, recordCommitment: "01".repeat(32) });
+  assert.deepEqual(seen, [{ schema: "auths.gateway-observe/4", request: { kind: "pre-entry", operation_id: "step-1" } }]);
+  const empty = await observeOnce(reply({ observations: 0 }), preEntry);
+  assert.deepEqual(empty.result, { outcome: "pre-entry", operationId: "step-1", observations: 0, recordCommitment: "01".repeat(32) });
   const refused = await observeOnce('{"outcome":"refused","code":"gateway.observer.operation-unknown"}', preEntry);
   assert.deepEqual(refused.result, { outcome: "refused", code: "gateway.observer.operation-unknown" });
   for (const hostile of [
     reply({ operation_id: "step-2" }),
+    reply({ observations: 5 }),
+    reply({ observations: -1 }),
+    reply({ observations: true }),
+    reply({ record_commitment: "01".repeat(31) }),
+    reply({ record_commitment: "AB".repeat(32) }),
+    reply({ record_commitment: "01".repeat(32) + "\n" }),
     reply({ observations_b64: Array(5).fill(Buffer.from(OBSERVATION).toString("base64url")) }),
     reply({ observations_b64: [""] }),
     reply({ observations_b64: [`${Buffer.from(OBSERVATION).toString("base64url")}=`] }),

@@ -96,7 +96,7 @@ pub use echo_verify::{
 };
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
-    GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
+    GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewayPrivateAudit, GatewaySubmitResult,
     PUBLIC_EVIDENCE_SCHEMA, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
     gateway_verifier_configuration,
 };

@@ -34,6 +34,7 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
         case.store.reopen(),
         controls(true),
     ));
+    let engine = engine.with_observer(crate::GatewayObserver::from_test_seed(0x33));
     engine
         .activate_effect_configuration(
             engine
@@ -114,6 +115,31 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
     assert_ne!(commitment, hex::encode(digest));
     assert!(value["evidence"].get("echo").is_none());
     assert!(value["evidence"].get("evidence_digest").is_none());
+    let observed = runtime.block_on(engine.observe(&crate::GatewayObserveRequest::Outcome { operation_id: SOURCE.to_owned() }));
+    let crate::GatewayObserveResult::Signed { schema, observation_b64, .. } = observed else { panic!("configured native observer must sign"); };
+    assert_eq!(schema, "auths.gateway-outcome/3");
+    use base64ct::{Base64UrlUnpadded, Encoding as _};
+    let signed_bytes = Base64UrlUnpadded::decode_vec(&observation_b64).expect("canonical signature");
+    private_values_absent(&signed_bytes, &[CONTENT, &body, &digest, &action, echo.as_bytes()]);
+    let signed = crate::observer::verify_signed(&signed_bytes,
+        crate::GatewayObserver::from_test_seed(0x33).principal(), crate::OUTCOME_SCHEMA).expect("signature verified");
+    let names: Vec<_> = signed.statement().facts().as_slice().iter().map(|fact| fact.name().as_str()).collect();
+    assert_eq!(names, ["effect-reference", "evaluated-at", "recipe-digest", "record-commitment", "stage"]);
+    let private = runtime.block_on(engine.private_audit(SOURCE)).expect("operator audit");
+    let private_bytes = Base64UrlUnpadded::decode_vec(&private.outcome_b64).expect("private signature");
+    let verified = crate::observer::verify_outcome(&private_bytes,
+        crate::GatewayObserver::from_test_seed(0x33).principal()).expect("private audit signature");
+    assert_eq!(verified.record.evidence_digest, Some(digest));
+    assert_eq!(verified.commitment(), hex::encode(&action));
+    assert!(crate::observer::verify_outcome(&signed_bytes,
+        crate::GatewayObserver::from_test_seed(0x33).principal()).is_err());
+    private_values_absent(format!("{private:?}").as_bytes(), &[CONTENT, &digest, &action, echo.as_bytes()]);
+    let redacted = runtime.block_on(engine.observe(&crate::GatewayObserveRequest::PreEntry { operation_id: SOURCE.to_owned() }));
+    let redacted_bytes = serde_json::to_vec(&redacted).expect("public history");
+    private_values_absent(&redacted_bytes, &[CONTENT, &body, &digest, &action, echo.as_bytes()]);
+    let crate::GatewayObserveResult::PreEntry { observations, record_commitment, .. } = redacted else { panic!("redacted pre-entry"); };
+    assert_eq!(observations, private.pre_entry_b64.len());
+    assert_eq!(record_commitment.len(), 64);
     let witness = engine.execution_witness();
     let (reopened, _) = runtime.block_on(load_controlled_engine(
         &case.setup.installation,

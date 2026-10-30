@@ -9,7 +9,7 @@
 //! engine.
 
 use crate::engine::{
-    GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
+    GatewayObserveResult, GatewaySubmitResult,
     gateway_verifier_configuration, not_entered, observe_outcome, observe_read_back,
 };
 use crate::harness::{
@@ -158,7 +158,7 @@ fn outcome_requirement() -> ObservationRequirement {
                 ),
             ),
             ObservationCondition::new(
-                name("commitment"),
+                name("effect-reference"),
                 ConditionTest::EqAction(name("depends_on_commitment")),
             ),
         ],
@@ -445,6 +445,12 @@ impl Harness {
         signed_bytes(self.core.reference_read_back(&arguments, at).await)
     }
 
+    async fn private_audit(&self, operation: &str, at: u64) -> crate::GatewayPrivateAudit {
+        let snapshot = self.store.read(&namespace(), &LogicalOperationId::parse(operation).expect("operation"))
+            .await.expect("store").expect("record");
+        crate::engine::private_audit(&snapshot, &self.observer, at).expect("private audit")
+    }
+
     async fn outcome(&self, operation: &str, at: u64) -> GatewayObserveResult {
         observe_outcome(&self.store, &namespace(), &self.observer, operation, at).await
     }
@@ -663,6 +669,13 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backe
         GatewaySubmitResult::Unknown
     );
     let unknown = signed_bytes(harness.outcome("step-1", NOW + 10).await);
+    let decoded = auths_codec::decode_signed_observation(&unknown, &VerifierLimits::default()).expect("outcome");
+    let commitment = decoded.statement().facts().as_slice().iter().find_map(|item| {
+        if item.name().as_str() == "effect-reference" {
+            if let FactValue::Text(value) = item.value() { return Some(value.as_str().to_owned()); }
+        }
+        None
+    }).expect("native hiding effect reference");
     assert_eq!(stage_of(&unknown), "unknown");
     assert_eq!(
         harness

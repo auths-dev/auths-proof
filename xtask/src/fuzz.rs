@@ -814,12 +814,12 @@ fn gateway_seeds(kind: GatewaySeeds) -> Result<Vec<Vec<u8>>, String> {
             }
         }
         GatewaySeeds::Attempt => {
-            for name in ["attempt-scenarios-v3.json", "outcome-v2.json", "codes.json"] {
+            for name in ["attempt-scenarios-v3.json", "outcome-v3.json", "codes.json"] {
                 seeds.push(read_gateway_fixture(name)?);
             }
         }
         GatewaySeeds::Outcome | GatewaySeeds::AppFrame => {
-            let vectors = gateway_fixture_json("outcome-v2.json")?;
+            let vectors = gateway_fixture_json("outcome-v3.json")?;
             let entries = ["accepted", "refused"]
                 .iter()
                 .filter_map(|list| vectors[*list].as_array())

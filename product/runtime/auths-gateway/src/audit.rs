@@ -77,7 +77,7 @@ use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Schema of an audit bundle.
-pub const AUDIT_BUNDLE_SCHEMA: &str = "auths.gateway-audit-bundle/2";
+pub const AUDIT_BUNDLE_SCHEMA: &str = "auths.gateway-audit-bundle/3";
 /// Schema of an audit report.
 pub const AUDIT_REPORT_SCHEMA: &str = "auths.gateway-audit-report/3";
 /// Largest audit bundle, in bytes.
