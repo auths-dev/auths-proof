@@ -910,3 +910,12 @@ delivery on success are measured independently of provider responses. Same-UID
 gateway/recipient tasks run within a worker process distinct from the operator.
 This adds test-only evidence for the existing disclosure owner, while retaining
 the distinct installed-language, selected-dependency and hostile-process gates.
+
+Selected observation and threshold controls now reuse the acquisition testkit's
+native signed authoring and before/after binding assertions for mutation and
+disclosure. Only test-module visibility changes; no shipping abstraction or
+semantics are extracted. Full native verification, exact-effect comparison and
+the existing final entry fence establish parity when a 1-of-2 proof remains
+Authorized but its selected evidence changes. Native mutation request echoes
+remain bound to the newly signed proof. All earlier order/expiry schedules are
+preserved, including independent wire-byte capture for refused disclosure.

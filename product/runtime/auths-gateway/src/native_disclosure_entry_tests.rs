@@ -32,15 +32,22 @@ impl Race {
         matches!(self.order, Order::GrantFirst)
             || matches!(
                 self.scenario,
-                Scenario::ApprovalValid | Scenario::AuthorityValid
+                Scenario::ApprovalValid
+                    | Scenario::AuthorityValid
+                    | Scenario::ObserverValid
+                    | Scenario::ThresholdValid
             )
     }
     const fn change(&self) -> Change {
         match self.scenario {
             Scenario::ApprovalValid | Scenario::ApprovalExpired => Change::ApprovalExpiry,
             Scenario::AuthorityValid | Scenario::AuthorityExpired => Change::AuthorityExpiry,
-            Scenario::Revoke | Scenario::Configuration => Change::None,
-            _ => unreachable!(),
+            Scenario::Revoke
+            | Scenario::Configuration
+            | Scenario::ObserverValid
+            | Scenario::ObserverExpired
+            | Scenario::ThresholdValid
+            | Scenario::ThresholdChanged => Change::None,
         }
     }
     fn peer(&self, role: &str) -> Peer {
@@ -338,6 +345,7 @@ struct Case {
     input: Input,
     target: crate::effect::DisclosureTarget,
     signed_inputs: Vec<Vec<u8>>,
+    evidence: Option<Value>,
 }
 impl Case {
     fn new(backend: Backend, scenario: Scenario, order: Order) -> Self {
@@ -369,10 +377,13 @@ impl Case {
             ))
             .expect("actual original HTTP acquisition");
         let target = fixture.runtime.block_on(race.target(&fixture.engine));
-        let input =
+        let mut input =
             fixture
                 .runtime
                 .block_on(Input::disclosure(&fixture.engine, &target, race.change()));
+        let evidence = fixture
+            .runtime
+            .block_on(selected_evidence(&fixture, &race, &target, &mut input));
         let signed_inputs = vec![
             input.proof.clone(),
             input.action.clone(),
@@ -396,6 +407,7 @@ impl Case {
             input,
             target,
             signed_inputs,
+            evidence,
         }
     }
     fn schedule(
@@ -515,13 +527,17 @@ impl Case {
         }
         self.reopen(&result.snapshot);
         assert_eq!(self.fixture.records(), rows);
-        json!({"scenario":self.race.scenario,"order":self.race.order,"native_snapshot":result.snapshot,
+        let mut summary = json!({"scenario":self.race.scenario,"order":self.race.order,"native_snapshot":result.snapshot,
             "separate_worker_operator_processes":true,"signed_inputs_unchanged":true,"original_admission_time":NOW,
             "clock_after_wait":matches!(self.race.order,Order::LockWait).then(||NOW+self.race.scenario.time_shift()),
             "recipient_bytes":result.recipient_bytes,"native_recipient_ack_sent":result.recipient_ack_sent,
             "captured_wire_bytes_after_authentication_challenge":result.content_wire_bytes,
             "provider_reads":1,"additional_provider_reads":0,"credential_leases_at_release":0,
-            "reopened_journal_unchanged":true,"historical_replay_sends_nothing":self.race.enters()})
+            "reopened_journal_unchanged":true,"historical_replay_sends_nothing":self.race.enters()});
+        if let Some(evidence) = &self.evidence {
+            summary["selected_native_evidence"] = evidence.clone();
+        }
+        summary
     }
     fn reopen(&self, snapshot: &crate::DisclosureSnapshot) {
         let (engine, _) = self.fixture.runtime.block_on(load_controlled_engine(
@@ -572,6 +588,63 @@ impl Case {
     }
 }
 
+async fn selected_evidence(
+    fixture: &Fixture,
+    race: &Race,
+    target: &crate::effect::DisclosureTarget,
+    input: &mut Input,
+) -> Option<Value> {
+    if !matches!(
+        race.scenario,
+        Scenario::ObserverValid
+            | Scenario::ObserverExpired
+            | Scenario::ThresholdValid
+            | Scenario::ThresholdChanged
+    ) {
+        return None;
+    }
+    use crate::observed_tests::threshold_testkit as kit;
+    let threshold = matches!(
+        race.scenario,
+        Scenario::ThresholdValid | Scenario::ThresholdChanged
+    );
+    let after = NOW + race.scenario.time_shift();
+    let call = target
+        .authorization_call(
+            &recipe(),
+            &LogicalOperationId::parse(RELEASE).expect("operation"),
+        )
+        .expect("native release call");
+    let signed = kit::signed(&call, threshold);
+    let mut witness = kit::selection_witness(&signed, threshold, after);
+    let first = fixture
+        .engine
+        .compile_disclosure_effect(target, &signed.proof, &signed.action)
+        .await
+        .expect("initial native disclosure");
+    let exact = Input::approval(&first, Change::None);
+    let before = first.binding().clone();
+    first
+        .approve(
+            exact.clone(),
+            &SigningKey::from_bytes(&[29; 32]).verifying_key().to_bytes(),
+            after,
+        )
+        .expect("original approval interval remains current after wait");
+    fixture.clock.set(after);
+    let fresh = fixture
+        .engine
+        .compile_disclosure_effect(target, &signed.proof, &signed.action)
+        .await;
+    fixture.clock.set(NOW);
+    kit::verify_binding(&before, fresh, exact.clone(), threshold, after);
+    witness["old_approval_accepts_current_effect"] = json!(after <= NOW + 5);
+    input.proof = signed.proof;
+    input.action = signed.action;
+    input.approval = exact;
+    Some(witness)
+}
+
 fn matrix(backend: Backend) {
     let schedules = [
         (Scenario::Revoke, Order::ChangeFirst),
@@ -582,6 +655,10 @@ fn matrix(backend: Backend) {
         (Scenario::ApprovalExpired, Order::LockWait),
         (Scenario::AuthorityValid, Order::LockWait),
         (Scenario::AuthorityExpired, Order::LockWait),
+        (Scenario::ObserverValid, Order::LockWait),
+        (Scenario::ObserverExpired, Order::LockWait),
+        (Scenario::ThresholdValid, Order::LockWait),
+        (Scenario::ThresholdChanged, Order::LockWait),
     ];
     let cases: Vec<_> = schedules
         .into_iter()
@@ -593,7 +670,7 @@ fn matrix(backend: Backend) {
         .collect();
     let artifact=serde_json::to_vec_pretty(&json!({"schema":"auths.native-disclosure-entry-order/1","adapter":backend.label(),"cases":cases,
         "scope":"native separate release authority and exact approval, real local HTTP source acquisition, independent worker/operator OS processes, maintained adapter writer fence; gateway/recipient tasks in the worker over same-UID Unix sockets; fixed public keys and controlled maintained clock",
-        "excluded":["separate gateway/recipient OS processes in each worker","hostile OS containment","selected observer and threshold timing","installed language framing","whole-store rollback and power loss"]})).expect("artifact");
+        "excluded":["separate gateway/recipient OS processes in each worker","hostile OS containment","all selected-authority and revocation scopes","installed language framing","whole-store rollback and power loss"]})).expect("artifact");
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
         "../../../bindings/fixtures/gateway/native-disclosure-entry-order-{}.json",
         backend.label()

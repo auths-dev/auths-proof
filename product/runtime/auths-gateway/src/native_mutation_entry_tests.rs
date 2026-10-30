@@ -32,15 +32,22 @@ impl Race {
         matches!(self.order, Order::GrantFirst)
             || matches!(
                 self.scenario,
-                Scenario::ApprovalValid | Scenario::AuthorityValid
+                Scenario::ApprovalValid
+                    | Scenario::AuthorityValid
+                    | Scenario::ObserverValid
+                    | Scenario::ThresholdValid
             )
     }
     const fn change(&self) -> Change {
         match self.scenario {
             Scenario::ApprovalValid | Scenario::ApprovalExpired => Change::ApprovalExpiry,
             Scenario::AuthorityValid | Scenario::AuthorityExpired => Change::AuthorityExpiry,
-            Scenario::Revoke | Scenario::Configuration => Change::None,
-            _ => unreachable!(),
+            Scenario::Revoke
+            | Scenario::Configuration
+            | Scenario::ObserverValid
+            | Scenario::ObserverExpired
+            | Scenario::ThresholdValid
+            | Scenario::ThresholdChanged => Change::None,
         }
     }
     fn inputs(&self) -> Vec<Vec<u8>> {
@@ -204,6 +211,7 @@ struct Case {
     provider: Provider,
     input: Input,
     signed_inputs: Vec<Vec<u8>>,
+    evidence: Option<Value>,
 }
 impl Case {
     fn new(backend: Backend, scenario: Scenario, order: Order) -> Self {
@@ -227,11 +235,12 @@ impl Case {
             },
         };
         let runtime = runtime();
+        let clock = Arc::new(FixedClock::at(NOW));
         let (engine, record) = runtime.block_on(load_controlled_engine(
             &race.setup,
             "entry-parent",
             store.attempts().clone(),
-            controls(Arc::new(FixedClock::at(NOW)), 29),
+            controls(clock.clone(), 29),
         ));
         let shared = SharedConnection::new(
             store.raw(),
@@ -244,7 +253,8 @@ impl Case {
         engine
             .initialize_effect_configuration()
             .expect("configuration");
-        let input = runtime.block_on(Input::author(&engine, race.change()));
+        let mut input = runtime.block_on(Input::author(&engine, race.change()));
+        let evidence = runtime.block_on(selected_evidence(&engine, &clock, &race, &mut input));
         let signed_inputs = vec![
             input.proof.clone(),
             input.action.clone(),
@@ -266,6 +276,7 @@ impl Case {
             provider,
             input,
             signed_inputs,
+            evidence,
         }
     }
     fn schedule(
@@ -367,12 +378,16 @@ impl Case {
             );
         }
         self.reopen(result, &bytes);
-        json!({"scenario":self.race.scenario, "order":self.race.order,
+        let mut result = json!({"scenario":self.race.scenario, "order":self.race.order,
             "separate_worker_and_operator_processes":true, "signed_inputs_unchanged":true,
             "native_result":result, "admission_time":NOW,
             "clock_after_wait":matches!(self.race.order, Order::LockWait).then(|| NOW+self.race.scenario.time_shift()),
             "actual_credential_leases":1, "actual_provider_writes":u64::from(self.race.enters()),
-            "reopened_history_unchanged":true, "historical_replay_performs_no_io":self.race.enters()})
+            "reopened_history_unchanged":true, "historical_replay_performs_no_io":self.race.enters()});
+        if let Some(evidence) = &self.evidence {
+            result["selected_native_evidence"] = evidence.clone();
+        }
+        result
     }
     fn reopen(&self, result: &GatewaySubmitResult, bytes: &[u8]) {
         let runtime = runtime();
@@ -414,6 +429,58 @@ impl Case {
     }
 }
 
+async fn selected_evidence(
+    engine: &GatewayEngine,
+    clock: &FixedClock,
+    race: &Race,
+    input: &mut Input,
+) -> Option<Value> {
+    if !matches!(
+        race.scenario,
+        Scenario::ObserverValid
+            | Scenario::ObserverExpired
+            | Scenario::ThresholdValid
+            | Scenario::ThresholdChanged
+    ) {
+        return None;
+    }
+    use crate::observed_tests::threshold_testkit as kit;
+    let threshold = matches!(
+        race.scenario,
+        Scenario::ThresholdValid | Scenario::ThresholdChanged
+    );
+    let after = NOW + race.scenario.time_shift();
+    let signed = kit::signed(&Input::call(), threshold);
+    let mut witness = kit::selection_witness(&signed, threshold, after);
+    let first = engine
+        .compile_effect(&signed.proof, &signed.action)
+        .await
+        .expect("initial native effect");
+    let exact = approval(&first, NOW + 300);
+    let before = first.binding().clone();
+    input.body = first
+        .private_request()
+        .expect("new proof's exact request")
+        .body()
+        .to_vec();
+    first
+        .approve(
+            exact.clone(),
+            &SigningKey::from_bytes(&[29; 32]).verifying_key().to_bytes(),
+            after,
+        )
+        .expect("original approval interval remains current after wait");
+    clock.set(after);
+    let fresh = engine.compile_effect(&signed.proof, &signed.action).await;
+    clock.set(NOW);
+    kit::verify_binding(&before, fresh, exact.clone(), threshold, after);
+    witness["old_approval_accepts_current_effect"] = json!(after <= NOW + 5);
+    input.proof = signed.proof;
+    input.action = signed.action;
+    input.approval = exact;
+    Some(witness)
+}
+
 fn matrix(backend: Backend) {
     let schedules = [
         (Scenario::Revoke, Order::ChangeFirst),
@@ -424,6 +491,10 @@ fn matrix(backend: Backend) {
         (Scenario::ApprovalExpired, Order::LockWait),
         (Scenario::AuthorityValid, Order::LockWait),
         (Scenario::AuthorityExpired, Order::LockWait),
+        (Scenario::ObserverValid, Order::LockWait),
+        (Scenario::ObserverExpired, Order::LockWait),
+        (Scenario::ThresholdValid, Order::LockWait),
+        (Scenario::ThresholdChanged, Order::LockWait),
     ];
     let cases: Vec<_> = schedules
         .into_iter()
@@ -436,7 +507,7 @@ fn matrix(backend: Backend) {
     let artifact = serde_json::to_vec_pretty(&json!({"schema":"auths.native-mutation-entry-order/1",
         "adapter":backend.label(), "cases":cases,
         "scope":"actual native mutation, separate worker/operator OS processes, maintained durable writer fence, public fixture keys and controlled maintained test clock, counting local HTTP provider without deduplication",
-        "excluded":["disclosure races", "selected observer and threshold expiry", "installed language framing", "hostile OS containment", "whole-store rollback and power loss"]})).expect("artifact");
+        "excluded":["disclosure races", "all selected-authority and revocation scopes", "installed language framing", "hostile OS containment", "whole-store rollback and power loss"]})).expect("artifact");
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
         "../../../bindings/fixtures/gateway/native-mutation-entry-order-{}.json",
         backend.label()

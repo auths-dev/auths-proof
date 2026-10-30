@@ -1306,3 +1306,25 @@ recipient process containment, separate recipient OS processes within each worke
 selected observer/threshold timing or installed binding/UI coverage. Existing
 native authority, approval, recipient authentication and journal owners remain
 unchanged; the test scheduler constructs no grant or decision.
+
+## Selected observation and threshold parity at native entry
+
+Mutation and disclosure each extend their entry-order matrix with the existing
+native acquisition observation/threshold controls. At the inclusive five-second
+freshness boundary, a single signed observation and a genuine 1-of-2 proof retain
+the approved native selection. At six seconds the observation-only proof is stale;
+the threshold proof remains Authorized through its long-lived branch, while the
+native selected-authority commitment changes. Fresh native compilation establishes
+that only the bound authority changes, and the old approval's own signature/time
+remains valid for the original effect. It cannot authorize the new effect.
+
+Actual worker/operator lock waits re-run that native check at the final grant.
+Refusal retains original reservations and sends no mutation request or disclosure
+content/ACK. Positive controls perform the exact separately reviewed request or
+recipient delivery. Changing a mutation's signed proof also changes its declared
+provider echo, so the expected captured body comes from that proof's own native
+bound request. No approval, request body, input timestamp or grant is synthesized
+by the scheduling helper. The fixtures use explicitly public test observer keys
+and signed observation attachments; they do not qualify live-provider evidence.
+Installed language/UI parity, other authority/revocation scopes and hostile OS
+containment remain separate obligations.

@@ -20,7 +20,7 @@ fn requirement(maximum_age: u32) -> ObservationRequirement {
     .expect("observation requirement")
 }
 
-fn signed(call: &McpToolCall, threshold: bool) -> ToolFixture {
+pub(crate) fn signed(call: &McpToolCall, threshold: bool) -> ToolFixture {
     let root = signer(h::ROOT_SEED);
     let actor = signer(0x22);
     let observer = signer(h::OBSERVER_SEED);
@@ -111,7 +111,7 @@ fn signed(call: &McpToolCall, threshold: bool) -> ToolFixture {
     }
 }
 
-fn selection_witness(signed: &ToolFixture, threshold: bool, after: u64) -> Value {
+pub(crate) fn selection_witness(signed: &ToolFixture, threshold: bool, after: u64) -> Value {
     let context = auths_codec::decode_verifier_context(&signed.context).expect("context");
     let before = crate::engine::verify_native(&context, NOW, &signed.proof, &signed.action)
         .expect("native authority before wait");
@@ -175,7 +175,7 @@ fn selection_witness(signed: &ToolFixture, threshold: bool, after: u64) -> Value
     witness
 }
 
-fn verify_binding(
+pub(crate) fn verify_binding(
     before: &crate::effect::EffectBinding,
     fresh: Result<crate::effect::BoundEffect, GatewaySubmitResult>,
     approval: crate::effect::ExactEffectApproval,

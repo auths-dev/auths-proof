@@ -3214,6 +3214,52 @@ metadata construction advances freeze417 and only reported changed identity161/
 public-SDK158/public-surface417 subjects. Formal translation closure remains a002;
 this is not new hosted or formal qualification.
 
+## Native selected-evidence parity checkpoint
+
+The mutation and disclosure entry matrices each add four schedules per adapter:
+single-observer and genuine 1-of-2 threshold controls at the inclusive five-second
+freshness boundary and one second beyond. Each typed matrix now contains twelve
+histories per adapter, preserving the eight earlier order/expiry schedules. This
+adds sixteen histories and brings the mutation/disclosure entry corpus to 48.
+The existing acquisition authoring/selection/binding test helpers are reused
+through test-module visibility; no shipping semantic owner or decoder changes.
+
+The full ordinary native verifier establishes each proof's authority before and
+after the future wait. At five seconds, the signed observation and both threshold
+branches remain eligible, the exact effect stays unchanged, and actual native
+entry succeeds. At six seconds, single-observer authority is stale. The threshold
+proof remains Authorized through the longer-lived branch, but its selected
+authority commitment changes. Fresh gateway compilation is still successful;
+the canonical binding differs only in native authority. The original approval's
+signature and time remain valid for its original binding, yet cannot approve that
+changed effect. Original proof/action/observation/approval bytes are never renewed.
+
+Actual independent worker/operator OS-process lock waits reproduce that final
+grant check on file and TLS PostgreSQL. Refused mutation retains its reservation
+and sends zero HTTP requests; positive mutation sends its own exact native bound
+request. A newly signed proof changes the recipe's declared provider echo, so its
+expected captured body is taken from that proof's native request rather than
+reusing another proof's body. Refused disclosure retains its lifetime allocation
+and sends zero bytes after the authentication challenge, independently checked by
+the opaque relay, with no recipient ACK. Positive disclosure gets the exact
+retained bytes and native ACK. Native history/replay conserves the existing facts
+and creates no new transport, credential lease or allocation.
+
+Required constructors passed with one matched, nonignored test each: mutation
+file2.90s/TLS PostgreSQL4.79s and disclosure file4.75s/TLS PostgreSQL6.54s. The same
+36 explicit workflow selectors remain; four of them now cover the expanded
+matrices. These are local constructor results, not new-head hosted qualification.
+The observation attachments use public fixture observer keys, not live-provider
+attestation. All selected-authority/revocation scopes, installed language/UI and
+hostile-process/adverse durability obligations remain distinct. A13/A14 stay
+partial. AP070 and paused AP073 remain untouched; CI belongs to the subagent.
+
+Native closure construction and rebuilt non-update verification passed. Semantic
+inventory construction advances freeze418 and only its reported public-surface418
+subject; identity161/public-SDK158 and the other counters remain unchanged. Formal
+translation closure remains a002. These construction results are not new hosted
+or formal qualification.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -3243,9 +3289,9 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP and independent native recovery histories / six candidate process histories plus eight file/TLS PostgreSQL histories distinguish denial, lost/recorded response, state equality and declared echo linkage | Complete installed mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |
-| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate, native acquisition plus sixteen mutation and sixteen disclosure worker/operator histories / actual file/TLS PostgreSQL writer-fence schedules order withdrawal around final grant | Complete dependency/revocation scopes and installed/adverse races remain required |
-| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age, native acquisition evidence timing and mutation/disclosure independent proof/approval lock waits / eligible and expired controls executed on file/TLS PostgreSQL | Remaining selected-observer/threshold, dependency scopes and installed/adverse evidence required |
-| A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls / four file/TLS PostgreSQL histories execute unchanged/changed selection; proof remains Authorized but changed authority invalidates the old still-current exact approval before grant | Complete installed language/UI and mutation/disclosure parity remain required |
+| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate, native acquisition plus 24 mutation and 24 disclosure worker/operator histories / actual file/TLS PostgreSQL writer-fence schedules order withdrawal around final grant | Complete dependency/revocation scopes and installed/adverse races remain required |
+| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and native acquisition/mutation/disclosure proof/approval/observer/threshold lock waits / eligible and expired controls executed on file/TLS PostgreSQL, with zero post-authentication disclosure wire bytes on refusal | Remaining dependency/revocation scopes and installed/adverse evidence required |
+| A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls across all three protocols / 12 file/TLS PostgreSQL threshold histories preserve Authorized proof while changed selected authority invalidates the old still-current exact approval | Complete installed language/UI and remaining selected-authority/adverse boundaries required |
 | A15 | Recovery actor differs; original authority revoked | Partial / native independent writer/reader OS-process journey / eight file/TLS PostgreSQL histories execute after operator withdrawal of writer root, with original entry/identity/charges preserved and fresh independent reader approval | Other revocation scopes and full installed language/authenticated UI evidence remain required |
 | A16 | Cross-task/recipe/partition substitution | Partial / native valid-authority unscoped negatives and four shared-store file/TLS PostgreSQL partition/recipe histories / foreign approval, retained history and release provenance refused; original facts retained | Complete installed-boundary and remaining scope substitution evidence; no AP073 task implementation required |
 | A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |

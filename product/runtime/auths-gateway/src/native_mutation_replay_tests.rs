@@ -189,15 +189,19 @@ fn approval(
     request.with_signature(signature)
 }
 impl Input {
-    async fn author(engine: &GatewayEngine, change: Change) -> Self {
+    fn call() -> McpToolCall {
         let recipe = recipe();
         let arguments = json!({"operator_namespace":recipe.namespace().as_str(),"recipe_digest":recipe.digest_hex(),"operation_id":OPERATION,"record_id":"recTEST0000000001","replacement":"Approved"});
-        let call = McpToolCall::new(
+        McpToolCall::new(
             recipe.review().service(),
             recipe.review().tool(),
             arguments.as_object().expect("arguments").clone(),
         )
-        .expect("call");
+        .expect("call")
+    }
+    async fn author(engine: &GatewayEngine, change: Change) -> Self {
+        let recipe = recipe();
+        let call = Self::call();
         let signed = tool_fixture_until(
             &call,
             NOW,

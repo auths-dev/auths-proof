@@ -129,12 +129,140 @@
       "actual_provider_writes": 0,
       "reopened_history_unchanged": true,
       "historical_replay_performs_no_io": false
+    },
+    {
+      "scenario": "observer-valid",
+      "order": "lock-wait",
+      "separate_worker_and_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "admission_time": 1790000000,
+      "clock_after_wait": 1790000005,
+      "actual_credential_leases": 1,
+      "actual_provider_writes": 1,
+      "reopened_history_unchanged": true,
+      "historical_replay_performs_no_io": true,
+      "selected_native_evidence": {
+        "threshold": false,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000005,
+        "authorized_before_wait": true,
+        "authorized_after_wait": true,
+        "signed_inputs_reused": true,
+        "selected_branches_before": [
+          "4040404040404040404040404040404040404040404040404040404040404040"
+        ],
+        "selected_branches_after": [
+          "4040404040404040404040404040404040404040404040404040404040404040"
+        ],
+        "authority_commitment_changed": false,
+        "old_approval_accepts_current_effect": true
+      }
+    },
+    {
+      "scenario": "observer-expired",
+      "order": "lock-wait",
+      "separate_worker_and_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "admission_time": 1790000000,
+      "clock_after_wait": 1790000006,
+      "actual_credential_leases": 1,
+      "actual_provider_writes": 0,
+      "reopened_history_unchanged": true,
+      "historical_replay_performs_no_io": false,
+      "selected_native_evidence": {
+        "threshold": false,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000006,
+        "authorized_before_wait": true,
+        "authorized_after_wait": false,
+        "signed_inputs_reused": true,
+        "old_approval_accepts_current_effect": false
+      }
+    },
+    {
+      "scenario": "threshold-valid",
+      "order": "lock-wait",
+      "separate_worker_and_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "admission_time": 1790000000,
+      "clock_after_wait": 1790000005,
+      "actual_credential_leases": 1,
+      "actual_provider_writes": 1,
+      "reopened_history_unchanged": true,
+      "historical_replay_performs_no_io": true,
+      "selected_native_evidence": {
+        "threshold": true,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000005,
+        "authorized_before_wait": true,
+        "authorized_after_wait": true,
+        "signed_inputs_reused": true,
+        "selected_branches_before": [
+          "4040404040404040404040404040404040404040404040404040404040404040",
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "selected_branches_after": [
+          "4040404040404040404040404040404040404040404040404040404040404040",
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "authority_commitment_changed": false,
+        "old_approval_accepts_current_effect": true
+      }
+    },
+    {
+      "scenario": "threshold-changed",
+      "order": "lock-wait",
+      "separate_worker_and_operator_processes": true,
+      "signed_inputs_unchanged": true,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "admission_time": 1790000000,
+      "clock_after_wait": 1790000006,
+      "actual_credential_leases": 1,
+      "actual_provider_writes": 0,
+      "reopened_history_unchanged": true,
+      "historical_replay_performs_no_io": false,
+      "selected_native_evidence": {
+        "threshold": true,
+        "observed_at": 1790000000,
+        "short_maximum_age_seconds": 5,
+        "evaluation_after_wait": 1790000006,
+        "authorized_before_wait": true,
+        "authorized_after_wait": true,
+        "signed_inputs_reused": true,
+        "selected_branches_before": [
+          "4040404040404040404040404040404040404040404040404040404040404040",
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "selected_branches_after": [
+          "4141414141414141414141414141414141414141414141414141414141414141"
+        ],
+        "authority_commitment_changed": true,
+        "old_approval_accepts_current_effect": false
+      }
     }
   ],
   "scope": "actual native mutation, separate worker/operator OS processes, maintained durable writer fence, public fixture keys and controlled maintained test clock, counting local HTTP provider without deduplication",
   "excluded": [
     "disclosure races",
-    "selected observer and threshold expiry",
+    "all selected-authority and revocation scopes",
     "installed language framing",
     "hostile OS containment",
     "whole-store rollback and power loss"

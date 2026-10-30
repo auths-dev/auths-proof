@@ -741,9 +741,23 @@ action, observation and approval bytes and admission time remain unchanged;
 valid entry records the time after waiting. The schedule occurs after initially
 authorized admission and a custody lease; the final refusal prevents any HTTP
 entry and does not claim to undo that prior lease. These cases establish native
-acquisition ordering under the stated test deployment. Complete mutation/
-disclosure dependency races and installed language/human UI evidence remain
-separate requirements.
+acquisition ordering under the stated test deployment.
+
+`native-mutation-entry-order-{file,postgres}.json` and
+`native-disclosure-entry-order-{file,postgres}.json` extend the same schedules to
+the typed native mutation and disclosure owners, with twelve histories per
+protocol/adapter. Both preserve original admission and signed input bytes across
+real independent worker/operator lock waits. Changed selected authority cannot
+reuse the old exact approval even while the threshold proof remains Authorized.
+Mutation captures the exact request compiled for its own signed proof, including
+its declared echo. Disclosure separately authenticates a native recipient and
+records an exact ACK only after a grant. An opaque socket relay inspects every
+gateway byte after the authentication challenge: final-grant refusal produces
+zero subsequent wire bytes, including incomplete frame prefixes. Gateway and
+recipient are same-UID tasks within the worker, not hostile OS peers. The signed
+observation fixtures use public test observer keys and do not qualify live-provider
+evidence. Complete dependency/revocation scopes and installed language/human UI,
+adverse durability and containment evidence remain separate requirements.
 
 `native-independent-recovery-{file,postgres}.json` exercises four outcomes per
 adapter using separate native writer and recovery-reader OS processes. A real
