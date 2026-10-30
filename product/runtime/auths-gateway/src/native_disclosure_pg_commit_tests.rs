@@ -225,7 +225,7 @@ async fn recipient(setup: &CommitSetup) {
     );
 }
 
-async fn relay(gateway: UnixStream, recipient: UnixStream) -> (bool, u64) {
+pub(super) async fn relay(gateway: UnixStream, recipient: UnixStream) -> (bool, u64) {
     let (mut from_gateway, mut to_gateway) = gateway.into_split();
     let (mut from_recipient, mut to_recipient) = recipient.into_split();
     let outbound = async {

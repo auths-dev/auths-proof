@@ -43,6 +43,9 @@ mod postgres_batch_tests;
 #[path = "native_disclosure_pg_commit_tests.rs"]
 mod postgres_commit_tests;
 
+#[path = "native_disclosure_file_fault_tests.rs"]
+mod file_fault_tests;
+
 const SOURCE: &str = "crash-release-source";
 const RELEASE: &str = "crash-release";
 

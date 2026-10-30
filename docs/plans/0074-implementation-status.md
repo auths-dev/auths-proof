@@ -3371,6 +3371,65 @@ Semantic inventory construction advances freeze420 and only its reported changed
 identity163/public-SDK160/public-surface420 subjects. Formal translation closure
 remains a002; these construction results are not fresh hosted or formal evidence.
 
+## Native mutation/disclosure file-error checkpoint
+
+Thirty-two new native histories extend the maintained file-adapter error harness:
+fourteen mutation schedules and eighteen disclosure schedules. Mutation admission
+has three rows (attempt/count/amount sum); disclosure has four (attempt/lifetime
+allocation/count/byte sum), in addition to its separately acquired source. Tests
+simulate errors at batch data sync/publication, every target install and all three
+admission directory-sync calls. Grant and protocol outcome persistence each cover
+data sync, replacement and directory sync, including separate disclosure ACK and
+Unknown transitions. The transparent selector now accepts an exact operation key
+and typed native stage path and forwards every native decision unchanged.
+
+Workers run in separate OS processes and report exactly one reached adapter
+failure site. Error returns are simulated; actual preceding writes, private file
+permissions, native verification/approval, writer fences, all-or-none rollback and
+transport execute unchanged. Pre-grant work retains no entry permission and can
+continue only through full native reauthorization after reopening. A grant that
+was installed before a lost directory-sync acknowledgement stays charged Unknown
+even with zero actual send. Response or ACK persistence that did complete retains
+its stronger fact. Terminal replay changes no journal bytes, execution witness or
+charges and performs no new I/O.
+
+Disclosure uses a native recipient in another OS process and the existing opaque
+Unix relay. Failed admission emits no challenge/content; failed final grant emits
+no content. The recipient can deliberately withhold its network ACK only after
+checking exact received content and storing its genuine native signed ACK. Failed
+ACK persistence follows the existing native Unknown path, while a persisted ACK
+cannot be overwritten with Unknown. Historical ACK submission can refine retained
+uncertainty without new delivery, provider/custody access or changed source/charge
+bytes. No ACK is invented for a lost grant that sent nothing. The sole provider
+read remains the original acquisition. First-slot count/sum/lifetime records are
+retained once, with no hidden duplicate or refund. Mutation has no disclosure
+source-lifetime allocation.
+
+Required exact artifact constructors passed with one matched, nonignored test:
+mutation 3.00s and disclosure 7.75s. The original acquisition file-error artifact
+passed without update mode in 3.40s, and the original native disclosure file-crash
+artifact passed without update mode in 13.34s after the recipient helper extension;
+both committed artifacts stayed byte-identical. The workflow retains all prior 40
+native selectors and adds two for 42. The modeled file-error corpus now has 47
+histories across acquisition/mutation/disclosure. Compliance anchors name the two
+new constructors. No shipping runtime/store or decision owner changed.
+
+The CI subagent's two-site import-order repair is integrated as `a2129593` before
+closure refresh. Both imports moved ahead of statements; assertions, behavior and
+fixtures are unchanged. Its isolated reproduction of the actual failed strict
+Clippy check passed. Main did not inspect CI or duplicate that check.
+
+These are local constructor results, not new-head hosted qualification or proof
+of actual kernel/device EIO, power loss, whole-store rollback, hostile OS isolation
+or live-provider behavior. Remaining adverse/installed/runtime-refinement and
+durability assumptions stay explicit. A06/A08 remain partial. AP070 and the paused
+AP073 worktree are untouched; all CI inspection/publication remains delegated.
+
+Native source-closure construction and rebuilt non-update verification passed.
+Semantic metadata construction advances freeze421 and only reported changed
+identity164/public-SDK161/public-surface421 subjects. Formal translation closure
+remains a002; metadata construction is not new hosted or formal qualification.
+
 ## Phase gates
 
 | Phase | State | Outstanding gate |
@@ -3394,9 +3453,9 @@ separate claim. No complete AP074 acceptance gate is currently closed or externa
 | A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
 | A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / native lifetime/acquisition histories executed; twelve mutation/disclosure count/sum/both contention histories now constructed on both adapters using prefix plus two OS contenders | New-head hosted confirmation and complete dependency-change/adverse grant schedules remain required |
 | A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
-| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / native file I/O failures, server-rejected PostgreSQL batches and actual COMMIT reply loss / fifteen acquisition file faults, eleven admission-prefix aborts and twenty committed/aborted reply-loss histories across all protocols | Mutation/disclosure file I/O schedules and remaining durability/adverse cases required |
+| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / 47 modeled file-error histories, eleven actual PostgreSQL admission-prefix aborts and twenty committed/aborted reply-loss histories across all protocols | Remaining adverse/installed cases and runtime-refinement/durability assumptions required |
 | A07 | Revoke between acquisition and disclosure | Partial / daemon corpus plus native file/TLS PostgreSQL worker/operator release races / withdrawal before final grant produces no post-authentication wire bytes or ACK, while grant-first records exact delivery/ACK | Complete revocation scopes and installed boundary races |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient, native crash and actual COMMIT-reply-loss corpora / fifty-six release crash histories plus eight committed/aborted release transactions cover lost grant replies, ACK/Unknown persistence, late genuine ACKs and no redelivery with conserved charges | Remaining file I/O-error, adverse races and full installed boundary evidence pending |
+| A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient, native crash, commit-reply loss and file-error corpora / fifty-six release crash histories, eight committed/aborted release transactions and eighteen file-error histories retain charges through lost grants and ACK/Unknown persistence; genuine late ACKs never authorize redelivery | Remaining adverse races, runtime links and full installed boundary evidence pending |
 | A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
 | A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP and independent native recovery histories / six candidate process histories plus eight file/TLS PostgreSQL histories distinguish denial, lost/recorded response, state equality and declared echo linkage | Complete installed mutation, observation and disclosure projections |
 | A11 | Missing/multiple/unrelated/incomplete reconciliation | Partial / native file corpus / synthetic response only | Installed transport and complete recovery projections |

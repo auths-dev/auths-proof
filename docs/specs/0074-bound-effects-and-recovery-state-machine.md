@@ -805,6 +805,23 @@ request. The failed I/O return is simulated, and production builds contain no
 selector. Actual device faults/power loss, PostgreSQL commit delivery and the
 complete mutation/disclosure fault matrix remain separate requirements.
 
+`native-mutation-file-io-faults.json` adds fourteen native mutation schedules for
+the three-row admission batch, grant and response persistence.
+`native-disclosure-file-io-faults.json` adds eighteen release schedules for its
+four-row admission batch, grant, exact ACK and Unknown persistence. Both use the
+same actual file writer fence and syscall-error selector as acquisition, with
+typed stage paths and operation keys. They cover batch data sync/publication,
+each target install and all three admission directory-sync points, plus data
+sync/replace/directory sync at the modeled grant/outcome boundaries. Error returns
+are simulated; preceding writes, rollback/reopen, native decisions, transport
+and recipient signatures execute unchanged. Existing source and charge bytes
+remain intact. A lost grant acknowledgement sends nothing and never remints a
+permit; absent/reserved work continues only through native reauthorization.
+Separate native recipients and opaque Unix wire capture verify exact delivery
+or zero content, and genuine historical ACKs refine retained uncertainty without
+redelivery or new charging. These histories do not qualify actual kernel/device
+EIO, power-loss/whole-store rollback, hostile OS containment or live providers.
+
 `native-postgres-partial-batch.json` separately rejects each insert of a
 four-record native admission transaction using a server trigger confined to an
 owned test schema. A nontransactional sequence witnesses the reached row prefix,

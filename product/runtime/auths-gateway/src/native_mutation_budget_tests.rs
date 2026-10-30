@@ -15,6 +15,9 @@ mod postgres_batch_tests;
 #[path = "native_mutation_pg_commit_tests.rs"]
 mod postgres_commit_tests;
 
+#[path = "native_mutation_file_fault_tests.rs"]
+mod file_fault_tests;
+
 #[derive(Clone, Copy)]
 enum Limit {
     Count,

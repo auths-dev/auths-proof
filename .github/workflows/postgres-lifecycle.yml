@@ -68,6 +68,8 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::window_capacity_tests::native_file_disclosure_window_capacity_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::window_capacity_tests::postgres_native_disclosure_window_capacity_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_file_fault_tests::native_file_io_fault_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::window_capacity_tests::file_fault_tests::native_file_mutation_io_fault_fixture_is_current
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::file_fault_tests::native_file_disclosure_io_fault_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_postgres_fault_tests::postgres_native_partial_batch_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current

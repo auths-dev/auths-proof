@@ -1383,3 +1383,26 @@ is invented when a lost grant sent no content. This is native transaction/transp
 evidence under fixture keys, clocks and same-UID local process policy; file faults,
 server/power loss, hostile OS containment and live-provider qualification remain
 separate work.
+
+## Native file-error parity across typed protocols
+
+The existing acquisition file-error selector now accepts an exact operation key
+and typed native stage path. It still forwards each native decision unchanged and
+arms only the maintained adapter's test-only syscall-error site. Fourteen mutation
+and eighteen disclosure schedules cover batch data sync/publication, every target
+install, all three admission directory-sync points, and data-sync/replace/directory
+sync errors at grant and protocol outcome persistence. Failed syscall returns are
+simulated; actual preceding writes, writer fences, rollback recovery, native
+authorization and transport execute unchanged.
+
+Mutation atomically retains or removes attempt/count/amount-sum rows and has no
+disclosure lifetime allocation. Disclosure preserves its actual source and charges
+while treating ACK and Unknown as separate facts. A native recipient in another
+OS process may deliberately withhold its ACK after exact content receipt; its
+genuine signed ACK is retained for historical refinement. An opaque Unix relay
+measures all gateway content frames. Lost grants never recreate permits or send
+content, even with zero prior delivery. Absent/reserved work requires native
+reauthorization; terminal replay and historical ACK refinement perform no new I/O
+or charging. Existing charge bytes remain intact. These test-only additions do
+not change a shipping owner, and establish neither actual kernel/device EIO,
+power-loss/whole-store rollback safety nor hostile OS/provider qualification.

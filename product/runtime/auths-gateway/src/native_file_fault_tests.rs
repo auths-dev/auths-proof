@@ -1,6 +1,7 @@
 //! Injected errors at file adapter I/O boundaries under actual native decisions.
 //! The failed syscall is simulated; real preceding writes, fences, rollback,
 //! native verification, custody and HTTP run in independent OS processes.
+use crate::native_crash_tests::CrashProtocol;
 use crate::native_process_tests::{
     NOW, Provider, Setup, acquire, authorize_policy, load_engine, private, recipe, runtime,
 };
@@ -150,25 +151,49 @@ fn operation_key() -> GatewayAttemptKey {
     .expect("key")
 }
 
-struct FailureStore {
+pub(crate) struct FailureStore {
     inner: Arc<FileGatewayAttemptStore>,
-    schedule: Schedule,
+    key: GatewayAttemptKey,
+    protocol: CrashProtocol,
+    stage: &'static str,
+    point: FileIoPoint,
+    skip: usize,
     armed: AtomicBool,
 }
 impl FailureStore {
+    pub(crate) fn new(
+        inner: Arc<FileGatewayAttemptStore>,
+        key: GatewayAttemptKey,
+        protocol: CrashProtocol,
+        stage: &'static str,
+        point: FileIoPoint,
+        skip: usize,
+    ) -> Self {
+        Self {
+            inner,
+            key,
+            protocol,
+            stage,
+            point,
+            skip,
+            armed: AtomicBool::new(false),
+        }
+    }
     fn arm(
         &self,
         kind: GatewayRecordKind,
         key: GatewayAttemptKey,
         bytes: &[u8],
     ) -> Result<(), GatewayAttemptError> {
-        if kind == GatewayRecordKind::Attempt && key == operation_key() {
+        if kind == GatewayRecordKind::Attempt && key == self.key {
             let value: Value = serde_json::from_slice(bytes).expect("unchanged native decision");
-            if value["state"]["facts"]["phase"]["stage"] == self.schedule.decision()
+            if value
+                .pointer(self.protocol.stage_pointer())
+                .and_then(Value::as_str)
+                == Some(self.stage)
                 && !self.armed.swap(true, Ordering::SeqCst)
             {
-                self.inner
-                    .arm_io_failure(self.schedule.point, self.schedule.skip)?;
+                self.inner.arm_io_failure(self.point, self.skip)?;
             }
         }
         Ok(())
@@ -248,11 +273,14 @@ fn native_file_fault_peer() {
     let store = Arc::new(
         FileGatewayAttemptStore::open(&setup.installation.location).expect("file adapter"),
     );
-    let failure = Arc::new(FailureStore {
-        inner: store.clone(),
-        schedule: setup.schedule,
-        armed: AtomicBool::new(false),
-    });
+    let failure = Arc::new(FailureStore::new(
+        store.clone(),
+        operation_key(),
+        CrashProtocol::Acquisition,
+        setup.schedule.decision(),
+        setup.schedule.point,
+        setup.schedule.skip,
+    ));
     let attempts = GatewayAttempts::new(failure, crate::effect::fixture_policy().expect("policy"))
         .expect("attempts");
     let runtime = runtime();
@@ -315,7 +343,7 @@ fn execute(setup: &FaultSetup) -> WorkerResult {
     .expect("native result")
 }
 
-fn journal_files(path: &Path) -> BTreeMap<String, Vec<u8>> {
+pub(crate) fn journal_files(path: &Path) -> BTreeMap<String, Vec<u8>> {
     std::fs::read_dir(path)
         .expect("directory")
         .map(|entry| {

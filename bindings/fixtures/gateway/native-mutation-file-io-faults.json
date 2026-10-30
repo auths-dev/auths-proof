@@ -1,0 +1,246 @@
+{
+  "schema": "auths.native-mutation-file-io-faults/1",
+  "cases": [
+    {
+      "phase": "admission",
+      "point": "data-sync",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "install-batch",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "install-target",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "install-target",
+      "skip": 1,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "install-target",
+      "skip": 2,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "directory-sync",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "directory-sync",
+      "skip": 1,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": null,
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "admission",
+      "point": "directory-sync",
+      "skip": 2,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "reserved",
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "entry",
+      "point": "data-sync",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "reserved",
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "entry",
+      "point": "replace",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "reserved",
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": true,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "entry",
+      "point": "directory-sync",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "entry-granted",
+      "provider_writes_before_reopen": 0,
+      "new_native_execution_allowed": false,
+      "provider_writes_after_reopen": 0,
+      "native_result": {
+        "outcome": "unknown"
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "response",
+      "point": "data-sync",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "entry-granted",
+      "provider_writes_before_reopen": 1,
+      "new_native_execution_allowed": false,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "unknown"
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "response",
+      "point": "replace",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "entry-granted",
+      "provider_writes_before_reopen": 1,
+      "new_native_execution_allowed": false,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "unknown"
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    },
+    {
+      "phase": "response",
+      "point": "directory-sync",
+      "skip": 0,
+      "injected_io_failures": 1,
+      "retained_phase_after_failure": "response-recorded",
+      "provider_writes_before_reopen": 1,
+      "new_native_execution_allowed": false,
+      "provider_writes_after_reopen": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "one_count_and_one_amount_sum_slot": true,
+      "no_source_lifetime_allocation_for_mutation": true,
+      "terminal_replay_changes_no_journal_bytes_or_execution_witness": true
+    }
+  ],
+  "scope": "native Stripe mutation in separate worker processes, actual maintained file writer fence and three-row atomic admission, rollback/reopen, native bounded proof/exact approval and counting local HTTP; I/O failure return simulated at adapter call site, fixed public fixture keys/clock",
+  "excluded": [
+    "actual kernel/device EIO or power loss",
+    "whole-store rollback",
+    "hostile OS and live-provider qualification"
+  ]
+}

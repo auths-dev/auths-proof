@@ -37,6 +37,7 @@ pub(super) enum Role {
     Gateway,
     Recipient,
     ResumeRecipient,
+    RecipientWithoutAck,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -302,6 +303,9 @@ pub(super) async fn recipient(setup: &CrashSetup, resume: bool) {
         &root.join(format!("{prefix}-result.json")),
         &serde_json::to_vec(&json!({"received_full":true,"bytes":CONTENT.len()})).expect("result"),
     );
+    if matches!(setup.role, Role::RecipientWithoutAck) {
+        return;
+    }
     if !resume && matches!(setup.point, Point::AfterDeliveryBeforeAck) {
         let port = setup.installation.barrier_port;
         tokio::task::spawn_blocking(move || pause_at(port))
@@ -314,12 +318,20 @@ pub(super) async fn recipient(setup: &CrashSetup, resume: bool) {
 pub(super) struct Recipient(Child);
 impl Recipient {
     pub(super) fn start(setup: &CrashSetup, resume: bool) -> Self {
+        Self::start_mode(setup, resume, true)
+    }
+    pub(super) fn without_ack(setup: &CrashSetup) -> Self {
+        Self::start_mode(setup, false, false)
+    }
+    fn start_mode(setup: &CrashSetup, resume: bool, acknowledge: bool) -> Self {
         let path = setup.installation.root.join(if resume {
             "resume-recipient-setup.json"
         } else {
             "recipient-setup.json"
         });
-        let role = if resume {
+        let role = if !acknowledge {
+            Role::RecipientWithoutAck
+        } else if resume {
             Role::ResumeRecipient
         } else {
             Role::Recipient
@@ -387,6 +399,7 @@ pub(super) fn peer() {
             Role::Gateway => Box::pin(gateway(&setup)).await,
             Role::Recipient => recipient(&setup, false).await,
             Role::ResumeRecipient => recipient(&setup, true).await,
+            Role::RecipientWithoutAck => recipient(&setup, false).await,
         }
     });
 }

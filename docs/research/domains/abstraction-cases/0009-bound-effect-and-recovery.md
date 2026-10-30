@@ -938,3 +938,13 @@ grant and historical ACK owners are unchanged. Late recipient evidence may
 refine Unknown, while lost grants and terminal replay cannot authorize I/O or new
 charges. The additional six mutation/eight disclosure histories introduce no
 shipping abstraction, provider branch or application-owned decision system.
+
+Native file-error fixtures reuse the acquisition adapter's exact call-site fault
+control with typed mutation/disclosure stage selection. They add fourteen
+mutation and eighteen disclosure histories, including separate ACK and Unknown
+persistence. The only recipient fixture extension deliberately withholds a native
+ACK after verified receipt; it introduces no new approval or grant authority.
+Opaque wire capture, raw file/charge comparisons, native reauthorization and
+historical ACK refinement exercise the existing owners. This is test-only parity
+under simulated syscall returns, not extraction of a shipping lifecycle mechanism
+or qualification of kernel/device/power-loss behavior.
