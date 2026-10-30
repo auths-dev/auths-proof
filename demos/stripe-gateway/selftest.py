@@ -12,6 +12,22 @@ from urllib.parse import urlencode
 from demo_common import canonical, decode, digest, read, require, write
 
 
+def private_action_echo(label, action):
+    """Test-only expected link from the operator's exact native approval input."""
+    from operate import PRIVATE
+    binding = decode(read(PRIVATE / ('effect-' + label) / 'binding'))
+    commitment = binding['action']
+    require(binding['schema'] == 'auths.bound-effect/3'
+            and binding['namespace'] == action['operator_namespace']
+            and binding['operation'] == action['operation_id']
+            and type(commitment) is list and len(commitment) == 32
+            and all(type(value) is int and 0 <= value <= 255 for value in commitment),
+            'demo.selftest-private-action-binding')
+    return 'auths-e1-' + digest(b'auths.gateway-echo/1\0'
+        + action['operator_namespace'].encode() + b'\0'
+        + action['operation_id'].encode() + b'\0' + bytes(commitment))
+
+
 def test_native_refusals_replay_race_and_loss(operator):
     """No double replaces gateway verification, admission, persistence or observation."""
     from operate import HOME
@@ -87,7 +103,21 @@ def test_native_refusals_replay_race_and_loss(operator):
         require(len(writes) == 1 and cases[-2]['native_counters']['write_transport_entries'] == 1,
                 'demo.selftest-write-count:' + label)
         action = result['action']
-        echo = records[0]['evidence']['echo']
+        evidence = records[0]['evidence']
+        language = decode(inspected.stdout)['records'][0]['language']
+        require(language in ('python', 'typescript'), 'demo.selftest-client-language')
+        commitment_field, time_field = (('evidenceCommitment', 'observedAt')
+                                        if language == 'typescript' else ('evidence_commitment', 'observed_at'))
+        require(set(evidence) == {'schema', 'channel', commitment_field, time_field}
+                and evidence['schema'] == 'auths.gateway-public-evidence/1'
+                and evidence['channel'] == 'read-back'
+                and type(evidence[commitment_field]) is str
+                and len(evidence[commitment_field]) == 64
+                and all(value in '0123456789abcdef' for value in evidence[commitment_field])
+                and type(evidence[time_field]) is int and 0 <= evidence[time_field] <= 2**53 - 1,
+                'demo.selftest-public-hiding-evidence')
+        # Private test expectation never returns through the application result.
+        echo = private_action_echo(label, action)
         key = 'auths-i1-' + digest(b'auths.gateway-idempotency-key/1\0'
               + action['operator_namespace'].encode() + b'\0' + action['operation_id'].encode())
         expected = urlencode([('amount', str(action['amount'])), ('metadata[auths_echo]', echo),
@@ -106,6 +136,8 @@ def test_native_refusals_replay_race_and_loss(operator):
         refund = decode(refund_bytes)
         require(refund['amount'] == action['amount'] and refund['payment_intent'] == action['payment_intent']
                 and refund['metadata']['auths_echo'] == echo, 'demo.selftest-independent-read-back')
+        require(evidence[commitment_field] != digest(refund_bytes),
+                'demo.selftest-public-raw-evidence-digest')
         cases[-1]['independent_read_back'] = {'fixture_api_entries': 1, 'response_sha256': digest(refund_bytes)}
     for label in ['replay', 'typescript']:
         _, records, traffic = execute(label)

@@ -441,6 +441,7 @@ class Operator:
         output = child([self.binary, 'effect-review', '--state-dir', state,
             '--proof', proof_path, '--action', action_path, '--not-before', str(now - 1),
             '--expires-at', str(now + ACTION_VALIDITY_SECONDS), '--request-out', request,
+            '--binding-out', directory / 'binding',
             *mode], check=False)
         if output.returncode != 0:
             return None
