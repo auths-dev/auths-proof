@@ -66,6 +66,40 @@ const MAX_REFUSAL_BYTES: usize = 128;
 const MAX_LOCATOR_VALUES: usize = 2;
 const MAX_LOCATOR_VALUE_BYTES: usize = 255;
 const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
+/// Admission is revision one; at most 64 durable events belong to one operation.
+pub(crate) const MAX_OPERATION_REVISIONS: u64 = 64;
+
+fn next_operation_revision(revision: u64) -> Result<u64, GatewayAttemptError> {
+    if revision == 0 || revision >= MAX_OPERATION_REVISIONS {
+        return Err(GatewayAttemptError::InvalidTransition);
+    }
+    Ok(revision + 1)
+}
+
+#[cfg(test)]
+#[test]
+fn operation_revision_limit_preserves_last_event_without_wrap_or_restart() {
+    for revision in 1..MAX_OPERATION_REVISIONS {
+        assert_eq!(next_operation_revision(revision), Ok(revision + 1));
+    }
+    for revision in [
+        0,
+        MAX_OPERATION_REVISIONS,
+        MAX_OPERATION_REVISIONS + 1,
+        MAX_JSON_INTEGER,
+        u64::MAX,
+    ] {
+        assert_eq!(
+            next_operation_revision(revision),
+            Err(GatewayAttemptError::InvalidTransition)
+        );
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn fixture_journal_revision(bytes: &[u8]) -> Result<u64, GatewayAttemptError> {
+    Ok(decode_protocol(bytes)?.revision)
+}
 
 /// Conservative gateway attempt stages; a response is not effect evidence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -702,7 +736,7 @@ impl<S> Record<S> {
             }
         }
         if self.revision == 0
-            || self.revision > MAX_JSON_INTEGER
+            || self.revision > MAX_OPERATION_REVISIONS
             || self.evaluated_at > MAX_JSON_INTEGER
             || self.schema != SCHEMA
             || self.nonce.len() != 32
@@ -727,10 +761,7 @@ impl<S> Record<S> {
         if self.entry.is_some() || authorization_started_at < self.evaluated_at {
             return Err(GatewayAttemptError::InvalidTransition);
         }
-        self.revision = self
-            .revision
-            .checked_add(1)
-            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        self.revision = next_operation_revision(self.revision)?;
         self.entry = Some(EntryAudit {
             revision: self.revision,
             authorization_started_at,
@@ -2795,11 +2826,7 @@ impl<S: JournalProtocol> Attempt<S> {
     /// Persists `next` only as a valid stage change from the exact stored
     /// record; a concurrent change by another process is a conflict.
     async fn advance(mut self, mut next: Record<S>) -> Result<Self, GatewayAttemptError> {
-        next.revision = self
-            .record
-            .revision
-            .checked_add(1)
-            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        next.revision = next_operation_revision(self.record.revision)?;
         if !valid_transition(&self.record, &next)? {
             return Err(GatewayAttemptError::InvalidTransition);
         }

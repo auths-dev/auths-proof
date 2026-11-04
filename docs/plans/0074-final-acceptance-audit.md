@@ -145,3 +145,28 @@ adapter constructors passed. Source closure is refreshed after that change.
 Release metadata advances only the reported identity/public-SDK/public-surface
 subjects to 172/168/431, with freeze431. These local results construct and check
 the change; they do not close final exact-head hosted or external qualification.
+
+## Final source audit correction — event bound
+
+The P0 abstraction case declared64events per operation, while the native journal
+previously admitted any positive JSON-safe revision. The final correction shares
+one64-revision advancement check across all native protocol/grant/refinement
+writers and enforces it in decoding and read-evidence references. Exact64 retains
+terminal read-only history;65 is corrupt and cannot become a new grant. All
+checks are authored before artifact construction/verification. The source audit
+also reconciles the P0 table's stale five-second lock and1,024-entry inventory
+claims with the stricter maintained two-second deadlines and separately bounded
+inventory/expiry scans. The translated kernel and existing security tests remain
+unchanged; final construction and hosted verification of this correction remain
+pending.
+
+The complete revision-bound correction cohort passed six exact selectors:
+all legal/terminal arithmetic boundaries, file/TLS PostgreSQL retained information
+and mutation journals, and source closure. Every selector matched once with one
+pass and zero ignored tests. Exact64 histories produced no custody, provider or
+recipient entry;65 refused and preserved bytes. All-target/all-feature gateway
+Clippy passed (10.02s), and semantic metadata construction passed without further
+identity changes. Final correction closure is
+`71ff1dcdd7464474a0d1b12f661f7277d665775a6a192128bbbc5870ff9231eb`.
+The correction is committed for integration with the CI agent's combined actual
+977 repair roots; final hosted acceptance remains unverified until that cohort.

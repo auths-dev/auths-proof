@@ -81,6 +81,17 @@ fn one(backend: Backend) -> Value {
                 vec![input.body.clone()]
             );
         },
+        || {
+            assert_eq!(runtime.block_on(input.submit(&reopened)), expected);
+            assert_eq!(
+                runtime
+                    .block_on(store.attempts().read(recipe().namespace(), &operation))
+                    .expect("history at limit")
+                    .expect("record")
+                    .revision(),
+                crate::store::MAX_OPERATION_REVISIONS
+            );
+        },
     );
     json!({"protocol":"mutation-response","cases":cases,"real_provider_writes":1,"retained_charges_preserved":true})
 }

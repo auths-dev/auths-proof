@@ -83,6 +83,16 @@ fn one(backend: Backend, protocol: Protocol) -> Value {
             assert_eq!(reopened.execution_witness(), witness);
             assert_eq!(fixture.provider.calls.load(Ordering::SeqCst), 1);
         },
+        || {
+            fixture.runtime.block_on(replay_at_limit(
+                &reopened,
+                &input,
+                history.as_ref(),
+                &acquired,
+            ));
+            assert_eq!(reopened.execution_witness(), witness);
+            assert_eq!(fixture.provider.calls.load(Ordering::SeqCst), 1);
+        },
     );
     json!({"protocol":protocol.label(),"cases":cases,"real_provider_reads":1,
         "exact_retained_charges_preserved":true,"disclosure_replay_sends_zero_bytes":true})
@@ -116,4 +126,45 @@ fn native_file_information_journal_fixture_is_current() {
 fn postgres_native_information_journal_fixture_is_current() {
     assert!(postgres_configured());
     matrix(Backend::Postgres);
+}
+
+async fn replay_at_limit(
+    engine: &GatewayEngine,
+    input: &Input,
+    history: Option<&ReleaseHistory>,
+    acquired: &crate::AcquisitionSnapshot,
+) {
+    if let Some(history) = history {
+        let (server, mut client) = UnixStream::pair().expect("read-only replay channel");
+        let mut expected = history.snapshot.clone();
+        expected.revision = crate::store::MAX_OPERATION_REVISIONS;
+        assert_eq!(
+            engine
+                .disclose(
+                    &history.target,
+                    &history.input.proof,
+                    &history.input.action,
+                    history.input.approval.clone(),
+                    crate::disclosure_transport::DisclosureConnection::new(
+                        server,
+                        history.policy.clone()
+                    )
+                )
+                .await
+                .expect("terminal history at limit"),
+            expected
+        );
+        let mut byte = [0];
+        assert_eq!(client.read(&mut byte).await.expect("closed channel"), 0);
+    } else {
+        let mut expected = acquired.clone();
+        expected.revision = crate::store::MAX_OPERATION_REVISIONS;
+        assert_eq!(
+            engine
+                .acquire_content_action(&input.proof, &input.action, input.approval.clone())
+                .await
+                .expect("terminal history at limit"),
+            expected
+        );
+    }
 }

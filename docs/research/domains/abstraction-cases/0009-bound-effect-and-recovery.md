@@ -67,26 +67,26 @@ that lookup. Optional task-free scope has an explicit tag distinct from task sco
 | Resource / recipient / channel / scope label | One per operation, each at most 512 UTF-8 bytes |
 | Compiler write body | Existing 16,384 bytes |
 | Recipe source / lock | Existing 65,536 bytes each |
-| Path / template | Existing 16 segments, 64 nodes, depth 6; bounded final URL 8,192 bytes |
+| Path / template | Existing 16 segments, 64 nodes, depth 6; encoded path at most 8,192 bytes, with the separately validated origin bounded by the 65,536-byte recipe source. Content transport additionally caps the full URL at 8,192 bytes. |
 | Headers | Existing recipe maximum two provider headers; total compiled headers at most 8, names 64 and values 1,024 bytes |
 | Selected branches/evidence | Native configured collection bounds; total effect encoding bound also applies |
 | Reservations | Existing maximum 34 counters; typed units and exact window |
 | Provider response / private retained bytes | 65,536 bytes per operation; content not retained by default |
 | Pre-entry observations | Existing 4, each native maximum 4,096 bytes |
 | Journal record / atomic batch | Existing 262,144 bytes / 64 entries |
-| Events / ACK | 64 events per operation / 4,096 canonical bytes per ACK |
+| Events / ACK | 64 durable operation revisions, including admission; one fixed typed snapshot, no unbounded event list / 4,096 canonical bytes per ACK |
 | Exact human approval | 4,096 canonical bytes; at most 3,600 seconds, with exclusive expiry |
 | Installed effect policy | `MAX_EFFECT_POLICY_BYTES`: 4,096 canonical bytes before decoding; partition at most 512 bytes; explicit nonzero safe-integer epoch; valid nonweak Ed25519 approver |
 | Private human review | 131,072 bytes including exact request and binding; never a public receipt |
 | Demo owner HTTP interface | One pending review; eight handlers; 1,024-byte commands; native 131,072-byte envelope; five-second I/O, 900-second session and 600-second consent wait; no native expiry extension |
 | Demo private review sockets | Existing source-only requests remain 1,024 bytes; separate mutation proof/action frame at most 4 MiB, followed by native proof/action limits; finite closed labels/attempt counts |
 | Observation attempts | At most 16 explicitly admitted linked operations |
-| Transaction lock deadline | 5 seconds; sample time after lock; refuse on deadline |
+| Transaction lock / fenced decision | Separate two-second lock and cooperative decision bounds (`auths_stores::{GATEWAY_LOCK_TIMEOUT,GATEWAY_FENCE_DEADLINE}`); sample native time after lock; refuse before publication on deadline |
 | Native verification work | Native configured work-unit limit plus transaction deadline |
 | Driver | Existing 64 steps |
 | Transport | Existing 15-second maximum; no redirects or write retries |
 | Claim contention / file recovery | Existing 32 claim rounds / 8 recovery rounds |
-| Recovery scan / public receipt | 1,024 records per page / 16,384 bytes |
+| Recovery inventory / expiry maintenance / public evidence | At most 4,096 inventory keys, 16,384 scanned file entries plus one overflow probe; expiry scans at most 4,096 entries and runtime sweep requests at most 1,024 deletions; all stop under the cooperative two-second bound. Signed native observations are at most 4,096 canonical CBOR bytes; the enclosing application protocol has its separate 8 MiB frame ceiling. |
 
 Tighter existing limits win. New limits above are implementation requirements,
 not claims that baseline code enforces them. Bounds must be checked before
@@ -948,3 +948,23 @@ Opaque wire capture, raw file/charge comparisons, native reauthorization and
 historical ACK refinement exercise the existing owners. This is test-only parity
 under simulated syscall returns, not extraction of a shipping lifecycle mechanism
 or qualification of kernel/device/power-loss behavior.
+
+### Final event-bound audit
+
+The declared 64-event limit is enforced as operation revisions 1 through 64 by
+`store::next_operation_revision`, shared by grant publication, typed protocol
+advancement and recovery refinement. Current journal decoding and linked read
+revision validation reject values above that bound. A terminal record at revision
+64 remains readable and replayable without any new capability; advancing it
+fails before persistence. Configuration revisions are a distinct shared-control
+sequence and are not operation events.
+
+The native corrupt-journal corpus exercises exact64 terminal replay and65 refusal
+for mutation, acquisition, acknowledged disclosure and lost-ACK disclosure on
+both adapters. The shared arithmetic boundary test covers every legal increment,
+zero,64,65,JSON maximum and u64 maximum. Native validation is stricter than the
+translated generic JSON-safe transition predicate; every concrete replacement
+still calls full native record validation. No kernel theorem or durability
+assumption is weakened. No bounded-upfront consent mode is exposed: all maintained
+managed operations require native exact approval, while the retained AP070
+reference's different consent semantics remain independent.

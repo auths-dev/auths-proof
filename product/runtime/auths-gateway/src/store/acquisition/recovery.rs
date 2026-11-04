@@ -217,7 +217,7 @@ impl RecoveryEvidenceLink {
         digest_bytes(&self.acquisition_effect)?;
         digest_bytes(&self.response_digest)?;
         if operation.as_str() == source.operation_id
-            || !(3..=MAX_JSON_INTEGER).contains(&self.acquisition_revision)
+            || !(3..=MAX_OPERATION_REVISIONS).contains(&self.acquisition_revision)
             || self.received_at < source.evaluated_at
             || self.recorded_at > MAX_JSON_INTEGER
             || !fresh(self.received_at, self.recorded_at)
@@ -352,10 +352,7 @@ fn refinement(
         }
     }
     next.state.recovery_evidence = Some(link);
-    next.revision = next
-        .revision
-        .checked_add(1)
-        .ok_or(GatewayAttemptError::InvalidTransition)?;
+    next.revision = next_operation_revision(next.revision)?;
     if !valid_transition(source, &next)? {
         return Err(GatewayAttemptError::InvalidTransition);
     }

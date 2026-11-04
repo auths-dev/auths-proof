@@ -4077,3 +4077,29 @@ freeze431 and only reported identity172/publicSDK168/publicsurface431 subjects.
 Final hosted broad, adapter, platform, installed, containment, differential,
 formal/refinement/release and performance evidence remains the CI agent's job.
 The goal remains incomplete until its exact-head completion audit passes.
+
+## Final source-audit correction batch — authored
+
+Final requirement inspection found the P0 table's64-event promise was not enforced
+by the private journal's wider JSON-safe revision check. The complete correction
+is authored before any runs: one shared native revision advancement function,
+header/read-link bound checks, every legal increment and terminal overflow unit
+cases, and exact64/65 native replay on both adapters across all four retained
+protocol outcomes. At the cap, terminal history remains available while any
+further event fails before persistence or grant. P0's stale lock/inventory table
+values are reconciled to actual stricter maintained constants. No kernel/formal
+source, public result encoding, production deadline or existing assertion is
+relaxed. Artifact construction and verification run only after this entire batch.
+The CI agent is collecting977ae61f's actual roots and holds publication so these
+changes can join one combined repair cohort.
+
+The complete revision-bound correction cohort passed six exact selectors:
+all legal/terminal arithmetic boundaries, file/TLS PostgreSQL retained information
+and mutation journals, and source closure. Every selector matched once with one
+pass and zero ignored tests. Exact64 histories produced no custody, provider or
+recipient entry;65 refused and preserved bytes. All-target/all-feature gateway
+Clippy passed (10.02s), and semantic metadata construction passed without further
+identity changes. Final correction closure is
+`71ff1dcdd7464474a0d1b12f661f7277d665775a6a192128bbbc5870ff9231eb`.
+The correction is committed for integration with the CI agent's combined actual
+977 repair roots; final hosted acceptance remains unverified until that cohort.

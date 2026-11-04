@@ -1204,10 +1204,14 @@ Whole-store rollback is outside ordinary crash recovery. Keep existing commissio
 Persist sensitive reconstruction data only if necessary and protected. If private content is intentionally not retained, recovery may remain unresolved; it must not refetch or redeliver to manufacture certainty.
 
 Native journal replay accepts only the current native writer encoding. Reject
-obsolete schemas, duplicate/unknown members, alternate encodings, zero or
-non-JSON-safe revisions/times and inconsistent binding/protocol/evidence before
-history can confer any retained execution fact. Corrupt state is indeterminate;
-it cannot establish that an operation was not entered. Adapter byte limits apply
+obsolete schemas, duplicate/unknown members, alternate encodings, operation
+revisions outside `1..=64`, non-JSON-safe event times and inconsistent
+binding/protocol/evidence before history can confer any retained execution fact.
+Admission is durable revision 1;
+all operation advancement, including entry and recovery refinement, shares the
+64-revision cap. At the exact limit terminal history remains replayable without
+I/O; further advancement fails before persistence or capability publication.
+Corrupt state is indeterminate; it cannot establish that an operation was not entered. Adapter byte limits apply
 before decoding. Runtime must not repair, migrate or re-sign corrupt state.
 
 ## 7. Central implementation surfaces

@@ -23,15 +23,85 @@ pub(super) fn exercise(
     original: &[u8],
     mut refuse: impl FnMut(),
     mut positive: impl FnMut(),
+    mut limit_replay: impl FnMut(),
 ) -> Vec<Value> {
     positive();
     let source: Value = serde_json::from_slice(original).expect("native record");
+    let at_limit = member(
+        original,
+        "revision",
+        &json!(crate::store::MAX_OPERATION_REVISIONS),
+    );
+    assert_eq!(
+        crate::store::fixture_journal_revision(&at_limit),
+        Ok(crate::store::MAX_OPERATION_REVISIONS)
+    );
+    store
+        .replace(GatewayRecordKind::Attempt, &key, original, &at_limit)
+        .expect("isolated boundary state");
+    limit_replay();
+    assert_eq!(
+        store.load(GatewayRecordKind::Attempt, &key).expect("load"),
+        Some(at_limit.clone())
+    );
+    store
+        .replace(GatewayRecordKind::Attempt, &key, &at_limit, original)
+        .expect("restore exact record");
+    positive();
+    let variants = corruptions(original, &source);
+    let mut cases = vec![
+        json!({"case":"revision-exact-limit","revision":crate::store::MAX_OPERATION_REVISIONS,
+        "native_history_accepted":true,"read_only_replay":true,"bytes_unchanged":true}),
+    ];
+    for (name, bytes) in variants {
+        store
+            .replace(GatewayRecordKind::Attempt, &key, original, &bytes)
+            .expect("isolated corruption injection");
+        refuse();
+        assert_eq!(
+            store.load(GatewayRecordKind::Attempt, &key).expect("load"),
+            Some(bytes.clone()),
+            "refusal cannot repair or re-sign {name}"
+        );
+        store
+            .replace(GatewayRecordKind::Attempt, &key, &bytes, original)
+            .expect("restore exact owned record");
+        positive();
+        cases.push(json!({"case":name,"refused_without_custody_or_transport":true,"bytes_unchanged":true,"restored_exact_positive":true}));
+    }
+    let oversized = vec![b' '; auths_stores::MAX_GATEWAY_RECORD_BYTES + 1];
+    assert!(
+        store
+            .replace(GatewayRecordKind::Attempt, &key, original, &oversized)
+            .is_err(),
+        "adapter enforces the journal byte bound"
+    );
+    assert_eq!(
+        store.load(GatewayRecordKind::Attempt, &key).expect("load"),
+        Some(original.to_vec())
+    );
+    positive();
+    cases.push(
+        json!({"case":"record-limit-plus-one","refused_at_adapter":true,"original_preserved":true}),
+    );
+    cases
+}
+
+fn corruptions(original: &[u8], source: &Value) -> Vec<(&'static str, Vec<u8>)> {
     let mut variants = vec![
         (
             "obsolete-schema",
             member(original, "schema", &json!("auths.obsolete-journal/0")),
         ),
         ("revision-zero", member(original, "revision", &json!(0))),
+        (
+            "revision-limit-plus-one",
+            member(
+                original,
+                "revision",
+                &json!(crate::store::MAX_OPERATION_REVISIONS + 1),
+            ),
+        ),
         (
             "revision-unsafe-integer",
             member(original, "revision", &json!(1_u64 << 53)),
@@ -90,37 +160,5 @@ pub(super) fn exercise(
         "unknown-member",
         [b"{\"obsolete_authority\":true,".as_slice(), &original[1..]].concat(),
     ));
-    let mut cases = Vec::new();
-    for (name, bytes) in variants {
-        store
-            .replace(GatewayRecordKind::Attempt, &key, original, &bytes)
-            .expect("isolated corruption injection");
-        refuse();
-        assert_eq!(
-            store.load(GatewayRecordKind::Attempt, &key).expect("load"),
-            Some(bytes.clone()),
-            "refusal cannot repair or re-sign {name}"
-        );
-        store
-            .replace(GatewayRecordKind::Attempt, &key, &bytes, original)
-            .expect("restore exact owned record");
-        positive();
-        cases.push(json!({"case":name,"refused_without_custody_or_transport":true,"bytes_unchanged":true,"restored_exact_positive":true}));
-    }
-    let oversized = vec![b' '; auths_stores::MAX_GATEWAY_RECORD_BYTES + 1];
-    assert!(
-        store
-            .replace(GatewayRecordKind::Attempt, &key, original, &oversized)
-            .is_err(),
-        "adapter enforces the journal byte bound"
-    );
-    assert_eq!(
-        store.load(GatewayRecordKind::Attempt, &key).expect("load"),
-        Some(original.to_vec())
-    );
-    positive();
-    cases.push(
-        json!({"case":"record-limit-plus-one","refused_at_adapter":true,"original_preserved":true}),
-    );
-    cases
+    variants
 }

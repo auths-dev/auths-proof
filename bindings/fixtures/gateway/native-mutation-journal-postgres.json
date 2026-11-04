@@ -11,6 +11,13 @@
     "protocol": "mutation-response",
     "cases": [
       {
+        "case": "revision-exact-limit",
+        "revision": 64,
+        "native_history_accepted": true,
+        "read_only_replay": true,
+        "bytes_unchanged": true
+      },
+      {
         "case": "obsolete-schema",
         "refused_without_custody_or_transport": true,
         "bytes_unchanged": true,
@@ -18,6 +25,12 @@
       },
       {
         "case": "revision-zero",
+        "refused_without_custody_or_transport": true,
+        "bytes_unchanged": true,
+        "restored_exact_positive": true
+      },
+      {
+        "case": "revision-limit-plus-one",
         "refused_without_custody_or_transport": true,
         "bytes_unchanged": true,
         "restored_exact_positive": true
