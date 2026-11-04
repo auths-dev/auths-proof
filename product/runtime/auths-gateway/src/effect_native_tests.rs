@@ -32,6 +32,7 @@ mod read_budget_tests;
 mod binding_boundary_tests;
 #[path = "effect_recovery_prerequisite_tests.rs"]
 mod recovery_prerequisite_tests;
+#[cfg(feature = "testkit-harness")]
 #[path = "effect_review_approval_tests.rs"]
 mod review_approval_tests;
 

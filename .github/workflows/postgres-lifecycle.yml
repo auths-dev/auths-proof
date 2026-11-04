@@ -118,7 +118,7 @@ jobs:
             log="target/ap074-final-hardening/${selector//::/__}.log"
             if ! cargo test --locked -p auths-gateway --features loopback-provider,testkit-harness --lib -- "${extra[@]}" --exact "$selector" 2>&1 | tee "$log"; then
               failures=$((failures + 1))
-            elif ! rg -q 'test result: ok\. 1 passed; 0 failed; 0 ignored;' "$log"; then
+            elif ! grep -Fq 'test result: ok. 1 passed; 0 failed; 0 ignored;' "$log"; then
               echo "Required selector did not execute exactly once: $selector"
               failures=$((failures + 1))
             fi
@@ -132,6 +132,8 @@ jobs:
           native_mutation_replay_tests::journal_tests::native_file_mutation_journal_fixture_is_current
           native_mutation_replay_tests::journal_tests::postgres_native_mutation_journal_fixture_is_current
           observed_tests::effect_native_tests::binding_boundary_tests::native_independent_binding_substitutions_require_new_approval
+          observed_tests::effect_native_tests::review_approval_tests::native_review_changes_require_fresh_authority_and_approval
+          store::operation_revision_limit_preserves_last_event_without_wrap_or_restart
           SELECTORS
           test "$failures" -eq 0
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

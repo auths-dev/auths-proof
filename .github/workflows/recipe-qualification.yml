@@ -260,7 +260,19 @@ jobs:
       - name: Build the portable simulation harness
         run: |
           mkdir -p target
-          cargo test --locked -p auths-gateway --features loopback-provider --lib --no-run --message-format=json > target/qualification-harness-build.jsonl
+          if ! cargo test --locked -p auths-gateway --features loopback-provider --lib --no-run --message-format=json > target/qualification-harness-build.jsonl; then
+            python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          for line in Path("target/qualification-harness-build.jsonl").read_text().splitlines():
+              event = json.loads(line)
+              if event.get("reason") == "compiler-message":
+                  print(event["message"].get("rendered") or event["message"]["message"], file=sys.stderr)
+          PY
+            exit 1
+          fi
           python qualification/simulation/pack.py --build-report target/qualification-harness-build.jsonl --out target/qualification-candidate-kit
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
