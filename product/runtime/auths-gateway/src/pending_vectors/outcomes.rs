@@ -753,6 +753,32 @@ fn public_document() -> Value {
         "verdict_trusted_context_b64":Base64UrlUnpadded::encode_string(&context),"verdicts":verdicts})
 }
 
+/// Keep every positive and refusal seed bound to the canonical native signer.
+/// Obsolete committed seeds remain separate decoder-refusal controls.
+fn require_public_fuzz_corpus(document: &Value) {
+    let directory =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fuzz/corpus/target_gateway_outcome");
+    for prefix in ["accepted", "refused"] {
+        for entry in document[prefix].as_array().expect("outcome cases") {
+            let name = format!("{prefix}-{}", entry["id"].as_str().expect("case name"));
+            let bytes = Base64::decode_vec(
+                entry["observation_b64"]
+                    .as_str()
+                    .expect("canonical observation"),
+            )
+            .expect("base64");
+            let path = directory.join(&name);
+            if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+                std::fs::write(&path, &bytes).expect("write outcome seed");
+            }
+            assert!(
+                std::fs::read(path).expect("committed outcome seed") == bytes,
+                "{name} must be the exact canonical signed vector"
+            );
+        }
+    }
+}
+
 #[test]
 fn public_outcome_v3_vectors_are_current() {
     let document = public_document();
@@ -775,4 +801,5 @@ fn public_outcome_v3_vectors_are_current() {
         );
     }
     require_current("outcome-v3.json", &document);
+    require_public_fuzz_corpus(&document);
 }

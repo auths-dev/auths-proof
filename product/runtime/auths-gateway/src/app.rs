@@ -880,6 +880,16 @@ mod tests {
             ("recover", valid.clone()),
             ("submit", valid["submission"].clone()),
             (
+                "observe-pre-entry",
+                serde_json::json!({"schema": APP_OBSERVE_SCHEMA,
+                    "request": {"kind": "pre-entry", "operation_id": "refund-1"}}),
+            ),
+            (
+                "observe-outcome",
+                serde_json::json!({"schema": APP_OBSERVE_SCHEMA,
+                    "request": {"kind": "outcome", "operation_id": "refund-1"}}),
+            ),
+            (
                 "obsolete-read-back",
                 serde_json::json!({"schema": APP_OBSERVE_SCHEMA,
                 "request": {"kind": "read-back", "arguments": {"record_id": "recTEST0000000001"}}}),

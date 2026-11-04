@@ -129,10 +129,56 @@ fn attempt_seeds_are_records_and_valid_transitions() {
 #[test]
 fn outcome_seeds_verify_or_are_refused_as_named() {
     let observer = fuzzing::test_observer(0x5a);
+    let vectors: Value = serde_json::from_slice(
+        &fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../../bindings/fixtures/gateway/outcome-v3.json"),
+        )
+        .expect("canonical public outcome vectors"),
+    )
+    .expect("vector JSON");
+    let mut accepted = 0;
+    let mut refused = 0;
     for (name, data) in seeds("target_gateway_outcome") {
         let verified = fuzzing::verify_outcome(&data, &observer);
-        assert_eq!(verified.is_some(), name != "outcome-v1-schema", "{name}");
+        if name.starts_with("obsolete-") {
+            assert!(verified.is_none(), "obsolete {name}");
+            continue;
+        }
+        let (prefix, id) = name.split_once('-').expect("closed seed name");
+        let expected = match prefix {
+            "accepted" => {
+                accepted += 1;
+                true
+            }
+            "refused" => {
+                refused += 1;
+                false
+            }
+            _ => panic!("unknown outcome seed class: {name}"),
+        };
+        assert!(
+            vectors[prefix]
+                .as_array()
+                .expect("cases")
+                .iter()
+                .any(|v| v["id"] == id),
+            "unknown canonical case: {name}"
+        );
+        assert_eq!(verified.is_some(), expected, "{name}");
     }
+    assert!(
+        accepted > 0 && refused > 0,
+        "both decoder paths require seeds"
+    );
+    assert_eq!(
+        accepted,
+        vectors["accepted"].as_array().expect("accepted").len()
+    );
+    assert_eq!(
+        refused,
+        vectors["refused"].as_array().expect("refused").len()
+    );
 }
 
 #[cfg(unix)]
