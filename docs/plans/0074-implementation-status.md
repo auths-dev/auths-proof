@@ -3841,3 +3841,30 @@ or deployment claim is made by AP074 source work.
   checked-state flags. A recursive public-artifact scan checks raw, hex and
   base64 provider/body-derived digests against retained private evidence.
   These final Python changes await hosted execution.
+
+## Native bounded-cost evidence producer — 5 November 2026
+
+Added a test-only pass-through measurement cohort over the maintained file and
+TLS PostgreSQL adapters. Each backend executes eight real native mutation,
+independent recovery, acquisition and authenticated disclosure/ACK operations.
+The harness measures native verification against installed trust, compilation,
+exact approval verification, execution, every actual adapter call and native
+fenced callback, buffer sizes and increasing native inventory/decode costs.
+It asserts real HTTP/recipient counts, outcomes and existing per-buffer/fence
+limits. Linux RSS observations are process-wide; adapter elapsed includes waiting
+and I/O and is only an upper bound on the lock-held interval. No shipping decision,
+retry, storage acknowledgement or security deadline changes.
+
+The PostgreSQL workflow preserves the 48-selector differential evidence log and
+adds a separate two-selector cost step/artifact containing exact source and
+checkout revisions plus source closure. Full measurement scope and limitations
+are in [the native cost evidence plan](0074-native-cost-evidence.md). Actual cost
+runs await hosted CI; no performance result or completed P4 gate is claimed.
+
+Required source-closure construction passed (1 passed / 0 ignored, 0.08 s) and
+its rebuilt non-update check passed (1 passed / 0 ignored, 0.07 s). Final closure
+is `0581155d4d8b1b9ebb10fa4cd294e7f72e7440ba6482d30d45ae6ed38eef496e`.
+The semantic metadata constructor passed with no release identity changes:
+this batch changes testkit/evidence sources rather than the public contract.
+No local benchmark, broad suite, lint, formal or CI inspection was performed by
+main. CI publication and holistic repairs remain with the existing subagent.

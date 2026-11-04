@@ -37,6 +37,8 @@ mod history_tests;
 mod limits_tests;
 #[path = "native_public_evidence_tests.rs"]
 mod privacy_tests;
+#[path = "native_cost_tests.rs"]
+mod cost_tests;
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
