@@ -3224,7 +3224,7 @@ pub(crate) fn private_audit(
                 facts,
             )
         })
-        .map_err(|error| error.code())?;
+        .map_err(crate::observer::GatewayObserverError::code)?;
     Ok(GatewayPrivateAudit {
         schema: "auths.gateway-private-audit/1",
         operation_id: snapshot.operation_id().as_str().to_owned(),

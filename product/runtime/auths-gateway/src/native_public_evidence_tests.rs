@@ -1,5 +1,6 @@
 //! Native public mutation projection; protected evidence stays in the journal.
 use super::*;
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use sha2::{Digest as _, Sha256};
 
 const CONTENT: &[u8] = b"private-mutation-evidence-canary";
@@ -145,7 +146,6 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
         panic!("configured native observer must sign");
     };
     assert_eq!(schema, "auths.gateway-outcome/3");
-    use base64ct::{Base64UrlUnpadded, Encoding as _};
     let signed_bytes =
         Base64UrlUnpadded::decode_vec(&observation_b64).expect("canonical signature");
     private_values_absent(
@@ -326,9 +326,9 @@ fn wire_cases() -> Value {
     json!(output)
 }
 
-fn history_wire_case(kind: &str, name: &str, bytes: String, accepted: bool) -> Value {
+fn history_wire_case(kind: &str, name: &str, bytes: &str, accepted: bool) -> Value {
     assert_eq!(
-        serde_json::from_str::<crate::GatewayObserveResult>(&bytes).is_ok(),
+        serde_json::from_str::<crate::GatewayObserveResult>(bytes).is_ok(),
         accepted,
         "{name}"
     );
@@ -340,15 +340,14 @@ fn history_wire_case(kind: &str, name: &str, bytes: String, accepted: bool) -> V
     reason = "finite native wire corpus pins every affected public decoder boundary"
 )]
 fn history_wire_cases() -> Value {
-    use base64ct::{Base64UrlUnpadded, Encoding as _};
     let pre = json!({"outcome":"pre-entry","operation_id":"step-1","observations":1,"record_commitment":"ab".repeat(32)});
     // These are data-decoding vectors, not authenticated observations. Actual
     // configured native signatures and private facts are checked in history().
     let signed = json!({"outcome":"signed","schema":crate::OUTCOME_SCHEMA,"subject":"public-subject",
         "observed_at":NOW,"media_type":crate::OBSERVATION_MEDIA_TYPE,"observation_b64":"AQID"});
     let mut cases = vec![
-        history_wire_case("pre-entry", "valid", pre.to_string(), true),
-        history_wire_case("signed", "valid", signed.to_string(), true),
+        history_wire_case("pre-entry", "valid", &pre.to_string(), true),
+        history_wire_case("signed", "valid", &signed.to_string(), true),
     ];
     for (kind, name, field, replacement, accepted) in [
         ("pre-entry", "zero", "observations", json!(0), true),
@@ -485,7 +484,7 @@ fn history_wire_cases() -> Value {
             pre.clone()
         };
         value[field] = replacement;
-        cases.push(history_wire_case(kind, name, value.to_string(), accepted));
+        cases.push(history_wire_case(kind, name, &value.to_string(), accepted));
     }
     for (kind, base) in [("signed", signed), ("pre-entry", pre)] {
         let text = base.to_string();
@@ -498,13 +497,13 @@ fn history_wire_cases() -> Value {
         cases.push(history_wire_case(
             kind,
             "duplicate-member",
-            duplicate,
+            &duplicate,
             false,
         ));
         cases.push(history_wire_case(
             kind,
             "bom",
-            format!("\u{feff}{text}"),
+            &format!("\u{feff}{text}"),
             false,
         ));
         let fractional = if kind == "signed" {
@@ -515,13 +514,13 @@ fn history_wire_cases() -> Value {
         cases.push(history_wire_case(
             kind,
             "fractional-number",
-            fractional.clone(),
+            &fractional,
             false,
         ));
         cases.push(history_wire_case(
             kind,
             "exponent-number",
-            fractional.replace("1.0", "1e0"),
+            &fractional.replace("1.0", "1e0"),
             false,
         ));
     }

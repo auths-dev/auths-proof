@@ -460,7 +460,7 @@
       ]
     }
   ],
-  "native_corpus_sha256": "5a77da8180e7b57644038325ab32813f49e3b1de9561d167c079c01695c9d0c6",
+  "native_corpus_sha256": "8143260b965a731f3f46a3aef5d642cb1bd82ab12729ff35c5c82b3bac60b926",
   "schema": "auths.ap074-independent-mutation-differential/1",
   "scope": "test-only native verified compilation and response classification compared with retained independent references; no admission, provider I/O, production qualification or AP070 guarantee",
   "source_sha256": {

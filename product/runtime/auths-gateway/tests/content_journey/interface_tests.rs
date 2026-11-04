@@ -98,6 +98,56 @@ fn witness(state: &Path, admin: &Path, secret: &[u8]) -> Value {
         .clone()
 }
 
+fn check_public_response(value: &mut Value, secret: &[u8]) {
+    if value["response"]["outcome"] == "signed" {
+        let response = &value["response"];
+        assert_eq!(response["schema"], "auths.gateway-outcome/3");
+        let bytes =
+            Base64UrlUnpadded::decode_vec(response["observation_b64"].as_str().expect("signature"))
+                .expect("base64");
+        no_canaries(&bytes, secret);
+        let signed =
+            auths_codec::decode_signed_observation(&bytes, &auths_model::VerifierLimits::default())
+                .expect("native canonical signature");
+        assert_eq!(
+            signed.statement().schema().as_str(),
+            auths_gateway::OUTCOME_SCHEMA
+        );
+        let names: Vec<_> = signed
+            .statement()
+            .facts()
+            .as_slice()
+            .iter()
+            .map(|fact| fact.name().as_str())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "effect-reference",
+                "evaluated-at",
+                "http-status",
+                "recipe-reference",
+                "record-commitment",
+                "stage"
+            ]
+        );
+        value["response"] = json!({"outcome":"signed", "schema":auths_gateway::OUTCOME_SCHEMA, "native_canonical_public_projection_checked":true});
+    }
+    if value["response"]["outcome"] == "pre-entry" {
+        let commitment = value["response"]["record_commitment"]
+            .as_str()
+            .expect("hiding commitment");
+        assert_eq!(commitment.len(), 64);
+        assert!(
+            commitment
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        );
+        assert!(value["response"].get("observations_b64").is_none());
+        value["response"]["record_commitment"] = json!("native-hiding-value-checked");
+    }
+}
+
 fn probe(mut payload: Value, secret: &[u8]) -> Value {
     let distinct = payload["distinct_uid"].as_bool().expect("mode");
     let admin_socket = PathBuf::from(payload["admin_socket"].as_str().expect("admin socket"));
@@ -171,56 +221,7 @@ fn probe(mut payload: Value, secret: &[u8]) -> Value {
             .expect("case")
             .remove("after_ready_b64");
         value["post_ready_control_frames"] = json!(count);
-        if value["response"]["outcome"] == "signed" {
-            let response = &value["response"];
-            assert_eq!(response["schema"], "auths.gateway-outcome/3");
-            let bytes = Base64UrlUnpadded::decode_vec(
-                response["observation_b64"].as_str().expect("signature"),
-            )
-            .expect("base64");
-            no_canaries(&bytes, secret);
-            let signed = auths_codec::decode_signed_observation(
-                &bytes,
-                &auths_model::VerifierLimits::default(),
-            )
-            .expect("native canonical signature");
-            assert_eq!(
-                signed.statement().schema().as_str(),
-                auths_gateway::OUTCOME_SCHEMA
-            );
-            let names: Vec<_> = signed
-                .statement()
-                .facts()
-                .as_slice()
-                .iter()
-                .map(|fact| fact.name().as_str())
-                .collect();
-            assert_eq!(
-                names,
-                [
-                    "effect-reference",
-                    "evaluated-at",
-                    "http-status",
-                    "recipe-reference",
-                    "record-commitment",
-                    "stage"
-                ]
-            );
-            value["response"] = json!({"outcome":"signed", "schema":auths_gateway::OUTCOME_SCHEMA, "native_canonical_public_projection_checked":true});
-        }
-        if value["response"]["outcome"] == "pre-entry" {
-            let commitment = value["response"]["record_commitment"]
-                .as_str()
-                .expect("hiding commitment");
-            assert_eq!(commitment.len(), 64);
-            assert!(
-                commitment
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            );
-            assert!(value["response"].get("observations_b64").is_none());
-            value["response"]["record_commitment"] = json!("native-hiding-value-checked");
-        }
+        check_public_response(value, secret);
     }
     for value in result["private_cli"].as_array_mut().expect("private CLI") {
         for field in ["stdout_b64", "stderr_b64"] {

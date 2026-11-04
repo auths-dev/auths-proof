@@ -887,6 +887,17 @@ async function main(): Promise<void> {
       expect(results[case_]!.provider_requests === 0, `${case_} reached the provider`);
     }
 
+    // Preserve private signed evidence before deliberate rollback. The offline
+    // auditor evaluates this historical snapshot, not the restored store.
+    let bundlePath = join(journey.work, "audit-bundle.json");
+    await journey.step("export audit bundle", () => journey.run(process.execPath, [
+      REFUNDS, "export", "--state", journey.state, "--out", bundlePath,
+    ]));
+    const privateBundle = join(journey.work, "private-audit-bundle.json");
+    journey.run(journey.gateway, ["audit-export", "--state-dir", journey.gatewayState,
+      "--bundle", bundlePath, "--out", privateBundle]);
+    bundlePath = privateBundle;
+
     let stateLoss: Json | null = null;
     if (!live) {
       for (const operation of Object.keys(beforeLease)) {
@@ -974,17 +985,18 @@ async function main(): Promise<void> {
       `resubmitted refund-1 was not de-duplicated: ${JSON.stringify(writes[2])}`);
       const created = new Set(writes.map((entry) => entry.refund).filter((refund) => refund));
       expect(created.size === 1, `expected 1 refund, saw ${JSON.stringify([...created])}`);
+      const restoredBundle = join(journey.work, "restored-private-audit-bundle.json");
+      journey.run(journey.gateway, ["audit-export", "--state-dir", journey.gatewayState,
+        "--bundle", bundlePath, "--out", restoredBundle]);
+      const restored = JSON.parse(readFileSync(restoredBundle, "utf8")) as { entries: Json[] };
+      const retained = restored.entries.filter((entry) => entry.outcome_b64 != null)
+        .map((entry) => entry.operation_id as string).sort();
+      expect(same(retained, ["refund-1"]), "restored store manufactured lost audit evidence");
+      stateLoss.retained_audit_operations = retained;
+      stateLoss.historical_audit_export_preserved = true;
+
     }
 
-    // README step 8: the audit bundle.
-    let bundlePath = join(journey.work, "audit-bundle.json");
-    await journey.step("export audit bundle", () => journey.run(process.execPath, [
-      REFUNDS, "export", "--state", journey.state, "--out", bundlePath,
-    ]));
-    const privateBundle = join(journey.work, "private-audit-bundle.json");
-    journey.run(journey.gateway, ["audit-export", "--state-dir", journey.gatewayState,
-      "--bundle", bundlePath, "--out", privateBundle]);
-    bundlePath = privateBundle;
     const providerRequests = journey.providerEntries();
     await journey.stop();
 

@@ -947,6 +947,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     status, exported, stderr = commands.run("export")
     expect(status == 0, f"bin/export: {exported} {stderr}")
     gateway_json(config, "audit-export", "--state-dir", str(STATE),
+                 "--admin-socket", str(RUN / "admin.sock"),
                  "--bundle", str(AUDIT / "bundle.json"), "--out", str(AUDIT / "private-bundle.json"))
     bundle = read_json(AUDIT / "private-bundle.json")
     unrecorded = {entry["operation_id"] for entry in bundle["entries"] if entry.get("outcome_b64") is None}

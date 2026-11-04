@@ -183,7 +183,12 @@ fn private_export_preserves_inputs_and_rejects_substituted_or_unbounded_evidence
         &submission,
         Some("untrusted-public-history"),
     );
-    let (bytes, pins, _) = bundle(&source, &lock, &harness.context, &[inventory.clone()]);
+    let (bytes, pins, _) = bundle(
+        &source,
+        &lock,
+        &harness.context,
+        std::slice::from_ref(&inventory),
+    );
     let base = json!({"schema":"auths.gateway-private-audit/1","operation_id":"private-export",
         "outcome_b64":signed,"pre_entry_b64":[]});
     let export = || crate::PrivateAuditBundle::new(&bytes).expect("bounded inventory");

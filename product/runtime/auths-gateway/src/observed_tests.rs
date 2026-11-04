@@ -635,6 +635,25 @@ fn chain_harness(backend: Backend) -> Harness {
     )
 }
 
+fn hiding_effect_reference(bytes: &[u8]) -> String {
+    let decoded =
+        auths_codec::decode_signed_observation(bytes, &VerifierLimits::default()).expect("outcome");
+    decoded
+        .statement()
+        .facts()
+        .as_slice()
+        .iter()
+        .find_map(|item| {
+            if item.name().as_str() == "effect-reference"
+                && let FactValue::Text(value) = item.value()
+            {
+                return Some(value.as_str().to_owned());
+            }
+            None
+        })
+        .expect("native hiding effect reference")
+}
+
 async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backend: Backend) {
     let harness = chain_harness(backend);
     let first = harness.sign(
@@ -676,22 +695,7 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backe
         GatewaySubmitResult::Unknown
     );
     let unknown = signed_bytes(harness.outcome("step-1", NOW + 10).await);
-    let decoded = auths_codec::decode_signed_observation(&unknown, &VerifierLimits::default())
-        .expect("outcome");
-    let commitment = decoded
-        .statement()
-        .facts()
-        .as_slice()
-        .iter()
-        .find_map(|item| {
-            if item.name().as_str() == "effect-reference" {
-                if let FactValue::Text(value) = item.value() {
-                    return Some(value.as_str().to_owned());
-                }
-            }
-            None
-        })
-        .expect("native hiding effect reference");
+    let commitment = hiding_effect_reference(&unknown);
     assert_eq!(stage_of(&unknown), "unknown");
     assert_eq!(
         harness

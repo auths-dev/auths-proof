@@ -287,6 +287,11 @@ auths-gateway audit-export --state-dir "$WORK/gateway" \
   --bundle audit-bundle.json --out "$WORK/private-audit-bundle.json"
 ```
 
+The automated journeys capture this private snapshot before their deliberate
+old-backup restoration. Their later offline audit checks that retained signed
+snapshot. A separate export after restoration must contain only the operation
+actually retained or resubmitted; missing journal evidence is never recreated.
+
 It holds one entry per operation ID: the first submission, or a later one
 that the gateway recorded in place of a first one it did not. Resubmissions
 of an operation ID are not in the bundle; the gateway's attempt store is the

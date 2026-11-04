@@ -1193,6 +1193,26 @@ def main() -> int:
         for case in ("refund-1-replay", "refund-8-reuse", "refund-2-retry", "refund-9-precheck"):
             expect(results[case]["provider_requests"] == 0, f"{case} reached the provider")
 
+        # Preserve operator-private signed evidence before the deliberate rollback.
+        # The later offline audit evaluates this historical snapshot, not the restored store.
+        bundle_path = journey.work / "audit-bundle.json"
+        journey.step(
+            "export audit bundle",
+            lambda: journey.run(
+                PYTHON,
+                "refunds.py",
+                "export",
+                "--state",
+                str(journey.state),
+                "--out",
+                str(bundle_path),
+            ),
+        )
+        private_bundle = journey.work / "private-audit-bundle.json"
+        journey.run(journey.gateway, "audit-export", "--state-dir", str(journey.gateway_state),
+                    "--bundle", str(bundle_path), "--out", str(private_bundle))
+        bundle_path = private_bundle
+
         state_loss: Optional[Dict[str, Any]] = None
         if not live:
             for operation in before_lease:
@@ -1287,25 +1307,17 @@ def main() -> int:
             )
             refunds_created = {entry["refund"] for entry in writes if entry["refund"]}
             expect(len(refunds_created) == 1, f"expected 1 refund, saw {sorted(refunds_created)}")
+            restored_bundle = journey.work / "restored-private-audit-bundle.json"
+            journey.run(journey.gateway, "audit-export", "--state-dir", str(journey.gateway_state),
+                        "--bundle", str(bundle_path), "--out", str(restored_bundle))
+            restored = json.loads(restored_bundle.read_text())
+            retained = {entry["operation_id"] for entry in restored["entries"]
+                        if entry.get("outcome_b64") is not None}
+            expect(retained == {"refund-1"}, "restored store manufactured lost audit evidence")
+            state_loss["retained_audit_operations"] = sorted(retained)
+            state_loss["historical_audit_export_preserved"] = True
 
-        # README step 8: the audit bundle.
-        bundle_path = journey.work / "audit-bundle.json"
-        journey.step(
-            "export audit bundle",
-            lambda: journey.run(
-                PYTHON,
-                "refunds.py",
-                "export",
-                "--state",
-                str(journey.state),
-                "--out",
-                str(bundle_path),
-            ),
-        )
-        private_bundle = journey.work / "private-audit-bundle.json"
-        journey.run(journey.gateway, "audit-export", "--state-dir", str(journey.gateway_state),
-                    "--bundle", str(bundle_path), "--out", str(private_bundle))
-        bundle_path = private_bundle
+
         journey.stop()
 
         # README step 9: the offline audit, with the gateway stopped. The
