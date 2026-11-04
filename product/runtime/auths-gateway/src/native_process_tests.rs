@@ -37,7 +37,7 @@ pub(super) const NOW: u64 = 1_790_000_000;
 const SECRET: &[u8] = b"public-native-process-fixture";
 pub(super) const CONTENT: &[u8] = b"PUBLIC-NATIVE-CONTENT";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Setup {
     pub(super) backend: String,

@@ -2,9 +2,10 @@
 
 ## Resumed — 5 November 2026
 
-The user reactivated the complete AP074 goal. Main is reconciling the saved
-signed-output/private-audit checkpoint with the published `3cb2caad` fixes and
-finishing the direct native/SDK/demo cutover. The original full objective and
+The user reactivated the complete AP074 goal. The signed-output/private-audit checkpoint is
+reconciled and published as `7807d04b`. Combined revision `46989b7d` also includes
+native cost producers, strict 209-vector result parity and the holistic CI repair
+batch. Main is adding generated concurrent histories and auditing final closure. The original full objective and
 acceptance requirements remain in force; no completion claim is made.
 
 The CI subagent reports the published `3cb2caad` cohort is terminal: 88 passed,
@@ -3931,3 +3932,37 @@ Combined rebuilt closure check passed (1 passed / 0 ignored, 0.05 s), and the
 semantic metadata constructor passed. The combined revision is ready for the
 CI subagent's exact-head publication and holistic verification; no completed
 acceptance or formal qualification claim is made for this new source.
+
+## Generated concurrent native histories and assurance boundary map
+
+Added test-only deterministic event generation with an independent set-of-entered
+operations oracle. Each durable adapter has four seeded histories,32 positive
+concurrent rounds and four fresh-operation/old-approval negative rounds.72 fresh
+OS workers reopen the actual store, synchronize at a bounded start barrier and
+call the ordinary installed native engine. Every round checks real HTTP entry
+counts and native transport witnesses, typed journal state, exact earlier record
+bytes and unchanged original source. The model chooses only expected entry counts;
+it supplies no authority, journal decision, grant, acknowledgement or retry.
+
+The new explicit workflow selectors preserve the existing48 adapter selector log
+and two cost selectors and upload actual scheduling results in separate exact-
+source artifacts. No canonical scheduling outcome is fabricated. Details and
+limitations are in [generated histories](0074-generated-histories.md). This adds
+mutation single-grant/replay evidence; existing all-protocol formal, capacity,
+crash, dependency, disclosure and recovery producers remain mandatory.
+
+Added the [six-property assurance map](0074-assurance-map.md), naming shipping pure
+predicates, their actual runtime callers, adapter/crypto/transport premises and
+concrete evidence families. It identifies the pinned translation/refinement,
+compiled theorem audit, bounded Kani and mutation source links without treating
+nonempty model evidence as authenticated runtime truth. No security invariant or
+acceptance row was weakened or declared complete.
+
+Source-closure construction passed (1 passed / 0 ignored,0.09 s); it compiled the
+new cohort without executing it. Actual generated-history and cost runs await
+hosted CI. Main did not inspect CI, run local broad suites or change AP070/AP073.
+Rebuilt source-closure verification passed (1 passed / 0 ignored,0.07 s), and
+semantic metadata construction passed without release identity changes. Final
+source closure is `0057a01cccebd4fbc6b16c08a1a042f4af83ceee5e21e67a72c0c08c4bce88a1`.
+No local generated-history execution is claimed; the new explicit CI producers
+must execute before their evidence is accepted.
