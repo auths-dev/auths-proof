@@ -3899,3 +3899,35 @@ Rebuilt non-update source closure passed (1 passed / 0 ignored, 0.07 s).
 Semantic metadata construction passed at freeze428, portable ABI129 and public
 surface428; no other semantic identity increment was required. Main did not run
 SDK, lint, broad test or formal gates and did not inspect CI.
+
+## Integrated holistic CI repairs after the private-history cutover
+
+Integrated the CI subagent's `80b89755` as `14cdc0f7`, preserving main's cost and
+strict-result work. [Its source/evidence report](0074-ci-repair-7807d04b.md) records
+five actual roots and precise focused reproductions. Native audit semantics and
+all existing assertions remain intact. The installed Python/TypeScript north-star
+journeys now preserve operator-private signed history before intentional rollback;
+a separate post-rollback export proves lost entries remain absent. The scaffold
+supplies its configured private admin socket. Authoritative generators refreshed
+Stripe decision-record pins and ten native differential effect IDs after the
+observation-contract change. The independent28request/26response comparison is
+unchanged. Clippy repairs use helpers, borrowing/import placement and a method
+reference, with no new allowances or removed assertions.
+
+The subagent reports all focused repaired journeys and the failed native/reference/
+Clippy checks passed in its isolated checkout. These are repair reproductions,
+not acceptance on the combined head. Its exact-source7807 hosted audit did verify
+48 nonignored native selectors,22 information pairs, both installed demos and the
+Linux33app/12admin/53CLI/5privateCLI inventory. Main did not inspect CI; new cost
+and209-vector binding work still require the next integrated hosted cohort.
+
+Combined source-closure construction passed (1 passed / 0 ignored, 0.08 s).
+The final combined closure is
+`f943f5421fbaca04419bbf535f6da621cb349884fc54813695788f7f14f110db`.
+Release metadata advances to freeze429, portable ABI130 and public surface429,
+reflecting the repaired generated Python consumer; no other increment was required.
+Rebuilt source closure and metadata construction must finish before publication.
+Combined rebuilt closure check passed (1 passed / 0 ignored, 0.05 s), and the
+semantic metadata constructor passed. The combined revision is ready for the
+CI subagent's exact-head publication and holistic verification; no completed
+acceptance or formal qualification claim is made for this new source.
