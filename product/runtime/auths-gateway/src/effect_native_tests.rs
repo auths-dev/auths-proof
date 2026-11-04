@@ -30,6 +30,8 @@ mod read_budget_tests;
 
 #[path = "effect_recovery_prerequisite_tests.rs"]
 mod recovery_prerequisite_tests;
+#[path = "effect_review_approval_tests.rs"]
+mod review_approval_tests;
 
 /// Native read authority is independent of an expired source writer. File
 /// provenance is real; the source entry is a test grant with no provider send.

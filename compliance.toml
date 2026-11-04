@@ -1671,6 +1671,7 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/effect_native_tests.rs#native_recovery_acquisition_fixture_is_current",
   "product/runtime/auths-gateway/src/recipe/tests.rs#native_review_contract_fixture_is_current",
   "product/runtime/auths-gateway/src/recipe/tests.rs#effect_review_contract_is_complete_typed_and_recipe_bound",
+  "product/runtime/auths-gateway/src/effect_review_approval_tests.rs#native_review_changes_require_fresh_authority_and_approval",
   "product/runtime/auths-gateway/src/effect_native_tests.rs#native_compilation_approval_and_reverification_keep_exact_request",
   "product/runtime/auths-gateway/src/configuration.rs#native_configuration_fixture_is_current",
   "product/runtime/auths-gateway/src/native_epoch_tests.rs#native_file_epoch_fence_fixture_is_current",

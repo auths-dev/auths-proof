@@ -3993,3 +3993,34 @@ construction passed with no release identity changes. Final source closure is
 `c46116f44bcab92337597ef95fc499dd79488a214584135c60135fb82c44150a`.
 Generated concurrent histories remain unexecuted until the next exact-head CI
 cohort. Main did not inspect CI or rerun local SDK/Clippy/cost suites.
+
+## Native signed review meaning and approval corpus
+
+Added five native-signed approval witnesses over maintained Airtable and Stripe
+refund example recipes. Changed label-as-literal-data, consequences, destination,
+financial units and the 80-byte unit boundary each change the recipe/effect. The
+original signed native action refuses the changed recipe. Fresh native authority
+still cannot reuse the original exact approval; original and freshly approved
+controls pass. Complete native literal/private-review equality and refusal of a
+summary/truncation renderer are asserted. Native proofs, policy scopes, currencies,
+amount sums and exact Ed25519 approval use the existing owners.
+
+Thirteen financial review source negatives reject missing/null/empty/whitespace/
+over-limit/control/bidi units, missing fields, unsupported review versions,
+missing/oversized/excess consequences and case-insensitive label collisions.
+The canonical [review/approval artifact](../../bindings/fixtures/gateway/review-approval-boundary.json)
+retains the native literal and signing request, with no provider/durability/human
+claim. [Scope and composition](0074-review-approval-evidence.md) keep the installed
+owner-channel and generic literal-renderer evidence separate and mandatory.
+Compliance names the exact native constructor; no public API or shipping decision
+changes. Changed units do not themselves qualify new provider-domain meaning.
+
+Required artifact construction passed (1 passed /0 ignored,0.09s). Updated source
+closure passed (1 passed /0 ignored,0.07s) and rebuilt non-update check passed
+(1 passed /0 ignored,0.07s). Closure is
+`a00efd11f811f045119cfef58ea049b73bdb6848f3eabfbfed9dc94e9d55d3b8`.
+Semantic metadata advances freeze430, identity171, public SDK167 and public
+surface430, only as required by the changed compliance evidence inventory.
+Hosted execution and complete acceptance closure remain pending. Main has not
+inspected CI or run local SDK, lint, broad test or formal suites.
+Semantic metadata construction passed for this review-evidence batch. No complete acceptance row is closed by the constructor alone.
