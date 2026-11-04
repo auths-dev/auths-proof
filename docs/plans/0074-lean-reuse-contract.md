@@ -84,3 +84,34 @@ the retained actualce9 run accepts its same-PR association, then explicitly reje
 its old phase for missing complete-input attestation. No native validator or
 qualified result was invoked or synthesized for that legacy artifact. No early20b
 failed check was observed before this correction.
+
+## Verified cold producer and pending consumer
+
+The corrected controller's real bootstrap is source `eb44d8f7`, CI run41924977969,
+attempt1. Fast Lean126908887765 passed; translation126913912807 reproduced twice;
+Kani126913912984 verified49harnesses. Authoritative Lean126929527493 completed its
+clean build and329-statement compiled audit successfully at23:38:21UTC. Final
+formal evidence126942117729 also passed; the three old CI failures all derive
+from the known corpus root (85success/3failure/8conditional skips). The
+[producer evidence report](0074-hosted-evidence-eb44d8f7.md) records immutable
+source/merge identities and authenticated artifact hashes. The old overall CI
+retains its separate, repaired corpus failure; a successful clean producer job
+is the reuse predicate, not a false claim that the entire old CI passed.
+
+Clean Lean artifact13373617020 contains only `lean.json`, with ZIP SHA-256
+`f2a256d1be842c86af7cf057b0e46e989e2029f5a4504ca18b2ecf093fd6818c`.
+It attests `executed-clean`, no reuse chain, source eb44/run41924977969/attempt1,
+and complete inputs
+`c523f465540e306ac9eaaf49ef460365b467be4bccaafd2160552ce23dc83432`.
+The actual native digest function returns this same key for the held corpus
+repair and final documentation. No producer result was synthesized locally.
+
+At publication of this report, real warm hits in both consumer Lean jobs and
+complete final-head qualification are still pending. The legitimate follow-up
+combines the required corpus repair with final evidence documentation. Both jobs
+must independently validate the retained producer, rerun current Rust/source
+checks and retain current-head provenance before skipping only the expensive
+Lean rebuild. Missing/mismatched evidence must still fall back to fresh work.
+Final results belong to the exact head in [PR213 checks](https://github.com/auths-dev/auths-proof/pull/213/checks)
+and its immutable validation records; no recursive docs-only publication is
+needed merely to record the outcome of the commit containing this report.

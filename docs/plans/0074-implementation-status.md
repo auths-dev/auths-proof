@@ -4137,13 +4137,20 @@ Repeated Lean work on each push came from the PR-wide formal planner and fresh
 jobs. Both Lean phases now support a successful, same-PR, clean authoritative
 producer with authenticated immutable provenance and the native complete-input
 digest; current Rust/source checks still run, and any missing or mismatched
-evidence falls back to fresh verification. Fast bootstrap Lean has passed; clean
-authoritative Lean/compiled audit and the remaining formal gates are pending.
+evidence falls back to fresh verification. Fast bootstrap Lean, two translation reproductions and all49Kani harnesses
+have passed. Clean authoritative Lean126929527493 also passed with329compiled
+statements/transitive-axiom audit and four Rust refinement tests. Its authenticated
+artifact13373617020 attests the complete proof key below. Final formal aggregation also passed. The overall old CI remains failed solely
+for the known corpus root and its dependent rollups (85success/3failure/8skips).
+Consumer-head qualification remains pending at publication.
 No warm hit is claimed before actual execution. The seed repair changes no proof
 inputs: the native digest is unchanged at
 `c523f465540e306ac9eaaf49ef460365b467be4bccaafd2160552ce23dc83432`.
-Preserve that live producer and combine seed repair, evidence report and this
-acceptance reconciliation into one follow-up publication for warm verification.
+Preserve that successful producer and combine seed repair, evidence report and
+this acceptance reconciliation into one follow-up publication for warm verification.
+The exact-head [PR213 checks](https://github.com/auths-dev/auths-proof/pull/213/checks)
+and immutable final validation records will record consumer results without a
+recursive documentation-only push; no pending gate is represented as passing.
 
 The physical-WAL restore test explicitly reports `replay_continuity=false`.
 Connection-generation/exact-record floors protect their stated state, not an

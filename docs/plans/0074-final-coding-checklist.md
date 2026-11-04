@@ -10,9 +10,9 @@ Source `eb44d8f7` passed all 63 required adapter selectors, installed journeys,
 distinct-UID containment and differential/cost/history workflows. Its broad
 implementation gate found two stale committed fuzz positives. Native constructors
 now generate the complete repair with explicit obsolete refusal controls; hosted
-confirmation remains required. Preserve the live clean Lean producer, then combine
+confirmation remains required. The clean Lean producer now passed with its complete-input attestation. Combine
 this repair and evidence reconciliation in one follow-up publication to establish
-actual Lean reuse. Both unchecked final items remain open until its gates pass.
+actual Lean reuse; consumer results remain pending at publication. Both unchecked final items remain open until its gates pass.
 
 ## Checks to finish writing
 
