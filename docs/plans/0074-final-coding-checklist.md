@@ -5,6 +5,15 @@ owner's instruction and AGENTS.md. Do not run individual new tests, artifact
 constructors, fixture generators or replacement CI cohorts while authoring it.
 The existing CI agent may finish observing the already-running 5acd62b0 cohort.
 
+Current checkpoint: the planned coding and constructor batches below are done.
+Source `eb44d8f7` passed all 63 required adapter selectors, installed journeys,
+distinct-UID containment and differential/cost/history workflows. Its broad
+implementation gate found two stale committed fuzz positives. Native constructors
+now generate the complete repair with explicit obsolete refusal controls; hosted
+confirmation remains required. Preserve the live clean Lean producer, then combine
+this repair and evidence reconciliation in one follow-up publication to establish
+actual Lean reuse. Both unchecked final items remain open until its gates pass.
+
 ## Checks to finish writing
 
 - [x] **Guarded Stripe and prerequisite crashes (A05/A06/A10/A13).** Extend the

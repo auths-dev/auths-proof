@@ -3,15 +3,44 @@
 This is the current requirement-to-producer map, superseding stale outstanding
 work descriptions in historical checkpoints. It does not supersede the spec,
 remove a test or establish that authored checks passed. The final coding batch
-is implemented and its artifacts are constructed; exact-head hosted verification
-is pending. Every row
-below therefore remains **unverified on the completed revision**.
+is implemented and its artifacts are constructed. Hosted source
+`eb44d8f7082db6ed9ab46c1bf5319e8e736d7b28` has actual native adapter,
+installed, containment, differential and cost evidence. Its broad implementation
+gate exposed two obsolete committed fuzz seeds; the native-generator repair is
+constructed and awaits hosted confirmation. Formal qualification and the final
+repaired revision's applicable gates remain open. **This is not completion.**
 
 Native test files below are in `product/runtime/auths-gateway/src/`. The
 PostgreSQL lifecycle workflow explicitly runs both durable adapters, including
 ignored PostgreSQL selectors, and retains real execution logs. A selector must
 execute once with one pass and zero ignored; a skipped or zero-match invocation
 is not evidence. Application-owned AP070 remains independent. AP073 is untouched.
+
+## Current executed evidence and remaining gates
+
+The [hosted evidence report](0074-hosted-evidence-eb44d8f7.md) preserves exact
+source, merge producer, tree, closures, authenticated artifact hashes and limits.
+Source `eb44d8f7` and tested merge producer `8335af6a` share tree
+`195e1ae19c0491af1c7e8fdd6d0c63b87655fe89`. Neither may be relabeled as the
+subsequent repaired head.
+
+| Requirements | Actual evidence on source eb44d8f7 | Remaining acceptance gate |
+| --- | --- | --- |
+| P0/P1, E01–E05 | Native owner/consumer and canonical binding/review implementation; installed exact review, consent, request and disclosure controls; signed binding/review corpora execute in the required cohort | Final source/architecture/compliance and repaired-head confirmation |
+| P2/P3, R01–R10, A01–A17/A21 | All 63 required native selectors execute exactly once with one pass and zero failures/ignored tests on file and TLS PostgreSQL; process, capacity, crash, partial-upload, ambiguous-commit, epoch/floor, recovery, ACK and 64-event cases | Final broad repaired-head gate and conditional formal/runtime audit |
+| A18 | Native journal/frame/binding limits and shared 209-vector binding corpus execute; broad gateway library passes 302 tests, zero failures and 63 ignored tests separately covered by the required adapter cohort | Two stale positive fuzz seeds require native-constructor repair, obsolete refusal controls and repaired hosted corpus confirmation |
+| A19 | Two mutation recipes: 28 request and 26 response comparisons; acquisition/disclosure: 22 pairs after eight named native histories; all 12 reference source hashes match | Repaired-head confirmation with references still independent |
+| A20 | Four-seed concurrent histories per adapter: 32 positive and four negative rounds, 72 workers, independent HTTP/transport-count and historical-byte oracles | Clean source-linked Lean/329-claim audit, translation, Kani49 and applicable formal/release adequacy gates; final consumer qualification |
+| A22 | Installed Airtable: 36 cases/13 verified private audits; Stripe: 23/6, zero inconsistent/unverified. Linux distinct-UID: 33 application cases, 12 admin commands, 53 CLI routes, five private CLI refusals and actual credential/provider/file/privacy controls | Final repaired-head installed/platform confirmation |
+| P4 cost and bounded work | Eight samples per path/backend with actual verification, compilation, approval, callback, adapter, inventory, snapshot-size and Linux RSS distributions | Preserve actual producer and limits; these fixtures establish no production latency or heap SLO |
+| Lean reuse | Complete-input/provenance refusal controls; fresh fast Lean bootstrap passed | Clean authoritative producer, then observed reuse by both Lean jobs while current Rust/source checks still run |
+
+All twelve applicable workflows outside main CI passed on this source. The
+conditional live-custody workflow was skipped and provides no live qualification.
+The failed implementation job and derivative rollup remain failures until the
+complete corpus repair passes; narrow local repair results do not replace the
+hosted gate. Completion still requires every row below and every applicable
+final-head gate.
 
 ## Architecture and phase deliverables
 
@@ -109,8 +138,12 @@ requires the maintained TLS/transaction configuration and participating writers.
 SIGKILL and modeled syscall faults do not prove power-loss behavior. The partial
 upload test observes application-level prefix delivery, not kernel backpressure
 or provider atomicity. Generation rollback detection requires independently
-retained floors; restoring the whole store and every anchor together remains
-unsupported. Browser automation proves the authenticated owner protocol and UI
+retained floors and protects only the state those floors bind. An unchanged
+connection floor does not anchor rolled-back attempt/accounting rows. Physical
+WAL restore establishes before-target retention and after-target exclusion and
+explicitly reports `replay_continuity=false`. Whole-journal rollback and safe
+automatic managed resumption after arbitrary point-in-time restore are outside
+the guarantee. Browser automation proves the authenticated owner protocol and UI
 controls, not human attention. Local recipe/custody fixtures do not qualify a
 live provider. These are explicit premises, not excuses to omit acceptance tests.
 

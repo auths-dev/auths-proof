@@ -3468,19 +3468,24 @@ stale outstanding-work descriptions in earlier checkpoint tables, without
 removing any spec requirement or test. The historical checkpoints above and below
 remain provenance, not instructions to reimplement later completed behavior.
 
-| Phase | Current implementation | Unclosed gate |
+| Phase | Current implementation and executed evidence | Unclosed gate |
 | --- | --- | --- |
 | P0 | Native owner/consumer map, ownership ADR, abstraction and independent reference contracts documented | Final source inventory and architecture/compliance audit |
-| P1 | Immutable binding, exact approval, complete literal review and installed native request path; independent binding/review substitutions authored | Construct final corpus and verify exact-head native/SDK/UI evidence |
-| P2 | Sole typed journal/transition and admission/entry fence; all-protocol adapter races, crashes, faults and recovery; final guarded/partial-upload/journal batch authored | Final artifact construction and exact-head adverse adapter evidence |
-| P3 | Native acquisition, separate recipient disclosure/ACK, retained history and thin installed wrappers | Final exact-head installed journey plus adverse read/release evidence |
-| P4 | Two-recipe/information differential, installed owner journey, complete restricted interface inventory, public/private audit, translated/formal links, cost and generated histories implemented | Complete final hosted cohort, formal/release/platform gates and requirement audit |
+| P1 | Immutable binding, exact approval, complete literal review and installed native request path; signed binding/review corpus and installed consent/substitution controls execute on eb44d8f7 | Final repaired-head native/SDK/UI gates |
+| P2 | Sole journal/transition and admission/entry fence; all-protocol races, crashes, faults, guarded prerequisites, partial upload, strict journal/revision and recovery cases execute in the 63-selector file/TLS PostgreSQL cohort | Final broad repaired-head gate and conditional proof/runtime audit |
+| P3 | Native acquisition, separate recipient disclosure/ACK, retained history and thin wrappers; adverse read/release and complete installed owner journey execute on eb44d8f7 | Final repaired-head installed/platform confirmation |
+| P4 | Two-recipe/information comparisons, distinct-UID inventory, public/private audit, native cost and generated histories pass on eb44d8f7; formal links implemented | Two obsolete fuzz positives repaired through native generators; clean formal qualification, actual Lean reuse and final-head gates/requirement audit remain pending |
 
-All A01–A22 remain **unverified on the final revision** until the new batch and
-all required exact-head gates execute. The final audit names a concrete producer
-and expected boundary observation for every row. Earlier passing source revisions
-are useful regression evidence and cannot qualify later changes. External live
-provider qualification is a separate, unclaimed deployment property.
+The [eb44d8f7 hosted report](0074-hosted-evidence-eb44d8f7.md) records actual
+source-specific execution, including all 63 required selectors exactly once with
+one pass and zero ignored tests, 302 passing broad gateway tests, installed
+journeys and authenticated artifacts. Those are executed evidence, not merely
+authored producers. They cannot qualify the subsequent corpus-repair revision
+without its applicable gates. A18's stale committed corpus is an actual failure;
+A20's full formal qualification and final P4 acceptance remain open. The final
+audit names a producer and expected observation for every row. Live-provider
+qualification remains a separate, unclaimed deployment property. AP070 stays an
+independent reference; AP073 remains untouched.
 
 ## Deployment assumptions retained
 
@@ -4103,3 +4108,49 @@ identity changes. Final correction closure is
 `71ff1dcdd7464474a0d1b12f661f7277d665775a6a192128bbbc5870ff9231eb`.
 The correction is committed for integration with the CI agent's combined actual
 977 repair roots; final hosted acceptance remains unverified until that cohort.
+
+## Current hosted checkpoint and bounded final repair
+
+The complete combined implementation and CI repair source is
+`eb44d8f7082db6ed9ab46c1bf5319e8e736d7b28`. Its merge producer
+`8335af6a6f9170a12f4b63feae0f755e87290308` has the same tree,
+`195e1ae19c0491af1c7e8fdd6d0c63b87655fe89`. The
+[source-specific hosted report](0074-hosted-evidence-eb44d8f7.md) retains actual
+artifact provenance and replaces earlier merely authored status with executed
+evidence. All twelve applicable non-main workflows passed, including the complete
+63-selector durable adapter cohort, installed owner journey, differential,
+generated history, native cost and Linux distinct-UID containment producers.
+The broad gateway library passed 302 tests with no failures and 63 ignored tests;
+required adapter selectors execute separately rather than treating ignored tests
+as passing. Conditional live custody supplies no qualification.
+
+The remaining actual implementation failure is two stale committed fuzz positives:
+an old public outcome and observe/3 frame. The dynamic campaign generators already
+use current schemas. The complete repair uses the existing native canonical
+signer/frame constructors, current positives/refusals and preserved obsolete
+rejection controls. All six corpus tests and both native generators/unchanged
+checks pass in the bounded repair verification. No runtime decoder, signature,
+assertion or security invariant is relaxed. Hosted repaired-head confirmation is
+still required; the failed implementation/derivative rollup remains recorded.
+
+Repeated Lean work on each push came from the PR-wide formal planner and fresh
+jobs. Both Lean phases now support a successful, same-PR, clean authoritative
+producer with authenticated immutable provenance and the native complete-input
+digest; current Rust/source checks still run, and any missing or mismatched
+evidence falls back to fresh verification. Fast bootstrap Lean has passed; clean
+authoritative Lean/compiled audit and the remaining formal gates are pending.
+No warm hit is claimed before actual execution. The seed repair changes no proof
+inputs: the native digest is unchanged at
+`c523f465540e306ac9eaaf49ef460365b467be4bccaafd2160552ce23dc83432`.
+Preserve that live producer and combine seed repair, evidence report and this
+acceptance reconciliation into one follow-up publication for warm verification.
+
+The physical-WAL restore test explicitly reports `replay_continuity=false`.
+Connection-generation/exact-record floors protect their stated state, not an
+arbitrary rollback of attempt/counter history. It establishes before-target
+retention and after-target exclusion, not safe automatic managed resume after
+whole-journal rollback. File sync/rename, PostgreSQL participating-writer/TLS,
+clock, OS isolation and external-provider assumptions remain explicit. AP070
+stays an independent, narrower application-owned reference; AP073 is untouched.
+The goal remains incomplete until final applicable gates and the P/E/R/A audit
+close. No merge, deployment or live-provider qualification is claimed.
