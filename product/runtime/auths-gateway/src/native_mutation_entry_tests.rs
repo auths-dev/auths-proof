@@ -44,6 +44,7 @@ impl Race {
             Scenario::AuthorityValid | Scenario::AuthorityExpired => Change::AuthorityExpiry,
             Scenario::Revoke
             | Scenario::Configuration
+            | Scenario::Epoch
             | Scenario::ObserverValid
             | Scenario::ObserverExpired
             | Scenario::ThresholdValid
@@ -119,7 +120,7 @@ fn worker(race: &Race, store: &TestAttempts) {
 
 fn operator(race: &Race, store: &TestAttempts) {
     let runtime = runtime();
-    let candidate_controls = controls(
+    let mut candidate_controls = controls(
         Arc::new(FixedClock::at(NOW)),
         if matches!(race.scenario, Scenario::Configuration) {
             30
@@ -127,6 +128,14 @@ fn operator(race: &Race, store: &TestAttempts) {
             29
         },
     );
+    if matches!(race.scenario, Scenario::Epoch) {
+        candidate_controls.policy = crate::effect::EffectPolicy::new(
+            "test-partition".to_owned(),
+            2,
+            SigningKey::from_bytes(&[29; 32]).verifying_key().to_bytes(),
+        )
+        .expect("next epoch shares the partition fence");
+    }
     let attempts = GatewayAttempts::new(store.raw(), candidate_controls.policy.clone())
         .expect("operator candidate policy");
     let (engine, record) = runtime.block_on(load_controlled_engine(
@@ -172,7 +181,7 @@ fn operator(race: &Race, store: &TestAttempts) {
                     .block_on(shared.replace(&current, &revoked))
                     .expect("operator CAS");
             }
-            Scenario::Configuration => {
+            Scenario::Configuration | Scenario::Epoch => {
                 engine
                     .activate_effect_configuration(reviewed)
                     .expect("operator activation");
@@ -488,6 +497,8 @@ fn matrix(backend: Backend) {
         (Scenario::Revoke, Order::GrantFirst),
         (Scenario::Configuration, Order::ChangeFirst),
         (Scenario::Configuration, Order::GrantFirst),
+        (Scenario::Epoch, Order::ChangeFirst),
+        (Scenario::Epoch, Order::GrantFirst),
         (Scenario::ApprovalValid, Order::LockWait),
         (Scenario::ApprovalExpired, Order::LockWait),
         (Scenario::AuthorityValid, Order::LockWait),

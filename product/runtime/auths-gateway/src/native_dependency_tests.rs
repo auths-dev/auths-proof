@@ -35,6 +35,7 @@ const OPERATION: &str = "dependency-read";
 pub(super) enum Scenario {
     Revoke,
     Configuration,
+    Epoch,
     ApprovalValid,
     ApprovalExpired,
     AuthorityValid,
@@ -287,6 +288,7 @@ fn run_worker(race: &Race, store: &TestAttempts) {
         clock,
         recipe: None,
         trust: None,
+        credential: None,
     };
     let runtime = runtime();
     let (engine, _) = runtime.block_on(load_controlled_engine(
@@ -326,12 +328,24 @@ fn run_operator(race: &Race, store: &TestAttempts) {
     // publication, not the opening/recovery of a new host's store handle.
     let runtime = runtime();
     let mut controls = EngineControls::baseline();
-    if matches!(race.scenario, Scenario::Configuration) {
+    if matches!(race.scenario, Scenario::Configuration | Scenario::Epoch) {
         use ed25519_dalek::SigningKey;
         controls.policy = crate::effect::EffectPolicy::new(
             "test-partition".to_owned(),
-            1,
-            SigningKey::from_bytes(&[30; 32]).verifying_key().to_bytes(),
+            if matches!(race.scenario, Scenario::Epoch) {
+                2
+            } else {
+                1
+            },
+            SigningKey::from_bytes(
+                &[if matches!(race.scenario, Scenario::Epoch) {
+                    29
+                } else {
+                    30
+                }; 32],
+            )
+            .verifying_key()
+            .to_bytes(),
         )
         .expect("new operator policy");
     }
@@ -375,7 +389,7 @@ fn run_operator(race: &Race, store: &TestAttempts) {
                     auths_connections::ConnectionState::Revoked
                 );
             }
-            Scenario::Configuration => {
+            Scenario::Configuration | Scenario::Epoch => {
                 engine
                     .activate_effect_configuration(reviewed)
                     .expect("native activation");
@@ -746,6 +760,8 @@ fn dependency_matrix(backend: Backend) {
         (Scenario::Revoke, Order::GrantFirst),
         (Scenario::Configuration, Order::ChangeFirst),
         (Scenario::Configuration, Order::GrantFirst),
+        (Scenario::Epoch, Order::ChangeFirst),
+        (Scenario::Epoch, Order::GrantFirst),
         (Scenario::ApprovalValid, Order::LockWait),
         (Scenario::ApprovalExpired, Order::LockWait),
         (Scenario::AuthorityValid, Order::LockWait),

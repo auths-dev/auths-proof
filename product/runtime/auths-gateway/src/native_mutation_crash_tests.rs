@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     io::{Read as _, Write as _},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     os::unix::fs::PermissionsExt as _,
     path::{Path, PathBuf},
     sync::{
@@ -34,6 +34,10 @@ const OPERATION: &str = "crash-write";
 const RESPONSE: &[u8] = b"{\"id\":\"public-crash-response\"}";
 const ENVIRONMENT: &str = "AUTHS_AP074_MUTATION_CRASH_PEER";
 
+#[path = "native_guarded_mutation_crash_tests.rs"]
+mod guarded_tests;
+#[path = "native_partial_upload_tests.rs"]
+mod partial_upload_tests;
 #[path = "native_mutation_budget_tests.rs"]
 mod window_capacity_tests;
 
@@ -42,12 +46,14 @@ mod window_capacity_tests;
 enum Flavor {
     Airtable,
     StripePlain,
+    StripeGuarded,
 }
 impl Flavor {
     const fn label(self) -> &'static str {
         match self {
             Self::Airtable => "airtable",
             Self::StripePlain => "stripe-plain",
+            Self::StripeGuarded => "stripe-guarded",
         }
     }
     fn recipe(self) -> CompiledRecipe {
@@ -57,12 +63,16 @@ impl Flavor {
                 include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
             )
             .expect("maintained Airtable recipe"),
-            Self::StripePlain => {
+            Self::StripePlain | Self::StripeGuarded => {
                 let corpus: Value = serde_json::from_slice(include_bytes!(
                     "../../../../bindings/fixtures/gateway/hostile-recipes-v2.json"
                 ))
                 .expect("maintained recipe corpus");
-                let base = &corpus["bases"]["stripe-plain"];
+                let base = &corpus["bases"][if matches!(self, Self::StripeGuarded) {
+                    "stripe"
+                } else {
+                    "stripe-plain"
+                }];
                 CompiledRecipe::compile(
                     &serde_json::to_vec(&base["recipe"]).expect("source"),
                     &serde_json::to_vec(&base["lock"]).expect("lock"),
@@ -82,6 +92,9 @@ impl Flavor {
         let mut controls = EngineControls::baseline();
         controls.trust = Some(tools_context(&[call], NOW).expect("native trust"));
         controls.recipe = Some(recipe);
+        if matches!(self, Self::StripeGuarded) {
+            controls.credential = Some(self.credential());
+        }
         controls
     }
     fn call(self) -> McpToolCall {
@@ -92,9 +105,13 @@ impl Flavor {
                 arguments["record_id"] = json!("recTEST0000000001");
                 arguments["replacement"] = json!("Approved");
             }
-            Self::StripePlain => {
+            Self::StripePlain | Self::StripeGuarded => {
                 arguments["payment_intent"] = json!("pi_public_crash_fixture");
                 arguments["amount"] = json!(500);
+                if matches!(self, Self::StripeGuarded) {
+                    arguments["currency"] = json!("usd");
+                    arguments["connect_account"] = json!("acct_TESTHARNESS01");
+                }
             }
         }
         McpToolCall::new(
@@ -105,19 +122,46 @@ impl Flavor {
         .expect("call")
     }
     fn policy(self) -> Option<ArgumentCeilingPolicy> {
-        matches!(self, Self::StripePlain).then(|| {
-            ArgumentCeilingPolicy::new("amount", 500, 3600, 2)
+        self.is_stripe().then(|| {
+            let policy = ArgumentCeilingPolicy::new("amount", 500, 3600, 2)
                 .expect("count policy")
-                .with_sum(1000, None)
-                .expect("sum policy")
+                .with_sum(
+                    1000,
+                    if matches!(self, Self::StripeGuarded) {
+                        Some(crate::ListedValues::new("currency", &["usd"]).expect("partition"))
+                    } else {
+                        None
+                    },
+                )
+                .expect("sum policy");
+            if matches!(self, Self::StripeGuarded) {
+                policy
+                    .with_scope(
+                        crate::ListedValues::new("connect_account", &["acct_TESTHARNESS01"])
+                            .expect("account scope"),
+                    )
+                    .expect("scoped policy")
+            } else {
+                policy
+            }
         })
+    }
+    const fn is_stripe(self) -> bool {
+        !matches!(self, Self::Airtable)
+    }
+    const fn credential(self) -> &'static [u8] {
+        if matches!(self, Self::StripeGuarded) {
+            b"rk_test_public-native-process-fixture"
+        } else {
+            b"public-native-process-fixture"
+        }
     }
     const fn request_line(self) -> &'static str {
         match self {
             Self::Airtable => {
                 "PATCH /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001 HTTP/1.1"
             }
-            Self::StripePlain => "POST /v1/refunds HTTP/1.1",
+            Self::StripePlain | Self::StripeGuarded => "POST /v1/refunds HTTP/1.1",
         }
     }
 }
@@ -151,6 +195,8 @@ struct CrashSetup {
     point: Point,
     flavor: Flavor,
     gate: ResumeGate,
+    #[serde(default)]
+    prerequisite: Option<u8>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -161,8 +207,15 @@ struct Request {
 struct Provider {
     port: u16,
     requests: Arc<Mutex<Vec<Request>>>,
+    reads: Arc<Mutex<Vec<String>>>,
+    pause: Arc<Mutex<Option<ProviderPause>>>,
     stop: Arc<AtomicBool>,
     task: Option<JoinHandle<()>>,
+}
+#[derive(Clone, Copy)]
+enum ProviderPause {
+    Write(u16),
+    Read { index: usize, port: u16 },
 }
 impl Provider {
     fn new(flavor: Flavor, pause: Option<u16>) -> Self {
@@ -171,10 +224,13 @@ impl Provider {
         let port = listener.local_addr().expect("address").port();
         let requests = Arc::new(Mutex::new(Vec::new()));
         let captured = requests.clone();
+        let reads = Arc::new(Mutex::new(Vec::new()));
+        let observed_reads = Arc::clone(&reads);
+        let pause = Arc::new(Mutex::new(pause.map(ProviderPause::Write)));
+        let response_pause = Arc::clone(&pause);
         let stop = Arc::new(AtomicBool::new(false));
         let done = stop.clone();
         let task = thread::spawn(move || {
-            let mut pause = pause;
             while !done.load(Ordering::SeqCst) {
                 let (mut stream, _) = match listener.accept() {
                     Ok(pair) => pair,
@@ -199,53 +255,95 @@ impl Provider {
                     header.push(byte[0]);
                 }
                 let header = String::from_utf8(header).expect("header UTF8");
-                assert_eq!(
-                    header.lines().next(),
-                    Some(flavor.request_line()),
-                    "no implicit reads"
-                );
-                assert!(
-                    header
-                        .to_ascii_lowercase()
-                        .contains("authorization: bearer public-native-process-fixture\r\n")
-                );
-                let value = |name: &str| {
-                    header.lines().find_map(|line| {
-                        let (key, value) = line.split_once(':')?;
-                        key.eq_ignore_ascii_case(name)
-                            .then(|| value.trim().to_owned())
-                    })
-                };
-                let length: usize = value("content-length")
-                    .expect("body length")
-                    .parse()
-                    .expect("length");
-                assert!(length <= 65536);
-                let mut body = vec![0; length];
-                stream.read_exact(&mut body).expect("body");
-                captured.lock().expect("requests").push(Request {
-                    body,
-                    idempotency: value("idempotency-key"),
-                });
-                stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",RESPONSE.len()).as_bytes()).expect("response header");
-                if let Some(port) = pause.take() {
-                    stream.write_all(&RESPONSE[..1]).expect("partial response");
-                    pause_at(port);
-                    let _ = stream.write_all(&RESPONSE[1..]);
-                } else {
-                    stream.write_all(RESPONSE).expect("response body");
+                assert!(header.to_ascii_lowercase().contains(&format!(
+                    "authorization: bearer {}\r\n",
+                    std::str::from_utf8(flavor.credential()).expect("synthetic credential")
+                )));
+                let line = header.lines().next().expect("request line");
+                if matches!(flavor, Flavor::StripeGuarded) && line.starts_with("GET ") {
+                    let index = observed_reads.lock().expect("reads").len();
+                    observed_reads.lock().expect("reads").push(line.to_owned());
+                    let pause = {
+                        let mut armed = response_pause.lock().expect("response pause");
+                        match *armed {
+                            Some(ProviderPause::Read {
+                                index: selected,
+                                port,
+                            }) if selected == index => {
+                                *armed = None;
+                                Some(port)
+                            }
+                            _ => None,
+                        }
+                    };
+                    guarded_tests::serve_read(&mut stream, line, &header, pause);
+                    continue;
                 }
+                assert_eq!(
+                    line,
+                    flavor.request_line(),
+                    "only the exact closed mutation or declared prerequisite"
+                );
+                Self::serve_mutation(&mut stream, &header, &captured, &response_pause);
             }
         });
         Self {
             port,
             requests,
+            reads,
+            pause,
             stop,
             task: Some(task),
         }
     }
+    fn serve_mutation(
+        stream: &mut TcpStream,
+        header: &str,
+        captured: &Mutex<Vec<Request>>,
+        response_pause: &Mutex<Option<ProviderPause>>,
+    ) {
+        let value = |name: &str| {
+            header.lines().find_map(|line| {
+                let (key, value) = line.split_once(':')?;
+                key.eq_ignore_ascii_case(name)
+                    .then(|| value.trim().to_owned())
+            })
+        };
+        let length: usize = value("content-length")
+            .expect("body length")
+            .parse()
+            .expect("length");
+        assert!(length <= 65536);
+        let mut body = vec![0; length];
+        stream.read_exact(&mut body).expect("body");
+        captured.lock().expect("requests").push(Request {
+            body,
+            idempotency: value("idempotency-key"),
+        });
+        stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nStripe-Version: 2025-03-31.basil\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",RESPONSE.len()).as_bytes()).expect("response header");
+        let pause = {
+            let mut armed = response_pause.lock().expect("response pause");
+            match *armed {
+                Some(ProviderPause::Write(port)) => {
+                    *armed = None;
+                    Some(port)
+                }
+                _ => None,
+            }
+        };
+        if let Some(port) = pause {
+            stream.write_all(&RESPONSE[..1]).expect("partial response");
+            pause_at(port);
+            let _ = stream.write_all(&RESPONSE[1..]);
+        } else {
+            stream.write_all(RESPONSE).expect("response body");
+        }
+    }
     fn calls(&self) -> usize {
         self.requests.lock().expect("requests").len()
+    }
+    fn read_calls(&self) -> usize {
+        self.reads.lock().expect("reads").len()
     }
 }
 impl Drop for Provider {
@@ -290,14 +388,23 @@ fn native_mutation_crash_peer() {
         Backend::parse(&setup.installation.backend),
         &setup.installation.location,
     );
-    let wrapped = Arc::new(PausedStore::new(
-        attached.raw(),
-        key(setup.flavor),
-        OPERATION,
-        CrashProtocol::Mutation,
-        Some(setup.point),
-        setup.installation.barrier_port,
-    ));
+    let wrapped = Arc::new(match setup.prerequisite {
+        Some(index) => PausedStore::selected(
+            attached.raw(),
+            crate::store::fixture_prerequisite_key(key(setup.flavor), index),
+            CrashProtocol::Acquisition,
+            setup.point,
+            setup.installation.barrier_port,
+        ),
+        None => PausedStore::new(
+            attached.raw(),
+            key(setup.flavor),
+            OPERATION,
+            CrashProtocol::Mutation,
+            Some(setup.point),
+            setup.installation.barrier_port,
+        ),
+    });
     let attempts = GatewayAttempts::new(wrapped, crate::effect::fixture_policy().expect("policy"))
         .expect("attempts");
     let runtime = runtime();
@@ -318,6 +425,7 @@ fn native_mutation_crash_peer() {
 struct Authorization {
     request: Request,
     counters: Vec<Counter>,
+    prerequisites: Vec<u8>,
 }
 struct Counter {
     kind: GatewayRecordKind,
@@ -373,35 +481,42 @@ async fn authorize(engine: &GatewayEngine, setup: &CrashSetup) -> Authorization 
             }
         })
         .collect::<Vec<_>>();
-    assert_eq!(
-        counters.len(),
-        if matches!(setup.flavor, Flavor::StripePlain) {
-            2
-        } else {
-            0
-        }
-    );
+    assert_eq!(counters.len(), if setup.flavor.is_stripe() { 2 } else { 0 });
     let approval = effect
         .approval_request(NOW, NOW + 300)
         .expect("exact review");
     let signature = SigningKey::from_bytes(&[29; 32])
         .sign(&approval.signing_message().expect("preimage"))
         .to_bytes();
+    let approval = approval.with_signature(signature);
+    let approved = effect
+        .approve(
+            approval.clone(),
+            &SigningKey::from_bytes(&[29; 32]).verifying_key().to_bytes(),
+            NOW,
+        )
+        .expect("approved effect");
+    let prerequisites = approved
+        .prerequisite_plans()
+        .expect("native prerequisite plans")
+        .iter()
+        .map(crate::effect::PrerequisitePlan::index)
+        .collect();
     for (name, bytes) in [
         ("write.proof", signed.proof),
         ("write.action", signed.action),
         (
             "write.approval",
-            approval
-                .with_signature(signature)
-                .to_private_bytes()
-                .expect("approval")
-                .to_vec(),
+            approval.to_private_bytes().expect("approval").to_vec(),
         ),
     ] {
         private(&setup.installation.root.join(name), &bytes);
     }
-    Authorization { request, counters }
+    Authorization {
+        request,
+        counters,
+        prerequisites,
+    }
 }
 
 struct Case {
@@ -430,6 +545,7 @@ impl Case {
             flavor,
             point,
             gate,
+            prerequisite: None,
             installation: Setup {
                 backend: backend.label().to_owned(),
                 location: store.location(),
@@ -501,7 +617,14 @@ impl Case {
                 .write_all(b"G")
                 .expect("release provider after SIGKILL");
         }
-        assert_eq!(self.provider.calls(), self.setup.point.provider_calls());
+        assert_eq!(
+            self.provider.calls(),
+            if self.setup.prerequisite.is_some() {
+                0
+            } else {
+                self.setup.point.provider_calls()
+            }
+        );
     }
     fn history(&self, attempts: &GatewayAttempts) -> Option<GatewayAttemptSnapshot> {
         self.runtime
@@ -560,6 +683,16 @@ impl Case {
         assert_eq!(
             self.store.raw().attempt_keys(8).expect("keys").len(),
             usize::from(bytes.is_some())
+                + if matches!(self.setup.flavor, Flavor::StripeGuarded)
+                    && !matches!(
+                        self.setup.point,
+                        Point::BeforeReservationCommit | Point::AfterReservationCommit
+                    )
+                {
+                    4
+                } else {
+                    0
+                }
         );
         if let Some(snapshot) = self.history(&self.store.reopen()) {
             assert_eq!(snapshot.evaluated_at(), NOW);
@@ -670,7 +803,13 @@ impl Case {
             );
             assert_eq!(
                 resumed.read_transport_entries - witness.read_transport_entries,
-                0
+                if matches!(self.setup.flavor, Flavor::StripeGuarded)
+                    && !matches!(self.setup.point, Point::BeforeEntryCommit)
+                {
+                    4
+                } else {
+                    0
+                }
             );
         } else {
             assert_eq!(
@@ -710,8 +849,8 @@ impl Case {
         json!({"recipe":self.setup.flavor.label(), "pause":self.setup.point, "sigkill":true, "resume_gate":self.setup.gate,
             "provider_writes_at_kill":self.setup.point.provider_calls(), "native_result_after_reopen":result,
             "prior_grant_absent":self.setup.point.resumable(), "continued_after_fresh_authorization":self.may_continue(), "provider_writes_after_replays":calls,
-            "native_count_slots":usize::from(matches!(self.setup.flavor, Flavor::StripePlain)),
-            "native_sum_units":if matches!(self.setup.flavor, Flavor::StripePlain) { 500 } else { 0 },
+            "native_count_slots":usize::from(self.setup.flavor.is_stripe()),
+            "native_sum_units":if self.setup.flavor.is_stripe() { 500 } else { 0 },
             "same_reviewed_request_and_declared_idempotency":true,
             "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged":true})
     }

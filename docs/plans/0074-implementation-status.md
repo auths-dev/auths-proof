@@ -3460,46 +3460,27 @@ Semantic metadata construction advances freeze421 and only reported changed
 identity164/public-SDK161/public-surface421 subjects. Formal translation closure
 remains a002; metadata construction is not new hosted or formal qualification.
 
-## Phase gates
+## Current phase and acceptance gates — final coding batch
 
-| Phase | State | Outstanding gate |
+The [final acceptance audit](0074-final-acceptance-audit.md) is the current
+P0–P4, E01–E05, R01–R10 and A01–A22 producer/requirement map. It supersedes the
+stale outstanding-work descriptions in earlier checkpoint tables, without
+removing any spec requirement or test. The historical checkpoints above and below
+remain provenance, not instructions to reimplement later completed behavior.
+
+| Phase | Current implementation | Unclosed gate |
 | --- | --- | --- |
-| P0 | Owner decision and limits documented | Keep consumer inventory current during cutover |
-| P1 | Binding, approval and native review contract wired; installed write/recovery owner UI executed on74ce | New complete content journey and remaining adversarial review/binding parity evidence |
-| P2 | Ordered admission, mutation grant/restart and linked recovery refinement wired | Full public recovery actions, installed fault/race evidence and formal links |
-| P3 | Acquisition/disclosure runtime, call authoring and CLI composition wired; installed Python/TypeScript acquisitions and native recipient UI authored | New exact-head installed journey execution and remaining native adverse read/release cases; AP070 stays independent |
-| P4 | Partial CLI process journey | Differential, full faults/adapters, installed bindings/UI, formal/performance links and CI |
+| P0 | Native owner/consumer map, ownership ADR, abstraction and independent reference contracts documented | Final source inventory and architecture/compliance audit |
+| P1 | Immutable binding, exact approval, complete literal review and installed native request path; independent binding/review substitutions authored | Construct final corpus and verify exact-head native/SDK/UI evidence |
+| P2 | Sole typed journal/transition and admission/entry fence; all-protocol adapter races, crashes, faults and recovery; final guarded/partial-upload/journal batch authored | Final artifact construction and exact-head adverse adapter evidence |
+| P3 | Native acquisition, separate recipient disclosure/ACK, retained history and thin installed wrappers | Final exact-head installed journey plus adverse read/release evidence |
+| P4 | Two-recipe/information differential, installed owner journey, complete restricted interface inventory, public/private audit, translated/formal links, cost and generated histories implemented | Complete final hosted cohort, formal/release/platform gates and requirement audit |
 
-## Acceptance ledger
-
-`Authored` means scenario source exists, not that it passed. `Executed` requires
-the exact tested revision and a reproducible result. External qualification is a
-separate claim. No complete AP074 acceptance gate is currently closed or externally qualified.
-
-| Case | Required evidence | Implementation / authored / executed | Limitation or next work |
-| --- | --- | --- | --- |
-| A01 | Same bound identity and exact request across review/approval/send | Partial / native review/compiler and real mutation replay corpus / ten file/TLS PostgreSQL histories send the exact reviewed PATCH body | Full installed review-completeness and authenticated human/UI evidence pending |
-| A02 | Independent mutation of every binding dimension | Partial / bound-effect corpus, native retained-input controls and 58 valid-authority acquisition/disclosure substitutions on file/TLS PostgreSQL / closed scope/contract/source/recipient/channel/delivery substitutions refused without admission or I/O | Complete independent substitutions for every binding dimension and installed surface remain required |
-| A03 | Concurrent/restart replay, conflict, approval reuse | Partial / adapter, candidate process and native retained histories / forty file/TLS PostgreSQL replay histories executed, with original/reopened mutation engines and reopened acquisition/disclosure engines | Full native mutation/disclosure concurrent schedules and installed binding evidence remain required |
-| A04 | Final count/byte/sum capacity, file and PostgreSQL | Partial / native lifetime/acquisition histories executed; twelve mutation/disclosure count/sum/both contention histories now constructed on both adapters using prefix plus two OS contenders | New-head hosted confirmation and complete dependency-change/adverse grant schedules remain required |
-| A05 | Crash at every persistence/transport boundary | Partial / native acquisition and mutation worker matrices plus daemon-recipient ACK loss / fourteen acquisition and sixty mutation/continuation file/TLS PostgreSQL histories executed, including native Stripe count/sum retention and current-authority refusal after restart | Full guarded Stripe/prerequisite and disclosure schedules, partial uploads, ACK persistence and actual durability faults remain |
-| A06 | Sync/rename, partial batch, ambiguous commit/CAS | Partial / 47 modeled file-error histories, eleven actual PostgreSQL admission-prefix aborts and twenty committed/aborted reply-loss histories across all protocols | Remaining adverse/installed cases and runtime-refinement/durability assumptions required |
-| A07 | Revoke between acquisition and disclosure | Partial / daemon corpus plus native file/TLS PostgreSQL worker/operator release races / withdrawal before final grant produces no post-authentication wire bytes or ACK, while grant-first records exact delivery/ACK | Complete revocation scopes and installed boundary races |
-| A08 | ACK loss, restart, no redelivery, late ACK | Partial / daemon/recipient, native crash, commit-reply loss and file-error corpora / fifty-six release crash histories, eight committed/aborted release transactions and eighteen file-error histories retain charges through lost grants and ACK/Unknown persistence; genuine late ACKs never authorize redelivery | Remaining adverse races, runtime links and full installed boundary evidence pending |
-| A09 | ACK substitution in every dimension | Partial / signed ACK corpus plus actual gateway/recipient OS-process corpus on both stores / three hundred re-signed/signature substitutions against real retained grants rejected before thirty genuine late ACKs | Remaining installed language/containment and complete negative parity evidence required |
-| A10 | Timeout/denial/response/state-match distinction | Partial / candidate HTTP and independent native recovery histories / six candidate process histories plus eight file/TLS PostgreSQL histories distinguish denial, lost/recorded response, state equality and declared echo linkage | Complete installed mutation, observation and disclosure projections |
-| A11 | Missing/multiple/unrelated/incomplete reconciliation | Native implementation and file/TLS PostgreSQL HTTP constructors cover zero, multiple, unrelated and incomplete observations; elapsed native transport timeout; lifetime usage, escalation and conservative unavailable-store responses | Current-head hosted confirmation; full installed/interface evidence remains under A22 |
-| A12 | Revocation/configuration races with both entries | Partial / socket-file disclosure gate, native acquisition plus 24 mutation and 24 disclosure worker/operator histories / actual file/TLS PostgreSQL writer-fence schedules order withdrawal around final grant | Complete dependency/revocation scopes and installed/adverse races remain required |
-| A13 | Lock wait and independent evidence expiries | Partial / prerequisite age and native acquisition/mutation/disclosure proof/approval/observer/threshold lock waits / eligible and expired controls executed on file/TLS PostgreSQL, with zero post-authentication disclosure wire bytes on refusal | Remaining dependency/revocation scopes and installed/adverse evidence required |
-| A14 | Valid threshold selection changes | Partial / genuine native 1-of-2 proof and independent worker/operator writer-fence controls across all three protocols / 12 file/TLS PostgreSQL threshold histories preserve Authorized proof while changed selected authority invalidates the old still-current exact approval | Complete installed language/UI and remaining selected-authority/adverse boundaries required |
-| A15 | Recovery actor differs; original authority revoked | Native implementation / eight independent writer/reader OS-process histories plus eight retained-history schedules on file/TLS PostgreSQL; writer withdrawal, reader grant/approval expiry and root withdrawal preserve attribution/charges while blocking new entry | Current-head hosted confirmation; further final-entry scopes remain under A12/A13 and installed owner/interface evidence under A22 |
-| A16 | Cross-task/recipe/partition substitution | Partial / native valid-authority unscoped negatives and four shared-store file/TLS PostgreSQL partition/recipe histories / foreign approval, retained history and release provenance refused; original facts retained | Complete installed-boundary and remaining scope substitution evidence; no AP073 task implementation required |
-| A17 | Sentinel privacy across errors/logs/public bindings | Partial / candidate output sentinels / local acquisition stdout/stderr | Full logs, receipts and binding privacy evidence |
-| A18 | Canonical/malformed/duplicate/limit binding corpus | Partial / native tests and cross-language control cases / native closed content-frame corpus executed | Full binding parity and negative corpus execution pending |
-| A19 | Stripe/Airtable and acquisition/disclosure differential | Partial / independent mutation and post-authorization information comparisons against unchanged references / hosted74ce mutation 28 requests + 26 responses, information 22 pairs across both adapters and 104 source/parser controls passed | Named A19 contracts audited in the differential-contracts document; final-head confirmation remains required, with AP070 independence and divergent claims retained |
-| A20 | Generated histories and shipping predicate refinement | Partial / typed histories, source-linked three-protocol transition/submission refinement, Kani source / 329-statement audit, pinned qualification and four Rust refinement tests executed locally | Full generated concurrent durable histories, mutation campaigns and final hosted formal evidence remain required |
-| A21 | Tombstones, stale state, supported rollback floors | Partial / bounded maintenance/shared clock and stable epoch control; native terminal/reserved mutation/disclosure cleanup now constructed on both stores with original authority/approval times still current and unchanged permanent rows | New-head hosted confirmation, concurrent epoch/configuration schedules and supported rollback-floor evidence remain required |
-| A22 | Installed single-human/single-agent full journey/UI | Partial / native CLI journey and hosted74ce write/recovery UI; CI subagent reports repaired source-free full Python/TypeScript acquisition/native disclosure/write/observation/unknown reproduction passed against original ab980 package plus repaired payloads | Exact new-head hosted confirmation, complete hostile interface inventory and remaining adverse/negative integration evidence |
+All A01–A22 remain **unverified on the final revision** until the new batch and
+all required exact-head gates execute. The final audit names a concrete producer
+and expected boundary observation for every row. Earlier passing source revisions
+are useful regression evidence and cannot qualify later changes. External live
+provider qualification is a separate, unclaimed deployment property.
 
 ## Deployment assumptions retained
 
@@ -4024,3 +4005,75 @@ surface430, only as required by the changed compliance evidence inventory.
 Hosted execution and complete acceptance closure remain pending. Main has not
 inspected CI or run local SDK, lint, broad test or formal suites.
 Semantic metadata construction passed for this review-evidence batch. No complete acceptance row is closed by the constructor alone.
+
+## Complete final hardening batch authored — verification pending
+
+The finite [coding checklist](0074-final-coding-checklist.md) is written before
+execution, following the owner's batch instruction now recorded in AGENTS.md.
+No test, formatter, fixture constructor or new CI cohort ran while authoring it.
+
+- Full maintained Stripe mutation: four installed prerequisite acquisitions
+  (account, two denied reads, relative ceiling), 15 parent schedules and 28 child
+  schedules per durable adapter. Onboarding probe remains candidate-owned.
+  Completed evidence stays byte-identical. Lost child grants preserve the parent
+  reservation, do not refetch evidence or create transport, and never refund.
+- Actual TCP partial-upload relay forwards one approved body byte, kills the
+  gateway worker, then disconnects. Reopen retains Unknown and charges, with no
+  new custody/transport on replay; no kernel-backpressure or provider-atomicity
+  guarantee is claimed.
+- Thirteen independent real-signed binding substitutions plus original/fresh
+  approval controls. Unsupported namespace/configuration refuses compilation.
+- Epoch activation added to all three independent worker/operator entry-order
+  matrices on both adapters. Native generation-two positive, database-only
+  regression, same-generation substitution and missing/malformed/obsolete
+  independent floors retain facts and refuse before custody/entry.
+- Shared corrupt-journal corpus over mutation, acquisition, acknowledged release
+  and lost-ACK release. Each variant preserves writer encoding except explicit
+  encoding negatives, so canonicalization cannot mask independent checks.
+  Obsolete, duplicate, malformed, zero/unsafe/fractional/bool revision, changed
+  immutable bindings/approval/authority and inconsistent evidence refuse before
+  custody or transport. Exact restored positives pass without replay I/O.
+  Oversized replacement refuses at the adapter and preserves original bytes.
+
+The shared journal decoder now requires its existing writer encoding and a
+nonzero JSON-safe revision/time. Corrupt history yields typed indeterminate
+state rather than manufacturing non-entry. No compatibility reader or second
+production interpretation is added. New explicit CI selectors collect every
+independent hardening failure before exiting, retaining separate logs without
+changing the existing independent-reference log inventory.
+
+Construction, metadata refresh, combined verification and final hosted audit
+are pending. AP070 remains independent and AP073 remains untouched.
+
+## Final batch construction and aggregate verification
+
+All planned new artifacts and changed native histories are constructed. Both
+maintained adapters passed the 43 guarded parent/prerequisite schedules, both
+partial-upload recipes, all corrupt-journal protocol corpora, independent floor
+cases and three-protocol epoch races. The 13 signed binding dimensions pass with
+original/fresh approval controls. Its fixture now collects independent case
+failures rather than stopping at the first one. The epoch-only acquisition race
+retains the same approver, keeping epoch and approver changes independent.
+
+The initial 22-selector construction aggregate passed21/failed1; collected repairs
+corrected test-only action/grant validity and a header outside the existing closed
+registry, plus five Clippy diagnostics using focused helpers and an enum. No
+shipping authority rule or test assertion was weakened. The five previously
+reported stale native compilation constructors passed with authoritative outputs.
+
+Aggregate verification: gateway library298passed/3failed/63ignored; all-target,
+all-feature gateway Clippy passed; workspace formatting passed; semantic freeze
+passed62entries/43publicRustpackages. Two failures were transitive application
+fuzz/frame artifacts using the regenerated native approval. Their constructors
+pass after regeneration. The remaining file-store raw race returnedUnavailable
+under concurrent local I/O, then passed its unchanged exact selector in isolation.
+No production deadline or assertion was relaxed; the full concurrent local run
+remains recorded as failed, not silently replaced by a narrow success.
+
+The final six-selector repair cohort passed both application constructors, both
+dependency adapters, unchanged file-store conformance and final source closure.
+All new/affected behavioral constructors pass. Metadata construction advances
+freeze431 and only reported identity172/publicSDK168/publicsurface431 subjects.
+Final hosted broad, adapter, platform, installed, containment, differential,
+formal/refinement/release and performance evidence remains the CI agent's job.
+The goal remains incomplete until its exact-head completion audit passes.

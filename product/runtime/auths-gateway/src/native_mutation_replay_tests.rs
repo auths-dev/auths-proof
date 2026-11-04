@@ -562,3 +562,6 @@ fn postgres_native_mutation_retained_replay_fixture_is_current() {
     assert!(postgres_configured());
     matrix(Backend::Postgres);
 }
+
+#[path = "native_mutation_journal_tests.rs"]
+mod journal_tests;

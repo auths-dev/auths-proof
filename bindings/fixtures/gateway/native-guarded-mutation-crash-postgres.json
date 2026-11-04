@@ -1,0 +1,818 @@
+{
+  "schema": "auths.native-guarded-mutation-crash/1",
+  "adapter": "postgres",
+  "scope": "maintained full Stripe recipe, real HTTP credential/relative reads and mutation, OS SIGKILL, native proof/approval and durable adapters; synthetic credential/key/clock",
+  "parent_cases": [
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 0,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 0,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "during-response",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "approval-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 0,
+      "prerequisite_reads_after_replay": 0,
+      "retained_prerequisite_records": 0,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "authority-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 0,
+      "prerequisite_reads_after_replay": 0,
+      "retained_prerequisite_records": 0,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "revoked",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 0,
+      "prerequisite_reads_after_replay": 0,
+      "retained_prerequisite_records": 0,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "configuration-replaced",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 0,
+      "prerequisite_reads_after_replay": 0,
+      "retained_prerequisite_records": 0,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "approval-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 2
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "authority-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 2
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "revoked",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 2
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    },
+    {
+      "recipe": "stripe-guarded",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "configuration-replaced",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 2
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true,
+      "prerequisite_reads_at_kill": 4,
+      "prerequisite_reads_after_replay": 4,
+      "retained_prerequisite_records": 4,
+      "prerequisite_evidence_not_refetched_or_retimestamped": true
+    }
+  ],
+  "prerequisite_cases": [
+    {
+      "prerequisite_index": 0,
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": null,
+      "provider_reads_at_kill": 0,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 0,
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 0,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 0,
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 0,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 0,
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 0,
+      "provider_reads_after_replays": 0,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 0,
+      "pause": "during-response",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 1,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 0,
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 1,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 0,
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "response-recorded",
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": null,
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 1,
+      "provider_reads_after_replays": 1,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "during-response",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 2,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 2,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 1,
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "response-recorded",
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": null,
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 2,
+      "provider_reads_after_replays": 2,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "during-response",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 3,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 3,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 2,
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "response-recorded",
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": null,
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "reserved",
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 3,
+      "provider_reads_after_replays": 3,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "during-response",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 4,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "entry-granted",
+      "provider_reads_at_kill": 4,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 0,
+      "native_result": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": true
+    },
+    {
+      "prerequisite_index": 3,
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "child_stage_at_kill": "response-recorded",
+      "provider_reads_at_kill": 4,
+      "provider_reads_after_replays": 4,
+      "provider_writes_after_replays": 1,
+      "native_result": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "parent_charges_preserved": true,
+      "completed_child_evidence_immutable": true,
+      "replay_creates_no_transport_entry": true,
+      "unresolved_child_preserves_parent_reservation": false
+    }
+  ],
+  "excluded": [
+    "live provider qualification",
+    "power loss",
+    "hostile OS",
+    "human presence"
+  ]
+}

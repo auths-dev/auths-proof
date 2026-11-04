@@ -140,7 +140,7 @@ impl CrashProtocol {
 }
 
 pub(super) struct PausedStore {
-    operation: &'static str,
+    operation: Option<&'static str>,
     protocol: CrashProtocol,
     inner: Arc<dyn GatewayAttemptStore>,
     key: GatewayAttemptKey,
@@ -160,19 +160,34 @@ impl PausedStore {
         Self {
             inner,
             key,
-            operation,
+            operation: Some(operation),
             protocol,
             point,
             port,
             fired: AtomicBool::new(false),
         }
     }
+    pub(super) fn selected(
+        inner: Arc<dyn GatewayAttemptStore>,
+        key: GatewayAttemptKey,
+        protocol: CrashProtocol,
+        point: Point,
+        port: u16,
+    ) -> Self {
+        let mut store = Self::new(inner, key, "", protocol, Some(point), port);
+        store.operation = None;
+        store
+    }
 
     fn target(&self, kind: GatewayRecordKind, key: GatewayAttemptKey) -> bool {
         kind == GatewayRecordKind::Attempt && key == self.key
     }
     fn phase(&self, bytes: &[u8]) -> String {
-        Self::phase_for(self.protocol, self.operation, bytes)
+        let value: Value = serde_json::from_slice(bytes).expect("native record");
+        let operation = self
+            .operation
+            .unwrap_or_else(|| value["operation_id"].as_str().expect("native operation"));
+        Self::phase_for(self.protocol, operation, bytes)
     }
     pub(super) fn phase_for(protocol: CrashProtocol, operation: &str, bytes: &[u8]) -> String {
         let value: Value = serde_json::from_slice(bytes).expect("native record");

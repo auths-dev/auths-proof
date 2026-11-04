@@ -236,6 +236,7 @@ fn retained_history(
 fn matrix(backend: Backend) {
     let artifact = serde_json::to_vec_pretty(&json!({"schema":"auths.native-epoch-fence/1",
         "adapter":backend.label(), "case":one_case(backend),
+        "independent_generation_floor":generation_floor_case(backend),
         "scope":"actual native proofs and exact approvals, shared activation fence, real HTTP and two engine/store instances; public fixture keys and maintained clock",
         "excluded":["malicious store rollback without an independent anchor", "all protocol race schedules", "hostile OS and live-provider qualification"]})).expect("artifact");
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
@@ -248,6 +249,113 @@ fn matrix(backend: Backend) {
     assert_eq!(std::fs::read(path).expect("fixture"), artifact);
 }
 
+fn generation_floor_case(backend: Backend) -> Value {
+    use crate::native_process_tests::load_controlled_engine_at_generation;
+    use std::num::NonZeroU64;
+    let fixture = Fixture::new(backend);
+    let template = crate::harness::fixture_connection(&recipe()).expect("template");
+    let shared = SharedConnection::new(
+        fixture.store.raw(),
+        template.provider_kind().clone(),
+        template.alias().clone(),
+    );
+    let current = fixture
+        .runtime
+        .block_on(shared.load())
+        .expect("load")
+        .expect("connection");
+    let floor = crate::GenerationFloor::new(fixture.setup.root.clone());
+    floor
+        .initialize(current.record())
+        .expect("independent initial floor");
+    let key = crate::connection::connection_key(template.provider_kind(), template.alias());
+    let old = fixture
+        .store
+        .raw()
+        .load(GatewayRecordKind::Connection, &key)
+        .expect("load")
+        .expect("connection");
+    let (next, record) = fixture
+        .runtime
+        .block_on(load_controlled_engine_at_generation(
+            &fixture.setup,
+            "generation-two",
+            fixture.store.attempts().clone(),
+            controls(fixture.clock.clone(), 29),
+            NonZeroU64::new(2).expect("generation"),
+        ));
+    let next = next.with_generation_floor(floor.clone());
+    fixture
+        .runtime
+        .block_on(shared.replace(&current, &record))
+        .expect("generation-two install");
+    let signed = fixture.runtime.block_on(input(&next, "floor-positive"));
+    let accepted = fixture
+        .runtime
+        .block_on(acquire(&next, &signed))
+        .expect("current floor positive");
+    assert_eq!(accepted.stage, crate::AcquisitionStage::ResponseRecorded);
+    let raw = fixture.store.raw();
+    let newer = raw
+        .load(GatewayRecordKind::Connection, &key)
+        .expect("load")
+        .expect("new connection");
+    let floor_path = fixture.setup.root.join("connection-floor.json");
+    let retained_floor = std::fs::read(&floor_path).expect("accepted independent floor");
+    let records = fixture.records();
+    let witness = next.execution_witness();
+    // Restore only the database connection. The separately retained floor is
+    // deliberately not restored; this is the supported backup premise.
+    raw.replace(GatewayRecordKind::Connection, &key, &newer, &old)
+        .expect("isolated connection rollback");
+    let mut checks = Vec::new();
+    for name in [
+        "older-connection",
+        "same-generation-substitution",
+        "missing-floor",
+        "malformed-floor",
+        "obsolete-floor",
+    ] {
+        if name == "same-generation-substitution" {
+            raw.replace(GatewayRecordKind::Connection, &key, &old, &newer)
+                .expect("restore current generation");
+        }
+        change_floor(name, &floor_path, &retained_floor);
+        assert!(
+            fixture
+                .runtime
+                .block_on(next.compile_content_action(&signed.proof, &signed.action))
+                .is_err(),
+            "{name}"
+        );
+        assert_eq!(next.execution_witness(), witness);
+        assert_eq!(fixture.provider.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(fixture.records(), records);
+        checks.push(
+            json!({"case":name,"refused_before_custody_and_entry":true,"attempts_unchanged":true}),
+        );
+        // Only the test operator restores the independent anchor. Runtime may
+        // never bootstrap a missing floor from a restored database record.
+        if name == "missing-floor" {
+            assert!(!floor_path.exists());
+        }
+        std::fs::write(&floor_path, &retained_floor).expect("operator restores exact anchor");
+        std::fs::set_permissions(&floor_path, std::fs::Permissions::from_mode(0o600))
+            .expect("private floor");
+    }
+    assert_eq!(
+        fixture
+            .runtime
+            .block_on(acquire(&next, &signed))
+            .expect("retained exact replay"),
+        accepted
+    );
+    assert_eq!(next.execution_witness(), witness);
+    json!({"current_generation":2,"current_positive_provider_reads":1,"cases":checks,
+        "premise":"host-local independent floor survives database backup/restore",
+        "excluded":"rollback of both the complete store and every independent floor"})
+}
+
 #[test]
 fn native_file_epoch_fence_fixture_is_current() {
     matrix(Backend::File);
@@ -258,4 +366,23 @@ fn native_file_epoch_fence_fixture_is_current() {
 fn postgres_native_epoch_fence_fixture_is_current() {
     assert!(postgres_configured());
     matrix(Backend::Postgres);
+}
+
+fn change_floor(name: &str, path: &Path, retained: &[u8]) {
+    match name {
+        "same-generation-substitution" | "obsolete-floor" => {
+            let mut value: Value = serde_json::from_slice(retained).expect("floor");
+            if name == "same-generation-substitution" {
+                value["record_sha256"] = json!("00".repeat(32));
+            } else {
+                value["schema"] = json!("auths.gateway-generation-floor/0");
+            }
+            std::fs::write(path, serde_json::to_vec(&value).expect("floor"))
+                .expect("changed floor");
+        }
+        "missing-floor" => std::fs::remove_file(path).expect("remove floor"),
+        "malformed-floor" => std::fs::write(path, b"{").expect("malformed"),
+        "older-connection" => {}
+        _ => unreachable!("closed floor corpus"),
+    }
 }

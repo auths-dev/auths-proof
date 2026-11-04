@@ -49,57 +49,98 @@ jobs:
           set -o pipefail
           mkdir -p target
           {
-          cargo test -p auths-gateway --lib -- --ignored postgres
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_crash_tests::native_file_process_crash_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_crash_tests::postgres_native_process_crash_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::postgres_native_mutation_process_crash_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_native_disclosure_process_crash_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_dependency_tests::native_file_dependency_order_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_dependency_tests::postgres_native_dependency_order_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_budget_tests::native_file_window_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_budget_tests::postgres_native_window_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::window_capacity_tests::native_file_mutation_window_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_native_mutation_window_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::window_capacity_tests::native_file_disclosure_window_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::window_capacity_tests::postgres_native_disclosure_window_capacity_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_file_fault_tests::native_file_io_fault_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::window_capacity_tests::file_fault_tests::native_file_mutation_io_fault_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::file_fault_tests::native_file_disclosure_io_fault_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_postgres_fault_tests::postgres_native_partial_batch_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_postgres_commit_tests::postgres_native_commit_reply_loss_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::postgres_native_mutation_commit_reply_loss_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_replay_tests::native_file_mutation_retained_replay_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_replay_tests::postgres_native_mutation_retained_replay_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::native_file_information_retained_replay_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::postgres_native_information_retained_replay_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::retention_tests::native_file_retention_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::retention_tests::postgres_native_retention_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::epoch_tests::native_file_epoch_fence_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::epoch_tests::postgres_native_epoch_fence_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::scope_tests::native_file_managed_scope_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::scope_tests::postgres_native_managed_scope_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_replay_tests::entry_tests::native_file_mutation_entry_order_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_replay_tests::entry_tests::postgres_native_mutation_entry_order_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::entry_tests::native_file_disclosure_entry_order_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::entry_tests::postgres_native_disclosure_entry_order_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::native_file_independent_recovery_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::postgres_native_independent_recovery_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::limits_tests::native_file_recovery_limits_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::limits_tests::postgres_native_recovery_limits_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current
-          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current
-          cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres
+          failures=0
+          cargo test -p auths-gateway --lib -- --ignored postgres || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_crash_tests::native_file_process_crash_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_crash_tests::postgres_native_process_crash_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::postgres_native_mutation_process_crash_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_native_disclosure_process_crash_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_dependency_tests::native_file_dependency_order_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_dependency_tests::postgres_native_dependency_order_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_budget_tests::native_file_window_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_budget_tests::postgres_native_window_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::window_capacity_tests::native_file_mutation_window_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_native_mutation_window_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::window_capacity_tests::native_file_disclosure_window_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::window_capacity_tests::postgres_native_disclosure_window_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_file_fault_tests::native_file_io_fault_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::window_capacity_tests::file_fault_tests::native_file_mutation_io_fault_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_disclosure_crash_tests::file_fault_tests::native_file_disclosure_io_fault_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_postgres_fault_tests::postgres_native_partial_batch_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_postgres_commit_tests::postgres_native_commit_reply_loss_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::postgres_native_mutation_commit_reply_loss_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_replay_tests::native_file_mutation_retained_replay_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_replay_tests::postgres_native_mutation_retained_replay_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::native_file_information_retained_replay_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::postgres_native_information_retained_replay_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::retention_tests::native_file_retention_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::retention_tests::postgres_native_retention_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::epoch_tests::native_file_epoch_fence_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::epoch_tests::postgres_native_epoch_fence_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::scope_tests::native_file_managed_scope_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::scope_tests::postgres_native_managed_scope_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_replay_tests::entry_tests::native_file_mutation_entry_order_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_mutation_replay_tests::entry_tests::postgres_native_mutation_entry_order_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_information_replay_tests::entry_tests::native_file_disclosure_entry_order_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_information_replay_tests::entry_tests::postgres_native_disclosure_entry_order_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::native_file_independent_recovery_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::postgres_native_independent_recovery_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::limits_tests::native_file_recovery_limits_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::limits_tests::postgres_native_recovery_limits_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres || failures=$((failures + 1))
+          test "$failures" -eq 0
           } 2>&1 | tee target/ap074-native-adapter-evidence.log
+      - name: Run complete AP074 final hardening batch
+        if: ${{ !cancelled() }}
+        env:
+          AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_SERVER_NAME: localhost
+        run: |
+          set -o pipefail
+          mkdir -p target/ap074-final-hardening
+          failures=0
+          while IFS= read -r selector; do
+            extra=()
+            if [[ "$selector" == *::postgres_* ]]; then extra+=(--ignored); fi
+            log="target/ap074-final-hardening/${selector//::/__}.log"
+            if ! cargo test --locked -p auths-gateway --features loopback-provider,testkit-harness --lib -- "${extra[@]}" --exact "$selector" 2>&1 | tee "$log"; then
+              failures=$((failures + 1))
+            elif ! rg -q 'test result: ok\. 1 passed; 0 failed; 0 ignored;' "$log"; then
+              echo "Required selector did not execute exactly once: $selector"
+              failures=$((failures + 1))
+            fi
+          done <<'SELECTORS'
+          native_mutation_crash_tests::guarded_tests::native_file_guarded_mutation_crash_fixture_is_current
+          native_mutation_crash_tests::guarded_tests::postgres_native_guarded_mutation_crash_fixture_is_current
+          native_mutation_crash_tests::partial_upload_tests::native_file_partial_upload_fixture_is_current
+          native_mutation_crash_tests::partial_upload_tests::postgres_native_partial_upload_fixture_is_current
+          native_information_replay_tests::journal_tests::native_file_information_journal_fixture_is_current
+          native_information_replay_tests::journal_tests::postgres_native_information_journal_fixture_is_current
+          native_mutation_replay_tests::journal_tests::native_file_mutation_journal_fixture_is_current
+          native_mutation_replay_tests::journal_tests::postgres_native_mutation_journal_fixture_is_current
+          observed_tests::effect_native_tests::binding_boundary_tests::native_independent_binding_substitutions_require_new_approval
+          SELECTORS
+          test "$failures" -eq 0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ap074-final-hardening-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ap074-final-hardening/
+          if-no-files-found: error
+          retention-days: 30
       - name: Measure native managed paths and bounded recovery inventory
         env:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require

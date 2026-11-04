@@ -701,7 +701,10 @@ impl<S> Record<S> {
                 pre_entry.decode()?;
             }
         }
-        if self.schema != SCHEMA
+        if self.revision == 0
+            || self.revision > MAX_JSON_INTEGER
+            || self.evaluated_at > MAX_JSON_INTEGER
+            || self.schema != SCHEMA
             || self.nonce.len() != 32
             || !self
                 .nonce
@@ -1402,6 +1405,11 @@ impl GatewayRecordEntry {
             expires_at: self.expires_at,
         }
     }
+}
+
+#[cfg(test)]
+pub(crate) fn fixture_prerequisite_key(parent: GatewayAttemptKey, index: u8) -> GatewayAttemptKey {
+    acquisition::prerequisite_key(parent, index)
 }
 
 fn validate_batch(entries: &[GatewayRecordEntry]) -> Result<(), GatewayAttemptError> {
@@ -3224,6 +3232,11 @@ fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttempt
     }
     let record: Record<ProtocolState> =
         serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+    // The journal has one writer encoding. Refuse alternate encodings before
+    // history lookup can turn restored bytes into a retained execution fact.
+    if canonical(&record)?.as_slice() != bytes {
+        return Err(GatewayAttemptError::Corrupt);
+    }
     record.validate_header()?;
     match &record.state {
         ProtocolState::Disclosure(_) => {

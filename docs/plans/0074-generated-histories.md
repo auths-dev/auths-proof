@@ -41,7 +41,12 @@ count/sum capacity, crash durability, hostile-process containment or provider
 qualification. Those remain the responsibility of the existing source-linked
 kernel/refinement and file/PostgreSQL fault, capacity, entry, disclosure and
 independent-recovery evidence. No production decision, journal or retry owner is
-added. Hosted execution is pending; this source does not close A20 on its own.
+added. The CI agent verified both selectors on source `5acd62b0`, each exactly
+once with one pass and zero ignored, retaining ZIP artifact `13359018734`
+(SHA256 `2f3572c91035a9cd7a022d489dd38377fb38a278ed417bba3aba49705aef4295`).
+Both reports contain all four seeds, 72 workers per backend, actual HTTP/native
+counters and preserved replay bytes. This earlier-source evidence cannot qualify
+the final changed head or close A20 on its own.
 
 Installed trust, signer keys, provider credentials and clock are explicit synthetic
 fixtures. Ordinary native verification and exact signatures still execute; the

@@ -82,6 +82,8 @@ pub(super) struct EngineControls {
     pub(super) clock: Arc<crate::FixedClock>,
     pub(super) recipe: Option<CompiledRecipe>,
     pub(super) trust: Option<Vec<u8>>,
+    /// Explicit public synthetic credential for a recipe's real prefix guard.
+    pub(super) credential: Option<&'static [u8]>,
 }
 impl EngineControls {
     pub(super) fn baseline() -> Self {
@@ -90,6 +92,7 @@ impl EngineControls {
             clock: Arc::new(crate::FixedClock::at(NOW)),
             recipe: None,
             trust: None,
+            credential: None,
         }
     }
 }
@@ -136,7 +139,8 @@ pub(super) async fn load_controlled_engine_at_generation(
         .install(
             initial.connection_id(),
             generation,
-            SecretBytes::new(SECRET.to_vec()).expect("synthetic credential"),
+            SecretBytes::new(controls.credential.unwrap_or(SECRET).to_vec())
+                .expect("synthetic credential"),
         )
         .await
         .expect("credential install");

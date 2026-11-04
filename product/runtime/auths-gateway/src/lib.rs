@@ -183,6 +183,9 @@ mod native_postgres_commit_tests;
 
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_information_replay_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_journal_tests;
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_mutation_replay_tests;
 

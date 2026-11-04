@@ -47,6 +47,39 @@
     ],
     "provider_reads": 2
   },
+  "independent_generation_floor": {
+    "current_generation": 2,
+    "current_positive_provider_reads": 1,
+    "cases": [
+      {
+        "case": "older-connection",
+        "refused_before_custody_and_entry": true,
+        "attempts_unchanged": true
+      },
+      {
+        "case": "same-generation-substitution",
+        "refused_before_custody_and_entry": true,
+        "attempts_unchanged": true
+      },
+      {
+        "case": "missing-floor",
+        "refused_before_custody_and_entry": true,
+        "attempts_unchanged": true
+      },
+      {
+        "case": "malformed-floor",
+        "refused_before_custody_and_entry": true,
+        "attempts_unchanged": true
+      },
+      {
+        "case": "obsolete-floor",
+        "refused_before_custody_and_entry": true,
+        "attempts_unchanged": true
+      }
+    ],
+    "premise": "host-local independent floor survives database backup/restore",
+    "excluded": "rollback of both the complete store and every independent floor"
+  },
   "scope": "actual native proofs and exact approvals, shared activation fence, real HTTP and two engine/store instances; public fixture keys and maintained clock",
   "excluded": [
     "malicious store rollback without an independent anchor",

@@ -487,3 +487,6 @@ fn postgres_native_information_retained_replay_fixture_is_current() {
     assert!(postgres_configured());
     matrix(Backend::Postgres);
 }
+
+#[path = "native_information_journal_tests.rs"]
+mod journal_tests;

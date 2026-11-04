@@ -28,6 +28,8 @@ mod prerequisite_tests;
 #[path = "effect_read_budget_tests.rs"]
 mod read_budget_tests;
 
+#[path = "effect_binding_boundary_tests.rs"]
+mod binding_boundary_tests;
 #[path = "effect_recovery_prerequisite_tests.rs"]
 mod recovery_prerequisite_tests;
 #[path = "effect_review_approval_tests.rs"]
