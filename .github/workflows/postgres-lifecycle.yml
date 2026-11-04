@@ -105,7 +105,7 @@ jobs:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
-          AUTHS_AP074_COST_DIRECTORY: target/ap074-native-cost
+          AUTHS_AP074_COST_DIRECTORY: ${{ github.workspace }}/target/ap074-native-cost
           AUTHS_EVIDENCE_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_recovery_actor_tests::cost_tests::native_file_cost_measurements
@@ -122,7 +122,7 @@ jobs:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
-          AUTHS_AP074_HISTORY_DIRECTORY: target/ap074-generated-histories
+          AUTHS_AP074_HISTORY_DIRECTORY: ${{ github.workspace }}/target/ap074-generated-histories
           AUTHS_EVIDENCE_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_recovery_actor_tests::generated_history_tests::native_file_generated_concurrent_histories

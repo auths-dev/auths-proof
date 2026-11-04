@@ -31,16 +31,16 @@ const RECOVERY: &str = "independent-reader";
 const PEER_ENV: &str = "AUTHS_AP074_RECOVERY_ACTOR_PEER";
 const TARGET: &str = "/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001";
 
+#[path = "native_cost_tests.rs"]
+mod cost_tests;
+#[path = "native_generated_history_tests.rs"]
+mod generated_history_tests;
 #[path = "native_recovery_history_tests.rs"]
 mod history_tests;
 #[path = "native_recovery_limits_tests.rs"]
 mod limits_tests;
 #[path = "native_public_evidence_tests.rs"]
 mod privacy_tests;
-#[path = "native_cost_tests.rs"]
-mod cost_tests;
-#[path = "native_generated_history_tests.rs"]
-mod generated_history_tests;
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

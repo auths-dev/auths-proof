@@ -3966,3 +3966,30 @@ semantic metadata construction passed without release identity changes. Final
 source closure is `0057a01cccebd4fbc6b16c08a1a042f4af83ceee5e21e67a72c0c08c4bce88a1`.
 No local generated-history execution is claimed; the new explicit CI producers
 must execute before their evidence is accepted.
+
+## Integrated cost-artifact and private-audit fixture repairs
+
+Integrated all five changes from the CI subagent's `bbb391a9` directly into the
+current generated-history source: the parent module ordering is formatted with
+the new generated-history module retained; the other four path diffs apply
+unchanged. Cost and generated-history outputs now use workspace-absolute paths.
+The Python audit argument-forwarding stand-in targets private-bundle.json and
+poisons public bundle.json to detect fallback, retaining every verdict, pin and
+option assertion. Two Clippy repairs change only a literal separator and unit
+closure pattern. No runtime semantics, vectors or acceptance assertion changes.
+
+[The subagent report](0074-ci-repair-46989b7d.md) records actual source46989 hosted
+results:48 ordinary native selectors and both new cost selectors each executed
+once,1 passed/0 ignored; cost selector durations3.88s and4.88s. Their metric files
+were not uploaded due to the now-repaired path, so measured distributions remain
+unavailable. The independent22 comparison and restore were skipped after upload
+failure and are not claimed as passed. Both installed demos, owner journey,
+28/26 mutation differential and real SDK journeys passed, as reported by the
+subagent. Final current-head qualification remains required.
+
+Main ran only source artifact constructors: updated closure1 passed/0 ignored
+(0.07s), rebuilt closure1 passed/0 ignored(0.05s), and semantic metadata
+construction passed with no release identity changes. Final source closure is
+`c46116f44bcab92337597ef95fc499dd79488a214584135c60135fb82c44150a`.
+Generated concurrent histories remain unexecuted until the next exact-head CI
+cohort. Main did not inspect CI or rerun local SDK/Clippy/cost suites.

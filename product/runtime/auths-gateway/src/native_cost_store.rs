@@ -172,7 +172,7 @@ impl GatewayAttemptStore for MeteredStore {
             "replace",
             current.len() + next.len(),
             || self.inner.replace(kind, key, current, next),
-            |_| 0,
+            |()| 0,
         )
     }
 

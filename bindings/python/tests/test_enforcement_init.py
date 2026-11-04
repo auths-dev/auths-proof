@@ -543,15 +543,20 @@ def test_audit_passes_the_gateway_verdict_through_and_adds_no_option(
     pretend_setup(directory)
     pins = {"trusted_context_sha256": "00" * 32, "observer": "key:sha256:stand-in"}
     (directory / "audit" / "pins.json").write_text(json.dumps(pins))
-    (directory / "audit" / "bundle.json").write_text("{}")
+    # Stand-in transport fixtures only: the operator's private artifact is the
+    # default. Poison the public inventory to detect an accidental fallback.
+    (directory / "audit" / "bundle.json").write_text('{"pin-mismatch": true}')
+    private_bundle = directory / "audit" / "private-bundle.json"
+    private_bundle.write_text("{}")
     status, report, stderr = run(directory, "audit")
     assert (status, report, stderr.strip()) == (1, {"entries": [], "unverified": 1}, "audit.unverified")
     audit = [call for call in calls(short_root) if call[0] == "audit"][-1]
+    assert Path(audit[audit.index("--bundle") + 1]) == private_bundle
     assert "--allow-unverified-refusals" not in audit
     assert audit[audit.index("--trusted-context-sha256") + 1] == "00" * 32
     status, report, _ = run(directory, "audit", "--allow-unverified-refusals")
     assert status == 0 and report == {"entries": [], "unverified": 1}
-    (directory / "audit" / "bundle.json").write_text('{"pin-mismatch": true}')
+    private_bundle.write_text('{"pin-mismatch": true}')
     status, refused, stderr = run(directory, "audit")
     assert (status, refused, stderr.strip()) == (1, {"error": "audit.trust-pin-mismatch"}, "audit.trust-pin-mismatch")
     status, refused, _ = run(directory, "audit", "--bundle", "/etc/hosts")

@@ -138,7 +138,7 @@ pub(super) fn cases() -> Value {
         json!({"outcome":"observed","status":200,"matched":true}),
         json!({"outcome":"observed-by-provider","status":200,
             "evidence":{"schema":crate::PUBLIC_EVIDENCE_SCHEMA,"channel":"read-back",
-                "evidence_commitment":"ab".repeat(32),"observed_at":1790000000}}),
+                "evidence_commitment":"ab".repeat(32),"observed_at":1_790_000_000}}),
     ];
     let mut output = Vec::new();
     for base in &bases {
