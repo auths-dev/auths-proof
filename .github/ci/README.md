@@ -117,3 +117,8 @@ latest fifty same-branch PR runs of this exact CI workflow (other workflows do
 not consume that bound) and one hundred artifacts/jobs per candidate;
 no eligible retained producer means another fresh run. This availability limit
 never converts missing proof evidence into a passing skipped gate.
+
+GitHub's run-associated PR object contains a mutable current head snapshot. It
+establishes PR/repository membership, not the historical source SHA. The immutable
+run, exact-attempt successful job, artifact metadata and phase record must all
+agree on the producer source; changing any one remains a cold miss.

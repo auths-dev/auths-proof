@@ -118,6 +118,19 @@ class ReuseTests(unittest.TestCase):
         fixture = Evidence(); fixture.workflow_runs = [fixture.current] * 10 + [fixture.run]
         self.assertFalse(fixture.discover()); self.assertFalse(fixture.verified)
 
+    def test_current_pr_snapshot_does_not_replace_immutable_producer_revision(self):
+        fixture = Evidence()
+        fixture.run["pull_requests"][0]["head"]["sha"] = "e" * 40
+        self.assertTrue(fixture.discover())
+        self.assertEqual(fixture.verified[0][1]["AUTHS_REUSED_HEAD_SHA"], "d" * 40)
+        for owner in ["run", "job", "artifact", "phase"]:
+            with self.subTest(owner=owner):
+                fixture = Evidence()
+                fixture.run["pull_requests"][0]["head"]["sha"] = "e" * 40
+                target = fixture.artifact["workflow_run"] if owner == "artifact" else getattr(fixture, owner)
+                target["head_sha"] = "e" * 40
+                self.assertFalse(fixture.discover()); self.assertFalse(fixture.verified)
+
     def test_untrusted_or_different_run_is_ineligible(self):
         changes = [
             ("id", 100), ("workflow_id", 5), ("path", "other.yml"),

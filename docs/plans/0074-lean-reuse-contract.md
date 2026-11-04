@@ -66,3 +66,21 @@ inventory. The actual workflow-scoped GitHub endpoint returns current f5e9,
 previous ee797 and original977 CI runs, unlike the repository-wide first ten.
 No early f5e9 failed check was observed before this correction. Real bootstrap
 and warm-hit results remain pending; no hosted proof success is inferred.
+
+The requested audit against actual retained GitHub metadata found that a run's
+associated PR object updates its head SHA when the PR advances. Successfulce9
+run40899439849 and original977 now show the current20b PR snapshot. Historical
+identity instead matches across the immutable run, successful exact-attempt
+job123552204257, artifact12910849462 and its single lean.json member. Its verified
+ZIP SHA-256 is94562f1057bddcaae2aae0be22adc645c39830f498a72cf9a62c1057fb629cd1.
+The PR association still validates the number and both repository identities;
+only its mutable snapshot is excluded from historical source comparison. Tests
+accept this observed shape while refusing any mismatched immutable source field.
+The oldce9 record still lacks complete attestation and cannot qualify reuse.
+
+The complete metadata correction passed all11 provenance tests and the metadata
+constructor with no generated changes. Running the corrected transport against
+the retained actualce9 run accepts its same-PR association, then explicitly rejects
+its old phase for missing complete-input attestation. No native validator or
+qualified result was invoked or synthesized for that legacy artifact. No early20b
+failed check was observed before this correction.

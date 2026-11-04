@@ -64,11 +64,12 @@ def trusted_run(run, current, number):
         and run["head_repository"]["full_name"] == repo["full_name"]
         and run["head_branch"] == current["head_branch"]
         and hexadecimal(run["head_sha"], 40)
+        # GitHub keeps this PR association but updates its head snapshot.
+        # Historical source identity comes from the run/job/artifact/phase.
         and any(
             pr["number"] == number
             and pr["base"]["repo"]["id"] == repo["id"]
             and pr["head"]["repo"]["id"] == repo["id"]
-            and pr["head"]["sha"] == run["head_sha"]
             for pr in run["pull_requests"]
         )
     )
