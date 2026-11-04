@@ -331,13 +331,33 @@ pub(crate) fn validate(root: &Path, attenuation_dimensions: &[String]) -> Result
     Ok(closure_digest)
 }
 
+/// Recheck current source and qualification policy without rebuilding Lean.
+/// The caller must first validate successful clean Lean evidence against the
+/// complete proof-input closure; this function is not proof qualification.
+pub(crate) fn validate_current_lean_inputs(
+    root: &Path,
+    dimensions: &[String],
+) -> Result<(), String> {
+    let qualification = load_qualification(root)?;
+    validate_manifest(root, &qualification)?;
+    ensure_clean_extraction_environment(root, &qualification)?;
+    synchronize_source_closure(root, &qualification, false)?;
+    synchronize_reviewed_bridges(root, dimensions, false)?;
+    validate_generated_inventory(root, &qualification)?;
+    validate_translation_reports(root, &qualification)?;
+    validate_workflow_gates(root)?;
+    validate_warning_inventory(root, &qualification)
+}
+
 /// Rewrites only the lightweight source closure. The closure hashes sources,
 /// not translations, so it is reproducible without Aeneas; refreshing it
 /// before a push leaves the hosted formal updater nothing to commit.
 pub(crate) fn refresh_source_closure(root: &Path) -> Result<String, String> {
     let qualification = load_qualification(root)?;
     validate_manifest(root, &qualification)?;
-    synchronize_source_closure(root, &qualification, true)
+    let digest = synchronize_source_closure(root, &qualification, true)?;
+    crate::formal::refresh_assurance_source_binding(root)?;
+    Ok(digest)
 }
 
 pub(crate) fn validate_source_closure(root: &Path) -> Result<String, String> {
@@ -1417,6 +1437,10 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
                 .to_owned(),
         );
     }
+    validate_lean_reuse_fallback(
+        proof_job,
+        "Compile the highest-value proofs, then the complete Lean libraries",
+    )?;
     let formal_job = workflow_job_source(ci, "formal-translation-run")?;
     if !formal_job.contains("compiler-cache: \"false\"")
         || formal_job.contains("formal-proof-fast")
@@ -1474,6 +1498,7 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
             "authoritative Lean can start without qualified translation and fast proof".to_owned(),
         );
     }
+    validate_lean_reuse_fallback(lean_job, "Clean and rebuild authoritative Lean evidence")?;
     // Formal evidence skips aggregation on this output. A `needs` read of an
     // output the job never declares is an empty string, so the guard would pass
     // on every run and a pending update would surface only as missing evidence.
@@ -1654,6 +1679,31 @@ fn validate_release_workflow_gates(orchestration: &str, builder: &str) -> Result
             "cargo xtask formal qualify aeneas",
         ],
     )
+}
+
+fn validate_lean_reuse_fallback(job: &str, fresh_step: &str) -> Result<(), String> {
+    for required in [
+        "- id: lean-reuse",
+        "if: github.event_name == 'pull_request'",
+        "run: python3 .github/scripts/reuse-formal-lean.py",
+        "AUTHS_FORMAL_PHASE_CLOSURE_SHA256",
+        "AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256",
+        "AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256",
+    ] {
+        if !job.contains(required) {
+            return Err(format!(
+                "Lean reuse omits required provenance/input binding {required}"
+            ));
+        }
+    }
+    let fallback =
+        format!("- name: {fresh_step}\n        if: steps.lean-reuse.outputs.reused != 'true'");
+    if !job.contains(&fallback) {
+        return Err(
+            "Lean reuse must retain the fresh gate on every missing or refused artifact".to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn validate_gate_source(label: &str, source: &str, needles: &[&str]) -> Result<(), String> {
@@ -2415,6 +2465,24 @@ fn format_command_failure(arguments: &[String], directory: &Path, output: &Outpu
 mod tests {
     use super::*;
 
+    #[test]
+    fn lean_reuse_cannot_remove_or_reverse_fresh_fallback() {
+        assert!(validate_ci_workflow_gates(CI_GATES).is_ok());
+        for changed in [
+            CI_GATES.replace("if: steps.lean-reuse.outputs.reused != 'true'", "if: false"),
+            CI_GATES.replace(
+                "run: python3 .github/scripts/reuse-formal-lean.py",
+                "run: echo accepted",
+            ),
+            CI_GATES.replace(
+                "AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: current",
+                "unbound: true",
+            ),
+        ] {
+            assert!(validate_ci_workflow_gates(&changed).is_err());
+        }
+    }
+
     const CI_GATES: &str = r#"uses: ./.github/actions/setup-lean
 kani-verifier --version 0.67.0
 cargo xtask ci preflight
@@ -2425,7 +2493,16 @@ needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
   formal-proof-fast:
 needs: [ci-plan, formal-update-gate]
-cargo xtask ci formal-proof-fast
+      - id: lean-reuse
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: current
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: current
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: current
+        run: python3 .github/scripts/reuse-formal-lean.py
+      - name: Compile the highest-value proofs, then the complete Lean libraries
+        if: steps.lean-reuse.outputs.reused != 'true'
+        run: cargo xtask ci formal-proof-fast
   formal-translation-run:
 needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
@@ -2458,7 +2535,16 @@ cargo xtask ci formal-kani
 needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast, formal-translation-run]
 needs.formal-proof-fast.result == 'success'
 needs.formal-translation-run.result == 'success'
-cargo xtask ci formal-lean-authoritative
+      - id: lean-reuse
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: current
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: current
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: current
+        run: python3 .github/scripts/reuse-formal-lean.py
+      - name: Clean and rebuild authoritative Lean evidence
+        if: steps.lean-reuse.outputs.reused != 'true'
+        run: cargo xtask ci formal-lean-authoritative
       - id: formal-update
       - name: Stop qualification until the assurance update is committed
         if: steps.formal-update.outputs.update_required == 'true'

@@ -343,6 +343,8 @@ struct FormalPhaseResult {
     reproduction_count: u8,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     reused_from: Option<FormalReuseProducer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    proof_inputs_sha256: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -351,6 +353,12 @@ struct FormalReuseProducer {
     run_id: String,
     run_attempt: String,
     head_sha: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artifact_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artifact_sha256: Option<String>,
 }
 
 /// Early Lean rejection gate. This intentionally emits no qualification
@@ -431,6 +439,9 @@ fn validate_reusable_translation_phase(
         run_id: required_formal_environment("AUTHS_REUSED_RUN_ID")?,
         run_attempt: required_formal_environment("AUTHS_REUSED_RUN_ATTEMPT")?,
         head_sha: required_formal_environment("AUTHS_REUSED_HEAD_SHA")?,
+        job_id: None,
+        artifact_id: None,
+        artifact_sha256: None,
     };
     let current_run_id = required_formal_environment("GITHUB_RUN_ID")?;
     let translation_closure = required_formal_digest("AUTHS_FORMAL_PHASE_CLOSURE_SHA256")?;
@@ -508,6 +519,126 @@ pub(crate) fn ci_formal_lean_authoritative() -> Result<(), String> {
     Ok(())
 }
 
+/// Reattest a clean same-PR producer for the current head. The downloader
+/// verifies GitHub provenance and ZIP integrity; this owner independently
+/// binds complete current inputs. Legacy records and reuse chains run cold.
+pub(crate) fn ci_formal_lean_reuse() -> Result<(), String> {
+    let path = PathBuf::from(required_formal_environment(
+        "AUTHS_REUSED_LEAN_PHASE_RESULT",
+    )?);
+    let bytes =
+        fs::read(&path).map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    if bytes.len() > 1_048_576 {
+        return Err("reusable Lean phase exceeds the finite artifact bound".to_owned());
+    }
+    let prior: FormalPhaseResult = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("invalid reusable Lean phase: {error}"))?;
+    let producer = FormalReuseProducer {
+        run_id: required_formal_environment("AUTHS_REUSED_RUN_ID")?,
+        run_attempt: required_formal_environment("AUTHS_REUSED_RUN_ATTEMPT")?,
+        head_sha: required_formal_environment("AUTHS_REUSED_HEAD_SHA")?,
+        job_id: Some(required_formal_environment("AUTHS_REUSED_JOB_ID")?),
+        artifact_id: Some(required_formal_environment("AUTHS_REUSED_ARTIFACT_ID")?),
+        artifact_sha256: Some(required_formal_digest("AUTHS_REUSED_ARTIFACT_SHA256")?),
+    };
+    let current_run = required_formal_environment("GITHUB_RUN_ID")?;
+    let source = formal_qualification::validate_source_closure(&root())?;
+    let phase = required_formal_digest("AUTHS_FORMAL_PHASE_CLOSURE_SHA256")?;
+    let toolchain = required_formal_digest("AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256")?;
+    let evidence = required_formal_digest("AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256")?;
+    let lock = formal_toolchain_digest()?;
+    let proof = auths_ci_plan::formal_proof_inputs_digest(&root())?;
+    let expected = FormalReuseInputs {
+        current_run_id: &current_run,
+        source_closure_sha256: &source,
+        translation_closure_sha256: &phase,
+        toolchain_closure_sha256: &toolchain,
+        evidence_closure_sha256: &evidence,
+        toolchain_lock_sha256: &lock,
+    };
+    if !reusable_lean_result_matches(&prior, &producer, &expected, &proof) {
+        return Err(
+            "prior clean Lean evidence does not bind the current complete inputs".to_owned(),
+        );
+    }
+    validate_shipping_rust_toolchain(&root().join("formal"))?;
+    let contract = load_algebra_contract()?;
+    synchronize_algebra_sources(&contract, false)?;
+    let dimensions = contract
+        .attenuation_dimensions
+        .iter()
+        .map(|value| value.rust.clone())
+        .collect::<Vec<_>>();
+    formal_qualification::validate_current_lean_inputs(&root(), &dimensions)?;
+    cargo(&["test", "-p", "auths-formal-refinement"])?;
+    kani_harness_inventory()?;
+    if auths_ci_plan::formal_proof_inputs_digest(&root())? != proof
+        || formal_qualification::validate_source_closure(&root())? != source
+    {
+        return Err("proof inputs changed during current-head refinement validation".to_owned());
+    }
+    write_formal_phase_result_with_producer("lean", &source, "reused-pr-run", 0, Some(producer))?;
+    println!(
+        "Formal Lean phase: REUSED (clean same-PR producer; exact inputs; current Rust checks executed)"
+    );
+    Ok(())
+}
+
+fn canonical_positive_id(value: &str) -> bool {
+    value
+        .parse::<u64>()
+        .is_ok_and(|number| number > 0 && number.to_string() == value)
+}
+
+fn lowercase_hex(value: &str, length: usize) -> bool {
+    value.len() == length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn lean_producer_is_bound(producer: &FormalReuseProducer, current_run: &str) -> bool {
+    canonical_positive_id(&producer.run_id)
+        && canonical_positive_id(&producer.run_attempt)
+        && producer.run_id != current_run
+        && lowercase_hex(&producer.head_sha, 40)
+        && producer
+            .job_id
+            .as_deref()
+            .is_some_and(canonical_positive_id)
+        && producer
+            .artifact_id
+            .as_deref()
+            .is_some_and(canonical_positive_id)
+        && producer
+            .artifact_sha256
+            .as_deref()
+            .is_some_and(|digest| lowercase_hex(digest, 64))
+}
+
+fn reusable_lean_result_matches(
+    prior: &FormalPhaseResult,
+    producer: &FormalReuseProducer,
+    expected: &FormalReuseInputs<'_>,
+    proof_inputs_sha256: &str,
+) -> bool {
+    lean_producer_is_bound(producer, expected.current_run_id)
+        && prior.schema == FORMAL_PHASE_RESULT_SCHEMA
+        && prior.phase == "lean"
+        && prior.run_id == producer.run_id
+        && prior.run_attempt == producer.run_attempt
+        && prior.head_sha == producer.head_sha
+        && prior.planned_closure_sha256 == expected.translation_closure_sha256
+        && prior.toolchain_closure_sha256 == expected.toolchain_closure_sha256
+        && prior.evidence_closure_sha256 == expected.evidence_closure_sha256
+        && prior.toolchain_lock_sha256 == expected.toolchain_lock_sha256
+        && prior.source_closure_sha256 == expected.source_closure_sha256
+        && prior.proof_inputs_sha256.as_deref() == Some(proof_inputs_sha256)
+        && prior.execution == "executed-clean"
+        && prior.reproduction_count == 0
+        && prior.reused_from.is_none()
+}
+
 /// Complete bounded-model phase, isolated so installing Kani never delays a
 /// Lean diagnostic or translation setup.
 pub(crate) fn ci_formal_kani() -> Result<(), String> {
@@ -529,17 +660,14 @@ pub(crate) fn ci_formal_evidence() -> Result<(), String> {
     let expected_evidence = required_formal_digest("AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256")?;
     let expected_toolchain_lock = formal_toolchain_digest()?;
     let expected_closure = formal_qualification::validate_source_closure(&root())?;
+    let expected_proof_inputs = auths_ci_plan::formal_proof_inputs_digest(&root())?;
     for (phase, expected_execution, digest_variable) in [
         (
             "translation",
             None,
             "AUTHS_FORMAL_TRANSLATION_CLOSURE_SHA256",
         ),
-        (
-            "lean",
-            Some("executed-clean"),
-            "AUTHS_FORMAL_PROOF_CLOSURE_SHA256",
-        ),
+        ("lean", None, "AUTHS_FORMAL_PROOF_CLOSURE_SHA256"),
         ("kani", Some("executed"), "AUTHS_FORMAL_KANI_CLOSURE_SHA256"),
     ] {
         let result = read_formal_phase_result(phase)?;
@@ -563,6 +691,16 @@ pub(crate) fn ci_formal_evidence() -> Result<(), String> {
             || result.toolchain_lock_sha256 != expected_toolchain_lock
             || result.source_closure_sha256 != expected_closure
             || expected_execution.is_some_and(|expected| result.execution != expected)
+            || (phase == "lean"
+                && (result.proof_inputs_sha256.as_deref() != Some(expected_proof_inputs.as_str())
+                    || result.reproduction_count != 0
+                    || !match result.execution.as_str() {
+                        "executed-clean" => result.reused_from.is_none(),
+                        "reused-pr-run" => result.reused_from.as_ref().is_some_and(|producer| {
+                            lean_producer_is_bound(producer, &expected_run_id)
+                        }),
+                        _ => false,
+                    }))
             || (phase == "translation"
                 && (result.reproduction_count != 2
                     || !matches!(
@@ -672,6 +810,11 @@ fn write_formal_phase_result_with_producer(
         execution: execution.to_owned(),
         reproduction_count,
         reused_from,
+        proof_inputs_sha256: if phase == "lean" {
+            Some(auths_ci_plan::formal_proof_inputs_digest(&root())?)
+        } else {
+            None
+        },
     };
     let path = formal_phase_result_path(phase);
     if let Some(parent) = path.parent() {
@@ -1710,6 +1853,65 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
         reviewed.len()
     );
     Ok(())
+}
+
+/// Refresh only citations of the already regenerated translation-source
+/// manifest. This constructs metadata, never compiled proof/axiom evidence.
+/// Statements, reviews, claims and all other evidence remain untouched and the
+/// unchanged authoritative compiled audit must still validate the whole file.
+pub(crate) fn refresh_assurance_source_binding(repository: &Path) -> Result<(), String> {
+    let path = repository.join("formal/assurance-manifest-v1.toml");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let mut manifest: FormalAssuranceManifest =
+        toml::from_str(&source).map_err(|error| format!("invalid assurance manifest: {error}"))?;
+    let digest = sha256_file(&repository.join("formal/qualification/aeneas/source-closure.json"))?;
+    let changed = rebind_assurance_source_evidence(&mut manifest, &digest)?;
+    if changed > 0 {
+        let rendered = toml::to_string_pretty(&manifest)
+            .map_err(|error| format!("could not render assurance source binding: {error}"))?;
+        fs::write(&path, format!("{}\n", rendered.trim_end()))
+            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+    }
+    println!(
+        "Assurance source citations: {changed} metadata hashes refreshed (not proof qualification)"
+    );
+    Ok(())
+}
+
+fn rebind_assurance_source_evidence(
+    manifest: &mut FormalAssuranceManifest,
+    digest: &str,
+) -> Result<usize, String> {
+    const SOURCE: &str = "formal/qualification/aeneas/source-closure.json";
+    if manifest.schema != "auths-proof-formal-assurance/v1" || !lowercase_hex(digest, 64) {
+        return Err("invalid assurance source-binding input".to_owned());
+    }
+    let mut found = 0;
+    for item in manifest.claims.iter().flat_map(|claim| &claim.evidence) {
+        if (item.kind == FormalEvidenceKind::SourceClosure) != (item.artifact == SOURCE) {
+            return Err(
+                "source-closure evidence kind/path mismatch; explicit review is required"
+                    .to_owned(),
+            );
+        }
+        found += usize::from(item.kind == FormalEvidenceKind::SourceClosure);
+    }
+    if found == 0 {
+        return Err("assurance manifest has no source-closure citations".to_owned());
+    }
+    let mut changed = 0;
+    for item in manifest
+        .claims
+        .iter_mut()
+        .flat_map(|claim| &mut claim.evidence)
+    {
+        if item.kind == FormalEvidenceKind::SourceClosure && item.sha256 != digest {
+            item.sha256 = digest.to_owned();
+            changed += 1;
+        }
+    }
+    Ok(changed)
 }
 
 pub(crate) fn synchronize_formal_assurance_manifest(
@@ -2870,12 +3072,151 @@ mod phase_ordering {
     }
 
     #[test]
+    fn source_binding_refresh_preserves_every_compiled_claim_and_non_source_field() {
+        let source = include_str!("../../formal/assurance-manifest-v1.toml");
+        let mut manifest: FormalAssuranceManifest = toml::from_str(source).expect("manifest");
+        let before = serde_json::to_value(&manifest).expect("typed manifest");
+        let digest = "a".repeat(64);
+        let count =
+            rebind_assurance_source_evidence(&mut manifest, &digest).expect("metadata refresh");
+        assert!(count > 0);
+        let after = serde_json::to_value(&manifest).expect("typed refreshed manifest");
+        let mut expected = before.clone();
+        for claim in expected["claims"].as_array_mut().expect("claims") {
+            for item in claim["evidence"].as_array_mut().expect("evidence") {
+                if item["kind"] == "source-closure" {
+                    item["sha256"] = Value::String(digest.clone());
+                }
+            }
+        }
+        assert_eq!(
+            after, expected,
+            "only existing source-citation hashes may change; statements, axioms, claims, reviews and semantic bindings stay exact"
+        );
+        assert_eq!(
+            rebind_assurance_source_evidence(&mut manifest, &digest).expect("idempotent"),
+            0
+        );
+        assert!(rebind_assurance_source_evidence(&mut manifest, "invalid").is_err());
+        let first = manifest
+            .claims
+            .iter_mut()
+            .flat_map(|claim| &mut claim.evidence)
+            .find(|item| item.kind == FormalEvidenceKind::SourceClosure)
+            .expect("citation");
+        first.artifact = "formal/Auths.lean".to_owned();
+        let invalid_before = serde_json::to_value(&manifest).expect("invalid manifest");
+        assert!(rebind_assurance_source_evidence(&mut manifest, &"b".repeat(64)).is_err());
+        assert_eq!(
+            serde_json::to_value(&manifest).expect("unchanged invalid manifest"),
+            invalid_before
+        );
+        manifest.claims.clear();
+        assert!(rebind_assurance_source_evidence(&mut manifest, &digest).is_err());
+    }
+
+    #[test]
+    fn lean_reuse_requires_clean_complete_inputs_and_bound_producer() {
+        let digest = "a".repeat(64);
+        let producer = FormalReuseProducer {
+            run_id: "123".to_owned(),
+            run_attempt: "1".to_owned(),
+            head_sha: "b".repeat(40),
+            job_id: Some("456".to_owned()),
+            artifact_id: Some("789".to_owned()),
+            artifact_sha256: Some(digest.clone()),
+        };
+        let prior = FormalPhaseResult {
+            schema: FORMAL_PHASE_RESULT_SCHEMA.to_owned(),
+            phase: "lean".to_owned(),
+            head_sha: producer.head_sha.clone(),
+            run_id: producer.run_id.clone(),
+            run_attempt: producer.run_attempt.clone(),
+            planned_closure_sha256: digest.clone(),
+            toolchain_closure_sha256: digest.clone(),
+            evidence_closure_sha256: digest.clone(),
+            toolchain_lock_sha256: digest.clone(),
+            source_closure_sha256: digest.clone(),
+            execution: "executed-clean".to_owned(),
+            reproduction_count: 0,
+            reused_from: None,
+            proof_inputs_sha256: Some(digest.clone()),
+        };
+        let expected = FormalReuseInputs {
+            current_run_id: "999",
+            source_closure_sha256: &digest,
+            translation_closure_sha256: &digest,
+            toolchain_closure_sha256: &digest,
+            evidence_closure_sha256: &digest,
+            toolchain_lock_sha256: &digest,
+        };
+        let applies = |phase: &FormalPhaseResult, origin: &FormalReuseProducer| {
+            reusable_lean_result_matches(phase, origin, &expected, &digest)
+        };
+        assert!(applies(&prior, &producer));
+        let original = serde_json::to_value(&prior).expect("phase");
+        for field in [
+            "schema",
+            "phase",
+            "head_sha",
+            "run_id",
+            "run_attempt",
+            "planned_closure_sha256",
+            "toolchain_closure_sha256",
+            "evidence_closure_sha256",
+            "toolchain_lock_sha256",
+            "source_closure_sha256",
+            "proof_inputs_sha256",
+            "execution",
+        ] {
+            let mut changed = original.clone();
+            changed[field] = Value::String("changed".to_owned());
+            let changed = serde_json::from_value(changed).expect("typed changed phase");
+            assert!(!applies(&changed, &producer), "accepted changed {field}");
+        }
+        let mut legacy = prior.clone();
+        legacy.proof_inputs_sha256 = None;
+        assert!(!applies(&legacy, &producer));
+        let mut chained = prior.clone();
+        chained.reused_from = Some(producer.clone());
+        assert!(!applies(&chained, &producer));
+        let mut wrong_count = prior.clone();
+        wrong_count.reproduction_count = 2;
+        assert!(!applies(&wrong_count, &producer));
+        for field in ["run_id", "run_attempt", "job_id", "artifact_id"] {
+            for invalid in ["0", "01", "-1", "", "18446744073709551616"] {
+                let mut changed = serde_json::to_value(&producer).expect("producer");
+                changed[field] = Value::String(invalid.to_owned());
+                let changed = serde_json::from_value(changed).expect("typed producer");
+                assert!(!applies(&prior, &changed), "accepted invalid {field}");
+            }
+        }
+        for field in ["job_id", "artifact_id", "artifact_sha256"] {
+            let mut missing = serde_json::to_value(&producer).expect("producer");
+            missing.as_object_mut().expect("object").remove(field);
+            assert!(!applies(
+                &prior,
+                &serde_json::from_value(missing).expect("legacy producer")
+            ));
+        }
+        let mut same = producer.clone();
+        same.run_id = "999".to_owned();
+        assert!(!applies(&prior, &same));
+        let mut wrong_artifact = producer.clone();
+        wrong_artifact.artifact_sha256 = Some("A".repeat(64));
+        assert!(!applies(&prior, &wrong_artifact));
+    }
+
+    #[test]
     fn same_pr_translation_reuse_requires_exact_successful_phase() {
         let digest = "a".repeat(64);
         let producer = FormalReuseProducer {
             run_id: "123".to_owned(),
             run_attempt: "1".to_owned(),
             head_sha: "b".repeat(40),
+            job_id: None,
+            artifact_id: None,
+            artifact_sha256: None,
         };
         let prior = FormalPhaseResult {
             schema: FORMAL_PHASE_RESULT_SCHEMA.to_owned(),
@@ -2891,6 +3232,7 @@ mod phase_ordering {
             execution: "executed".to_owned(),
             reproduction_count: 2,
             reused_from: None,
+            proof_inputs_sha256: None,
         };
         let expected = FormalReuseInputs {
             current_run_id: "456",

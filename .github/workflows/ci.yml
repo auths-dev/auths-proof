@@ -174,6 +174,8 @@ jobs:
         with:
           toolchain: 1.97.1
           components: rustfmt, clippy
+      - name: Validate Lean reuse provenance and fallback controls
+        run: python3 -m unittest discover -s .github/scripts -p test_reuse_formal_lean.py
       - name: Fail fast on repository-wide deterministic gates
         run: cargo xtask ci preflight
 
@@ -279,9 +281,21 @@ jobs:
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
+      - id: lean-reuse
+        name: Validate successful same-PR clean Lean evidence
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHS_PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_proof_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: python3 .github/scripts/reuse-formal-lean.py
       - id: lean-setup
+        if: steps.lean-reuse.outputs.reused != 'true'
         uses: ./.github/actions/setup-lean
       - name: Compile the highest-value proofs, then the complete Lean libraries
+        if: steps.lean-reuse.outputs.reused != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -305,7 +319,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Preserve warmed pinned Lean dependencies after failure
-        if: always() && steps.lean-setup.outputs.cache-hit != 'true'
+        if: always() && steps.lean-reuse.outputs.reused != 'true' && steps.lean-setup.outputs.cache-hit != 'true'
         uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
@@ -318,7 +332,7 @@ jobs:
         with:
           phase: proof-fast
           started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
-          execution: executed-no-qualification
+          execution: ${{ steps.lean-reuse.outputs.reused == 'true' && 'reused-clean-evidence-current-rust-checked-no-qualification' || 'executed-no-qualification' }}
 
   formal-translation-run:
     name: formal translation
@@ -613,8 +627,20 @@ jobs:
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
+      - id: lean-reuse
+        name: Validate successful same-PR clean Lean evidence
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHS_PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_proof_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: python3 .github/scripts/reuse-formal-lean.py
       - uses: ./.github/actions/setup-lean
+        if: steps.lean-reuse.outputs.reused != 'true'
       - name: Clean and rebuild authoritative Lean evidence
+        if: steps.lean-reuse.outputs.reused != 'true'
         shell: bash
         env:
           AUTHS_FORMAL_UPDATE_MODE: ${{ github.event_name == 'pull_request' }}
@@ -627,7 +653,7 @@ jobs:
           cargo xtask ci formal-lean-authoritative 2>&1 | tee target/formal/logs/lean-authoritative.log
       - id: formal-update
         name: Package a bounded assurance-manifest update
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.lean-reuse.outputs.reused != 'true'
         env:
           AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -682,7 +708,7 @@ jobs:
         with:
           phase: lean-authoritative
           started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
-          execution: executed-clean-root-outputs
+          execution: ${{ steps.lean-reuse.outputs.reused == 'true' && 'reused-clean-evidence-current-rust-checked' || 'executed-clean-root-outputs' }}
 
   formal-evidence-run:
     name: formal evidence
