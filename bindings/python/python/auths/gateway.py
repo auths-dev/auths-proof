@@ -245,7 +245,7 @@ def _parse_result(raw: bytes) -> GatewayResult:
         code = value.get("code")
         if set(value) != {"outcome", "code"} or not isinstance(code, str):
             raise GatewayProtocolError("gateway returned invalid refusal")
-        if not 1 <= len(code) <= 128:
+        if not 1 <= len(code.encode("utf-8")) <= 128:
             raise GatewayProtocolError("gateway returned invalid code")
         if outcome == "denied":
             return GatewayDenied(code)

@@ -92,11 +92,20 @@ pub enum GatewayEngineConfigurationError {
 #[serde(tag = "outcome", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum GatewaySubmitResult {
     /// Native proof verification denied the action.
-    Denied { code: String },
+    Denied {
+        #[serde(deserialize_with = "decode_refusal_code")]
+        code: String,
+    },
     /// Native verification or required durable state is unavailable/indeterminate.
-    Indeterminate { code: String },
+    Indeterminate {
+        #[serde(deserialize_with = "decode_refusal_code")]
+        code: String,
+    },
     /// Proof was authorized but this operation did not enter write transport.
-    NotEntered { code: String },
+    NotEntered {
+        #[serde(deserialize_with = "decode_refusal_code")]
+        code: String,
+    },
     /// A durable reservation exists without an entry grant. Continuing requires
     /// fresh native authority, exact approval and a new single-winner grant.
     Reserved {
@@ -104,19 +113,55 @@ pub enum GatewaySubmitResult {
         revision: u64,
     },
     /// Write entry/effect is ambiguous; no automatic retry is permitted.
+    #[serde(deserialize_with = "decode_empty_result")]
     Unknown,
     /// A complete bounded HTTP response exists, but no read-back was recorded.
-    ResponseRecorded { status: u16 },
+    ResponseRecorded {
+        #[serde(deserialize_with = "decode_http_status")]
+        status: u16,
+    },
     /// A separately completed read-back compared exact state; not causation.
-    Observed { status: u16, matched: bool },
+    Observed {
+        #[serde(deserialize_with = "decode_http_status")]
+        status: u16,
+        matched: bool,
+    },
     /// A read-back over the pinned origin returned exactly this attempt's echo
     /// token and the verified value. `status` is absent when the write itself
     /// was `unknown`. The link holds only while no other party with write
     /// access to that provider field wrote the same token.
     ObservedByProvider {
+        #[serde(deserialize_with = "decode_optional_http_status")]
         status: Option<u16>,
         evidence: GatewayEvidenceSummary,
     },
+}
+
+fn decode_empty_result<'de, D: serde::Deserializer<'de>>(d: D) -> Result<(), D::Error> {
+    // Serde's internally tagged unit variant otherwise discards remaining
+    // members, even with enum-level deny_unknown_fields.
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct EmptyResult {}
+    EmptyResult::deserialize(d).map(|_| ())
+}
+
+fn decode_http_status<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u16, D::Error> {
+    let status = u16::deserialize(d)?;
+    if !(100..=599).contains(&status) {
+        return Err(serde::de::Error::custom("invalid public HTTP status"));
+    }
+    Ok(status)
+}
+
+fn decode_optional_http_status<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<u16>, D::Error> {
+    let status = Option::<u16>::deserialize(d)?;
+    if status.is_some_and(|value| !(100..=599).contains(&value)) {
+        return Err(serde::de::Error::custom("invalid public HTTP status"));
+    }
+    Ok(status)
 }
 
 fn decode_journal_revision<'de, D: serde::Deserializer<'de>>(

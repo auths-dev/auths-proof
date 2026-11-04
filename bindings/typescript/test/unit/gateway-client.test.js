@@ -137,6 +137,19 @@ test("gateway public evidence matches the native corpus", { skip: process.platfo
   }
 });
 
+test("all gateway result variants match the native wire corpus", { skip: process.platform === "win32" }, async () => {
+  const path = new URL("../../../fixtures/gateway/native-public-mutation-evidence-file.json", import.meta.url);
+  const corpus = JSON.parse(await readFile(path, "utf8"));
+  for (const item of corpus.result_wire_cases) {
+    if (item.accepted) {
+      const result = await replyOnce(item.response);
+      assert.equal(result.outcome, JSON.parse(item.response).outcome, item.case);
+    } else {
+      await assert.rejects(replyOnce(item.response), GatewayProtocolError, item.case);
+    }
+  }
+});
+
 test("gateway client exposes observed-by-provider without evidence bytes", { skip: process.platform === "win32" }, async () => {
   const evidence = { schema: "auths.gateway-public-evidence/1", channel: "read-back", evidenceCommitment: DIGEST, observedAt: 1790000000 };
   assert.deepEqual(await replyOnce(providerResult()), { outcome: "observed-by-provider", status: 200, evidence });

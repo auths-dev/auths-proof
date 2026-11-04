@@ -902,6 +902,14 @@ Private constructors enforce the local boundary. Entry permits are neither clone
 
 Remote permits and multi-executor dispatch are outside this milestone. Do not imply that a Rust type alone prevents a malicious process from bypassing a deployment boundary.
 
+Public submission-result objects have a closed field inventory for every variant,
+including `unknown`. Refusal codes contain 1–128 UTF-8 bytes; journal revisions
+are integers in 1–2^53−1; HTTP statuses are integers in 100–599. A provider-linked
+result always includes `status`, using explicit null if no write response was
+recorded. Missing fields, duplicate or escaped-alias members, unknown fields,
+invalid Unicode, boolean/fractional/exponent numeric spellings and limit-plus-one
+values are refused consistently by Rust and the affected public bindings.
+
 ### Signed public history and operator-private audit
 
 Application outcome queries sign `auths.gateway-outcome/3`. Its closed facts are

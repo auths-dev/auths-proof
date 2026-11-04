@@ -3868,3 +3868,34 @@ The semantic metadata constructor passed with no release identity changes:
 this batch changes testkit/evidence sources rather than the public contract.
 No local benchmark, broad suite, lint, formal or CI inspection was performed by
 main. CI publication and holistic repairs remain with the existing subagent.
+
+## Closed submission-result decoding and complete variant corpus
+
+A direct A18 source audit found native decoders accepted invalid HTTP statuses,
+unbounded refusal strings and an omitted optional status that SDKs reject.
+Python counted refusal characters rather than UTF-8 bytes. Native results now
+use the existing bounded refusal decoder, HTTP status 100–599 and a mandatory
+nullable provider-linked status. A unit-variant Serde regression also accepted
+extra fields on Unknown despite enum-level deny_unknown_fields. An empty-map
+native decoder closes that loophole without changing the Rust variant or its
+serialized representation. No authorization, transition or recovery rule changes.
+
+Both maintained adapter artifacts now contain 159 additional native-decoded
+vectors over all eight result variants, with 29 accepted and 130 refused cases.
+They cover every required field, duplicates/escaped aliases, unknown members,
+UTF-8 and astral-byte boundaries, invalid surrogate sequences, safe revision
+limits, HTTP boundaries, boolean/null/type substitutions, fractional/exponent
+numbers and BOM. The existing 15 evidence and 35 history vectors remain intact:
+209 shared cases are now consumed by both SDK suites. SDK execution awaits CI.
+
+Required artifact construction passed the exact native file and TLS PostgreSQL
+selectors (1 passed / 0 ignored each, 0.76 s / 0.86 s). The initial constructor
+correctly caught the Unknown extra-field discrepancy before its native fix.
+Source-closure construction passed (1 passed / 0 ignored, 0.07 s); its final hash
+is `e6112e97c83f4e4b422f62828b3840fa3db9a9a7a9421a0f090a401613e06f81`.
+Rebuilt closure and semantic metadata results are recorded before publication.
+These constructors do not close all A18 or establish installed package parity.
+Rebuilt non-update source closure passed (1 passed / 0 ignored, 0.07 s).
+Semantic metadata construction passed at freeze428, portable ABI129 and public
+surface428; no other semantic identity increment was required. Main did not run
+SDK, lint, broad test or formal gates and did not inspect CI.

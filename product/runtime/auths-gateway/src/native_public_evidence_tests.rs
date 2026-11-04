@@ -4,6 +4,9 @@ use sha2::{Digest as _, Sha256};
 
 const CONTENT: &[u8] = b"private-mutation-evidence-canary";
 
+#[path = "native_result_wire_cases.rs"]
+mod result_wires;
+
 fn private_values_absent(bytes: &[u8], values: &[&[u8]]) {
     use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
     for value in values {
@@ -537,7 +540,7 @@ fn matrix(backend: Backend) {
     let artifact = serde_json::to_vec_pretty(&json!({"schema":"auths.native-public-mutation-evidence/1","adapter":backend.label(),
         "scope":"native writer/read proofs and exact approvals, actual HTTP, protected complete evidence and public original-writer replay after withdrawal",
         "excluded":["live provider and hostile OS qualification"],
-        "public_result":first,"wire_cases":wire_cases(),"history_wire_cases":history_wire_cases(),"same_private_bytes_have_distinct_record_scoped_commitments":true,"reopen_and_replay_preserve_commitment_without_io":true,
+        "public_result":first,"wire_cases":wire_cases(),"result_wire_cases":result_wires::cases(),"history_wire_cases":history_wire_cases(),"same_private_bytes_have_distinct_record_scoped_commitments":true,"reopen_and_replay_preserve_commitment_without_io":true,
         "configured_signed_public_history_excludes_private_facts":true,"operator_private_signature_preserves_full_audit_facts":true,
         "private_complete_evidence_and_original_binding_preserved":true,"public_and_debug_exclude_raw_body_digest_echo_and_action_digest":true})).expect("artifact");
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(

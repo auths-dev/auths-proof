@@ -160,6 +160,20 @@ def test_result_parser_matches_native_public_evidence_corpus() -> None:
                 _parse_result(case["response"].encode())
 
 
+def test_all_result_variants_match_native_wire_corpus() -> None:
+    from auths.gateway import _parse_result
+
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/gateway/native-public-mutation-evidence-file.json"
+    corpus = json.loads(fixture.read_text())
+    for case in corpus["result_wire_cases"]:
+        if case["accepted"]:
+            result = _parse_result(case["response"].encode())
+            assert result.outcome == json.loads(case["response"])["outcome"], case["case"]
+        else:
+            with pytest.raises(GatewayProtocolError):
+                _parse_result(case["response"].encode())
+
+
 def test_result_parser_exposes_observed_by_provider_without_evidence_bytes() -> None:
     from auths.gateway import _parse_result
 
