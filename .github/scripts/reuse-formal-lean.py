@@ -133,6 +133,7 @@ def discover(environment, api=gh, verify=verify_current):
     current = api(f"repos/{repo}/actions/runs/{current_id}")
     if (
         current["id"] != current_id
+        or not positive(current["workflow_id"])
         or current["event"] != "pull_request"
         or current["path"] != WORKFLOW
         or current["repository"]["full_name"] != repo
@@ -141,7 +142,7 @@ def discover(environment, api=gh, verify=verify_current):
     ):
         return False
     query = urlencode({"branch": current["head_branch"], "event": "pull_request", "per_page": 50})
-    runs = api(f"repos/{repo}/actions/runs?{query}")["workflow_runs"]
+    runs = api(f"repos/{repo}/actions/workflows/{current['workflow_id']}/runs?{query}")["workflow_runs"]
     for run in runs[:10]:
         try:
             if not trusted_run(run, current, number):

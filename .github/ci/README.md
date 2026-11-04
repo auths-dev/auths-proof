@@ -113,6 +113,7 @@ Kani remains a separate current-head gate; it is not skipped by Lean reuse.
 Legacy records lack the complete-input field and are intentionally ineligible.
 The initial rollout therefore requires fresh verification. Later unchanged-input
 follow-ups can use that successful producer. The search is bounded to ten of the
-latest fifty same-branch PR runs and one hundred artifacts/jobs per candidate;
+latest fifty same-branch PR runs of this exact CI workflow (other workflows do
+not consume that bound) and one hundred artifacts/jobs per candidate;
 no eligible retained producer means another fresh run. This availability limit
 never converts missing proof evidence into a passing skipped gate.

@@ -63,13 +63,17 @@ class Evidence:
         self.verified = []
         self.accept = True
         self.tamper_archive = False
+        self.workflow_runs = [self.current, self.run]
 
     def api(self, path, archive=False):
         self.calls.append(path)
         if path.endswith("/runs/100"):
             return self.current
+        if "/actions/workflows/4/runs?" in path:
+            return {"workflow_runs": self.workflow_runs}
         if "/actions/runs?" in path:
-            return {"workflow_runs": [self.run]}
+            # A real push creates14 unrelated workflows ahead of any prior CI.
+            return {"workflow_runs": [dict(self.current, workflow_id=5)] * 14 + [self.run]}
         raw = self.raw if self.raw is not None else json.dumps(self.phase)
         data = zipped(raw, self.member)
         self.artifact.setdefault("digest", "sha256:" + hashlib.sha256(data).hexdigest())
@@ -102,6 +106,17 @@ class ReuseTests(unittest.TestCase):
         self.assertEqual(producer["AUTHS_REUSED_JOB_ID"], "77")
         self.assertEqual(producer["AUTHS_REUSED_ARTIFACT_ID"], "88")
         self.assertIn("/attempts/1/jobs?per_page=100", " ".join(fixture.calls))
+
+    def test_discovery_queries_only_the_current_workflow_before_bounding(self):
+        fixture = Evidence()
+        self.assertTrue(fixture.discover())
+        self.assertIn("repos/owner/repo/actions/workflows/4/runs?branch=feature&event=pull_request&per_page=50", fixture.calls)
+        self.assertFalse(any("/actions/runs?" in path for path in fixture.calls))
+        # The tenth CI run is reachable; the eleventh is a bounded cold miss.
+        fixture = Evidence(); fixture.workflow_runs = [fixture.current] * 9 + [fixture.run]
+        self.assertTrue(fixture.discover())
+        fixture = Evidence(); fixture.workflow_runs = [fixture.current] * 10 + [fixture.run]
+        self.assertFalse(fixture.discover()); self.assertFalse(fixture.verified)
 
     def test_untrusted_or_different_run_is_ineligible(self):
         changes = [

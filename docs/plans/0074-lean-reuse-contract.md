@@ -50,3 +50,19 @@ source citations and preserved the entire remaining typed assurance structure.
 Release inventory requires freeze432, assurance bytes62, source-closure bytes107,
 evolution85 and public surface432; other identities remain unchanged. Hosted
 fresh bootstrap and a subsequent genuine warm hit remain required evidence.
+
+A post-publication read of actual GitHub discovery metadata exposed a bounded
+lookup defect: each push creates14 workflows, so the first ten repository-wide
+runs contained only the current head. This safely fell back to fresh Lean but
+could prevent every warm hit. Discovery now queries the current CI workflow ID
+before applying the ten-candidate limit. Regression controls reproduce the14
+unrelated runs, prove the exact endpoint, and preserve the tenth/eleventh
+candidate boundary. This controller correction invalidates the initial proof key;
+the corrected head, rather than f5e9, must establish the fresh bootstrap.
+
+The complete lookup correction passed all10 offline provenance tests; the native
+metadata constructor passed with zero citation changes and byte-identical release
+inventory. The actual workflow-scoped GitHub endpoint returns current f5e9,
+previous ee797 and original977 CI runs, unlike the repository-wide first ten.
+No early f5e9 failed check was observed before this correction. Real bootstrap
+and warm-hit results remain pending; no hosted proof success is inferred.
