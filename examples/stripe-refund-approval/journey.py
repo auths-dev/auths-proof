@@ -1302,6 +1302,10 @@ def main() -> int:
                 str(bundle_path),
             ),
         )
+        private_bundle = journey.work / "private-audit-bundle.json"
+        journey.run(journey.gateway, "audit-export", "--state-dir", str(journey.gateway_state),
+                    "--bundle", str(bundle_path), "--out", str(private_bundle))
+        bundle_path = private_bundle
         journey.stop()
 
         # README step 9: the offline audit, with the gateway stopped. The

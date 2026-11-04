@@ -117,6 +117,7 @@ if distinct:
         ['status', '--state-dir', data['state'], '--admin-socket', data['admin_socket']],
         ['execution-witness', '--state-dir', data['state'], '--admin-socket', data['admin_socket']],
         ['readiness-probe', '--state-dir', data['state']],
+        ['audit-export', '--state-dir', data['state'], '--admin-socket', data['admin_socket'], '--operation-id', 'forbidden', '--out', data['state'] + '/forbidden-audit.json'],
     ):
         result = subprocess.run([data['binary']] + arguments, capture_output=True, timeout=10)
         assert result.returncode != 0, 'application used a private native CLI route'

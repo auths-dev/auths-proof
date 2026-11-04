@@ -164,7 +164,19 @@ does not recover implicitly.
 **`bin/export`** (agent) writes `audit/bundle.json`: one entry per operation
 ID, the approval responses, the recipe, and the trusted context.
 
-**`bin/audit`** (auditor) runs `auths-gateway audit` offline on the bundle
+Before auditing, the trusted operator completes the public inventory while the
+gateway is running:
+
+```sh
+/path/to/auths-gateway audit-export --state-dir enforcement/gateway \
+  --bundle audit/bundle.json --out audit/private-bundle.json
+```
+
+The audit directory must be owner-private. The command creates a new 0600 file
+and never overwrites an existing artifact. Keep the completed bundle and detailed
+report with the operator; the application sees redacted public outcomes only.
+
+**`bin/audit`** (auditor) runs `auths-gateway audit` offline on `audit/private-bundle.json`
 with the two pinned values in `audit/pins.json`, and passes its report,
 standard error, and exit status through unchanged. By default the audit
 fails the bundle when any entry has no gateway-signed outcome

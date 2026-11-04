@@ -24,7 +24,7 @@ def test_packaged_workbench_and_unsigned_evidence():
             expect(page.locator('#submit')).to_be_enabled()
         expect(page.locator('#explanation')).to_contain_text('no automatic retry')
         page.locator('#receipt-link').click()
-        expect(page.locator('#result-json')).to_contain_text('auths.gateway-audit-bundle/2')
+        expect(page.locator('#result-json')).to_contain_text('auths.gateway-audit-bundle/3')
         expect(page.locator('#result-json')).to_contain_text('outcome_b64')
         page.screenshot(path='/evidence/workbench-evidence.png', full_page=True)
         page.goto('http://localhost:8081')

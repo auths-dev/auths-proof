@@ -111,7 +111,7 @@
       }
     },
     {
-      "case": "auths.gateway-observe/3",
+      "case": "auths.gateway-observe/4",
       "recovery_dispatches": 0,
       "response": {
         "outcome": "indeterminate",

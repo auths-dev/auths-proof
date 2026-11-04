@@ -6,7 +6,7 @@
     "hostile OS or root",
     "provider or production custody qualification",
     "all privileged CLI execution paths",
-    "positive signed mutation outcome privacy"
+    "live-provider qualification"
   ],
   "first": {
     "distinct_uid": false,
@@ -90,16 +90,19 @@
       {
         "case": "observe-outcome",
         "response": {
-          "outcome": "refused",
-          "code": "gateway.observer.not-provisioned"
+          "outcome": "signed",
+          "schema": "auths.gateway-outcome/3",
+          "native_canonical_public_projection_checked": true
         },
         "post_ready_control_frames": 0
       },
       {
         "case": "observe-pre-entry",
         "response": {
-          "outcome": "refused",
-          "code": "gateway.observer.store-unavailable"
+          "outcome": "pre-entry",
+          "operation_id": "write",
+          "observations": 0,
+          "record_commitment": "native-hiding-value-checked"
         },
         "post_ready_control_frames": 0
       },
@@ -180,6 +183,14 @@
       },
       {
         "case": "admin-on-app:qualification-reload",
+        "response": {
+          "outcome": "indeterminate",
+          "code": "gateway.submit.invalid-frame"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
+        "case": "admin-on-app:audit-export",
         "response": {
           "outcome": "indeterminate",
           "code": "gateway.submit.invalid-frame"
@@ -330,6 +341,10 @@
       },
       {
         "command": "audit",
+        "help_accessible": true
+      },
+      {
+        "command": "audit-export",
         "help_accessible": true
       },
       {
@@ -584,10 +599,13 @@
     "private_files_inaccessible": null
   },
   "private_source_journal_unchanged": true,
-  "provider_authorized_calls": 1,
+  "provider_authorized_calls": 2,
   "direct_provider_refusals": 4,
   "no_new_custody_or_provider_entries": true,
   "recipient_key_and_uid_guard_precede_content": true,
   "trusted_recipient_positive_control": true,
-  "public_channels_exclude_plaintext_encodings_and_raw_digests": true
+  "public_channels_exclude_plaintext_encodings_and_raw_digests": true,
+  "operator_private_export_mode": 384,
+  "operator_private_audit_verified_entries": 1,
+  "private_export_refuses_overwrite": true
 }

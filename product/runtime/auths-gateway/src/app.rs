@@ -28,7 +28,7 @@ pub use content::{AppDisclosureReception, receive_content_disclosure};
 /// Schema of a proof/action submission frame.
 pub const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/2";
 /// Schema of an observation request frame.
-pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/3";
+pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/4";
 /// Independently approved recovery acquisition and evidence refinement.
 pub const APP_RECOVERY_SCHEMA: &str = "auths.gateway-recover/1";
 /// Largest frame either side accepts.

@@ -180,7 +180,7 @@ identical subset is extracted; the rest stays with the recipe author or the
 vertical. "Vertical" means `product/integrations/auths-stripe` unless a row
 names another consumer. The vectors for every capability are in
 `bindings/fixtures/gateway/` (`hostile-recipes-v2.json`,
-`attempt-scenarios-v3.json`, `bounds-aggregate.json`, `outcome-v2.json`,
+`attempt-scenarios-v3.json`, `bounds-aggregate.json`, `outcome-v3.json`,
 `key-identity.json`, `codes.json`), and tests in
 `product/runtime/auths-gateway/src/pending_vectors/` show that current code
 does not satisfy them.

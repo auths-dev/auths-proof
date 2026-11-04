@@ -3,7 +3,7 @@
   "scope": "all native Clap command and argument declarations; catalog data grants no authority; loopback-provider is test-only and excluded",
   "application_schemas": [
     "auths.gateway-submit/2",
-    "auths.gateway-observe/3",
+    "auths.gateway-observe/4",
     "auths.gateway-recover/1",
     "auths.gateway-content/1",
     "auths.gateway-disclose/1",
@@ -20,6 +20,7 @@
     "status",
     "execution-witness",
     "qualification-reload",
+    "audit-export",
     "recover",
     "recovery-record"
   ],
@@ -85,6 +86,41 @@
         {
           "name": "trusted_context_sha256",
           "long": "trusted-context-sha256",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "audit-export",
+      "arguments": [
+        {
+          "name": "admin_socket",
+          "long": "admin-socket",
+          "required": false
+        },
+        {
+          "name": "bundle",
+          "long": "bundle",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "operation_id",
+          "long": "operation-id",
+          "required": false
+        },
+        {
+          "name": "out",
+          "long": "out",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
           "required": true
         }
       ]

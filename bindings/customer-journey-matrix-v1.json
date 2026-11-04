@@ -212,8 +212,8 @@
     {
       "id": "gateway-signed-outcome-verification",
       "rust": "product/runtime/auths-gateway/src/observer.rs",
-      "typescript": "bindings/typescript/test/integration/gateway-outcome-v2.test.js",
-      "python": "bindings/python/tests/test_gateway_outcome_v2.py",
+      "typescript": "bindings/typescript/test/integration/gateway-outcome-v3.test.js",
+      "python": "bindings/python/tests/test_gateway_outcome_v3.py",
       "experience": {
         "targetJourney": "recover-an-unknown-write-from-a-gateway-signed-outcome",
         "imports": [

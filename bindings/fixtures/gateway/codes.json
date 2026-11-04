@@ -27,7 +27,7 @@
       "status": "existing",
       "epic": null,
       "case": {
-        "fixture": "outcome-v2.json",
+        "fixture": "private-outcome-v1.json",
         "id": "outcome-v1-schema"
       }
     },

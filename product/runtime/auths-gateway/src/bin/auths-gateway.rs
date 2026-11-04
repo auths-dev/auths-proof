@@ -753,6 +753,21 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
         },
+        /// Operator-only: save protected signed audit evidence to a new 0600 file.
+        #[command(group(clap::ArgGroup::new("audit-source").required(true).args(["operation_id", "bundle"])))]
+        AuditExport {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            #[arg(long)]
+            operation_id: Option<String>,
+            /// Public submission bundle to complete with private native evidence.
+            #[arg(long)]
+            bundle: Option<PathBuf>,
+            #[arg(long)]
+            out: PathBuf,
+        },
         /// Ask the app socket for one signed observation, or for one
         /// operation's stored pre-entry observations; never a write.
         #[command(group(clap::ArgGroup::new("request").required(true).args(["outcome", "pre_entry"])))]
@@ -1209,6 +1224,8 @@ mod unix {
         /// The qualification state a reload derived.
         #[serde(skip_serializing_if = "Option::is_none")]
         qualification: Option<QualificationReport>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        audit: Option<auths_gateway::GatewayPrivateAudit>,
     }
 
     /// The gate's policy, state, and code. It names no provider and echoes
@@ -1245,6 +1262,7 @@ mod unix {
                 recovery: None,
                 commitment: None,
                 qualification: None,
+                audit: None,
             }
         }
 
@@ -2376,6 +2394,9 @@ mod unix {
         RotateCommit([u8; 32]),
         Status,
         ExecutionWitness,
+        AuditExport {
+            operation_id: String,
+        },
         Recover {
             source_operation: String,
             submission: Box<auths_gateway::app::DecodedSubmission>,
@@ -2406,6 +2427,11 @@ mod unix {
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
             AdminRequestCommand::ExecutionWitness {} => Ok(AdminCommand::ExecutionWitness),
             AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
+            AdminRequestCommand::AuditExport { operation_id } => {
+                auths_gateway::LogicalOperationId::parse(&operation_id)
+                    .map_err(|_| "gateway.admin.invalid-frame")?;
+                Ok(AdminCommand::AuditExport { operation_id })
+            }
             AdminRequestCommand::Recover { source_operation } => {
                 let frame = Zeroizing::new(clock.read_frame(stream).await?);
                 let submission: AppSubmission =
@@ -2511,6 +2537,16 @@ mod unix {
                 Ok(AdminCommand::QualificationReload) => {
                     reload_admin_qualification(&engine, &state_dir).await
                 }
+                Ok(AdminCommand::AuditExport { operation_id }) => {
+                    match engine.private_audit(&operation_id).await {
+                        Ok(audit) => AdminResponse {
+                            ok: true,
+                            audit: Some(audit),
+                            ..AdminResponse::refused("gateway.admin.audit-exported")
+                        },
+                        Err(code) => AdminResponse::refused(code),
+                    }
+                }
                 Ok(AdminCommand::Recover {
                     source_operation,
                     submission,
@@ -2557,6 +2593,7 @@ mod unix {
         if let Some((mut stream, response)) = Box::pin(clock.complete(stream, change)).await
             && let Ok(bytes) = serde_json::to_vec(&response)
         {
+            let bytes = Zeroizing::new(bytes);
             let _ = clock.write_frame(&mut stream, &bytes).await;
         }
     }
@@ -3678,6 +3715,83 @@ mod unix {
     enum EchoSource {
         Bundle(PathBuf),
         Action { namespace: String, action: PathBuf },
+    }
+
+    /// One native export is bounded by the existing operator session deadline.
+    /// Only the authenticated operator client can read this response; no private
+    /// payload is printed, including when completion fails midway.
+    async fn audit_export(
+        state_dir: &Path,
+        admin_socket: &AdminSocket,
+        operation_id: Option<&str>,
+        bundle: Option<&Path>,
+        out: &Path,
+    ) -> Result<(), Failure> {
+        let parent = out.parent().ok_or("gateway.state.invalid-path")?;
+        check_private_directory(parent)
+            .map_err(|cause| Failure::at("gateway.audit.unsafe-output", parent, cause))?;
+        let export = async {
+            match (operation_id, bundle) {
+                (Some(operation), None) => {
+                    auths_gateway::LogicalOperationId::parse(operation)
+                        .map_err(|_| "gateway.admin.invalid-frame")?;
+                    private_audit_frame(state_dir, admin_socket, operation)
+                        .await?
+                        .ok_or_else(|| Failure::from("gateway.observer.operation-unknown"))
+                }
+                (None, Some(bundle)) => {
+                    let input = Zeroizing::new(read_bounded(
+                        bundle,
+                        auths_gateway::MAX_AUDIT_BUNDLE_BYTES,
+                    )?);
+                    let mut output = auths_gateway::PrivateAuditBundle::new(&input)?;
+                    for operation in output.operations() {
+                        let evidence =
+                            private_audit_frame(state_dir, admin_socket, &operation).await?;
+                        output.record(&operation, evidence.as_deref().map(Vec::as_slice))?;
+                    }
+                    Ok(output.finish()?)
+                }
+                _ => Err(Failure::from("gateway.admin.invalid-frame")),
+            }
+        };
+        let bytes = tokio::time::timeout(ADMIN_SESSION_LIMITS.session, export)
+            .await
+            .map_err(|_| "gateway.admin.audit-timeout")??;
+        private_file(out, &bytes)?;
+        println!("{{\"ok\":true,\"code\":\"gateway.admin.audit-exported\"}}");
+        Ok(())
+    }
+
+    async fn private_audit_frame(
+        state_dir: &Path,
+        admin_socket: &AdminSocket,
+        operation: &str,
+    ) -> Result<Option<Zeroizing<Vec<u8>>>, Failure> {
+        let response = admin_exchange(
+            state_dir,
+            admin_socket,
+            serde_json::json!({"command":"audit-export", "operation_id":operation}),
+            None,
+        )
+        .await?;
+        if response.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+            if response.get("code").and_then(serde_json::Value::as_str)
+                == Some("gateway.observer.operation-unknown")
+            {
+                return Ok(None);
+            }
+            return Err("gateway.admin.audit-refused".into());
+        }
+        let bytes = Zeroizing::new(
+            serde_json::to_vec(
+                response
+                    .get("audit")
+                    .ok_or("gateway.admin.invalid-response")?,
+            )
+            .map_err(|_| "gateway.admin.invalid-response")?,
+        );
+        Ok(Some(bytes))
     }
 
     /// Sends one admin command. Before anything is written, the admin
@@ -4967,6 +5081,23 @@ mod unix {
                     &admin_socket,
                     serde_json::json!({"command": "rotate-commit", "commitment": commitment}),
                     None,
+                )
+                .await
+            }
+            Command::AuditExport {
+                state_dir,
+                admin_socket,
+                operation_id,
+                bundle,
+                out,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                audit_export(
+                    &state_dir,
+                    &admin_socket,
+                    operation_id.as_deref(),
+                    bundle.as_deref(),
+                    &out,
                 )
                 .await
             }

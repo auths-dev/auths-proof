@@ -139,7 +139,7 @@ available to the agent may bypass these gates or substitute caller-controlled
 transport bytes. An operator commissioning path must satisfy the same effect
 binding, approval and entry protocol in addition to its commissioning authority.
 
-The application protocol `auths.gateway-observe/3` accepts only local outcome
+The application protocol `auths.gateway-observe/4` accepts only local outcome
 and pre-entry history queries. Obsolete observation schemas and the unapproved
 `read-back` request are rejected. `auths.gateway-recover/1` supplies a source
 operation and the bounded `auths.gateway-submit/2` proof/action/approval envelope
@@ -901,6 +901,53 @@ VerifiedAction -> BoundEffect -> ApprovedEffect -> ReservedEffect
 Private constructors enforce the local boundary. Entry permits are neither cloneable nor deserializable. Persisted records are facts, not executable capabilities; restoring a record cannot reconstruct a lost send permit. A portable binding may be decoded as data but must pass native validation before obtaining any sealed type.
 
 Remote permits and multi-executor dispatch are outside this milestone. Do not imply that a Rust type alone prevents a malicious process from bypassing a deployment boundary.
+
+### Signed public history and operator-private audit
+
+Application outcome queries sign `auths.gateway-outcome/3`. Its closed facts are
+`effect-reference`, `recipe-reference`, `record-commitment`, `stage` and
+`evaluated-at`, with bounded `http-status` or `refusal` when applicable. Each
+reference is lowercase HMAC-SHA256 under the record's existing private immutable
+128-bit nonce, the full exact canonical binding and a distinct closed label
+(`action`, `recipe` or `journal-record`) under
+`auths.gateway-public-commitment/1`. The journal-record seal covers the complete
+canonical record including entry/fence/authority/accounting metadata, with the
+nonce zeroized in the sealed message. Raw action, recipe, response, evidence,
+counter, basis and pre-entry digests or values MUST NOT appear in public history.
+A recipe can contain fixed private values, so its public reference is hiding too.
+
+Public pre-entry history returns only the operation ID, observation count (0–4)
+and a hiding record commitment. Protected observation bytes are operator-only.
+The app protocol is `/4`; old public outcome and observe formats are rejected.
+The signature authenticates the gateway's historical statement; no public
+reference, observation or receipt recreates an execution capability.
+
+An authenticated operator requests `audit-export` on the existing peer-UID-gated
+operator socket. One loaded native journal snapshot produces
+`auths.gateway-private-audit/1`: operation ID, signed
+`auths.gateway-private-outcome/1` and protected pre-entry observation bytes. The
+private signed fact set retains the original complete outcome presence predicate
+and every existing audit commitment, counter, basis and pre-entry check. It is
+not an app route and is not an alternative admission or journal owner.
+
+Native CLI `audit-export --operation-id ... --out ...` saves one protected export;
+`--bundle ... --out ...` completes a current submission inventory using those
+same native operator exports. The modes are mutually exclusive. The CLI prints
+only success metadata and writes a new 0600 file in an owner-private directory;
+it never overwrites a file. Bundle assembly grants no audit verdict. Absent
+records remain unverified; failures do not manufacture non-entry, refund or retry.
+The offline auditor accepts only the private schema in audit bundle `/3`, under
+independently pinned trust and observer identity, preserving its existing checks.
+Detailed private bundles/reports MUST NOT return to an app, UI or public artifact.
+
+The existing limits remain: 4,096 observations bytes each, four protected pre-entry
+observations per entry, 4,096 audit entries, 65,536 approval responses and 64 MiB
+aggregate audit bytes. Bounded sequence decoders reject excess items before
+allocating their payloads. Public times fit JavaScript's exact integer range;
+all affected bindings reject duplicate members, noninteger spellings, BOM,
+noncanonical base64 and malformed/obsolete schemas. One CLI bundle export is
+bounded by the existing 60-second operator session deadline and grants no I/O
+capability or provider traffic.
 
 ### 4.5 Canonicalization and privacy
 

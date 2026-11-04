@@ -9,11 +9,11 @@ import { test } from "node:test";
 import { GatewayClient, GatewayEndpoint, GatewayProtocolError } from "../../dist/gateway.js";
 import { createVerifier } from "../../dist/verify.js";
 
-// Signed outcome `/2` conformance: the TypeScript SDK accepts every vector the
+// Signed outcome `/3` conformance: the TypeScript SDK accepts every vector the
 // gateway signs, refuses the retired schema, and its WASM verifier reaches the
 // gateway's decision on a grant that requires the outcome's stage.
 const fixture = JSON.parse(readFileSync(
-  new URL("../../../fixtures/gateway/outcome-v2.json", import.meta.url), "utf8",
+  new URL("../../../fixtures/gateway/outcome-v3.json", import.meta.url), "utf8",
 ));
 const MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
 const observation = (entry) => new Uint8Array(Buffer.from(entry.observation_b64, "base64"));
@@ -51,17 +51,17 @@ async function observeOutcome(entry, schema) {
   }
 }
 
-test("the fixture names outcome /2", () => {
-  assert.equal(fixture.outcome_schema, "auths.gateway-outcome/2");
+test("the fixture names outcome /3", () => {
+  assert.equal(fixture.outcome_schema, "auths.gateway-outcome/3");
   assert.ok(fixture.accepted.length > 0 && fixture.refused.length > 0 && fixture.verdicts.length > 0);
 });
 
-test("the TypeScript client accepts every signed outcome /2", { skip: process.platform === "win32" }, async () => {
+test("the TypeScript client accepts every signed outcome /3", { skip: process.platform === "win32" }, async () => {
   for (const entry of fixture.accepted) {
-    const result = await observeOutcome(entry, "auths.gateway-outcome/2");
+    const result = await observeOutcome(entry, "auths.gateway-outcome/3");
     assert.deepEqual(result, {
       outcome: "signed",
-      schema: "auths.gateway-outcome/2",
+      schema: "auths.gateway-outcome/3",
       subject: entry.subject,
       observedAt: fixture.observed_at,
       mediaType: MEDIA_TYPE,
@@ -75,7 +75,7 @@ test("the TypeScript client refuses the retired outcome schema", { skip: process
   await assert.rejects(observeOutcome(retired, "auths.gateway-outcome/1"), GatewayProtocolError);
 });
 
-test("the TypeScript verifier reaches the gateway verdict on every outcome /2 case", async () => {
+test("the TypeScript verifier reaches the gateway verdict on every outcome /3 case", async () => {
   const verifier = await createVerifier();
   const trustedContext = b64url(fixture.verdict_trusted_context_b64);
   for (const item of fixture.verdicts) {

@@ -282,6 +282,9 @@ its own grant (`python refunds.py grant --agent agent-checks --max-count 4`):
 
 ```sh
 python refunds.py export --state "$WORK/state" --out audit-bundle.json
+# Trusted operator shell; gateway must still be running. $WORK is owner-private.
+auths-gateway audit-export --state-dir "$WORK/gateway" \
+  --bundle audit-bundle.json --out "$WORK/private-audit-bundle.json"
 ```
 
 It holds one entry per operation ID: the first submission, or a later one
@@ -300,10 +303,16 @@ lowered-threshold refund's entry is the signed one of its later retry. The bundl
 response the agent collected (declines included), and the installed recipe
 and trusted context.
 
+The application export contains redacted public outcomes. The operator command
+replaces these with the complete private signed audit facts and protected
+pre-entry observations from native retained history. The private bundle is a
+new 0600 file in a private directory. Do not return it or its detailed audit
+report to the application or publish it as public evidence.
+
 **9. Audit offline.** With the gateway stopped and the network off:
 
 ```sh
-auths-gateway audit --bundle audit-bundle.json \
+auths-gateway audit --bundle "$WORK/private-audit-bundle.json" \
   --trusted-context-sha256 <from step 3> --observer <from step 5> \
   --allow-unverified-refusals
 ```

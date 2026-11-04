@@ -348,7 +348,7 @@ def export(arguments: List[str]) -> Dict[str, Any]:
         [json.loads(line) for line in approvals.read_text().splitlines() if line] if approvals.exists() else []
     )
     bundle = {
-        "schema": "auths.gateway-audit-bundle/2",
+        "schema": "auths.gateway-audit-bundle/3",
         "recipe_b64": _b64(RECIPE.read_bytes()),
         "profile_lock_b64": _b64(PROFILE_LOCK.read_bytes()),
         "trusted_context_b64": _b64((AGENT / "trust" / "gateway.context.cbor").read_bytes()),

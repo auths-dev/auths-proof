@@ -61,8 +61,9 @@ docker run --platform linux/amd64 --rm --init --name auths-airtable-gateway-demo
 Open <http://localhost:8081>. Choose **Set exact record to Approved**, then replay,
 approval, unsupported value, swapped record, two-gateway race and response-loss controls.
 The UI and CLI show actual native gateway results. Their history is unsigned;
-**Inspect the evidence** exposes native signed outcome/pre-entry bytes in the
-actual gateway audit-bundle format. Missing evidence remains missing.
+**Inspect the evidence** exposes redacted signed public outcomes and a submission
+inventory. Protected pre-entry observations and full audit facts are available
+only through the operator export below. Missing evidence remains missing.
 
 Default mode is clearly labeled **simulation**. An independent HTTP double
 counts real native reads and PATCH entries; it never reaches Airtable. Two
@@ -119,6 +120,21 @@ docker exec --user 62004:62005 auths-airtable-gateway-demo \
 docker exec --user 62004:62005 auths-airtable-gateway-demo \
   /opt/consumer/bin/python /opt/demo/app.py export > audit-bundle.json
 ```
+
+The application export contains public history, not a completed private audit. In
+a trusted operator shell, while the gateway is running, complete it with native
+journal evidence in a new owner-private file:
+
+```sh
+docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
+  audit-export --state-dir /run/demo/gateway0 \
+  --bundle /run/demo/app/audit.json --out /run/demo/private/audit-bundle.json
+```
+
+Run the offline auditor against that private bundle with independently pinned
+trust and observer values. Keep the bundle and detailed report in the operator
+boundary; public output does not contain protected facts. The export is read-only,
+never overwrites an existing file, and grants no provider entry or retry.
 
 An IPC failure is unconfirmed, never permission to send another PATCH.
 Operator-only recovery uses a separately authorized native read and exact approval;

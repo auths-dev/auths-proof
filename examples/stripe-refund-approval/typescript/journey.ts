@@ -977,10 +977,14 @@ async function main(): Promise<void> {
     }
 
     // README step 8: the audit bundle.
-    const bundlePath = join(journey.work, "audit-bundle.json");
+    let bundlePath = join(journey.work, "audit-bundle.json");
     await journey.step("export audit bundle", () => journey.run(process.execPath, [
       REFUNDS, "export", "--state", journey.state, "--out", bundlePath,
     ]));
+    const privateBundle = join(journey.work, "private-audit-bundle.json");
+    journey.run(journey.gateway, ["audit-export", "--state-dir", journey.gatewayState,
+      "--bundle", bundlePath, "--out", privateBundle]);
+    bundlePath = privateBundle;
     const providerRequests = journey.providerEntries();
     await journey.stop();
 

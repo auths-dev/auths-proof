@@ -647,6 +647,13 @@ class Operator:
         return subprocess.run(['/opt/consumer/bin/python', str(HERE / 'app.py'), *arguments],
             env=ENVIRONMENT, capture_output=True, user=APP_UID, group=APP_GID, extra_groups=[], timeout=90)
 
+    def export_audit(self, destination):
+        # Only the operator can reach native private audit facts. The application
+        # bundle is an untrusted submission inventory with redacted public history.
+        gateway(self.binary, 'audit-export', '--state-dir', HOME / 'gateway0',
+                '--bundle', HOME / 'app/audit.json', '--out', destination)
+        return destination
+
     def witnesses(self):
         values = []
         for host in range(3):

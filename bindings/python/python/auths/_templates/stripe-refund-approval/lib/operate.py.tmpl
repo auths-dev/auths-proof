@@ -506,7 +506,7 @@ def audit(arguments: List[str]) -> NoReturn:
         prog="bin/audit",
         description="Run auths-gateway audit offline on the bundle, with the pinned values.",
     )
-    parser.add_argument("--bundle", type=Path, default=AUDIT / "bundle.json")
+    parser.add_argument("--bundle", type=Path, default=AUDIT / "private-bundle.json")
     parser.add_argument(
         "--allow-unverified-refusals",
         action="store_true",

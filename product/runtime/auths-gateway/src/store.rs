@@ -33,6 +33,7 @@ use std::{
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 pub use auths_stores::GatewayRecordKind;
 
@@ -209,7 +210,7 @@ pub enum GatewayCounterKind {
 }
 
 /// One counter slot reserved with the claim.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct GatewayCounterEntry {
     /// The counter kind.
     pub kind: GatewayCounterKind,
@@ -220,7 +221,7 @@ pub struct GatewayCounterEntry {
 }
 
 /// The relative-ceiling basis the gateway read after the lease.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct GatewayRelativeBasis {
     /// The basis value.
     pub value: u64,
@@ -232,12 +233,37 @@ pub struct GatewayRelativeBasis {
 
 /// What was read after the lease and before the write: the signed pre-entry
 /// observations, in pointer order, and the relative-ceiling basis.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, PartialEq)]
 pub struct GatewayPreEntry {
     /// Canonical signed `auths.gateway-readback/1` observations.
     pub observations: Vec<Vec<u8>>,
     /// The relative-ceiling basis, when one was read.
     pub basis: Option<GatewayRelativeBasis>,
+}
+
+impl std::fmt::Debug for GatewayCounterEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayCounterEntry")
+            .field("kind", &self.kind)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for GatewayRelativeBasis {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayRelativeBasis")
+            .field("private", &"[redacted]")
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for GatewayPreEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayPreEntry")
+            .field("observations", &self.observations.len())
+            .field("basis_recorded", &self.basis.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 impl GatewayPreEntry {
@@ -291,6 +317,9 @@ pub struct GatewayAttemptSnapshot {
     observation_fact: Option<GatewayObservationFact>,
     provider_evidence: Option<GatewayProviderEvidence>,
     public_evidence_commitment: Option<[u8; 32]>,
+    public_effect_reference: [u8; 32],
+    public_recipe_reference: [u8; 32],
+    public_record_commitment: [u8; 32],
     pre_entry: Option<GatewayPreEntry>,
     recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
 }
@@ -307,6 +336,18 @@ impl std::fmt::Debug for GatewayAttemptSnapshot {
 }
 
 impl GatewayAttemptSnapshot {
+    pub(crate) const fn public_effect_reference(&self) -> &[u8; 32] {
+        &self.public_effect_reference
+    }
+
+    pub(crate) const fn public_recipe_reference(&self) -> &[u8; 32] {
+        &self.public_recipe_reference
+    }
+
+    pub(crate) const fn public_record_commitment(&self) -> &[u8; 32] {
+        &self.public_record_commitment
+    }
+
     pub(crate) const fn public_evidence_commitment(&self) -> Option<&[u8; 32]> {
         self.public_evidence_commitment.as_ref()
     }
@@ -1145,6 +1186,9 @@ impl Record {
             observation_fact: self.state.observation_fact,
             provider_evidence,
             public_evidence_commitment,
+            public_effect_reference: self.public_commitment(b"action", &action_commitment)?,
+            public_recipe_reference: self.public_commitment(b"recipe", &recipe_digest)?,
+            public_record_commitment: self.record_commitment()?,
             pre_entry,
             recovery_evidence: self.state.recovery_evidence.clone(),
         })
@@ -3121,6 +3165,16 @@ impl ObservableGatewayAttempt {
         });
         next.state.stage = GatewayAttemptStage::ObservedByProvider;
         self.attempt.advance(next).await?.record.snapshot(false)
+    }
+}
+
+impl Record {
+    fn record_commitment(&self) -> Result<[u8; 32], GatewayAttemptError> {
+        use zeroize::Zeroize as _;
+        let mut message = self.clone();
+        message.nonce.zeroize();
+        let bytes = Zeroizing::new(encode(&message)?);
+        self.public_commitment(b"journal-record", &Sha256::digest(&bytes).into())
     }
 }
 

@@ -1,7 +1,8 @@
 //! Actual application interfaces; distinct UID mode additionally tests Linux DAC.
 use super::*;
 use auths_gateway::{admin, app};
-use sha2::{Digest as _, Sha256};
+use sha2::Digest as _;
+use sha2::Sha256;
 use std::collections::BTreeSet;
 
 fn no_canaries(bytes: &[u8], secret: &[u8]) {
@@ -170,6 +171,56 @@ fn probe(mut payload: Value, secret: &[u8]) -> Value {
             .expect("case")
             .remove("after_ready_b64");
         value["post_ready_control_frames"] = json!(count);
+        if value["response"]["outcome"] == "signed" {
+            let response = &value["response"];
+            assert_eq!(response["schema"], "auths.gateway-outcome/3");
+            let bytes = Base64UrlUnpadded::decode_vec(
+                response["observation_b64"].as_str().expect("signature"),
+            )
+            .expect("base64");
+            no_canaries(&bytes, secret);
+            let signed = auths_codec::decode_signed_observation(
+                &bytes,
+                &auths_model::VerifierLimits::default(),
+            )
+            .expect("native canonical signature");
+            assert_eq!(
+                signed.statement().schema().as_str(),
+                auths_gateway::OUTCOME_SCHEMA
+            );
+            let names: Vec<_> = signed
+                .statement()
+                .facts()
+                .as_slice()
+                .iter()
+                .map(|fact| fact.name().as_str())
+                .collect();
+            assert_eq!(
+                names,
+                [
+                    "effect-reference",
+                    "evaluated-at",
+                    "http-status",
+                    "recipe-reference",
+                    "record-commitment",
+                    "stage"
+                ]
+            );
+            value["response"] = json!({"outcome":"signed", "schema":auths_gateway::OUTCOME_SCHEMA, "native_canonical_public_projection_checked":true});
+        }
+        if value["response"]["outcome"] == "pre-entry" {
+            let commitment = value["response"]["record_commitment"]
+                .as_str()
+                .expect("hiding commitment");
+            assert_eq!(commitment.len(), 64);
+            assert!(
+                commitment
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            );
+            assert!(value["response"].get("observations_b64").is_none());
+            value["response"]["record_commitment"] = json!("native-hiding-value-checked");
+        }
     }
     for value in result["private_cli"].as_array_mut().expect("private CLI") {
         for field in ["stdout_b64", "stderr_b64"] {
@@ -273,6 +324,41 @@ fn run(distinct: bool) -> Value {
     no_canaries(&installed.stdout, &secret);
     no_canaries(&installed.stderr, &secret);
     assert!(installed.status.success(), "native install");
+    success(cli(
+        "observer-init",
+        &[("--state-dir", path(&state))],
+        &[],
+        None,
+    ));
+    let configuration = checked(
+        &cli(
+            "effect-configuration-review",
+            &[("--state-dir", path(&state))],
+            &[],
+            None,
+        ),
+        &secret,
+    );
+    success(cli(
+        "effect-configuration-activate",
+        &[
+            ("--state-dir", path(&state)),
+            (
+                "--expected-revision",
+                configuration["previous_revision_hex"]
+                    .as_str()
+                    .expect("configuration revision"),
+            ),
+            (
+                "--expected-candidate",
+                configuration["candidate_hex"]
+                    .as_str()
+                    .expect("configuration candidate"),
+            ),
+        ],
+        &[],
+        None,
+    ));
     let arguments = root.join("resource.json");
     private(
         &arguments,
@@ -305,10 +391,98 @@ fn run(distinct: bool) -> Value {
         &secret,
     );
     assert_eq!(
-        acquired["history"]["snapshot"]["content_projection"]["kind"],
-        "ready"
+        acquired["history"]["snapshot"]["content_projection"]["kind"], "ready",
+        "native acquisition result: {acquired}"
     );
     assert_eq!(provider.calls().len(), 1);
+    let write_call = McpToolCall::new(
+        recipe.review().service(),
+        recipe.review().tool(),
+        json!({"operation_id":"write", "operator_namespace":recipe.namespace().as_str(),
+            "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"})
+        .as_object()
+        .expect("arguments")
+        .clone(),
+    )
+    .expect("mutation call");
+    let write = approve(&state, &write_call, "write", now, &reviewer, &[], &[]);
+    assert_eq!(
+        checked(&write.execute("submit", &socket, &[], &[], None), &secret)["outcome"],
+        "response-recorded"
+    );
+    let public_bundle = admin_directory.join("submission-bundle.json");
+    private(&public_bundle, &serde_json::to_vec(&json!({"schema":auths_gateway::AUDIT_BUNDLE_SCHEMA,
+        "recipe_b64":Base64UrlUnpadded::encode_string(&std::fs::read(root.join("recipe")).expect("recipe")),
+        "profile_lock_b64":Base64UrlUnpadded::encode_string(&std::fs::read(root.join("lock")).expect("lock")),
+        "trusted_context_b64":Base64UrlUnpadded::encode_string(&std::fs::read(root.join("trust")).expect("trust")),
+        "entries":[{"operation_id":"write", "proof_b64":Base64UrlUnpadded::encode_string(&std::fs::read(&write.proof).expect("proof")),
+            "action_b64":Base64UrlUnpadded::encode_string(&std::fs::read(&write.action).expect("action")), "outcome_b64":null}]
+        })).expect("submission inventory"));
+    let private_audit = admin_directory.join("private-audit.json");
+    let exported = cli(
+        "audit-export",
+        &[
+            ("--state-dir", path(&state)),
+            ("--admin-socket", path(&admin_socket)),
+            ("--bundle", path(&public_bundle)),
+            ("--out", path(&private_audit)),
+        ],
+        &[],
+        None,
+    );
+    checked(&exported, &secret);
+    assert_eq!(
+        std::fs::metadata(&private_audit)
+            .expect("private audit")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    let observer = checked(
+        &cli("observer-show", &[("--state-dir", path(&state))], &[], None),
+        &secret,
+    );
+    let trust_digest = hex::encode(sha2::Sha256::digest(
+        std::fs::read(root.join("trust")).expect("trust"),
+    ));
+    let audited = cli(
+        "audit",
+        &[
+            ("--bundle", path(&private_audit)),
+            ("--trusted-context-sha256", &trust_digest),
+            (
+                "--observer",
+                observer["observer_anchor"]["principal"]
+                    .as_str()
+                    .expect("observer"),
+            ),
+        ],
+        &[],
+        None,
+    );
+    // This operator-only report intentionally contains protected audit facts.
+    assert!(audited.status.success(), "operator private audit refused");
+    let audited: Value = serde_json::from_slice(&audited.stdout).expect("audit report");
+    assert_eq!(audited["verified"], 1);
+    assert_eq!(audited["inconsistent"], 0);
+    let repeated = cli(
+        "audit-export",
+        &[
+            ("--state-dir", path(&state)),
+            ("--admin-socket", path(&admin_socket)),
+            ("--operation-id", "write"),
+            ("--out", path(&private_audit)),
+        ],
+        &[],
+        None,
+    );
+    assert!(
+        !repeated.status.success(),
+        "private export must never overwrite an existing artifact"
+    );
+    no_canaries(&repeated.stdout, &secret);
+    no_canaries(&repeated.stderr, &secret);
     let uid = rustix::process::geteuid().as_raw();
     let target = root.join("target.json");
     private(
@@ -360,11 +534,11 @@ fn run(distinct: bool) -> Value {
         ),
         case(
             "observe-outcome",
-            &json!({"schema":app::APP_OBSERVE_SCHEMA,"request":{"kind":"outcome","operation_id":"read"}}),
+            &json!({"schema":app::APP_OBSERVE_SCHEMA,"request":{"kind":"outcome","operation_id":"write"}}),
         ),
         case(
             "observe-pre-entry",
-            &json!({"schema":app::APP_OBSERVE_SCHEMA,"request":{"kind":"pre-entry","operation_id":"read"}}),
+            &json!({"schema":app::APP_OBSERVE_SCHEMA,"request":{"kind":"pre-entry","operation_id":"write"}}),
         ),
         case(
             "forged-ack",
@@ -457,7 +631,7 @@ fn run(distinct: bool) -> Value {
     let payload = json!({"distinct_uid":distinct,"gateway_uid":uid,"gateway_pid":daemon.0.id(),"socket":socket,"state":state,"admin_socket":admin_socket,"provider_port":provider.port,"private_paths":private_paths(&root),"cases":calls,"admin_frames":admin_frames,"cli_commands":commands});
     let first = probe(payload.clone(), &secret);
     assert_eq!(witness(&state, &admin_socket, &secret), before);
-    assert_eq!(provider.calls().len(), 1);
+    assert_eq!(provider.calls().len(), 2);
     assert_eq!(provider.denied.load(Ordering::SeqCst), 2);
     assert!(
         source_before == std::fs::read(&source_path).expect("source"),
@@ -506,18 +680,19 @@ fn run(distinct: bool) -> Value {
     replay_payload["admin_frames"] = json!([]);
     replay_payload["cli_commands"] = json!([]);
     let replay = probe(replay_payload, &secret);
-    assert_eq!(provider.calls().len(), 1);
+    assert_eq!(provider.calls().len(), 2);
     assert_eq!(provider.denied.load(Ordering::SeqCst), 4);
     assert_eq!(witness(&state, &admin_socket, &secret), before);
     assert_eq!(history(&socket, "release"), acknowledged);
     no_canaries(&daemon.finish_logs(), &secret);
     json!({"schema":"auths.managed-interface-probe/1","distinct_uid":distinct,
         "scope":"real native daemon, fresh runtime credential, actual local HTTP, all native application schemas, all operator commands injected on the application channel and every CLI help entry",
-        "excluded":["hostile OS or root", "provider or production custody qualification", "all privileged CLI execution paths", "positive signed mutation outcome privacy"],
-        "first":first,"replay":replay,"private_source_journal_unchanged":true,"provider_authorized_calls":1,
+        "excluded":["hostile OS or root", "provider or production custody qualification", "all privileged CLI execution paths", "live-provider qualification"],
+        "first":first,"replay":replay,"private_source_journal_unchanged":true,"provider_authorized_calls":2,
         "direct_provider_refusals":4,"no_new_custody_or_provider_entries":true,
         "recipient_key_and_uid_guard_precede_content":true,"trusted_recipient_positive_control":true,
-        "public_channels_exclude_plaintext_encodings_and_raw_digests":true})
+        "public_channels_exclude_plaintext_encodings_and_raw_digests":true,
+        "operator_private_export_mode":384, "operator_private_audit_verified_entries":1, "private_export_refuses_overwrite":true})
 }
 
 #[test]

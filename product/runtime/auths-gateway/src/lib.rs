@@ -74,8 +74,8 @@ mod store_testkit;
 pub use audit::{
     AUDIT_BUNDLE_SCHEMA, AUDIT_REPORT_SCHEMA, AuditPins, AuditReport, AuditStatus,
     AuditedApprovalResponse, AuditedEntry, AuditedPreEntry, MAX_AUDIT_BUNDLE_BYTES,
-    MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, ProviderResult, UnverifiedEntries,
-    audit_bundle,
+    MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, PrivateAuditBundle, ProviderResult,
+    UnverifiedEntries, audit_bundle,
 };
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
@@ -96,8 +96,8 @@ pub use echo_verify::{
 };
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
-    GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
-    PUBLIC_EVIDENCE_SCHEMA, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
+    GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewayPrivateAudit,
+    GatewaySubmitResult, PUBLIC_EVIDENCE_SCHEMA, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
     gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;

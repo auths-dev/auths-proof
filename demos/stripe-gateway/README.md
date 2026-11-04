@@ -7,8 +7,9 @@ gateway state. No coupled Stripe vertical service executes this demo.
 
 The web workbench and CLI show the actual gateway result. Verification,
 admission, HTTP response and linked provider read-back are separate stages.
-The evidence page exports the native audit-bundle format with available signed
-outcome/pre-entry observations; its display and history are explicitly unsigned.
+The evidence page exports a submission inventory with redacted signed public
+outcomes; its display and history are explicitly unsigned. Full audit facts and
+protected pre-entry observations are available only through the operator export.
 
 Every closed fixture action now traverses the public native approval protocol:
 the app constructs an exact typed proposal, two of three operator-held manager
@@ -206,3 +207,18 @@ not disable that gate or provision shared environment credentials. The Stripe
 family's current report contributes only one of the two required live providers.
 Human review and actual GitHub-release installation are separate acceptance gates.
 See [AP-SPEC-067](../../docs/specs/0067-stripe-general-gateway-demo.md).
+
+The application export contains public history, not a completed private audit. In
+a trusted operator shell, while the gateway is running, complete it with native
+journal evidence in a new owner-private file:
+
+```sh
+docker exec auths-stripe-gateway-demo /opt/demo/bin/auths-gateway-simulation \
+  audit-export --state-dir /run/demo/gateway0 \
+  --bundle /run/demo/app/audit.json --out /run/demo/private/audit-bundle.json
+```
+
+Run the offline auditor against that private bundle with independently pinned
+trust and observer values. Keep the bundle and detailed report in the operator
+boundary; public output does not contain protected facts. The export is read-only,
+never overwrites an existing file, and grants no provider entry or retry.

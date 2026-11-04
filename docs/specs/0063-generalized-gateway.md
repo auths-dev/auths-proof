@@ -96,7 +96,7 @@ All five share one recipe revision (§3) and one store contract (§9).
 - For every claimed submission it records the stage, the gateway evaluation
   time, the refusal code when it refused, and the HTTP status and response
   digest when a complete response exists. When an observer key is
-  provisioned, it signs that record on request as `auths.gateway-outcome/2`.
+  provisioned, it signs a redacted public projection as `auths.gateway-outcome/3`; complete audit facts are operator-private `auths.gateway-private-outcome/1`.
   A production gateway has no observer key until AP-SPEC-038 Epic 4 supplies a
   custody client (§16).
 - Within one namespace and one store, a bounded grant's count bounds every
@@ -1339,13 +1339,16 @@ custody unavailability can never block the kill switch.
 
 ## 8. Evidence and assurance
 
-### 8.1 `auths.gateway-outcome/2`
+### 8.1 Public outcome `/3` and private outcome `/1`
 
-The outcome keeps its subject
-(`auths-gateway://<namespace>/operations/<operation-id>`) and observer. Its
-fact set changes meaning, so the schema becomes `/2` and `/1` is removed
-(§13, reading 1). The kernel treats schema identifiers and fact names as
-opaque, so the core CDDL, codec, registry, and corpus stay (060 §3.1).
+AP074 directly replaces the public `/2` fact set with
+`auths.gateway-outcome/3`. Public facts are hiding effect/recipe/record references,
+conservative stage, evaluation time and bounded status/refusal. Full facts below
+are signed only as operator-private `auths.gateway-private-outcome/1`; the
+application cannot request that schema or receive protected pre-entry bytes.
+The existing kernel presence predicate and offline audit checks remain unchanged.
+
+The private subject is `auths-gateway://<namespace>/operations/<operation-id>`.
 
 | Fact | Type | Present when |
 | --- | --- | --- |
@@ -1371,38 +1374,25 @@ apart. At most 13 of an observation's 16 facts are used.
 a later window no longer moves its entry into that window. A chained step's
 `member("stage", ["observed-by-provider"])` (060 §5) works unchanged.
 
-**Consumers**, all changed in one cutover:
+Public conformance vectors are `bindings/fixtures/gateway/outcome-v3.json`;
+full private fact/presence vectors are `private-outcome-v1.json`. Native, Python
+and TypeScript consume the public corpus. The native private corpus preserves
+all accepted and refused full-fact cases. Superseded public schemas are rejected.
 
-- in the gateway: `observer.rs` (`OUTCOME_SCHEMA`, `outcome_facts`,
-  `verify_outcome`, `ObserverAnchorTemplate`), `engine.rs`, `audit.rs`,
-  `harness.rs`, and `observed_tests.rs`;
-- the custody test in `product/integrations/auths-custody/src/lib.rs`;
-- the Python and TypeScript gateway clients, their tests, and their public-API
-  inventories;
-- the north-star example and every trusted context's observer anchors;
-- `compliance.toml`, 060, the claim ledger, and the runbook.
+### 8.2 Observe request `/4`
 
-**Fixtures.** `bindings/fixtures/gateway/outcome-v2.json` holds, for each stage
-and fact combination, the canonical outcome signed by a fixed test observer
-and its expected facts. Rust verifies every entry. The Python (native) and
-TypeScript (WASM) SDKs accept every entry and, through local verification,
-reach the gateway's verdict on a grant requiring `member("stage",
-["observed-by-provider"])`. Go consumes no gateway schema, so no Go vector is
-added.
+`auths.gateway-observe/4` permits local outcome and pre-entry history only.
+Pre-entry returns operation ID, count and hiding record commitment. It performs
+no provider I/O and returns no protected observation bytes. Independently
+approved recovery uses `auths.gateway-recover/1`. Operator-only `audit-export`
+collects private signed outcomes and protected pre-entry bytes from one native
+snapshot, and completes private audit bundles in new owner-private files.
+See AP074 for the exact hiding, framing, deadline and non-bypassability contract.
 
-### 8.2 Observe request `/2`
+### 8.3 Private audit bundle `/3` and report `/3`
 
-`auths.gateway-observe/2` keeps `read-back`, which is refused for a path with
-a `response-field` segment, and `outcome`. It adds `pre-entry
-{operation_id}`, which returns one operation's stored signed pre-entry
-observations as `{"outcome": "pre-entry", "operation_id", "observations_b64":
-[...]}`. It signs nothing new and contacts no provider. The clients add
-`observe_pre_entry` and `observePreEntry`.
-
-### 8.3 Audit bundle and report `/2`
-
-`auths.gateway-audit-bundle/2` entries add an optional `pre_entry_b64`.
-`auths.gateway-audit-report/2` adds the recipe's `recovery` object to its
+`auths.gateway-audit-bundle/3` entries add an optional `pre_entry_b64`.
+`auths.gateway-audit-report/3` adds the recipe's `recovery` object to its
 header and a `provider_result` to each entry:
 
 ```json
@@ -1521,7 +1511,7 @@ entry, with its test evidence, in the change that introduces it:
 | Recipe | `auths.gateway-recipe-source/2`, `auths.gateway-compiled-recipe/2`, `auths.gateway-recipe-review/2`, `auths.gateway-recovery-capability/1` |
 | Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-bounded-sum/1`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/6` |
 | Policy | `auths.gateway.argument-ceiling-window-count/2`, `auths.gateway.argument-ceiling-policy/2`, `auths.gateway-counter-set/1` |
-| Evidence | `auths.gateway-pre-entry/1`, `auths.gateway-outcome/2`, `auths.gateway-observe/2`, `auths.gateway-audit-bundle/2`, `auths.gateway-audit-report/2`, `auths.gateway-echo-verification/1`, `auths.gateway-codes/1` |
+| Evidence | `auths.gateway-pre-entry/1`, `auths.gateway-outcome/2`, `auths.gateway-observe/2`, `auths.gateway-audit-bundle/3`, `auths.gateway-audit-report/3`, `auths.gateway-echo-verification/1`, `auths.gateway-codes/1` |
 | Operator | `auths.gateway-operator-attestation/1`, `auths.gateway-installation/3`, `auths.gateway-admin-request/1`, `auths.gateway-admin-response/1` |
 
 ## 9. Store contract
@@ -1876,7 +1866,7 @@ decision (option A, 2026-09-27) and is not listed.
 | 32 | An admin state change that loses a compare-and-swap to another process | (a) reload and reapply up to 8 rounds, then `gateway.admin.generation-conflict`; (b) fail at once | (a): a kill switch should not fail on an unrelated concurrent change; the bound keeps it within the admin deadline |
 | 33 | The pool `serve`'s descriptor check counts | (a) the `PostgreSQL` pool's maximum connections, and zero for the file store; (b) a fixed number | (a) |
 | 34 | Where §8.1's presence rule lives | (a) a leaf of the translated kernel (`outcome_facts_present`), checked exhaustively by Kani, with no refinement theorem; (b) a Lean model and theorem as well | (a): the rule decides what a signed record may say, not whether a credential is leased or a write is sent, so §11 does not require a theorem; the leaf sits in the kernel crate, outside the translated slice, so adding it to the slice and a theorem later needs no move |
-| 35 | How the SDKs "reach the gateway's verdict" on `outcome-v2.json` | (a) the fixture adds verdict cases: each accepted vector's exact bytes attached to an action whose grant requires `member("stage", ["observed-by-provider"])` of it, under a context compiled as the SDKs compile it and pinned to the packaged configuration, with the native decision and code; (b) the SDKs re-derive the facts themselves | (a): the SDKs verify through their own native and WASM verifiers, and no SDK gains a second reading of the facts |
+| 35 | How the SDKs "reach the gateway's verdict" on `outcome-v3.json` | (a) the fixture adds verdict cases: each accepted vector's exact bytes attached to an action whose grant requires `member("stage", ["observed-by-provider"])` of it, under a context compiled as the SDKs compile it and pinned to the packaged configuration, with the native decision and code; (b) the SDKs re-derive the facts themselves | (a): the SDKs verify through their own native and WASM verifiers, and no SDK gains a second reading of the facts |
 | 36 | What an audit bundle entry's `pre_entry_b64` holds | (a) an array of at most four unpadded base64url observations, in pointer order, as observe `/2`'s `pre-entry` answer returns them; (b) one concatenated blob | (a) |
 | 37 | An entry's `provider_result` when no verified outcome exists | (a) `null`; (b) an object of nulls | (a): nothing signed stands behind it |
 | 38 | The clock at which the audit evaluates pre-entry requirements | (a) the latest pre-entry `observed_at`, each already required to lie in `[evaluated-at, evaluated-at + 60]`; (b) `evaluated-at` | (a): the gateway evaluated after its read, so (b) could refuse an observation the gateway saw as fresh |
@@ -1936,12 +1926,12 @@ on the exact revision, or a commit whose diff holds the evidence.
 
 | Epic | Work | Done |
 | --- | --- | --- |
-| 1. Case file and fixtures | ADR 0013 and the case 0007 comparisons (§2), for all ten recipe capabilities and the sum budget; hostile recipe cases for every new construct, including basis points 0 and 10 001, a `POST` or `field`-segment denied read, a refused status of 429, five denied reads, `Stripe-Account` in `provider_headers`, an unregistered account-scope header, and an unbound partition; attempt scenarios `/3`, including `pre-entry-replaced-after-observation`, `relative-ceiling-above`, `relative-ceiling-exact-boundary`, `relative-basis-unavailable`, `relative-binding-mismatch`, `account-substituted-at-lease`, `denied-read-answered`, `account-scope-outside-grant`, `account-scope-unbound`, and `account-scope-only-on-action-requests`; §6.8's count and sum cases in `bounds-aggregate.json`; `outcome-v2.json`, `key-identity.json`, and `codes.json` | The vectors exist and fail against current code; the ADR and case file are reviewed |
+| 1. Case file and fixtures | ADR 0013 and the case 0007 comparisons (§2), for all ten recipe capabilities and the sum budget; hostile recipe cases for every new construct, including basis points 0 and 10 001, a `POST` or `field`-segment denied read, a refused status of 429, five denied reads, `Stripe-Account` in `provider_headers`, an unregistered account-scope header, and an unbound partition; attempt scenarios `/3`, including `pre-entry-replaced-after-observation`, `relative-ceiling-above`, `relative-ceiling-exact-boundary`, `relative-basis-unavailable`, `relative-binding-mismatch`, `account-substituted-at-lease`, `denied-read-answered`, `account-scope-outside-grant`, `account-scope-unbound`, and `account-scope-only-on-action-requests`; §6.8's count and sum cases in `bounds-aggregate.json`; `outcome-v3.json`, `key-identity.json`, and `codes.json` | The vectors exist and fail against current code; the ADR and case file are reviewed |
 | 2. Recipe `/2` | The compiler, including §3.2's rows for the credential account and denied reads, `account_scope`, `bounds`, and `relative_ceiling`, and §5.1's registry classes; `recovery_capability`, and review `/2` in both CLIs; account-scope headers in request construction; derivation emits `/2`; the fixtures, north-star recipe, and derivation corpus are regenerated | Every fixture compiles to its documented class; every hostile case fails with its code; both packaged CLIs pass the corpus; §11.3's capability theorems and §11.5, including `account_scope_header_exact` and `credential_reads_fixed`, are proved and registered, with `cargo xtask formal` green |
 | 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3, including the account read and denied reads at onboarding and every lease (§5.7, §5.8) and the relative ceiling (§5.6, `ratio.rs`); re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases; each relative-ceiling, account, and denied-read scenario records `not-entered` with its code, one lease, and zero writes; §11.2, §11.3's transition theorems, and §11.6 are proved and registered, with `cargo xtask formal` green |
 | 4. One spend limit | Formal first (the Lean model, theorems, and the three translated leaves, with `cargo xtask formal` green); then evaluator `/2` with policy `/2` (§6.10), the account-scope binding (§5.9), the count and sum slots of §5.5 step 6, §6.5's sweep, §6.7, and every §6.4 description | `bounds-aggregate.json` passes on both stores, including both races; no count or sum slot leaks; the audit flags the capacity-3 and capacity-1 bundle and the sum bundle and passes every valid one; `account-scope-outside-grant` and `account-scope-unbound` refuse with zero leases |
 | 5. Operator plane | §7, including connection record `/2` (§7.3), and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret, including after a disable and enable, and a cross-process `rotate` followed by a disable and enable still leases on every host; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused; §11.4 is proved and registered, with `cargo xtask formal` green |
-| 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers (including `relative-basis`), observe `/2`, audit `/2` (including the relative-ceiling and sum checks), `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one, and flags a bundle whose basis does not admit its argument |
+| 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers (including `relative-basis`), observe `/2`, audit `/2` (including the relative-ceiling and sum checks), `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v3.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one, and flags a bundle whose basis does not admit its argument |
 | 7. North-star recipe | The Stripe recipe moves to §3.1, declaring all five Stripe checks, with an approval window of at most 86 340 seconds; its grants carry policy `/2` with a sum limit partitioned by currency and a scope listing the test connected account; the counting double returns refunds with metadata, serves PaymentIntents, the account, and 403 refusals, requires `Stripe-Version`, honors `Stripe-Account`, and honors the key; `journey.py` checks `observed-by-provider`, the guard refusing a non-test key, and one hostile case per check: a refund above the ratio of `/amount_received`, a currency that does not match the PaymentIntent, the double reporting another account at the lease, the double answering a denied read with 200, a `connect_account` outside the grant, and a refund that exceeds the currency's remaining sum; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel, and each hostile case records its code with zero writes; the ledger entry uses §1's claim and non-claim wording |
 | 8. Consolidation | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended, and `AGENTS.md`'s summary of the boundary plan is checked against the rewrite; the board is updated; CI is green |
 

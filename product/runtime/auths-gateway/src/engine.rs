@@ -12,7 +12,8 @@ use crate::connection::{
 };
 use crate::effect::{ApprovedEffect, ExactEffectApproval};
 use crate::observer::{
-    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, operation_subject, outcome_facts,
+    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, OutcomeRecord,
+    PRIVATE_OUTCOME_SCHEMA, operation_subject, outcome_facts,
 };
 use crate::recipe::{ENTRY_DEADLINE_SECONDS, GuardChecks};
 use crate::submit::{self, SubmitContext, SubmitIo};
@@ -295,9 +296,33 @@ pub enum GatewayObserveRequest {
     /// Sign the stored record of one logical operation in this
     /// installation's namespace. No provider is contacted.
     Outcome { operation_id: String },
-    /// Return the signed pre-entry observations stored for one logical
-    /// operation. Nothing is signed and no provider is contacted.
+    /// Return redacted pre-entry history for one logical operation.
+    /// No protected observation bytes are returned or provider contacted.
     PreEntry { operation_id: String },
+}
+
+/// Operator-private audit export from one immutable loaded journal revision.
+/// Contains protected facts; callers must enforce operator authentication and
+/// persist this only in owner-private storage. It confers no entry authority.
+#[derive(Clone, Eq, PartialEq, Serialize)]
+pub struct GatewayPrivateAudit {
+    /// Versioned operator artifact schema.
+    pub schema: &'static str,
+    /// Exact logical operation whose protected facts were signed.
+    pub operation_id: String,
+    /// Canonical signed private outcome, unpadded base64url.
+    pub outcome_b64: String,
+    /// Canonical protected pre-entry observations in pointer order.
+    pub pre_entry_b64: Vec<String>,
+}
+
+impl std::fmt::Debug for GatewayPrivateAudit {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GatewayPrivateAudit")
+            .field("private", &"[redacted]")
+            .finish_non_exhaustive()
+    }
 }
 
 /// Closed application result of an observation request. A signed
@@ -308,21 +333,92 @@ pub enum GatewayObserveResult {
     /// A canonical signed observation to attach to the next action with
     /// `media_type` as its attachment media type.
     Signed {
+        #[serde(deserialize_with = "decode_outcome_schema")]
         schema: String,
+        #[serde(deserialize_with = "decode_public_subject")]
         subject: String,
+        #[serde(deserialize_with = "decode_evidence_time")]
         observed_at: u64,
+        #[serde(deserialize_with = "decode_observation_media_type")]
         media_type: String,
+        #[serde(deserialize_with = "decode_observation_bytes")]
         observation_b64: String,
     },
-    /// The signed pre-entry observations stored for `operation_id`, in
-    /// pointer order, each unpadded base64url; empty when none were
-    /// recorded.
+    /// Redacted local history, without observation values or body digests.
     PreEntry {
         operation_id: String,
-        observations_b64: Vec<String>,
+        #[serde(deserialize_with = "decode_pre_entry_count")]
+        observations: usize,
+        #[serde(deserialize_with = "decode_evidence_commitment")]
+        record_commitment: String,
     },
     /// Nothing was signed.
-    Refused { code: String },
+    Refused {
+        #[serde(deserialize_with = "decode_refusal_code")]
+        code: String,
+    },
+}
+
+fn decode_refusal_code<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let value = String::deserialize(d)?;
+    if value.is_empty() || value.len() > 128 {
+        return Err(serde::de::Error::custom("invalid public refusal code"));
+    }
+    Ok(value)
+}
+
+fn decode_outcome_schema<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let value = String::deserialize(d)?;
+    if value != OUTCOME_SCHEMA {
+        return Err(serde::de::Error::custom("invalid public outcome schema"));
+    }
+    Ok(value)
+}
+
+fn decode_public_subject<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let value = String::deserialize(d)?;
+    if value.is_empty() || value.len() > 1024 {
+        return Err(serde::de::Error::custom(
+            "invalid public observation subject",
+        ));
+    }
+    Ok(value)
+}
+
+fn decode_observation_media_type<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<String, D::Error> {
+    let value = String::deserialize(d)?;
+    if value != crate::OBSERVATION_MEDIA_TYPE {
+        return Err(serde::de::Error::custom(
+            "invalid public observation media type",
+        ));
+    }
+    Ok(value)
+}
+
+fn decode_observation_bytes<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let value = String::deserialize(d)?;
+    let maximum = auths_model::MAX_OBSERVATION_BYTES;
+    if value.is_empty() || value.len() > maximum.div_ceil(3) * 4 {
+        return Err(serde::de::Error::custom("invalid public observation size"));
+    }
+    let decoded = Base64UrlUnpadded::decode_vec(&value)
+        .map_err(|_| serde::de::Error::custom("invalid public observation encoding"))?;
+    if decoded.len() > maximum || Base64UrlUnpadded::encode_string(&decoded) != value {
+        return Err(serde::de::Error::custom(
+            "invalid public observation encoding",
+        ));
+    }
+    Ok(value)
+}
+
+fn decode_pre_entry_count<'de, D: serde::Deserializer<'de>>(d: D) -> Result<usize, D::Error> {
+    let value = usize::deserialize(d)?;
+    if value > crate::MAX_AUDIT_PRE_ENTRY_OBSERVATIONS {
+        return Err(serde::de::Error::custom("invalid public pre-entry count"));
+    }
+    Ok(value)
 }
 
 impl From<GatewaySignedObservation> for GatewayObserveResult {
@@ -2463,6 +2559,36 @@ impl GatewayEngine {
             .map_err(|_| ())
     }
 
+    /// Export signed protected audit facts for the authenticated operator.
+    /// This is not an application protocol operation. Socket integrations must
+    /// enforce the existing operator peer-UID gate before invoking it.
+    ///
+    /// # Errors
+    /// Refuses malformed or absent operations, unavailable protected state,
+    /// unavailable clock/key, or facts the native outcome predicate refuses.
+    pub async fn private_audit(
+        &self,
+        operation_id: &str,
+    ) -> Result<GatewayPrivateAudit, &'static str> {
+        let observer = self
+            .observer
+            .as_ref()
+            .ok_or("gateway.observer.not-provisioned")?;
+        let operation = crate::LogicalOperationId::parse(operation_id)
+            .map_err(|_| "gateway.observer.invalid-operation")?;
+        let snapshot = self
+            .attempts
+            .read(self.recipe.namespace(), &operation)
+            .await
+            .map_err(|_| "gateway.observer.store-unavailable")?
+            .ok_or("gateway.observer.operation-unknown")?;
+        private_audit(
+            &snapshot,
+            observer,
+            wall_clock_seconds().ok_or("gateway.observer.clock-unavailable")?,
+        )
+    }
+
     /// Projects or signs retained local history for the application. This
     /// route never leases a credential or contacts a provider. Independently
     /// authorized provider evidence uses `recover` and its durable acquisition.
@@ -3022,11 +3148,57 @@ pub(crate) async fn observe_outcome(
                 facts,
             )
         })
+        .and_then(|signed| {
+            let projection =
+                crate::observer::verify_public_outcome(signed.bytes(), observer.principal())
+                    .ok_or(crate::GatewayObserverError::Unrepresentable)?;
+            if projection.subject != signed.subject()
+                || projection.observed_at != now
+                || projection.stage == crate::GatewayAttemptStage::EntryGranted
+            {
+                return Err(crate::GatewayObserverError::Unrepresentable);
+            }
+            Ok(signed)
+        })
         .map_or_else(|error| refused(error.code()), GatewayObserveResult::from)
 }
 
-/// Returns the signed pre-entry observations stored for one logical
-/// operation. It signs nothing and contacts no provider.
+/// A single protected snapshot is used for both outcome facts and observations.
+pub(crate) fn private_audit(
+    snapshot: &crate::GatewayAttemptSnapshot,
+    observer: &GatewayObserver,
+    now: u64,
+) -> Result<GatewayPrivateAudit, &'static str> {
+    let signed = OutcomeRecord::from_snapshot(snapshot)
+        .facts()
+        .and_then(|facts| {
+            observer.sign(
+                PRIVATE_OUTCOME_SCHEMA,
+                &operation_subject(snapshot.namespace(), snapshot.operation_id()),
+                now,
+                facts,
+            )
+        })
+        .map_err(|error| error.code())?;
+    Ok(GatewayPrivateAudit {
+        schema: "auths.gateway-private-audit/1",
+        operation_id: snapshot.operation_id().as_str().to_owned(),
+        outcome_b64: Base64UrlUnpadded::encode_string(signed.bytes()),
+        pre_entry_b64: snapshot
+            .pre_entry()
+            .map(|record| {
+                record
+                    .observations
+                    .iter()
+                    .map(|bytes| Base64UrlUnpadded::encode_string(bytes))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
+}
+
+/// Returns redacted pre-entry history without protected observation bytes.
+/// It signs nothing and contacts no provider.
 pub(crate) async fn observe_pre_entry(
     attempts: &GatewayAttempts,
     namespace: &crate::OperatorNamespace,
@@ -3042,16 +3214,10 @@ pub(crate) async fn observe_pre_entry(
     };
     GatewayObserveResult::PreEntry {
         operation_id: operation.as_str().to_owned(),
-        observations_b64: snapshot
+        observations: snapshot
             .pre_entry()
-            .map(|record| {
-                record
-                    .observations
-                    .iter()
-                    .map(|bytes| Base64UrlUnpadded::encode_string(bytes))
-                    .collect()
-            })
-            .unwrap_or_default(),
+            .map_or(0, |record| record.observations.len()),
+        record_commitment: hex::encode(snapshot.public_record_commitment()),
     }
 }
 

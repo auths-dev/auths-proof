@@ -138,7 +138,9 @@ def test_native_refusals_replay_race_and_loss(operator):
                 and refund['metadata']['auths_echo'] == echo, 'demo.selftest-independent-read-back')
         require(evidence[commitment_field] != digest(refund_bytes),
                 'demo.selftest-public-raw-evidence-digest')
-        cases[-1]['independent_read_back'] = {'fixture_api_entries': 1, 'response_sha256': digest(refund_bytes)}
+        from operate import PRIVATE
+        write(PRIVATE / ('independent-readback-' + label + '.json'), refund_bytes, new=True)
+        cases[-1]['independent_read_back'] = {'fixture_api_entries': 1, 'exact_fields_and_native_link_checked': True}
     for label in ['replay', 'typescript']:
         _, records, traffic = execute(label)
         require(records[0]['outcome'] == 'observed-by-provider'
@@ -213,14 +215,27 @@ def test_application_isolation_and_native_audit(operator):
     require(checks['observer-custody']['state'] == 'not-ready',
             'demo.selftest-software-observer-not-production-ready')
     pins = decode(read(HOME / 'private/pins.json'))
-    audit = child([operator.binary, 'audit', '--bundle', HOME / 'app/audit.json',
+    private_bundle = operator.export_audit(HOME / 'private/verified-audit.json')
+    audit = child([operator.binary, 'audit', '--bundle', private_bundle,
                    '--trusted-context-sha256', pins['trusted_context_sha256'],
                    '--observer', pins['observer']['observer_anchor']['principal']])
+    private_report = HOME / 'private/verified-audit-report.json'
+    write(private_report, audit.stdout, new=True)
+    for protected in [private_bundle, private_report]:
+        probe = subprocess.run(['/opt/consumer/bin/python', '-c',
+            'import sys; open(sys.argv[1], "rb").read()', str(protected)],
+            user=APP_UID, group=APP_GID, extra_groups=[], env=ENVIRONMENT, capture_output=True)
+        require(probe.returncode != 0 and not probe.stdout, 'demo.selftest-private-audit-readable-by-app')
+        require(protected.stat().st_mode & 0o777 == 0o600, 'demo.selftest-private-audit-mode')
     result = decode(audit.stdout)
     require(result['inconsistent'] == 0 and result['unverified'] == 0
             and len(result['approval_responses']) >= 2,
             'demo.selftest-audit-open')
-    return {'doctor': doctor_value, 'audit': result}
+    # Full native report is protected. Publish only aggregate verification
+    # counts; preserve all detailed assertions above in the operator process.
+    summary = {key: result[key] for key in ['verified', 'refused', 'unverified', 'inconsistent']}
+    summary['private_report_retained'] = True
+    return {'doctor': doctor_value, 'audit': summary}
 
 
 def test_exact_operator_consent_binding(operator):
@@ -319,6 +334,32 @@ def run(operator):
                              capture_output=True, timeout=30)
     require(support.returncode == 0, 'demo.selftest-support-refused')
     published = data + audit + support.stdout
+    protected_report = decode(read(HOME / 'private/verified-audit-report.json'))
+    protected_digests = []
+    for entry in protected_report['entries']:
+        result = entry.get('provider_result') or {}
+        for key in ['response_digest', 'evidence_digest', 'relative_basis_digest']:
+            if result.get(key):
+                protected_digests.append(bytes.fromhex(result[key]))
+    public_buffers = [published]
+    def collect_public(value):
+        if isinstance(value, dict):
+            for item in value.values():
+                collect_public(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect_public(item)
+        elif isinstance(value, str):
+            try:
+                public_buffers.append(base64.urlsafe_b64decode(value + '=' * (-len(value) % 4)))
+            except (ValueError, UnicodeError):
+                pass
+    for payload in [decode(data), decode(audit), decode(support.stdout)]:
+        collect_public(payload)
+    for raw in protected_digests:
+        for encoded in [raw, raw.hex().encode(), base64.b64encode(raw), base64.urlsafe_b64encode(raw)]:
+            require(all(encoded not in payload for payload in public_buffers),
+                    'demo.selftest-public-private-body-digest-exposure')
     private_seeds = [read(HOME / 'private' / (name + '.seed'))
                      for name in ['root', 'reader', 'manager-a', 'manager-b', 'manager-c']]
     for secret in list(operator.keys.values()) + private_seeds + [read(HOME / 'app/actor.seed')]:

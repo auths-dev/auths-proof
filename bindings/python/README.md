@@ -122,3 +122,10 @@ published release.
 
 Publication, promotion, and independent-review status remain governed by
 `sdk-capability.json`.
+
+The application observation protocol is `auths.gateway-observe/4`. Public signed
+outcomes use `auths.gateway-outcome/3` and hiding effect/record references; public
+pre-entry history returns only the observation count and a hiding record
+commitment. No protected observation bytes or raw content-derived digests are
+returned. Operator-only `auths-gateway audit-export` completes private audit
+bundles; these are not application SDK results. Superseded schemas are rejected.

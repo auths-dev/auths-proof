@@ -19,7 +19,7 @@ from auths.adapters.custody import PublicControlEvidence
 from auths.authoring import (GrantEvidence, collect_approvals, propose_mcp_approval,
                              sign_approval_action)
 from auths.gateway import (GatewayClient, GatewayEndpoint, GatewayProtocolError,
-                           GatewaySignedObservation, GatewayPreEntryObservations)
+                           GatewaySignedObservation)
 from auths.self_hosted import load_signer_file
 
 from demo_common import Refusal, b64, canonical, decode, read, require, unb64, write
@@ -219,9 +219,6 @@ class Application:
                 observed = await self.clients[0].observe_outcome(operation)
                 if isinstance(observed, GatewaySignedObservation):
                     entry['outcome_b64'] = b64(observed.observation)
-                pre = await self.clients[0].observe_pre_entry(operation)
-                if isinstance(pre, GatewayPreEntryObservations):
-                    entry['pre_entry_b64'] = [b64(item) for item in pre.observations]
             except GatewayProtocolError:
                 pass  # Missing signed evidence stays missing; audit must report it.
             self.entries[operation] = entry
@@ -341,7 +338,7 @@ class Application:
         return result
 
     def audit(self):
-        return {'schema': 'auths.gateway-audit-bundle/2',
+        return {'schema': 'auths.gateway-audit-bundle/3',
                 'recipe_b64': self.plan['recipe_source_b64'],
                 'profile_lock_b64': b64(read(HERE / 'profile.lock.json')),
                 'trusted_context_b64': self.plan['contexts'][0],

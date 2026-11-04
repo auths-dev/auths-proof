@@ -34,6 +34,7 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
         case.store.reopen(),
         controls(true),
     ));
+    let engine = engine.with_observer(crate::GatewayObserver::from_test_seed(0x33));
     engine
         .activate_effect_configuration(
             engine
@@ -91,12 +92,21 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
             .expect("action digest"),
     )
     .expect("digest");
+    let recipe_digest =
+        hex::decode(original["recipe_digest"].as_str().expect("recipe digest")).expect("digest");
     let (proof, action_bytes, approval) = input(&case.setup.installation.root, SOURCE);
     let first = runtime.block_on(engine.submit(&proof, &action_bytes, approval.clone()));
     let public = serde_json::to_vec(&first).expect("public mutation result");
     private_values_absent(
         &public,
-        &[CONTENT, &body, &digest, &action, echo.as_bytes()],
+        &[
+            CONTENT,
+            &body,
+            &digest,
+            &action,
+            &recipe_digest,
+            echo.as_bytes(),
+        ],
     );
     private_values_absent(
         format!("{:?}", recovered.source).as_bytes(),
@@ -120,6 +130,103 @@ fn history(backend: Backend) -> (Value, Vec<u8>, String) {
     assert_ne!(commitment, hex::encode(digest));
     assert!(value["evidence"].get("echo").is_none());
     assert!(value["evidence"].get("evidence_digest").is_none());
+    let observed = runtime.block_on(engine.observe(&crate::GatewayObserveRequest::Outcome {
+        operation_id: SOURCE.to_owned(),
+    }));
+    let crate::GatewayObserveResult::Signed {
+        schema,
+        observation_b64,
+        ..
+    } = observed
+    else {
+        panic!("configured native observer must sign");
+    };
+    assert_eq!(schema, "auths.gateway-outcome/3");
+    use base64ct::{Base64UrlUnpadded, Encoding as _};
+    let signed_bytes =
+        Base64UrlUnpadded::decode_vec(&observation_b64).expect("canonical signature");
+    private_values_absent(
+        &signed_bytes,
+        &[
+            CONTENT,
+            &body,
+            &digest,
+            &action,
+            &recipe_digest,
+            echo.as_bytes(),
+        ],
+    );
+    let signed = crate::observer::verify_signed(
+        &signed_bytes,
+        crate::GatewayObserver::from_test_seed(0x33).principal(),
+        crate::OUTCOME_SCHEMA,
+    )
+    .expect("signature verified");
+    let names: Vec<_> = signed
+        .statement()
+        .facts()
+        .as_slice()
+        .iter()
+        .map(|fact| fact.name().as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "effect-reference",
+            "evaluated-at",
+            "recipe-reference",
+            "record-commitment",
+            "stage"
+        ]
+    );
+    let private = runtime
+        .block_on(engine.private_audit(SOURCE))
+        .expect("operator audit");
+    let private_bytes =
+        Base64UrlUnpadded::decode_vec(&private.outcome_b64).expect("private signature");
+    let verified = crate::observer::verify_outcome(
+        &private_bytes,
+        crate::GatewayObserver::from_test_seed(0x33).principal(),
+    )
+    .expect("private audit signature");
+    assert_eq!(verified.record.evidence_digest, Some(digest));
+    assert_eq!(verified.commitment(), hex::encode(&action));
+    assert!(
+        crate::observer::verify_outcome(
+            &signed_bytes,
+            crate::GatewayObserver::from_test_seed(0x33).principal()
+        )
+        .is_err()
+    );
+    private_values_absent(
+        format!("{private:?}").as_bytes(),
+        &[CONTENT, &digest, &action, echo.as_bytes()],
+    );
+    let redacted = runtime.block_on(engine.observe(&crate::GatewayObserveRequest::PreEntry {
+        operation_id: SOURCE.to_owned(),
+    }));
+    let redacted_bytes = serde_json::to_vec(&redacted).expect("public history");
+    private_values_absent(
+        &redacted_bytes,
+        &[
+            CONTENT,
+            &body,
+            &digest,
+            &action,
+            &recipe_digest,
+            echo.as_bytes(),
+        ],
+    );
+    let crate::GatewayObserveResult::PreEntry {
+        observations,
+        record_commitment,
+        ..
+    } = redacted
+    else {
+        panic!("redacted pre-entry");
+    };
+    assert_eq!(observations, private.pre_entry_b64.len());
+    assert_eq!(record_commitment.len(), 64);
     let witness = engine.execution_witness();
     let (reopened, _) = runtime.block_on(load_controlled_engine(
         &case.setup.installation,
@@ -216,6 +323,208 @@ fn wire_cases() -> Value {
     json!(output)
 }
 
+fn history_wire_case(kind: &str, name: &str, bytes: String, accepted: bool) -> Value {
+    assert_eq!(
+        serde_json::from_str::<crate::GatewayObserveResult>(&bytes).is_ok(),
+        accepted,
+        "{name}"
+    );
+    json!({"kind":kind,"case":name,"response":bytes,"accepted":accepted})
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "finite native wire corpus pins every affected public decoder boundary"
+)]
+fn history_wire_cases() -> Value {
+    use base64ct::{Base64UrlUnpadded, Encoding as _};
+    let pre = json!({"outcome":"pre-entry","operation_id":"step-1","observations":1,"record_commitment":"ab".repeat(32)});
+    // These are data-decoding vectors, not authenticated observations. Actual
+    // configured native signatures and private facts are checked in history().
+    let signed = json!({"outcome":"signed","schema":crate::OUTCOME_SCHEMA,"subject":"public-subject",
+        "observed_at":NOW,"media_type":crate::OBSERVATION_MEDIA_TYPE,"observation_b64":"AQID"});
+    let mut cases = vec![
+        history_wire_case("pre-entry", "valid", pre.to_string(), true),
+        history_wire_case("signed", "valid", signed.to_string(), true),
+    ];
+    for (kind, name, field, replacement, accepted) in [
+        ("pre-entry", "zero", "observations", json!(0), true),
+        ("pre-entry", "limit", "observations", json!(4), true),
+        (
+            "pre-entry",
+            "limit-plus-one",
+            "observations",
+            json!(5),
+            false,
+        ),
+        ("pre-entry", "negative", "observations", json!(-1), false),
+        ("pre-entry", "boolean", "observations", json!(true), false),
+        (
+            "pre-entry",
+            "short-commitment",
+            "record_commitment",
+            json!("00"),
+            false,
+        ),
+        (
+            "pre-entry",
+            "uppercase-commitment",
+            "record_commitment",
+            json!("AB".repeat(32)),
+            false,
+        ),
+        (
+            "pre-entry",
+            "newline-commitment",
+            "record_commitment",
+            json!(format!("{}\n", "ab".repeat(32))),
+            false,
+        ),
+        (
+            "pre-entry",
+            "private-observations",
+            "observations_b64",
+            json!(["AQID"]),
+            false,
+        ),
+        (
+            "signed",
+            "old-public-schema",
+            "schema",
+            json!("auths.gateway-outcome/2"),
+            false,
+        ),
+        (
+            "signed",
+            "private-schema",
+            "schema",
+            json!("auths.gateway-private-outcome/1"),
+            false,
+        ),
+        (
+            "signed",
+            "wrong-media",
+            "media_type",
+            json!("application/cbor"),
+            false,
+        ),
+        ("signed", "empty-subject", "subject", json!(""), false),
+        (
+            "signed",
+            "subject-limit",
+            "subject",
+            json!("é".repeat(512)),
+            true,
+        ),
+        (
+            "signed",
+            "subject-limit-plus-one",
+            "subject",
+            json!("é".repeat(513)),
+            false,
+        ),
+        (
+            "signed",
+            "time-limit",
+            "observed_at",
+            json!((1_u64 << 53) - 1),
+            true,
+        ),
+        (
+            "signed",
+            "unsafe-time",
+            "observed_at",
+            json!(1_u64 << 53),
+            false,
+        ),
+        ("signed", "negative-time", "observed_at", json!(-1), false),
+        ("signed", "boolean-time", "observed_at", json!(true), false),
+        ("signed", "empty-bytes", "observation_b64", json!(""), false),
+        (
+            "signed",
+            "padded-bytes",
+            "observation_b64",
+            json!("AQID="),
+            false,
+        ),
+        (
+            "signed",
+            "noncanonical-pad-bits",
+            "observation_b64",
+            json!("AB"),
+            false,
+        ),
+        (
+            "signed",
+            "bytes-limit",
+            "observation_b64",
+            json!(Base64UrlUnpadded::encode_string(&vec![1; 4096])),
+            true,
+        ),
+        (
+            "signed",
+            "bytes-limit-plus-one",
+            "observation_b64",
+            json!(Base64UrlUnpadded::encode_string(&vec![1; 4097])),
+            false,
+        ),
+        (
+            "signed",
+            "private-facts",
+            "pre_entry_b64",
+            json!(["AQID"]),
+            false,
+        ),
+    ] {
+        let mut value = if kind == "signed" {
+            signed.clone()
+        } else {
+            pre.clone()
+        };
+        value[field] = replacement;
+        cases.push(history_wire_case(kind, name, value.to_string(), accepted));
+    }
+    for (kind, base) in [("signed", signed), ("pre-entry", pre)] {
+        let text = base.to_string();
+        let field = if kind == "signed" {
+            "schema"
+        } else {
+            "record_commitment"
+        };
+        let duplicate = format!("{},\"{field}\":{}}}", &text[..text.len() - 1], base[field]);
+        cases.push(history_wire_case(
+            kind,
+            "duplicate-member",
+            duplicate,
+            false,
+        ));
+        cases.push(history_wire_case(
+            kind,
+            "bom",
+            format!("\u{feff}{text}"),
+            false,
+        ));
+        let fractional = if kind == "signed" {
+            text.replace(&format!("\"observed_at\":{NOW}"), "\"observed_at\":1.0")
+        } else {
+            text.replace("\"observations\":1", "\"observations\":1.0")
+        };
+        cases.push(history_wire_case(
+            kind,
+            "fractional-number",
+            fractional.clone(),
+            false,
+        ));
+        cases.push(history_wire_case(
+            kind,
+            "exponent-number",
+            fractional.replace("1.0", "1e0"),
+            false,
+        ));
+    }
+    json!(cases)
+}
+
 fn matrix(backend: Backend) {
     let (first, first_body, first_commitment) = history(backend);
     let (second, second_body, second_commitment) = history(backend);
@@ -227,8 +536,9 @@ fn matrix(backend: Backend) {
     assert_eq!(first, second);
     let artifact = serde_json::to_vec_pretty(&json!({"schema":"auths.native-public-mutation-evidence/1","adapter":backend.label(),
         "scope":"native writer/read proofs and exact approvals, actual HTTP, protected complete evidence and public original-writer replay after withdrawal",
-        "excluded":["signed outcome/pre-entry observation projection hardening", "live provider and hostile OS qualification"],
-        "public_result":first,"wire_cases":wire_cases(),"same_private_bytes_have_distinct_record_scoped_commitments":true,"reopen_and_replay_preserve_commitment_without_io":true,
+        "excluded":["live provider and hostile OS qualification"],
+        "public_result":first,"wire_cases":wire_cases(),"history_wire_cases":history_wire_cases(),"same_private_bytes_have_distinct_record_scoped_commitments":true,"reopen_and_replay_preserve_commitment_without_io":true,
+        "configured_signed_public_history_excludes_private_facts":true,"operator_private_signature_preserves_full_audit_facts":true,
         "private_complete_evidence_and_original_binding_preserved":true,"public_and_debug_exclude_raw_body_digest_echo_and_action_digest":true})).expect("artifact");
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
         "../../../bindings/fixtures/gateway/native-public-mutation-evidence-{}.json",

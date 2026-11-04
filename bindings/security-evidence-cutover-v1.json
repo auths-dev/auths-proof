@@ -14,8 +14,8 @@
     {
       "claim": "An unknown write is recovered from a gateway-signed outcome or read-back, never by a blind retry, and a retired outcome schema is refused.",
       "evidence": [
-        "bindings/python/tests/test_gateway_outcome_v2.py",
-        "bindings/typescript/test/integration/gateway-outcome-v2.test.js",
+        "bindings/python/tests/test_gateway_outcome_v3.py",
+        "bindings/typescript/test/integration/gateway-outcome-v3.test.js",
         "product/runtime/auths-gateway/src/scenario_tests.rs"
       ]
     },
@@ -56,7 +56,7 @@
     { "path": "bindings/python/tests/test_product_errors.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_registry_code_inventory.py"] },
     { "path": "bindings/python/tests/test_product_waist_conformance.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_native_boundary_contract.py", "bindings/python/tests/test_public_api_v2.py"] },
     { "path": "bindings/python/tests/test_production_client.py", "disposition": "old remote control-plane client claim retired", "evidence": ["bindings/python/tests/test_gateway_client.py", "bindings/python/README.md"] },
-    { "path": "bindings/python/tests/test_profile_runtime_v1.py", "disposition": "local-agent session and generated-package runtime retired; the gateway is the single provider-write path", "evidence": ["bindings/python/tests/test_gateway_client.py", "bindings/python/tests/test_gateway_outcome_v2.py"] },
+    { "path": "bindings/python/tests/test_profile_runtime_v1.py", "disposition": "local-agent session and generated-package runtime retired; the gateway is the single provider-write path", "evidence": ["bindings/python/tests/test_gateway_client.py", "bindings/python/tests/test_gateway_outcome_v3.py"] },
     { "path": "bindings/python/tests/test_receipt_inspection.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_public_api_v2.py", "bindings/python/tests/test_native_boundary_contract.py"] },
     { "path": "bindings/python/tests/test_vocabulary_parity.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_public_api_v2.py", "bindings/public-topology-v1.json"] },
 
@@ -64,7 +64,7 @@
     { "path": "bindings/typescript/test/integration/development-product.test.js", "disposition": "old callback-based development launch retired", "evidence": ["bindings/typescript/test/unit/gateway-client.test.js", "bindings/typescript/README.md"] },
     { "path": "bindings/typescript/test/integration/diagnostic.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/package/packed-doctor.test.js", "bindings/typescript/test/unit/public-api-v2.test.js"] },
     { "path": "bindings/typescript/test/integration/effect-axis-boundary.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/contract/effect-axis.ts", "bindings/python/tests/test_registry_code_inventory.py"] },
-    { "path": "bindings/typescript/test/integration/fixtures/crash-after-provider-entry.mjs", "disposition": "replaced by gateway attempt-store restart tests", "evidence": ["product/runtime/auths-gateway/src/scenario_tests.rs", "bindings/python/tests/test_gateway_outcome_v2.py"] },
+    { "path": "bindings/typescript/test/integration/fixtures/crash-after-provider-entry.mjs", "disposition": "replaced by gateway attempt-store restart tests", "evidence": ["product/runtime/auths-gateway/src/scenario_tests.rs", "bindings/python/tests/test_gateway_outcome_v3.py"] },
     { "path": "bindings/typescript/test/integration/identity.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/nonforgeability.ts"] },
     { "path": "bindings/typescript/test/integration/inspection.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js"] },
     { "path": "bindings/typescript/test/integration/non-forgeability.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/contract/nonforgeability.ts", "bindings/python/tests/test_native_boundary_contract.py"] },
@@ -78,13 +78,13 @@
     { "path": "bindings/typescript/test/unit/custody-conformance.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js"] },
     { "path": "bindings/typescript/test/unit/doctor.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/package/packed-doctor.test.js"] },
     { "path": "bindings/typescript/test/unit/github-agent.test.js", "disposition": "old remote endpoint GitHub launch claim retired", "evidence": ["bindings/typescript/test/unit/gateway-client.test.js", "bindings/typescript/README.md"] },
-    { "path": "bindings/typescript/test/unit/preparation-evidence.test.js", "disposition": "local-agent protected-lease preparation evidence retired with the local agent", "evidence": ["bindings/typescript/test/unit/gateway-client.test.js", "bindings/typescript/test/integration/gateway-outcome-v2.test.js"] },
+    { "path": "bindings/typescript/test/unit/preparation-evidence.test.js", "disposition": "local-agent protected-lease preparation evidence retired with the local agent", "evidence": ["bindings/typescript/test/unit/gateway-client.test.js", "bindings/typescript/test/integration/gateway-outcome-v3.test.js"] },
     { "path": "bindings/typescript/test/unit/product-errors.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/errors.test.js", "bindings/python/tests/test_registry_code_inventory.py"] },
     { "path": "bindings/typescript/test/unit/product-waist-conformance.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/nonforgeability.ts"] },
     { "path": "bindings/typescript/test/unit/product.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/unit/gateway-client.test.js"] },
     { "path": "bindings/typescript/test/unit/profile-file-node.test.js", "disposition": "generated-profile file reader retired with the local agent", "evidence": ["bindings/typescript/test/unit/profile-cli.test.js", "bindings/typescript/test/package/packed-profile-cli.test.js"] },
     { "path": "bindings/typescript/test/unit/profile-runtime-limits.test.js", "disposition": "generated-profile descriptor limits retired with the local agent", "evidence": ["bindings/typescript/test/unit/gateway-client.test.js", "bindings/typescript/test/unit/public-api-v2.test.js"] },
-    { "path": "bindings/typescript/test/unit/receipt-integrity.test.js", "disposition": "local-agent receipt-integrity outcomes retired with the local agent", "evidence": ["bindings/typescript/test/unit/portable-receipt-v1.test.js", "bindings/typescript/test/integration/gateway-outcome-v2.test.js"] },
+    { "path": "bindings/typescript/test/unit/receipt-integrity.test.js", "disposition": "local-agent receipt-integrity outcomes retired with the local agent", "evidence": ["bindings/typescript/test/unit/portable-receipt-v1.test.js", "bindings/typescript/test/integration/gateway-outcome-v3.test.js"] },
     { "path": "bindings/typescript/test/unit/session-admission.test.js", "disposition": "local-agent session admission retired with the local agent", "evidence": ["bindings/typescript/test/unit/gateway-client.test.js", "bindings/typescript/test/unit/public-api-v2.test.js"] },
     { "path": "bindings/typescript/test/unit/testkit.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js"] }
   ]

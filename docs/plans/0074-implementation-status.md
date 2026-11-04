@@ -1,5 +1,18 @@
 # AP-SPEC-074 implementation and evidence ledger
 
+## Resumed — 5 November 2026
+
+The user reactivated the complete AP074 goal. Main is reconciling the saved
+signed-output/private-audit checkpoint with the published `3cb2caad` fixes and
+finishing the direct native/SDK/demo cutover. The original full objective and
+acceptance requirements remain in force; no completion claim is made.
+
+The CI subagent reports the published `3cb2caad` cohort is terminal: 88 passed,
+zero failed and eight conditional skips. It verified 48 actual native selectors,
+installed owner/UID evidence, 49 Kani harnesses, 329 Lean statements, source
+closures and final evidence rollups. Main did not inspect CI. Its report is
+`/tmp/ap074-ci-3cb2-report.md`; these results do not qualify subsequent changes.
+
 ## User-requested pause — 30 October 2026
 
 AP074 remains incomplete. The user requested a committed, pushed pause.
@@ -3764,3 +3777,67 @@ or deployment claim is made by AP074 source work.
   `93ef3b915cc48f0c0d4c0d4de7e03d0ed394e83526fbdfdc2ad19443dec5ec20`.
   Semantic freeze 426 updates only the generator-required identity 169,
   evolution contract 83 and public surface 426; the metadata constructor passed.
+
+## Signed public history and private audit cutover — resumed implementation
+
+- Reconciled saved checkpoint `f55aa61a` over published `3cb2caad`, preserving the
+  completed CI repairs. App observe `/4` now returns signed public outcome `/3`
+  or redacted pre-entry history. Action, recipe and full journal-record references
+  are hiding HMACs scoped to the complete binding and private immutable nonce;
+  raw body-derived digests, pre-entry values and relative basis stay protected.
+  Recipe references are hiding because a recipe can include fixed private data.
+- Operator-only `audit-export` uses the existing peer-UID gate and one native
+  snapshot. Private outcome `/1` retains all original full-fact presence, signature,
+  counter/recount, pre-entry and basis audit checks. Native bundle `/3` assembly
+  discards supplied public history and obtains private facts per operation;
+  absence remains unverified. It grants no admission or audit verdict. Bounded
+  sequence decoding, canonical base64 and aggregate caps apply before retaining
+  extra evidence. Serialization buffers and attached private export data are
+  zeroized on drop where owned by the new assembler.
+- CLI export modes select one operation or one submission inventory, run under
+  the existing 60-second operator deadline, print only success metadata, and
+  create a new 0600 file in an owner-private directory. They cannot overwrite.
+  Both demos, maintained Python/TypeScript journeys and generated scaffold use
+  operator-side completion; the app receives only public projections. Detailed
+  private bundles/reports are not copied to public demo evidence.
+- Cut over SDK types/parsers and native public/private vector corpora directly.
+  Removed the superseded outcome-v2 fixture and renamed affected binding tests.
+  Both SDKs consume 15 native mutation-result vectors plus 35 public-history
+  vectors covering malformed/obsolete/private schemas, byte/count/time limits,
+  duplicates, fractional/exponent numbers, BOM and noncanonical base64. Their
+  complete suites await hosted execution. The TypeScript declaration build and
+  required API snapshot constructor completed successfully.
+- Artifact construction passed: file privacy 1 passed / 0 ignored (0.73 s), TLS
+  PostgreSQL privacy 1 passed / 0 ignored (0.92 s); admin/app/public/private/code
+  constructors 5 passed / 0 ignored (0.03 s); built native CLI inventory 1 passed /
+  0 ignored (0.01 s); installed Unix interface constructor 1 passed / 0 ignored
+  (2.73 s). Two fixture setup defects were fixed: activate observer configuration
+  before compiling approvals and use the silent activation CLI's exit status.
+- The Unix constructor now performs an actual approved mutation in addition to
+  acquisition/disclosure, inspects configured signed public history, completes a
+  private audit with one independently verified entry, checks 0600 output and
+  overwrite refusal, and preserves no-new-entry/custody and source-byte checks
+  under hostile app probes. Its inventory has 33 app cases, 12 operator commands
+  and 53 CLI help routes; the distinct-UID probe adds a fifth private CLI route.
+  Linux execution remains for hosted CI; this local constructor uses one UID.
+- Added private-export substitution/duplicate/encoding/collection-limit tests
+  without weakening existing private-audit tamper assertions. These tests await
+  hosted execution. Redacted protected counter, relative-basis and pre-entry Debug
+  implementations as well as the native private-export Debug.
+- Source-closure construction and rebuilt check each passed (1 passed / 0 ignored,
+  0.11 s and 0.06 s). Exact combined-head hosted evidence remains required. No
+  complete acceptance row is closed by artifact construction alone. Main has not
+  inspected CI, migrated AP070, touched AP073 or expanded delegation.
+- Final privacy-batch source closure is
+  `899847a8307da6574f1b83a8fa9d85e9d4d54fa4f94c2952f696dafacb2e8a07`.
+  Semantic-freeze metadata is 427, with generator-required increments only:
+  formal closure 106, identity 170, portable ABI 128, external custody 7,
+  public SDK 166, vocabulary 30, evolution 84 and public surface 427.
+  The prior metadata-constructor process handle expired before its final output
+  could be recovered; generated files are present, and hosted verification must
+  establish freshness on the committed revision.
+- Both demos now retain detailed audit reports and independent read-back bodies
+  in private 0600 files. Public evidence carries bounded result counts and
+  checked-state flags. A recursive public-artifact scan checks raw, hex and
+  base64 provider/body-derived digests against retained private evidence.
+  These final Python changes await hosted execution.

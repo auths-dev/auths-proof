@@ -3,7 +3,6 @@
   "adapter": "postgres",
   "scope": "native writer/read proofs and exact approvals, actual HTTP, protected complete evidence and public original-writer replay after withdrawal",
   "excluded": [
-    "signed outcome/pre-entry observation projection hardening",
     "live provider and hostile OS qualification"
   ],
   "public_result": {
@@ -93,8 +92,222 @@
       "accepted": false
     }
   ],
+  "history_wire_cases": [
+    {
+      "kind": "pre-entry",
+      "case": "valid",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "valid",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": true
+    },
+    {
+      "kind": "pre-entry",
+      "case": "zero",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":0,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": true
+    },
+    {
+      "kind": "pre-entry",
+      "case": "limit",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":4,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": true
+    },
+    {
+      "kind": "pre-entry",
+      "case": "limit-plus-one",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":5,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "negative",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":-1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "boolean",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":true,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "short-commitment",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"00\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "uppercase-commitment",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "newline-commitment",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\\n\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "private-observations",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observations_b64\":[\"AQID\"]}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "old-public-schema",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/2\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "private-schema",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-private-outcome/1\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "wrong-media",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "empty-subject",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "subject-limit",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "subject-limit-plus-one",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "time-limit",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":9007199254740991,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "unsafe-time",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":9007199254740992,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "negative-time",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":-1,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "boolean-time",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":true,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "empty-bytes",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "padded-bytes",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID=\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "noncanonical-pad-bits",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AB\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "bytes-limit",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "bytes-limit-plus-one",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "private-facts",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\",\"pre_entry_b64\":[\"AQID\"]}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "duplicate-member",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\",\"schema\":\"auths.gateway-outcome/3\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "bom",
+      "response": "﻿{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "fractional-number",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1.0,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "exponent-number",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1e0,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "duplicate-member",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\",\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "bom",
+      "response": "﻿{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "fractional-number",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1.0,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "exponent-number",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1e0,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    }
+  ],
   "same_private_bytes_have_distinct_record_scoped_commitments": true,
   "reopen_and_replay_preserve_commitment_without_io": true,
+  "configured_signed_public_history_excludes_private_facts": true,
+  "operator_private_signature_preserves_full_audit_facts": true,
   "private_complete_evidence_and_original_binding_preserved": true,
   "public_and_debug_exclude_raw_body_digest_echo_and_action_digest": true
 }
