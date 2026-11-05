@@ -1682,6 +1682,22 @@ fn validate_release_workflow_gates(orchestration: &str, builder: &str) -> Result
 }
 
 fn validate_lean_reuse_fallback(job: &str, fresh_step: &str) -> Result<(), String> {
+    // A fresh checkout has no Lake packages. The current-head warning audit
+    // checks the actual pinned dependency, so setup must precede reuse even
+    // when the expensive repository proof build can be omitted.
+    let setup = workflow_step_source(job, "Prepare pinned Lean dependency audit")?;
+    if !setup.contains("uses: ./.github/actions/setup-lean")
+        || setup.lines().any(|line| {
+            let line = line.trim_start();
+            line.starts_with("if:") || line.starts_with("continue-on-error:")
+        })
+        || job.find("name: Prepare pinned Lean dependency audit") >= job.find("- id: lean-reuse")
+    {
+        return Err(
+            "Lean reuse requires an unconditional pinned dependency audit setup before validation"
+                .to_owned(),
+        );
+    }
     for required in [
         "- id: lean-reuse",
         "if: github.event_name == 'pull_request'",
@@ -2483,6 +2499,53 @@ mod tests {
         }
     }
 
+    #[test]
+    fn fresh_checkout_lean_reuse_requires_dependency_setup_before_both_validators() {
+        let hosted = include_str!("../../.github/workflows/ci.yml");
+        assert!(validate_ci_workflow_gates(hosted).is_ok());
+        for (name, fresh) in [
+            (
+                "formal-proof-fast",
+                "Compile the highest-value proofs, then the complete Lean libraries",
+            ),
+            (
+                "formal-lean-authoritative-run",
+                "Clean and rebuild authoritative Lean evidence",
+            ),
+        ] {
+            let job = workflow_job_source(hosted, name).expect("maintained Lean job");
+            let setup = workflow_step_source(job, "Prepare pinned Lean dependency audit")
+                .expect("pinned setup");
+            let missing = job.replace(setup, "");
+            let late = format!("{missing}{setup}");
+            let conditional = job.replace(setup, &setup.replace(
+                "uses: ./.github/actions/setup-lean",
+                "if: steps.lean-reuse.outputs.reused != 'true'\n        uses: ./.github/actions/setup-lean",
+            ));
+            let ignored = job.replace(
+                setup,
+                &setup.replace(
+                    "uses: ./.github/actions/setup-lean",
+                    "continue-on-error: true\n        uses: ./.github/actions/setup-lean",
+                ),
+            );
+            for changed in [missing, late, conditional, ignored] {
+                assert!(
+                    validate_lean_reuse_fallback(&changed, fresh).is_err(),
+                    "{name}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fresh_checkout_cannot_skip_actual_pinned_dependency_warning_audit() {
+        let fresh = tempfile::tempdir().expect("fresh checkout directory");
+        let qualification = load_qualification(&crate::root()).expect("maintained qualification");
+        assert!(!fresh.path().join("formal/.lake/packages/aeneas").exists());
+        assert!(validate_warning_inventory(fresh.path(), &qualification).is_err());
+    }
+
     const CI_GATES: &str = r#"uses: ./.github/actions/setup-lean
 kani-verifier --version 0.67.0
 cargo xtask ci preflight
@@ -2493,6 +2556,9 @@ needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
   formal-proof-fast:
 needs: [ci-plan, formal-update-gate]
+      - id: lean-setup
+        name: Prepare pinned Lean dependency audit
+        uses: ./.github/actions/setup-lean
       - id: lean-reuse
         if: github.event_name == 'pull_request'
         env:
@@ -2535,6 +2601,9 @@ cargo xtask ci formal-kani
 needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast, formal-translation-run]
 needs.formal-proof-fast.result == 'success'
 needs.formal-translation-run.result == 'success'
+      - id: lean-setup
+        name: Prepare pinned Lean dependency audit
+        uses: ./.github/actions/setup-lean
       - id: lean-reuse
         if: github.event_name == 'pull_request'
         env:

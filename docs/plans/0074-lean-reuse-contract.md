@@ -115,3 +115,36 @@ Lean rebuild. Missing/mismatched evidence must still fall back to fresh work.
 Final results belong to the exact head in [PR213 checks](https://github.com/auths-dev/auths-proof/pull/213/checks)
 and its immutable validation records; no recursive docs-only publication is
 needed merely to record the outcome of the commit containing this report.
+
+## Actual first-consumer dependency-order correction
+
+The b54 consumer exposed a real warm-path miss: fast Lean completed reuse
+validation and then entered fresh setup. The native current-head validator audits
+`formal/.lake/packages/aeneas` for the exact pinned commit, clean status and
+reviewed warning inventory, but the workflow previously created that dependency
+checkout only after a reuse miss. A fresh hosted checkout therefore could not
+satisfy the intended audit. Both jobs now prepare pinned dependencies before
+validation; the expensive repository proof build remains conditional. No warning,
+commit, signature, provenance, current-source or refinement check is removed.
+Fresh-checkout and both-job order regressions reject omitted, late, conditional
+or ignored setup. The complete executor fingerprint is retained: this correction
+changes proof inputs and requires a new successful clean producer before another
+real warm verification. The eb44 successful proof remains valid for its exact
+inputs; it is not silently reinterpreted under this corrected executor.
+
+The retained b54 fast-job log confirms the refusal at00:03:19UTC: `git rev-parse
+HEAD` could not run in the absent Aeneas package directory. The affected batch
+passes27 native qualification tests, workflow ownership and strict xtask Clippy;
+metadata construction/non-update verification and formal source-closure check
+pass after advancing only the generator-reported counters. Freeze433 advances
+assurance bytes63, source-closure bytes108, evolution86 and public surface433;
+runtime protocol/SDK identities are unchanged. Exactly59 existing source-citation
+hashes changed, with all remaining manifest bytes identical.
+
+Corrected formal source closure is
+`09fb135d91c47ff1b2a873b583564db3467e76973c9763090bac2affd73b6837`;
+the actual complete native proof-input key is
+`9b5a7049779384207399e43d927cef5ccd856dce925ba80242c1bc0a25f929aa`.
+No local Lean/Kani run or corrected hosted warm success is claimed. The healthy
+old fallback may be superseded after remaining current implementation results
+are collected: its old executor key cannot qualify this correction.

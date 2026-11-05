@@ -4161,3 +4161,22 @@ clock, OS isolation and external-provider assumptions remain explicit. AP070
 stays an independent, narrower application-owned reference; AP073 is untouched.
 The goal remains incomplete until final applicable gates and the P/E/R/A audit
 close. No merge, deployment or live-provider qualification is claimed.
+
+
+## Final reuse dependency-order correction
+
+The b54 consumer passed all twelve applicable non-main workflows and retained
+all63 required native selector passes, differential/installed/containment/cost
+artifacts. Its first real Lean reuse attempt safely refused because the native
+warning audit required the pinned Aeneas checkout before workflow setup created
+it. This was an optimization defect; no proof or runtime security check was
+bypassed. The [reuse contract](0074-lean-reuse-contract.md) records the exact
+retained refusal and complete correction: unconditional pinned setup before both
+validators, expensive proof compilation still conditional, fresh-checkout/order
+regressions and unchanged package/provenance/fingerprint requirements.
+
+The corrected executor has a new complete proof key and needs fresh hosted
+qualification followed by real reuse in both jobs. Local affected checks pass;
+no warm result is inferred. Final acceptance remains open until those actual
+corrected-head gates and implementation results pass. Publication of this source
+repair is necessary; it is not a documentation-only retry of an unchanged build.

@@ -122,3 +122,12 @@ GitHub's run-associated PR object contains a mutable current head snapshot. It
 establishes PR/repository membership, not the historical source SHA. The immutable
 run, exact-attempt successful job, artifact metadata and phase record must all
 agree on the producer source; changing any one remains a cold miss.
+
+Both Lean jobs prepare the pinned toolchain and Lake dependency checkout before
+attempting reuse. The current-head validator audits the actual Aeneas package
+commit, clean worktree and reviewed warning inventory; a fresh checkout cannot
+perform those checks before dependency setup. Setup/cache restoration is not
+proof qualification. Only the expensive repository proof compilation remains
+conditional on a successful independently validated reuse result. Missing or
+invalid packages still fail closed, and the native workflow guard requires this
+unconditional order in both jobs.

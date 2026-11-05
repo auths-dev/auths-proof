@@ -281,6 +281,9 @@ jobs:
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
+      - id: lean-setup
+        name: Prepare pinned Lean dependency audit
+        uses: ./.github/actions/setup-lean
       - id: lean-reuse
         name: Validate successful same-PR clean Lean evidence
         if: github.event_name == 'pull_request'
@@ -291,9 +294,6 @@ jobs:
           AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
           AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
         run: python3 .github/scripts/reuse-formal-lean.py
-      - id: lean-setup
-        if: steps.lean-reuse.outputs.reused != 'true'
-        uses: ./.github/actions/setup-lean
       - name: Compile the highest-value proofs, then the complete Lean libraries
         if: steps.lean-reuse.outputs.reused != 'true'
         shell: bash
@@ -627,6 +627,9 @@ jobs:
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
+      - id: lean-setup
+        name: Prepare pinned Lean dependency audit
+        uses: ./.github/actions/setup-lean
       - id: lean-reuse
         name: Validate successful same-PR clean Lean evidence
         if: github.event_name == 'pull_request'
@@ -637,8 +640,6 @@ jobs:
           AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
           AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
         run: python3 .github/scripts/reuse-formal-lean.py
-      - uses: ./.github/actions/setup-lean
-        if: steps.lean-reuse.outputs.reused != 'true'
       - name: Clean and rebuild authoritative Lean evidence
         if: steps.lean-reuse.outputs.reused != 'true'
         shell: bash
