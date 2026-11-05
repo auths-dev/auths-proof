@@ -1,0 +1,297 @@
+{
+  "schema": "auths.native-information-retained-replay/1",
+  "adapter": "postgres",
+  "scope": "native proof, independent read/release approvals, real HTTP and authenticated Unix delivery; fixed public keys, same UID and maintained clock; retained facts confer no execution authority",
+  "cases": [
+    {
+      "protocol": "acquisition-response",
+      "change": "unchanged",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "acquisition-response",
+      "change": "approval-expired",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "acquisition-response",
+      "change": "resource-authority-expired",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "acquisition-response",
+      "change": "connection-revoked",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "acquisition-response",
+      "change": "configuration-replaced",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "change": "unchanged",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "change": "approval-expired",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "change": "resource-authority-expired",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "change": "connection-revoked",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "change": "configuration-replaced",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "change": "unchanged",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "change": "approval-expired",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "change": "resource-authority-expired",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "change": "connection-revoked",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "change": "configuration-replaced",
+      "native_snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0
+      },
+      "provider_reads": 1,
+      "reopened_native_engine": true,
+      "no_replay_authentication_or_delivery": true,
+      "changed_caller_target_refused": true,
+      "journal_and_execution_witness_unchanged": true
+    }
+  ]
+}

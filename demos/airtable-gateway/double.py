@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import os
 import socket
 import threading
 import time
@@ -21,6 +22,10 @@ def record_ids():
 
 class Fixture:
     def __init__(self, ledger, fixture_token):
+        # An empty owned ledger is positive evidence of zero requests. Never
+        # truncate retained evidence or let counter readers infer missing = zero.
+        descriptor = os.open(ledger, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.close(descriptor)
         self.lock, self.ledger, self.token = threading.Lock(), ledger, fixture_token
         self.records = {record: {'DemoStatus': 'Pending', 'auths_echo': ''} for record in record_ids()}
         self.hidden_until = {}

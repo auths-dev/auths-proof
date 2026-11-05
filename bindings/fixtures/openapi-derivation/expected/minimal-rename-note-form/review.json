@@ -1,6 +1,27 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "908b73ab7bed251e2600fe2ca95e0504646e8ccb9147a8952b20af0a3354a72d",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "note_id": {
+        "kind": "text",
+        "label": "note_id"
+      },
+      "revision": {
+        "kind": "integer",
+        "label": "revision",
+        "unit": "synthetic units"
+      },
+      "title": {
+        "kind": "text",
+        "label": "title"
+      }
+    }
+  },
+  "digest": "57b07e87baa371ba18560bd7f6c20d405a0062275c2f08f9310fbbb83051cef6",
   "operator_namespace": "notes-demo",
   "service": "notes",
   "tool": "renameNote_v1",

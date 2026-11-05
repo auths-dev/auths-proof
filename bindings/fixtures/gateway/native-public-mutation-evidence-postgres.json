@@ -1,0 +1,1110 @@
+{
+  "schema": "auths.native-public-mutation-evidence/1",
+  "adapter": "postgres",
+  "scope": "native writer/read proofs and exact approvals, actual HTTP, protected complete evidence and public original-writer replay after withdrawal",
+  "excluded": [
+    "live provider and hostile OS qualification"
+  ],
+  "public_result": {
+    "outcome": "observed-by-provider",
+    "status": null,
+    "evidence": {
+      "schema": "auths.gateway-public-evidence/1",
+      "channel": "read-back",
+      "evidence_commitment": "native-scoped-hiding-value-checked",
+      "observed_at": 1790000001
+    }
+  },
+  "wire_cases": [
+    {
+      "case": "valid",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": true
+    },
+    {
+      "case": "obsolete-schema",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/0\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "short-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"00\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "uppercase-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "newline-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\\n\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "numeric-commitment",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":42,\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "private-echo",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000,\"echo\":\"auths-e1-private-canary\"}}",
+      "accepted": false
+    },
+    {
+      "case": "raw-digest",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000,\"evidence_digest\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\"}}",
+      "accepted": false
+    },
+    {
+      "case": "unsafe-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":9007199254740992}}",
+      "accepted": false
+    },
+    {
+      "case": "boolean-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":true}}",
+      "accepted": false
+    },
+    {
+      "case": "negative-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":-1}}",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-schema",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "fractional-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1.0}}",
+      "accepted": false
+    },
+    {
+      "case": "exponent-time",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1e0}}",
+      "accepted": false
+    },
+    {
+      "case": "bom",
+      "response": "﻿{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    }
+  ],
+  "result_wire_cases": [
+    {
+      "case": "denied-valid",
+      "response": "{\"outcome\":\"denied\",\"code\":\"native.denied\"}",
+      "accepted": true
+    },
+    {
+      "case": "denied-missing-outcome",
+      "response": "{\"code\":\"native.denied\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-duplicate-outcome",
+      "response": "{\"outcome\":\"denied\",\"outcome\":\"denied\",\"code\":\"native.denied\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-missing-code",
+      "response": "{\"outcome\":\"denied\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-duplicate-code",
+      "response": "{\"outcome\":\"denied\",\"code\":\"native.denied\",\"code\":\"native.denied\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-unknown-field",
+      "response": "{\"outcome\":\"denied\",\"code\":\"native.denied\",\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "denied-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"denied\",\"outcome\":\"denied\",\"code\":\"native.denied\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-bom",
+      "response": "﻿{\"outcome\":\"denied\",\"code\":\"native.denied\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-valid",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"native.unavailable\"}",
+      "accepted": true
+    },
+    {
+      "case": "indeterminate-missing-outcome",
+      "response": "{\"code\":\"native.unavailable\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-duplicate-outcome",
+      "response": "{\"outcome\":\"indeterminate\",\"outcome\":\"indeterminate\",\"code\":\"native.unavailable\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-missing-code",
+      "response": "{\"outcome\":\"indeterminate\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-duplicate-code",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"native.unavailable\",\"code\":\"native.unavailable\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-unknown-field",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"native.unavailable\",\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"indeterminate\",\"outcome\":\"indeterminate\",\"code\":\"native.unavailable\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-bom",
+      "response": "﻿{\"outcome\":\"indeterminate\",\"code\":\"native.unavailable\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-valid",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"native.refused\"}",
+      "accepted": true
+    },
+    {
+      "case": "not-entered-missing-outcome",
+      "response": "{\"code\":\"native.refused\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-duplicate-outcome",
+      "response": "{\"outcome\":\"not-entered\",\"outcome\":\"not-entered\",\"code\":\"native.refused\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-missing-code",
+      "response": "{\"outcome\":\"not-entered\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-duplicate-code",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"native.refused\",\"code\":\"native.refused\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-unknown-field",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"native.refused\",\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"not-entered\",\"outcome\":\"not-entered\",\"code\":\"native.refused\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-bom",
+      "response": "﻿{\"outcome\":\"not-entered\",\"code\":\"native.refused\"}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-valid",
+      "response": "{\"outcome\":\"reserved\",\"revision\":1}",
+      "accepted": true
+    },
+    {
+      "case": "reserved-missing-outcome",
+      "response": "{\"revision\":1}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-duplicate-outcome",
+      "response": "{\"outcome\":\"reserved\",\"outcome\":\"reserved\",\"revision\":1}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-missing-revision",
+      "response": "{\"outcome\":\"reserved\"}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-duplicate-revision",
+      "response": "{\"outcome\":\"reserved\",\"revision\":1,\"revision\":1}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-unknown-field",
+      "response": "{\"outcome\":\"reserved\",\"revision\":1,\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"reserved\",\"outcome\":\"reserved\",\"revision\":1}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-bom",
+      "response": "﻿{\"outcome\":\"reserved\",\"revision\":1}",
+      "accepted": false
+    },
+    {
+      "case": "unknown-valid",
+      "response": "{\"outcome\":\"unknown\"}",
+      "accepted": true
+    },
+    {
+      "case": "unknown-missing-outcome",
+      "response": "{}",
+      "accepted": false
+    },
+    {
+      "case": "unknown-duplicate-outcome",
+      "response": "{\"outcome\":\"unknown\",\"outcome\":\"unknown\"}",
+      "accepted": false
+    },
+    {
+      "case": "unknown-unknown-field",
+      "response": "{\"outcome\":\"unknown\",\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "unknown-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"unknown\",\"outcome\":\"unknown\"}",
+      "accepted": false
+    },
+    {
+      "case": "unknown-bom",
+      "response": "﻿{\"outcome\":\"unknown\"}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-valid",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":200}",
+      "accepted": true
+    },
+    {
+      "case": "response-recorded-missing-outcome",
+      "response": "{\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-duplicate-outcome",
+      "response": "{\"outcome\":\"response-recorded\",\"outcome\":\"response-recorded\",\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-missing-status",
+      "response": "{\"outcome\":\"response-recorded\"}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-duplicate-status",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":200,\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-unknown-field",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":200,\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"response-recorded\",\"outcome\":\"response-recorded\",\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-bom",
+      "response": "﻿{\"outcome\":\"response-recorded\",\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-minimum",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":100}",
+      "accepted": true
+    },
+    {
+      "case": "response-recorded-status-maximum",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":599}",
+      "accepted": true
+    },
+    {
+      "case": "response-recorded-status-below",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":99}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-above",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":600}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-u16-maximum",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":65535}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-negative",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":-1}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-boolean",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":true}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-string",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":\"200\"}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-null",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":null}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-200.0",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":200.0}",
+      "accepted": false
+    },
+    {
+      "case": "response-recorded-status-2e2",
+      "response": "{\"outcome\":\"response-recorded\",\"status\":2e2}",
+      "accepted": false
+    },
+    {
+      "case": "observed-valid",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":true}",
+      "accepted": true
+    },
+    {
+      "case": "observed-missing-outcome",
+      "response": "{\"matched\":true,\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "observed-duplicate-outcome",
+      "response": "{\"outcome\":\"observed\",\"outcome\":\"observed\",\"status\":200,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-missing-status",
+      "response": "{\"outcome\":\"observed\",\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-duplicate-status",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"status\":200,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-missing-matched",
+      "response": "{\"outcome\":\"observed\",\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "observed-duplicate-matched",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":true,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-unknown-field",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":true,\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"observed\",\"outcome\":\"observed\",\"status\":200,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-bom",
+      "response": "﻿{\"outcome\":\"observed\",\"status\":200,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-minimum",
+      "response": "{\"outcome\":\"observed\",\"status\":100,\"matched\":true}",
+      "accepted": true
+    },
+    {
+      "case": "observed-status-maximum",
+      "response": "{\"outcome\":\"observed\",\"status\":599,\"matched\":true}",
+      "accepted": true
+    },
+    {
+      "case": "observed-status-below",
+      "response": "{\"outcome\":\"observed\",\"status\":99,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-above",
+      "response": "{\"outcome\":\"observed\",\"status\":600,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-u16-maximum",
+      "response": "{\"outcome\":\"observed\",\"status\":65535,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-negative",
+      "response": "{\"outcome\":\"observed\",\"status\":-1,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-boolean",
+      "response": "{\"outcome\":\"observed\",\"status\":true,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-string",
+      "response": "{\"outcome\":\"observed\",\"status\":\"200\",\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-null",
+      "response": "{\"outcome\":\"observed\",\"status\":null,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-200.0",
+      "response": "{\"outcome\":\"observed\",\"status\":200.0,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-status-2e2",
+      "response": "{\"outcome\":\"observed\",\"status\":2e2,\"matched\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-valid",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": true
+    },
+    {
+      "case": "observed-by-provider-missing-outcome",
+      "response": "{\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000},\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-duplicate-outcome",
+      "response": "{\"outcome\":\"observed-by-provider\",\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-missing-status",
+      "response": "{\"outcome\":\"observed-by-provider\",\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-duplicate-status",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-missing-evidence",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-duplicate-evidence",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000},\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-unknown-field",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000},\"provider_success\":true}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-escaped-duplicate-outcome",
+      "response": "{\"outc\\u006fme\":\"observed-by-provider\",\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-bom",
+      "response": "﻿{\"outcome\":\"observed-by-provider\",\"status\":200,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-minimum",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":100,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": true
+    },
+    {
+      "case": "observed-by-provider-status-maximum",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":599,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": true
+    },
+    {
+      "case": "observed-by-provider-status-below",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":99,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-above",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":600,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-u16-maximum",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":65535,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-negative",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":-1,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-boolean",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":true,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-string",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":\"200\",\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-null",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":null,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": true
+    },
+    {
+      "case": "observed-by-provider-status-200.0",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":200.0,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "observed-by-provider-status-2e2",
+      "response": "{\"outcome\":\"observed-by-provider\",\"status\":2e2,\"evidence\":{\"schema\":\"auths.gateway-public-evidence/1\",\"channel\":\"read-back\",\"evidence_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observed_at\":1790000000}}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-one-byte",
+      "response": "{\"outcome\":\"denied\",\"code\":\"a\"}",
+      "accepted": true
+    },
+    {
+      "case": "denied-code-ascii-limit",
+      "response": "{\"outcome\":\"denied\",\"code\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "accepted": true
+    },
+    {
+      "case": "denied-code-utf8-limit",
+      "response": "{\"outcome\":\"denied\",\"code\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}",
+      "accepted": true
+    },
+    {
+      "case": "denied-code-astral-limit",
+      "response": "{\"outcome\":\"denied\",\"code\":\"🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\"}",
+      "accepted": true
+    },
+    {
+      "case": "denied-code-ascii-over-limit",
+      "response": "{\"outcome\":\"denied\",\"code\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-utf8-over-limit",
+      "response": "{\"outcome\":\"denied\",\"code\":\"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-astral-over-limit",
+      "response": "{\"outcome\":\"denied\",\"code\":\"🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-empty",
+      "response": "{\"outcome\":\"denied\",\"code\":\"\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-null",
+      "response": "{\"outcome\":\"denied\",\"code\":null}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-number",
+      "response": "{\"outcome\":\"denied\",\"code\":7}",
+      "accepted": false
+    },
+    {
+      "case": "denied-code-boolean",
+      "response": "{\"outcome\":\"denied\",\"code\":false}",
+      "accepted": false
+    },
+    {
+      "case": "denied-unpaired-\\ud800",
+      "response": "{\"outcome\":\"denied\",\"code\":\"\\ud800\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-unpaired-\\udc00",
+      "response": "{\"outcome\":\"denied\",\"code\":\"\\udc00\"}",
+      "accepted": false
+    },
+    {
+      "case": "denied-unpaired-\\ud800x",
+      "response": "{\"outcome\":\"denied\",\"code\":\"\\ud800x\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-one-byte",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"a\"}",
+      "accepted": true
+    },
+    {
+      "case": "indeterminate-code-ascii-limit",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "accepted": true
+    },
+    {
+      "case": "indeterminate-code-utf8-limit",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}",
+      "accepted": true
+    },
+    {
+      "case": "indeterminate-code-astral-limit",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\"}",
+      "accepted": true
+    },
+    {
+      "case": "indeterminate-code-ascii-over-limit",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-utf8-over-limit",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-astral-over-limit",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-empty",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-null",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":null}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-number",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":7}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-code-boolean",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":false}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-unpaired-\\ud800",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"\\ud800\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-unpaired-\\udc00",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"\\udc00\"}",
+      "accepted": false
+    },
+    {
+      "case": "indeterminate-unpaired-\\ud800x",
+      "response": "{\"outcome\":\"indeterminate\",\"code\":\"\\ud800x\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-one-byte",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"a\"}",
+      "accepted": true
+    },
+    {
+      "case": "not-entered-code-ascii-limit",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "accepted": true
+    },
+    {
+      "case": "not-entered-code-utf8-limit",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}",
+      "accepted": true
+    },
+    {
+      "case": "not-entered-code-astral-limit",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\"}",
+      "accepted": true
+    },
+    {
+      "case": "not-entered-code-ascii-over-limit",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-utf8-over-limit",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-astral-over-limit",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-empty",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-null",
+      "response": "{\"outcome\":\"not-entered\",\"code\":null}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-number",
+      "response": "{\"outcome\":\"not-entered\",\"code\":7}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-code-boolean",
+      "response": "{\"outcome\":\"not-entered\",\"code\":false}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-unpaired-\\ud800",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"\\ud800\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-unpaired-\\udc00",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"\\udc00\"}",
+      "accepted": false
+    },
+    {
+      "case": "not-entered-unpaired-\\ud800x",
+      "response": "{\"outcome\":\"not-entered\",\"code\":\"\\ud800x\"}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-maximum",
+      "response": "{\"outcome\":\"reserved\",\"revision\":9007199254740991}",
+      "accepted": true
+    },
+    {
+      "case": "reserved-revision-above-maximum",
+      "response": "{\"outcome\":\"reserved\",\"revision\":9007199254740992}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-u64-maximum",
+      "response": "{\"outcome\":\"reserved\",\"revision\":18446744073709551615}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-zero",
+      "response": "{\"outcome\":\"reserved\",\"revision\":0}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-negative",
+      "response": "{\"outcome\":\"reserved\",\"revision\":-1}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-boolean",
+      "response": "{\"outcome\":\"reserved\",\"revision\":true}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-string",
+      "response": "{\"outcome\":\"reserved\",\"revision\":\"1\"}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-null",
+      "response": "{\"outcome\":\"reserved\",\"revision\":null}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-1.0",
+      "response": "{\"outcome\":\"reserved\",\"revision\":1.0}",
+      "accepted": false
+    },
+    {
+      "case": "reserved-revision-1e0",
+      "response": "{\"outcome\":\"reserved\",\"revision\":1e0}",
+      "accepted": false
+    },
+    {
+      "case": "observed-matched-false",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":false}",
+      "accepted": true
+    },
+    {
+      "case": "observed-matched-number",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":1}",
+      "accepted": false
+    },
+    {
+      "case": "observed-matched-string",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":\"true\"}",
+      "accepted": false
+    },
+    {
+      "case": "observed-matched-null",
+      "response": "{\"outcome\":\"observed\",\"status\":200,\"matched\":null}",
+      "accepted": false
+    },
+    {
+      "case": "array",
+      "response": "[]",
+      "accepted": false
+    },
+    {
+      "case": "null",
+      "response": "null",
+      "accepted": false
+    },
+    {
+      "case": "string",
+      "response": "\"unknown\"",
+      "accepted": false
+    },
+    {
+      "case": "obsolete-outcome",
+      "response": "{\"outcome\":\"success\"}",
+      "accepted": false
+    }
+  ],
+  "history_wire_cases": [
+    {
+      "kind": "pre-entry",
+      "case": "valid",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "valid",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": true
+    },
+    {
+      "kind": "pre-entry",
+      "case": "zero",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":0,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": true
+    },
+    {
+      "kind": "pre-entry",
+      "case": "limit",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":4,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": true
+    },
+    {
+      "kind": "pre-entry",
+      "case": "limit-plus-one",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":5,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "negative",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":-1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "boolean",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":true,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "short-commitment",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"00\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "uppercase-commitment",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "newline-commitment",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\\n\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "private-observations",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\",\"observations_b64\":[\"AQID\"]}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "old-public-schema",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/2\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "private-schema",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-private-outcome/1\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "wrong-media",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "empty-subject",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "subject-limit",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "subject-limit-plus-one",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "time-limit",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":9007199254740991,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "unsafe-time",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":9007199254740992,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "negative-time",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":-1,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "boolean-time",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":true,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "empty-bytes",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "padded-bytes",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID=\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "noncanonical-pad-bits",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AB\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "bytes-limit",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ\"}",
+      "accepted": true
+    },
+    {
+      "kind": "signed",
+      "case": "bytes-limit-plus-one",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "private-facts",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\",\"pre_entry_b64\":[\"AQID\"]}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "duplicate-member",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\",\"schema\":\"auths.gateway-outcome/3\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "bom",
+      "response": "﻿{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1790000000,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "fractional-number",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1.0,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "signed",
+      "case": "exponent-number",
+      "response": "{\"outcome\":\"signed\",\"schema\":\"auths.gateway-outcome/3\",\"subject\":\"public-subject\",\"observed_at\":1e0,\"media_type\":\"application/vnd.auths.observation.v1+cbor\",\"observation_b64\":\"AQID\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "duplicate-member",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\",\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "bom",
+      "response": "﻿{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "fractional-number",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1.0,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    },
+    {
+      "kind": "pre-entry",
+      "case": "exponent-number",
+      "response": "{\"outcome\":\"pre-entry\",\"operation_id\":\"step-1\",\"observations\":1e0,\"record_commitment\":\"abababababababababababababababababababababababababababababababab\"}",
+      "accepted": false
+    }
+  ],
+  "same_private_bytes_have_distinct_record_scoped_commitments": true,
+  "reopen_and_replay_preserve_commitment_without_io": true,
+  "configured_signed_public_history_excludes_private_facts": true,
+  "operator_private_signature_preserves_full_audit_facts": true,
+  "private_complete_evidence_and_original_binding_preserved": true,
+  "public_and_debug_exclude_raw_body_digest_echo_and_action_digest": true
+}

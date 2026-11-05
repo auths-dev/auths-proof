@@ -1,0 +1,378 @@
+{
+  "schema": "auths.native-information-journal/1",
+  "adapter": "postgres",
+  "scope": "native signed acquisition/disclosure, real HTTP and authenticated Unix delivery, reopened engine and adapter; isolated privileged record corruption",
+  "excluded": [
+    "hostile store rewriting every correlated record",
+    "whole-store rollback without independent anchor",
+    "power loss"
+  ],
+  "cases": [
+    {
+      "protocol": "acquisition-response",
+      "cases": [
+        {
+          "case": "revision-exact-limit",
+          "revision": 64,
+          "native_history_accepted": true,
+          "read_only_replay": true,
+          "bytes_unchanged": true
+        },
+        {
+          "case": "obsolete-schema",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-zero",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-limit-plus-one",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-unsafe-integer",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-boolean",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-fractional",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "signed-time-unsafe-integer",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-operation",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-binding",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-authority",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-approval",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "missing-entry-evidence",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "inconsistent-protocol",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "truncated",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "noncanonical-whitespace",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "duplicate-member",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "unknown-member",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "record-limit-plus-one",
+          "refused_at_adapter": true,
+          "original_preserved": true
+        }
+      ],
+      "real_provider_reads": 1,
+      "exact_retained_charges_preserved": true,
+      "disclosure_replay_sends_zero_bytes": true
+    },
+    {
+      "protocol": "disclosure-acknowledged",
+      "cases": [
+        {
+          "case": "revision-exact-limit",
+          "revision": 64,
+          "native_history_accepted": true,
+          "read_only_replay": true,
+          "bytes_unchanged": true
+        },
+        {
+          "case": "obsolete-schema",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-zero",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-limit-plus-one",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-unsafe-integer",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-boolean",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-fractional",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "signed-time-unsafe-integer",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-operation",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-binding",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-authority",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-approval",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "missing-entry-evidence",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "inconsistent-protocol",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "truncated",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "noncanonical-whitespace",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "duplicate-member",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "unknown-member",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "record-limit-plus-one",
+          "refused_at_adapter": true,
+          "original_preserved": true
+        }
+      ],
+      "real_provider_reads": 1,
+      "exact_retained_charges_preserved": true,
+      "disclosure_replay_sends_zero_bytes": true
+    },
+    {
+      "protocol": "disclosure-unknown",
+      "cases": [
+        {
+          "case": "revision-exact-limit",
+          "revision": 64,
+          "native_history_accepted": true,
+          "read_only_replay": true,
+          "bytes_unchanged": true
+        },
+        {
+          "case": "obsolete-schema",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-zero",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-limit-plus-one",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-unsafe-integer",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-boolean",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "revision-fractional",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "signed-time-unsafe-integer",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-operation",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-binding",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-authority",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "changed-approval",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "missing-entry-evidence",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "inconsistent-protocol",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "truncated",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "noncanonical-whitespace",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "duplicate-member",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "unknown-member",
+          "refused_without_custody_or_transport": true,
+          "bytes_unchanged": true,
+          "restored_exact_positive": true
+        },
+        {
+          "case": "record-limit-plus-one",
+          "refused_at_adapter": true,
+          "original_preserved": true
+        }
+      ],
+      "real_provider_reads": 1,
+      "exact_retained_charges_preserved": true,
+      "disclosure_replay_sends_zero_bytes": true
+    }
+  ]
+}

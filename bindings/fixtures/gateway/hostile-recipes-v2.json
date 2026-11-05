@@ -1,10 +1,10 @@
 {
   "schema": "auths.gateway-hostile-recipes/2",
-  "source_schema": "auths.gateway-recipe-source/2",
+  "source_schema": "auths.gateway-recipe-source/3",
   "bases": {
     "airtable": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
         "service": "airtable-gateway-demo",
         "tool": "set_demo_status_v1",
@@ -80,6 +80,22 @@
             "pointer": "/fields/auths_echo"
           },
           "observe": "/fields/auths_echo"
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation."
+          ],
+          "fields": {
+            "record_id": {
+              "kind": "identifier",
+              "label": "Record id"
+            },
+            "replacement": {
+              "kind": "text",
+              "label": "Replacement"
+            }
+          }
         }
       },
       "lock": {
@@ -136,11 +152,11 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "bcc87023c14afe93c0762c20b58796cdfaec92d604c0c2cf6c9f5cceae3066d1"
+      "digest": "64ff5004b9758e2fb374e9d6b443ef1b35aa00c400dbe1358b90ef89c5c9eda9"
     },
     "airtable-pre-entry": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "18c3621ff65c6f326bae155b0a9e984cc8ab97e03f75ec428b2d18ffda1b064a",
         "service": "airtable-gateway-demo",
         "tool": "set_demo_status_v1",
@@ -216,6 +232,30 @@
             "pointer": "/fields/auths_echo"
           },
           "observe": "/fields/auths_echo"
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation."
+          ],
+          "fields": {
+            "record_id": {
+              "kind": "identifier",
+              "label": "Record id"
+            },
+            "replacement": {
+              "kind": "text",
+              "label": "Replacement"
+            },
+            "expected": {
+              "kind": "text",
+              "label": "expected"
+            },
+            "record_uri": {
+              "kind": "text",
+              "label": "record_uri"
+            }
+          }
         },
         "preconditions": {
           "read_back_subject": "record_uri",
@@ -314,11 +354,11 @@
         "pre_entry_reread": true,
         "write_is_conditional": false
       },
-      "digest": "27f8339d08701cd0b7955edc54ee21bf5ce355705aa93034284ac2d20289d70e"
+      "digest": "f42f96dc883881beaddd2c8a72f45cfde577fb0532558664517407f2d6c4693e"
     },
     "todoist": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
         "service": "todoist-gateway-demo",
         "tool": "create_task_v1",
@@ -386,6 +426,26 @@
               }
             }
           }
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Create one task with the displayed content at the displayed destination. Provider-side notification and visibility rules still apply."
+          ],
+          "fields": {
+            "content": {
+              "kind": "text",
+              "label": "Content"
+            },
+            "description": {
+              "kind": "text",
+              "label": "Description"
+            },
+            "temp_id": {
+              "kind": "identifier",
+              "label": "Temp id"
+            }
+          }
         }
       },
       "lock": {
@@ -445,11 +505,11 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "3c5a6e4dfed46131f7882f697a70e7bb22e06cbf6d717f7182f0fedebe8a2f5b"
+      "digest": "a6e5dbfda065e10be581d238d1c1a45d6aca0b90850d944a69f7d53667883f2e"
     },
     "todoist-operation-id": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
         "service": "todoist-gateway-demo",
         "tool": "create_task_v1",
@@ -525,6 +585,26 @@
             },
             "retention_seconds": 3600
           }
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Create one task with the displayed content at the displayed destination. Provider-side notification and visibility rules still apply."
+          ],
+          "fields": {
+            "content": {
+              "kind": "text",
+              "label": "Content"
+            },
+            "description": {
+              "kind": "text",
+              "label": "Description"
+            },
+            "temp_id": {
+              "kind": "identifier",
+              "label": "Temp id"
+            }
+          }
         }
       },
       "lock": {
@@ -587,11 +667,11 @@
         "write_is_conditional": false
       },
       "note": "retention_seconds is a fixture value, not a statement of the provider's retention",
-      "digest": "9d6972f67644e0d6377f2feb33332fe27a1484b553615843fdcd85a5143c2aee"
+      "digest": "6aac58294ebf42423c472cc5783a7f031c87adc4100b08999e78484e33209d8c"
     },
     "github": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "2f9c472c3681a7c7a80f6dcf057f614adbc7126f5414ca2d19c770cd050ad71f",
         "service": "github-gateway-demo",
         "tool": "create_issue_v1",
@@ -634,6 +714,22 @@
                   "name": "body"
                 }
               }
+            }
+          }
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Create an issue in the repository identified by the complete destination URL, using the displayed title and body. The issue may be visible to repository readers."
+          ],
+          "fields": {
+            "body": {
+              "kind": "text",
+              "label": "Body"
+            },
+            "title": {
+              "kind": "text",
+              "label": "Title"
             }
           }
         }
@@ -690,11 +786,11 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "45ad8e8a7d69b408dd3bed85714ece4b72a3ed35723b1bb0375d4b802e8bb0c3"
+      "digest": "c233392d5f51034ebe8eb79054bdc4f3109c092be8caa95f1ea9356e2a1a2291"
     },
     "github-response-locator": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "2f9c472c3681a7c7a80f6dcf057f614adbc7126f5414ca2d19c770cd050ad71f",
         "service": "github-gateway-demo",
         "tool": "create_issue_v1",
@@ -737,6 +833,22 @@
                   "name": "body"
                 }
               }
+            }
+          }
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Create an issue in the repository identified by the complete destination URL, using the displayed title and body. The issue may be visible to repository readers."
+          ],
+          "fields": {
+            "body": {
+              "kind": "text",
+              "label": "Body"
+            },
+            "title": {
+              "kind": "text",
+              "label": "Title"
             }
           }
         },
@@ -821,11 +933,11 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "df92737ef30b74ef81b4438533ee5d9d46b8056e430f6c0032bc23f18b87873c"
+      "digest": "199f38ede4c2468a11d627d66d31471625bbec460a04911f48906fe4b68749f3"
     },
     "stripe-plain": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "06c91dcf9660ed2445c04c87bd5546d8bdfb7540c3f91276685c93ea5abdd82d",
         "service": "stripe-refunds",
         "tool": "create_refund_v1",
@@ -862,6 +974,24 @@
           "idempotency": {
             "kind": "derived-header",
             "retention_seconds": 86400
+          }
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Issue one refund against the identified payment intent for the displayed amount. This is not a recurring charge.",
+            "The provider determines refund settlement timing. A response or receipt does not itself establish settlement."
+          ],
+          "fields": {
+            "amount": {
+              "kind": "integer",
+              "label": "Amount",
+              "unit": "minor units of the declared currency"
+            },
+            "payment_intent": {
+              "kind": "identifier",
+              "label": "Payment intent"
+            }
           }
         }
       },
@@ -919,11 +1049,11 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "ff49d44a2978d72869f3865cdf886d518aaabc1d9fb27d6ef143c3e80b2ba394"
+      "digest": "6a6fddf6a71d93045db061b5e80d374e988fad6db3c659a46f08cd2a48f1b726"
     },
     "stripe": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "db3a47820a6f5c3ce3883068bea16542721e049cab8453a2af579c77a46d5c5e",
         "service": "stripe-refunds",
         "tool": "create_refund_v1",
@@ -1095,6 +1225,32 @@
             "name": "metadata[auths_echo]"
           },
           "observe": "/metadata/auths_echo"
+        },
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Issue one refund against the identified payment intent for the displayed amount. This is not a recurring charge.",
+            "The provider determines refund settlement timing. A response or receipt does not itself establish settlement."
+          ],
+          "fields": {
+            "amount": {
+              "kind": "integer",
+              "label": "Amount",
+              "unit": "minor units of the declared currency"
+            },
+            "connect_account": {
+              "kind": "identifier",
+              "label": "Connect account"
+            },
+            "currency": {
+              "kind": "identifier",
+              "label": "Currency"
+            },
+            "payment_intent": {
+              "kind": "identifier",
+              "label": "Payment intent"
+            }
+          }
         }
       },
       "lock": {
@@ -1161,11 +1317,11 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "fe005b5323d196292b5eff4439f40f6e835dac2e9bd869c64f27b4a371615090"
+      "digest": "5b78d556469e45ce9cf49ca8eeba3887b9f85fae01cb12001b6a52f8e0431ea9"
     },
     "stripe-platform": {
       "recipe": {
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
         "profile_schema_digest": "d61ec6d55d346f7c6ba550451623b72abaecebf013c307b685fce059db21f9ea",
         "service": "stripe-refunds",
         "tool": "create_refund_v1",
@@ -1245,12 +1401,27 @@
         "provider_headers": {
           "Stripe-Version": "2025-03-31.basil"
         },
-        "echo": {
-          "write": {
-            "kind": "form-field",
-            "name": "metadata[auths_echo]"
-          },
-          "observe": "/metadata/auths_echo"
+        "review": {
+          "schema": "auths.effect-review-contract/1",
+          "consequences": [
+            "Issue one refund against the identified payment intent for the displayed amount. This is not a recurring charge.",
+            "The provider determines refund settlement timing. A response or receipt does not itself establish settlement."
+          ],
+          "fields": {
+            "amount": {
+              "kind": "integer",
+              "label": "Amount",
+              "unit": "minor units of the declared currency"
+            },
+            "currency": {
+              "kind": "identifier",
+              "label": "Currency"
+            },
+            "payment_intent": {
+              "kind": "identifier",
+              "label": "Payment intent"
+            }
+          }
         },
         "bounds": {
           "sum": {
@@ -1333,6 +1504,13 @@
           "json_pointer": "/amount",
           "expected_field": "amount",
           "maximum_response_bytes": 16384
+        },
+        "echo": {
+          "write": {
+            "kind": "form-field",
+            "name": "metadata[auths_echo]"
+          },
+          "observe": "/metadata/auths_echo"
         }
       },
       "lock": {
@@ -1394,7 +1572,7 @@
         "pre_entry_reread": false,
         "write_is_conditional": false
       },
-      "digest": "7e0cd37f029562d2fb291026f98616148a667f2b19bbfa2b4ccb54637b3805ff"
+      "digest": "04edff61298edcf288bdb182d22a5288b7f903478cbca77f0134822105f3003f"
     }
   },
   "cases": [

@@ -144,7 +144,7 @@ pub fn verify_p256_sha256(
     let key = decode_p256_key(verification_key)?;
     let signature =
         P256Signature::from_slice(signature).map_err(|_| P256Error::InvalidSignatureEncoding)?;
-    if signature.normalize_s().is_some() {
+    if signature.normalize_s() != signature {
         return Err(P256Error::VerificationFailed);
     }
     key.verify(message, &signature)
@@ -158,7 +158,7 @@ mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
     use ed25519_dalek::{Signer as _, SigningKey};
-    use p256::ecdsa::SigningKey as P256SigningKey;
+    use p256::ecdsa::{SigningKey as P256SigningKey, signature::Signer as _};
 
     #[test]
     fn strict_verifier_binds_every_byte_and_classifies_shapes() {
@@ -195,7 +195,7 @@ mod tests {
         scalar[31] = 7;
         let key = P256SigningKey::from_bytes((&scalar).into()).unwrap();
         let mut compact = vec![0x05];
-        compact.extend_from_slice(&key.verifying_key().to_encoded_point(true).as_bytes()[1..]);
+        compact.extend_from_slice(&key.verifying_key().to_sec1_point(true).as_bytes()[1..]);
         if P256Key::from_sec1_bytes(&compact).unwrap() == *key.verifying_key() {
             key
         } else {
@@ -213,18 +213,10 @@ mod tests {
     fn p256_accepts_only_the_compressed_encoding_of_a_point() {
         let key = compact_decodable_p256_key();
         let signature: P256Signature = key.sign(P256_MESSAGE);
-        let signature = signature.normalize_s().unwrap_or(signature);
+        let signature = signature.normalize_s();
         let signature_bytes = signature.to_bytes();
-        let compressed = key
-            .verifying_key()
-            .to_encoded_point(true)
-            .as_bytes()
-            .to_vec();
-        let uncompressed = key
-            .verifying_key()
-            .to_encoded_point(false)
-            .as_bytes()
-            .to_vec();
+        let compressed = key.verifying_key().to_sec1_point(true).as_bytes().to_vec();
+        let uncompressed = key.verifying_key().to_sec1_point(false).as_bytes().to_vec();
         let x = &uncompressed[1..33];
         let x_and_y = &uncompressed[1..];
         let compact = with_tag(0x05, x);

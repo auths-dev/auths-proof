@@ -77,7 +77,7 @@ use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Schema of an audit bundle.
-pub const AUDIT_BUNDLE_SCHEMA: &str = "auths.gateway-audit-bundle/2";
+pub const AUDIT_BUNDLE_SCHEMA: &str = "auths.gateway-audit-bundle/3";
 /// Schema of an audit report.
 pub const AUDIT_REPORT_SCHEMA: &str = "auths.gateway-audit-report/3";
 /// Largest audit bundle, in bytes.
@@ -267,26 +267,27 @@ impl AuditReport {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct BundleSource {
     schema: String,
     recipe_b64: String,
     profile_lock_b64: String,
     trusted_context_b64: String,
+    #[serde(deserialize_with = "export::entries")]
     entries: Vec<EntrySource>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "export::responses")]
     approval_responses: Vec<ResponseSource>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct ResponseSource {
     operation_id: String,
     response: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct EntrySource {
     operation_id: String,
@@ -296,6 +297,25 @@ struct EntrySource {
     outcome_b64: Option<String>,
     #[serde(default)]
     pre_entry_b64: Option<Vec<String>>,
+}
+
+#[path = "audit_export.rs"]
+mod export;
+pub use export::PrivateAuditBundle;
+
+fn bundle_source(bytes: &[u8]) -> Result<BundleSource, &'static str> {
+    if bytes.is_empty() || bytes.len() > MAX_AUDIT_BUNDLE_BYTES {
+        return Err("audit.bundle-invalid-size");
+    }
+    let source: BundleSource =
+        serde_json::from_slice(bytes).map_err(|_| "audit.bundle-malformed")?;
+    if source.schema != AUDIT_BUNDLE_SCHEMA
+        || source.entries.len() > MAX_AUDIT_ENTRIES
+        || source.approval_responses.len() > MAX_AUDIT_APPROVAL_RESPONSES
+    {
+        return Err("audit.bundle-malformed");
+    }
+    Ok(source)
 }
 
 fn decode(text: &str, maximum: usize) -> Option<Vec<u8>> {
@@ -312,7 +332,8 @@ fn refusal_code(result: GatewaySubmitResult) -> String {
         GatewaySubmitResult::Denied { code }
         | GatewaySubmitResult::Indeterminate { code }
         | GatewaySubmitResult::NotEntered { code } => code,
-        GatewaySubmitResult::Unknown
+        GatewaySubmitResult::Reserved { .. }
+        | GatewaySubmitResult::Unknown
         | GatewaySubmitResult::ResponseRecorded { .. }
         | GatewaySubmitResult::Observed { .. }
         | GatewaySubmitResult::ObservedByProvider { .. } => "audit.unexpected-result".to_owned(),
@@ -390,17 +411,7 @@ fn finding(operation_id: &str, code: &str, evaluated_at: u64) -> Pending {
 /// recipe that does not compile. Per-entry problems are reported in the
 /// returned report, never as an error.
 pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'static str> {
-    if bytes.is_empty() || bytes.len() > MAX_AUDIT_BUNDLE_BYTES {
-        return Err("audit.bundle-invalid-size");
-    }
-    let source: BundleSource =
-        serde_json::from_slice(bytes).map_err(|_| "audit.bundle-malformed")?;
-    if source.schema != AUDIT_BUNDLE_SCHEMA
-        || source.entries.len() > MAX_AUDIT_ENTRIES
-        || source.approval_responses.len() > MAX_AUDIT_APPROVAL_RESPONSES
-    {
-        return Err("audit.bundle-malformed");
-    }
+    let source = bundle_source(bytes)?;
     let approval_responses = source
         .approval_responses
         .iter()
@@ -439,7 +450,10 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
         schema: AUDIT_REPORT_SCHEMA,
         trusted_context_sha256: hex::encode(digest),
         recipe_digest: recipe.digest_hex(),
-        recovery: crate::recipe::recovery_document(&recipe.recovery()),
+        recovery: recipe
+            .recovery()
+            .as_ref()
+            .map_or(Value::Null, crate::recipe::recovery_document),
         observer: pins.observer.as_str().to_owned(),
         verified: count(AuditStatus::Verified),
         refused: count(AuditStatus::Refused),

@@ -1,0 +1,78 @@
+{
+  "installation": {
+    "direct_install_requires_approval_before_custody": true,
+    "cases": [
+      {
+        "case": "staged",
+        "reopened_same_draft_and_secret_exact": true,
+        "different_secret_refused": true,
+        "runtime_missing_floor_refused_without_repair": true,
+        "explicit_restaging_exact": true,
+        "connection_remains_absent": true,
+        "cleanup_note_retained": true
+      },
+      {
+        "case": "bad-prefix",
+        "refused": true,
+        "stored_generations": 0,
+        "no_provider_entry": true
+      },
+      {
+        "case": "existing-connection",
+        "refused": true,
+        "stored_generations": 0,
+        "no_provider_entry": true
+      },
+      {
+        "case": "substituted-floor",
+        "refused": true,
+        "stored_generations": 1,
+        "no_provider_entry": true
+      },
+      {
+        "case": "corrupt-journal",
+        "refused": true,
+        "stored_generations": 0,
+        "no_provider_entry": true
+      }
+    ]
+  },
+  "schema": "auths.candidate-staging-fixture/1",
+  "scope": "actual engine, persistent file custody, generation floor and cleanup journal; fixed deployment clock; no provider execution, process crash or PostgreSQL claim",
+  "cases": [
+    {
+      "case": "active",
+      "staged_generation": 2,
+      "same_secret_idempotent": true,
+      "different_secret_refused": true,
+      "reopen_retains_current_and_candidate": true,
+      "cleanup_notes_retained": true,
+      "preexisting_reader_refreshes_custody": true,
+      "stale_writer_cannot_overwrite": true,
+      "completed_delete_visible_to_stale_reader": true
+    },
+    {
+      "case": "disabled",
+      "staged_generation": 3,
+      "same_secret_idempotent": true,
+      "different_secret_refused": true,
+      "reopen_retains_current_and_candidate": true,
+      "cleanup_notes_retained": true,
+      "preexisting_reader_refreshes_custody": true,
+      "stale_writer_cannot_overwrite": true,
+      "completed_delete_visible_to_stale_reader": true
+    },
+    {
+      "case": "revoked",
+      "refused_without_custody_change": true
+    },
+    {
+      "case": "missing-journal",
+      "refused_without_custody_change": true
+    },
+    {
+      "case": "bad-prefix",
+      "refused_without_custody_change": true
+    }
+  ]
+}

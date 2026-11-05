@@ -103,7 +103,10 @@ try {
     record_uri: record.read_back_subject,
   });
   const readBack = async () => {
-    const observed = await client.observeReadBack({ record_id: record.record_id });
+    // Synthetic reference evidence comes from the private test control plane.
+    const wire = (await control({ command: "reference-read-back", record_id: record.record_id })).observation;
+    const observed = { outcome: wire.outcome, schema: wire.schema, subject: wire.subject,
+      observedAt: wire.observed_at, mediaType: wire.media_type, observation: bytes(wire.observation_b64) };
     if (observed.outcome !== "signed" || observed.subject !== record.read_back_subject) {
       throw new Error("read-back refused: " + JSON.stringify(observed));
     }
@@ -134,6 +137,7 @@ try {
     builder.bindActionEvidence(actorEvidence.type, actorEvidence.mediaType, actorEvidence.bytes);
     return { proof: builder.finish(signed, prepared.action, context).proofCbor, action: prepared.action };
   };
+  let approval;
   const refusedBeforeLease = async (value, observation, now, expected) => {
     try {
       await author(value, observation, now);
@@ -142,7 +146,7 @@ try {
       if (!(error instanceof AuthoringUnsuccessful) || error.code !== expected.code) throw error;
     }
     const before = await counts();
-    const result = await client.submit(await authorUnchecked(value, observation, now));
+    const result = await client.submit({ ...await authorUnchecked(value, observation, now), approval });
     if (JSON.stringify(result) !== JSON.stringify(expected)) {
       throw new Error("gateway result " + JSON.stringify(result));
     }
@@ -154,7 +158,13 @@ try {
 
   const observed = await readBack();
   const first = await author(command("journey-1", "Pending", "Approved"), observed, NOW);
-  const written = await client.submit({ proof: first.proof, action: first.action });
+  // The isolated test control plane signs a native fixed-key oracle approval.
+  // Reuse it for denied proofs to prove verification still refuses before entry.
+  approval = bytes((await control({ command: "reference-approval",
+    proof_b64: Buffer.from(first.proof).toString("base64url"),
+    action_b64: Buffer.from(first.action).toString("base64url"),
+  })).approval_b64);
+  const written = await client.submit({ proof: first.proof, action: first.action, approval });
   const afterWrite = await counts();
   await control({ command: "set-record", record_id: record.record_id, status: "Pending" });
   const changed = await readBack();
@@ -183,11 +193,11 @@ test("packed npm consumer attaches a gateway read-back and is refused once it is
     const output = execFileSync(process.execPath, ["consumer.mjs", harness, vectors],
       { cwd: directory, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
     assert.deepEqual(JSON.parse(output), {
-      written: { outcome: "observed-by-provider", status: 200 },
-      afterWrite: [1, 3],
+      written: { outcome: "response-recorded", status: 200 },
+      afterWrite: [1, 2],
       conditionFalse: { outcome: "denied", code: "observation-condition-false" },
       stale: { outcome: "indeterminate", code: "observation-missing" },
-      final: [1, 4],
+      final: [1, 3],
     });
   } finally {
     await rm(directory, { recursive: true, force: true });

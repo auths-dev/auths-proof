@@ -23,11 +23,13 @@ or dynamic plugin.
 
 ## Unknown writes
 
-An `unknown` result means the provider write may have happened. Applications
-do not retry it blindly: they ask the gateway for the operation's signed
-outcome (`observeOutcome`) or read the provider field back through the
-gateway (`observeReadBack`). Both return gateway-signed bytes that can be
-attached to a later action or kept for audit.
+An unknown outcome means the provider write may have happened. Read retained
+local history with `observeOutcome`. Acquire new evidence only with a separately
+verified read proof/action and exact approval through `recover(sourceOperation, { proof, action, approval })`. Recovery
+returns bounded native JSON bytes distinguishing source facts, acquisition
+facts and the evidence decision. It does not return provider content, authorize
+a write retry, or acknowledge recipient disclosure. Unapproved provider read-back
+requests are no longer part of the application protocol.
 
 ## Other public utilities
 

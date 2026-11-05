@@ -6,7 +6,7 @@ requirement: the record's current value must equal the action's ``expected``
 argument, as signed by the gateway observer at most 60 seconds before the
 gateway verifies.
 
-1. Request a read-back observation.
+1. Obtain a synthetic observation from the private harness control plane.
 2. Attach it to the replacement action.
 3. Submit: the write is authorized.
 4. Change the record: the stale expectation is refused. The SDK refuses to
@@ -48,7 +48,7 @@ from auths.gateway import (
     GatewayDenied,
     GatewayEndpoint,
     GatewayIndeterminate,
-    GatewayObservedByProvider,
+    GatewayResponseRecorded,
     GatewayResult,
     GatewaySignedObservation,
 )
@@ -121,7 +121,7 @@ def _bytes(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
-async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
+async def _control_response(socket: Path, request: dict[str, object]) -> dict[str, object]:
     reader, writer = await asyncio.open_unix_connection(str(socket))
     payload = json.dumps(request).encode()
     writer.write(struct.pack(">I", len(payload)) + payload)
@@ -132,11 +132,17 @@ async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
     await writer.wait_closed()
     if response.get("ok") is not True:
         raise AssertionError(f"harness refused {request}")
-    return cast("dict[str, int]", response)
+    return cast("dict[str, object]", response)
+
+
+async def _control(socket: Path, request: dict[str, object]) -> dict[str, int]:
+    response = await _control_response(socket, request)
+    return {key: cast(int, response[key]) for key in ("now", "writes", "reads", "leases")}
 
 
 class Journey:
     def __init__(self, setup: dict[str, object], signer: AgentSigner) -> None:
+        self.approval = b""
         self.setup = setup
         self.signer = signer
         self.control = Path(cast(str, setup["control_socket"]))
@@ -158,7 +164,10 @@ class Journey:
         )
 
     async def read_back(self) -> GatewaySignedObservation:
-        result = await self.client.observe_read_back({"record_id": self.record["record_id"]})
+        response = await _control_response(self.control, {"command": "reference-read-back", "record_id": self.record["record_id"]})
+        wire = cast("dict[str, object]", response["observation"])
+        result = GatewaySignedObservation(cast(str, wire["schema"]), cast(str, wire["subject"]),
+            cast(int, wire["observed_at"]), cast(str, wire["media_type"]), _bytes(cast(str, wire["observation_b64"])))
         assert isinstance(result, GatewaySignedObservation), result
         assert result.subject == self.record["read_back_subject"]
         return result
@@ -224,7 +233,7 @@ class Journey:
             raise AssertionError("the SDK authored a refused replacement")
         before = await self.counts()
         proof, action = self.author_unchecked(command, observation, now)
-        result = await self.client.submit(proof=proof, action=action)
+        result = await self.client.submit(proof=proof, action=action, approval=self.approval)
         assert result == expected, result
         assert await self.counts() == before, "no write and no credential lease"
 
@@ -249,11 +258,18 @@ async def journey(harness: Path, state: Path) -> None:
         proof, action = await run.author(
             run.command("journey-1", "Pending", "Approved"), observed, NOW,
         )
-        written = await run.client.submit(proof=proof, action=action)
-        assert isinstance(written, GatewayObservedByProvider), written
+        # Only the private test control plane issues this fixed-key native oracle approval.
+        response = await _control_response(run.control, {
+            "command": "reference-approval",
+            "proof_b64": base64.urlsafe_b64encode(proof).decode().rstrip("="),
+            "action_b64": base64.urlsafe_b64encode(action).decode().rstrip("="),
+        })
+        run.approval = _bytes(cast(str, response["approval_b64"]))
+        written = await run.client.submit(proof=proof, action=action, approval=run.approval)
+        assert isinstance(written, GatewayResponseRecorded), written
         assert written.status == 200
-        assert await run.counts() == (1, 3), (
-            "one write; the observation, the write, and its read-back each lease"
+        assert await run.counts() == (1, 2), (
+            "one explicit pre-read and one write; no implicit post-write read-back"
         )
 
         await _control(run.control, {
@@ -271,7 +287,7 @@ async def journey(harness: Path, state: Path) -> None:
             run.command("journey-3", "Pending", "Approved"), changed, aged,
             GatewayIndeterminate("observation-missing"),
         )
-        assert await run.counts() == (1, 4), "only the second read-back leased again"
+        assert await run.counts() == (1, 3), "only the second read-back leased again"
     finally:
         process.kill()
         process.wait()

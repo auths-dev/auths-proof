@@ -467,30 +467,15 @@ impl RunCase {
         {
             return Err(IssuanceError::CaseFailed);
         }
-        let mut unresolved = false;
         for (step, actual) in self.steps.iter().zip(observations) {
-            if step.operation == Operation::Replay {
-                let read_only_completion = unresolved
-                    && actual.credential_leases <= 1
-                    && matches!(
-                        actual.verdict.outcome,
-                        RunOutcome::Unknown | RunOutcome::ResponseRecorded | RunOutcome::Observed
-                    );
-                if actual.provider_entries != 0
-                    || (actual.credential_leases != 0 && !read_only_completion)
-                {
-                    return Err(IssuanceError::CaseFailed);
-                }
-            }
-            if step.operation != Operation::Oracle {
-                if actual.provider_entries > 0 {
-                    unresolved = matches!(
-                        actual.verdict.outcome,
-                        RunOutcome::Unknown | RunOutcome::ResponseRecorded
-                    );
-                } else if actual.verdict.outcome == RunOutcome::Observed {
-                    unresolved = false;
-                }
+            // Replay may return historical evidence, but cannot count it as a
+            // new observation or authorize another credential lease or entry.
+            if step.operation == Operation::Replay
+                && (actual.provider_entries != 0
+                    || actual.credential_leases != 0
+                    || actual.confirmed_by_read_back != 0)
+            {
+                return Err(IssuanceError::CaseFailed);
             }
         }
         if matches!(

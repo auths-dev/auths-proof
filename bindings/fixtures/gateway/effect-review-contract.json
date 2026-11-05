@@ -1,0 +1,155 @@
+{
+  "schema": "auths.effect-review-contract-fixture/1",
+  "profile_lock": {
+    "command_schema": {
+      "fields": {
+        "operation_id": {
+          "kind": "string",
+          "maximum": 128,
+          "minimum": 1
+        },
+        "operator_namespace": {
+          "type": "enum",
+          "variants": [
+            "airtable-demo"
+          ]
+        },
+        "recipe_digest": {
+          "kind": "string",
+          "maximum": 64,
+          "minimum": 64
+        },
+        "record_id": {
+          "kind": "string",
+          "maximum": 43,
+          "minimum": 17
+        },
+        "replacement": {
+          "type": "enum",
+          "variants": [
+            "Approved",
+            "Pending"
+          ]
+        }
+      },
+      "kind": "object"
+    },
+    "generator_format": 2,
+    "profile": "airtable-gateway-record-update",
+    "schema": "auths.self-hosted-profile-lock/1",
+    "schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+    "service": "airtable-gateway-demo",
+    "tool": "set_demo_status_v1",
+    "version": 1
+  },
+  "source_schema": "auths.gateway-recipe-source/3",
+  "review_schema": "auths.gateway-recipe-review/3",
+  "accepted": {
+    "schema": "auths.gateway-recipe-review/3",
+    "effect_review_contract": {
+      "schema": "auths.effect-review-contract/1",
+      "consequences": [
+        "Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation."
+      ],
+      "fields": {
+        "record_id": {
+          "kind": "identifier",
+          "label": "Record id"
+        },
+        "replacement": {
+          "kind": "text",
+          "label": "Replacement"
+        }
+      }
+    },
+    "digest": "64ff5004b9758e2fb374e9d6b443ef1b35aa00c400dbe1358b90ef89c5c9eda9",
+    "operator_namespace": "airtable-demo",
+    "service": "airtable-gateway-demo",
+    "tool": "set_demo_status_v1",
+    "origin": "https://api.airtable.com",
+    "method": "PATCH",
+    "path": [
+      "v0",
+      "appTEST0000000001",
+      "tblTEST0000000001",
+      "<record_id>"
+    ],
+    "credential": {
+      "kind": "bearer"
+    },
+    "maximum_body_bytes": 16384,
+    "has_observation": true,
+    "sends_idempotency_key": false,
+    "echo": {
+      "kind": "json-pointer",
+      "write": "/fields/auths_echo",
+      "observe": "/fields/auths_echo",
+      "disclosure": "the gateway writes a token derived from the authorized action into this provider field; the provider stores it and anyone who can read the record can read it; do not declare echo when the observation response may contain secrets"
+    },
+    "preconditions": null,
+    "recovery": {
+      "schema": "auths.gateway-recovery-capability/1",
+      "class": "linked",
+      "state_observation": "verified-locator",
+      "provider_link": "verified-locator",
+      "unknown_resolution": "gateway-reobservation",
+      "lost_claim_reentry": {
+        "deduplication": "none"
+      },
+      "pre_entry_reread": false,
+      "write_is_conditional": false
+    },
+    "write_is_conditional": false,
+    "provider_headers": null,
+    "credential_guard": null,
+    "idempotency": null,
+    "observation": {
+      "locator": "verified-locator",
+      "path": [
+        "v0",
+        "appTEST0000000001",
+        "tblTEST0000000001",
+        "<record_id>"
+      ],
+      "json_pointer": "/fields/DemoStatus",
+      "expected_field": "replacement",
+      "maximum_response_bytes": 16384
+    },
+    "pre_entry": null,
+    "account_scope": null,
+    "relative_ceiling": null,
+    "bounds": null
+  },
+  "rejected": [
+    {
+      "name": "unsupported-version",
+      "source_json": "{\"schema\":\"auths.gateway-recipe-source/3\",\"profile_schema_digest\":\"72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29\",\"service\":\"airtable-gateway-demo\",\"tool\":\"set_demo_status_v1\",\"operator_namespace\":\"airtable-demo\",\"credential\":{\"kind\":\"bearer\"},\"origin\":\"https://api.airtable.com\",\"write\":{\"method\":\"PATCH\",\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"body\":{\"kind\":\"json\",\"value\":{\"kind\":\"object\",\"fields\":{\"fields\":{\"kind\":\"object\",\"fields\":{\"DemoStatus\":{\"kind\":\"field\",\"name\":\"replacement\"}}}}}}},\"observation\":{\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"json_pointer\":\"/fields/DemoStatus\",\"expected_field\":\"replacement\",\"maximum_response_bytes\":16384},\"echo\":{\"write\":{\"kind\":\"json-pointer\",\"pointer\":\"/fields/auths_echo\"},\"observe\":\"/fields/auths_echo\"},\"review\":{\"schema\":\"auths.effect-review-contract/999\",\"consequences\":[\"Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.\"],\"fields\":{\"record_id\":{\"kind\":\"identifier\",\"label\":\"Record id\"},\"replacement\":{\"kind\":\"text\",\"label\":\"Replacement\"}}}}",
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "name": "missing-field",
+      "source_json": "{\"schema\":\"auths.gateway-recipe-source/3\",\"profile_schema_digest\":\"72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29\",\"service\":\"airtable-gateway-demo\",\"tool\":\"set_demo_status_v1\",\"operator_namespace\":\"airtable-demo\",\"credential\":{\"kind\":\"bearer\"},\"origin\":\"https://api.airtable.com\",\"write\":{\"method\":\"PATCH\",\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"body\":{\"kind\":\"json\",\"value\":{\"kind\":\"object\",\"fields\":{\"fields\":{\"kind\":\"object\",\"fields\":{\"DemoStatus\":{\"kind\":\"field\",\"name\":\"replacement\"}}}}}}},\"observation\":{\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"json_pointer\":\"/fields/DemoStatus\",\"expected_field\":\"replacement\",\"maximum_response_bytes\":16384},\"echo\":{\"write\":{\"kind\":\"json-pointer\",\"pointer\":\"/fields/auths_echo\"},\"observe\":\"/fields/auths_echo\"},\"review\":{\"schema\":\"auths.effect-review-contract/1\",\"consequences\":[\"Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.\"],\"fields\":{}}}",
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "name": "missing-consequences",
+      "source_json": "{\"schema\":\"auths.gateway-recipe-source/3\",\"profile_schema_digest\":\"72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29\",\"service\":\"airtable-gateway-demo\",\"tool\":\"set_demo_status_v1\",\"operator_namespace\":\"airtable-demo\",\"credential\":{\"kind\":\"bearer\"},\"origin\":\"https://api.airtable.com\",\"write\":{\"method\":\"PATCH\",\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"body\":{\"kind\":\"json\",\"value\":{\"kind\":\"object\",\"fields\":{\"fields\":{\"kind\":\"object\",\"fields\":{\"DemoStatus\":{\"kind\":\"field\",\"name\":\"replacement\"}}}}}}},\"observation\":{\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"json_pointer\":\"/fields/DemoStatus\",\"expected_field\":\"replacement\",\"maximum_response_bytes\":16384},\"echo\":{\"write\":{\"kind\":\"json-pointer\",\"pointer\":\"/fields/auths_echo\"},\"observe\":\"/fields/auths_echo\"},\"review\":{\"schema\":\"auths.effect-review-contract/1\",\"consequences\":[],\"fields\":{\"record_id\":{\"kind\":\"identifier\",\"label\":\"Record id\"},\"replacement\":{\"kind\":\"text\",\"label\":\"Replacement\"}}}}",
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "name": "misleading-control",
+      "source_json": "{\"schema\":\"auths.gateway-recipe-source/3\",\"profile_schema_digest\":\"72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29\",\"service\":\"airtable-gateway-demo\",\"tool\":\"set_demo_status_v1\",\"operator_namespace\":\"airtable-demo\",\"credential\":{\"kind\":\"bearer\"},\"origin\":\"https://api.airtable.com\",\"write\":{\"method\":\"PATCH\",\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"body\":{\"kind\":\"json\",\"value\":{\"kind\":\"object\",\"fields\":{\"fields\":{\"kind\":\"object\",\"fields\":{\"DemoStatus\":{\"kind\":\"field\",\"name\":\"replacement\"}}}}}}},\"observation\":{\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"json_pointer\":\"/fields/DemoStatus\",\"expected_field\":\"replacement\",\"maximum_response_bytes\":16384},\"echo\":{\"write\":{\"kind\":\"json-pointer\",\"pointer\":\"/fields/auths_echo\"},\"observe\":\"/fields/auths_echo\"},\"review\":{\"schema\":\"auths.effect-review-contract/1\",\"consequences\":[\"Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.\"],\"fields\":{\"record_id\":{\"kind\":\"identifier\",\"label\":\"Record id\"},\"replacement\":{\"kind\":\"text\",\"label\":\"Status\\nDestination: misleading\"}}}}",
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "name": "wrong-type",
+      "source_json": "{\"schema\":\"auths.gateway-recipe-source/3\",\"profile_schema_digest\":\"72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29\",\"service\":\"airtable-gateway-demo\",\"tool\":\"set_demo_status_v1\",\"operator_namespace\":\"airtable-demo\",\"credential\":{\"kind\":\"bearer\"},\"origin\":\"https://api.airtable.com\",\"write\":{\"method\":\"PATCH\",\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"body\":{\"kind\":\"json\",\"value\":{\"kind\":\"object\",\"fields\":{\"fields\":{\"kind\":\"object\",\"fields\":{\"DemoStatus\":{\"kind\":\"field\",\"name\":\"replacement\"}}}}}}},\"observation\":{\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"json_pointer\":\"/fields/DemoStatus\",\"expected_field\":\"replacement\",\"maximum_response_bytes\":16384},\"echo\":{\"write\":{\"kind\":\"json-pointer\",\"pointer\":\"/fields/auths_echo\"},\"observe\":\"/fields/auths_echo\"},\"review\":{\"schema\":\"auths.effect-review-contract/1\",\"consequences\":[\"Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.\"],\"fields\":{\"record_id\":{\"kind\":\"identifier\",\"label\":\"Record id\"},\"replacement\":{\"kind\":\"integer\",\"label\":\"Replacement\",\"unit\":\"count\"}}}}",
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "name": "duplicate-field",
+      "source_json": "{\"schema\":\"auths.gateway-recipe-source/3\",\"profile_schema_digest\":\"72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29\",\"service\":\"airtable-gateway-demo\",\"tool\":\"set_demo_status_v1\",\"operator_namespace\":\"airtable-demo\",\"credential\":{\"kind\":\"bearer\"},\"origin\":\"https://api.airtable.com\",\"write\":{\"method\":\"PATCH\",\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"body\":{\"kind\":\"json\",\"value\":{\"kind\":\"object\",\"fields\":{\"fields\":{\"kind\":\"object\",\"fields\":{\"DemoStatus\":{\"kind\":\"field\",\"name\":\"replacement\"}}}}}}},\"observation\":{\"path\":[{\"kind\":\"fixed\",\"value\":\"v0\"},{\"kind\":\"fixed\",\"value\":\"appTEST0000000001\"},{\"kind\":\"fixed\",\"value\":\"tblTEST0000000001\"},{\"kind\":\"field\",\"name\":\"record_id\"}],\"json_pointer\":\"/fields/DemoStatus\",\"expected_field\":\"replacement\",\"maximum_response_bytes\":16384},\"echo\":{\"write\":{\"kind\":\"json-pointer\",\"pointer\":\"/fields/auths_echo\"},\"observe\":\"/fields/auths_echo\"},\"review\":{\"schema\":\"auths.effect-review-contract/1\",\"consequences\":[\"Replace the DemoStatus field of the displayed record with the displayed replacement value. Other writers may change the record before or after this mutation.\"],\"fields\":{\"replacement\":{\"kind\":\"text\",\"label\":\"Replacement\"},\"record_id\":{\"kind\":\"identifier\",\"label\":\"Record id\"},\"replacement\":{\"kind\":\"text\",\"label\":\"Replacement\"}}}}",
+      "code": "gateway.recipe.invalid-source"
+    }
+  ]
+}

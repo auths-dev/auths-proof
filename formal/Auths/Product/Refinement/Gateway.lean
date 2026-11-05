@@ -1796,11 +1796,6 @@ theorem translated_relative_basis_refines_model (value : Std.U64) (subtrahend : 
 section Order
 open Auths.Product.SubmitOrder
 
-def modeOf : order.Mode → Mode
-  | .Entry => .entry
-  | .ReadBack => .readBack
-  | .Reobserve => .reobserve
-
 def planOf (plan : order.SubmitPlan) : Plan where
   accountScope := plan.account_scope
   accountRead := plan.account_read
@@ -1817,22 +1812,21 @@ def phaseOf : order.Phase → Phase
   | .Scope => .scope
   | .Prepare => .prepare
   | .Claim => .claim
-  | .Resume => .resume
-  | .Reload mode => .reload (modeOf mode)
-  | .Lease mode => .lease (modeOf mode)
-  | .Prefix mode => .prefixGuard (modeOf mode)
-  | .Account mode => .account (modeOf mode)
-  | .Denied mode index => .denied (modeOf mode) index.val
+  | .Reload => .reload
+  | .Lease => .lease
+  | .Prefix => .prefixGuard
+  | .Account => .account
+  | .Denied index => .denied index.val
   | .PreEntry => .preEntry
   | .Ceiling => .ceiling
   | .Checkpoint => .checkpoint
   | .EntryReload => .entryReload
   | .Deadline => .deadline
+  | .Grant => .grant
   | .Send => .send
   | .RecordResponse => .recordResponse
   | .RecordUnknown => .recordUnknown
   | .RecordNotEntered => .recordNotEntered
-  | .ReadBack mode => .readBack (modeOf mode)
   | .Done => .done
 
 def stateOf (state : order.SubmitState) : State where
@@ -1845,7 +1839,7 @@ def verificationOf : order.Verification → Verification
   | .Authorized argument => .authorized argument.val
 
 def claimOf : order.ClaimResult → ClaimResult
-  | .Inserted => .inserted
+  | .Reserved => .reserved
   | .Refused => .refused
   | .Replay => .replay
   | .Unavailable => .unavailable
@@ -1870,13 +1864,12 @@ def ceilingOf : order.CeilingRead → CeilingRead
   | .Read basis bindsEqual => .read basis.val bindsEqual
 
 def writeOf : order.WriteResult → WriteResult
-  | .NotEntered => .notEntered
   | .Unknown => .unknown
   | .Response => .response
 
 def responseOf : order.ResponseRecord → ResponseRecord
   | .Failed => .failed
-  | .Recorded observable => .recorded observable
+  | .Recorded => .recorded
 
 def eventOf : order.SubmitEvent → Event
   | .Start => .start
@@ -1886,7 +1879,6 @@ def eventOf : order.SubmitEvent → Event
   | .Scope bound => .scope bound
   | .Preparation prepared => .preparation prepared
   | .Claim result => .claim (claimOf result)
-  | .Resume resumable => .resume resumable
   | .Reload unchanged => .reload unchanged
   | .Lease leased => .lease leased
   | .Prefix allowed => .prefixGuard allowed
@@ -1896,6 +1888,7 @@ def eventOf : order.SubmitEvent → Event
   | .Ceiling read => .ceiling (ceilingOf read)
   | .Recorded stored => .recorded stored
   | .Deadline within => .deadline within
+  | .Granted granted => .granted granted
   | .Write result => .write (writeOf result)
   | .Response record => .response (responseOf record)
 
@@ -1922,8 +1915,8 @@ def stopOf : order.Stop → Stop
   | .NotEntered => .notEntered
   | .Unknown => .unknown
   | .Response => .response
-  | .Observed => .observed
-  | .ReplayRefused => .replayRefused
+  | .Stored => .stored
+  | .GrantUnavailable => .grantUnavailable
   | .Halted => .halted
 
 def actionOf : order.SubmitAction → Action
@@ -1933,22 +1926,21 @@ def actionOf : order.SubmitAction → Action
   | .BindScope => .bindScope
   | .Prepare => .prepare
   | .Claim => .claim
-  | .Resume => .resume
-  | .Reload mode => .reload (modeOf mode)
-  | .Lease mode => .lease (modeOf mode)
-  | .CheckPrefix mode => .checkPrefix (modeOf mode)
-  | .ReadAccount mode => .readAccount (modeOf mode)
-  | .DeniedRead mode index => .deniedRead (modeOf mode) index.val
+  | .Reload => .reload
+  | .Lease => .lease
+  | .CheckPrefix => .checkPrefix
+  | .ReadAccount => .readAccount
+  | .DeniedRead index => .deniedRead index.val
   | .PreEntryRead => .preEntryRead
   | .CeilingRead => .ceilingRead
   | .RecordCheckpoint => .recordCheckpoint
   | .ReloadBeforeEntry => .reloadBeforeEntry
   | .CheckDeadline => .checkDeadline
+  | .GrantEntry => .grantEntry
   | .Send => .send
   | .RecordResponse => .recordResponse
   | .RecordUnknown => .recordUnknown
   | .RecordNotEntered refusal => .recordNotEntered (refusalCodeOf refusal)
-  | .ReadBack mode => .readBack (modeOf mode)
   | .Stop reason => .stop (stopOf reason)
 
 def decisionOf (decision : order.SubmitDecision) : Decision where
@@ -1964,9 +1956,9 @@ theorem translated_start_refines_model (plan : order.SubmitPlan) :
 
 /-- The next denied index of a refused read never overflows `u8`: it is at
 most the declared count. -/
-theorem after_denied_refused_spec (state : order.SubmitState) (mode : order.Mode) (index : Std.U8) :
-    order.after_denied state mode index .Refused ⦃ decision =>
-      decisionOf decision = afterDenied (stateOf state) (modeOf mode) index.val .refused ⦄ := by
+theorem after_denied_refused_spec (state : order.SubmitState) (index : Std.U8) :
+    order.after_denied state index .Refused ⦃ decision =>
+      decisionOf decision = afterDenied (stateOf state) index.val .refused ⦄ := by
   unfold order.after_denied
   simp only [afterDenied, stateOf, planOf]
   split
@@ -1987,11 +1979,10 @@ theorem after_denied_refused_spec (state : order.SubmitState) (mode : order.Mode
       have done' : ¬ next.val < state.plan.denied_reads.val := by simpa using done
       rw [nextVal'] at done'
       simp only [done', if_false]
-      rcases mode with _ | _ | _
       all_goals
-        simp [order.after_credentials, order.pre_entry_from, order.ceiling_from,
-          order.after_reads, order.go, afterCredentials, preEntryFrom, ceilingFrom, afterReads, go,
-          decisionOf, stateOf, planOf, phaseOf, actionOf, modeOf]
+        simp [order.pre_entry_from, order.ceiling_from,
+          order.after_reads, order.go, preEntryFrom, ceilingFrom, afterReads, go,
+          decisionOf, stateOf, planOf, phaseOf, actionOf]
         repeat' split
         all_goals simp_all
   · rename_i above
@@ -2009,18 +2000,17 @@ theorem after_denied_refused_spec (state : order.SubmitState) (mode : order.Mode
 @[simp] theorem stateOf_argument (state : order.SubmitState) :
     (stateOf state).argument = state.argument.val := rfl
 
-theorem after_denied_spec (state : order.SubmitState) (mode : order.Mode) (index : Std.U8)
+theorem after_denied_spec (state : order.SubmitState) (index : Std.U8)
     (result : order.DeniedResult) :
-    order.after_denied state mode index result ⦃ decision =>
+    order.after_denied state index result ⦃ decision =>
       decisionOf decision =
-        afterDenied (stateOf state) (modeOf mode) index.val (deniedOf result) ⦄ := by
+        afterDenied (stateOf state) index.val (deniedOf result) ⦄ := by
   match result with
-  | .Refused => exact after_denied_refused_spec state mode index
+  | .Refused => exact after_denied_refused_spec state index
   | .Answered | .Unavailable =>
-      rcases mode with _ | _ | _ <;>
-        simp [order.after_denied, order.lease_failed, order.not_entered, order.stop, order.go,
-          afterDenied, leaseFailed, notEntered, stop, go, decisionOf, stateOf, phaseOf, actionOf,
-          refusalCodeOf, stopOf, deniedOf, modeOf]
+        simp [order.after_denied, order.not_entered, order.stop, order.go,
+          afterDenied, notEntered, stop, go, decisionOf, stateOf, phaseOf, actionOf,
+          refusalCodeOf, stopOf, deniedOf]
 
 theorem after_ceiling_spec (state : order.SubmitState) (read : order.CeilingRead) :
     order.after_ceiling state read ⦃ decision =>
@@ -2046,26 +2036,25 @@ theorem translated_next_step_refines_model (state : order.SubmitState)
     order.next_step state event ⦃ decision =>
       decisionOf decision = nextStep (stateOf state) (eventOf event) ⦄ := by
   rcases state with ⟨plan, phase, argument⟩
-  rcases phase with _ | _ | _ | _ | _ | _ | _ | _ | (_ | _ | _) | (_ | _ | _) | (_ | _ | _) |
-      (_ | _ | _) | ⟨(_ | _ | _), _⟩ | _ | _ | _ | _ | _ | _ | _ | _ | _ | (_ | _ | _) | _ <;>
-    rcases event with _ | _ | (_ | _) | _ | _ | _ | (_ | _ | _ | _) | _ | _ | _ | _ |
-      (_ | _ | _) | _ | (_ | _ | _) | _ | _ | _ | (_ | _ | _) | (_ | _) <;>
+  rcases phase with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ <;>
+    rcases event with _ | _ | (_ | _) | _ | _ | _ | (_ | _ | _ | _) | _ | _ | _ |
+      (_ | _ | _) | _ | (_ | _ | _) | _ | _ | _ | _ | (_ | _) | (_ | _) <;>
     simp only [order.next_step, order.pre_claim_step, order.lease_step, order.entry_step,
-      nextStep, preClaimStep, leaseStep, entryStep, stateOf_phase, phaseOf, eventOf, modeOf] <;>
+      nextStep, preClaimStep, leaseStep, entryStep, stateOf_phase, phaseOf, eventOf] <;>
     first
-    | exact after_denied_spec _ _ _ _
+    | exact after_denied_spec _ _ _
     | exact after_ceiling_spec _ _
     | skip
   all_goals
-    simp [order.go, order.stop, order.halt, order.not_entered, order.lease_failed,
-      order.after_reads, order.ceiling_from, order.pre_entry_from, order.after_credentials,
+    simp [order.go, order.stop, order.halt, order.not_entered,
+      order.after_reads, order.ceiling_from, order.pre_entry_from,
       order.denied_from, order.after_prefix, order.after_admission, order.pre_claim,
       order.after_claim, order.after_account, order.after_pre_entry, order.after_write,
-      order.after_response, order.after_read_back, go, stop, halt, notEntered, leaseFailed,
-      afterReads, ceilingFrom, preEntryFrom, afterCredentials, deniedFrom, afterPrefix,
+      order.after_response, go, stop, halt, notEntered,
+      afterReads, ceilingFrom, preEntryFrom, deniedFrom, afterPrefix,
       afterAdmission, preClaim, afterClaim, afterAccount, afterPreEntry, afterWrite,
-      afterResponse, afterReadBack, decisionOf, stateOf, planOf, phaseOf, actionOf, refusalCodeOf,
-      stopOf, modeOf, verificationOf, claimOf, accountOf, preEntryOf, writeOf,
+      afterResponse, decisionOf, stateOf, planOf, phaseOf, actionOf, refusalCodeOf,
+      stopOf, verificationOf, claimOf, accountOf, preEntryOf, writeOf,
       responseOf] <;>
     (repeat' split) <;> simp_all
 
@@ -2089,13 +2078,21 @@ theorem byteList_inj {left right : List Std.U8} : byteList left = byteList right
   · intro equal
     rw [equal]
 
+def protocolOf : transition.Protocol → Auths.Product.Recovery.Protocol
+  | .Mutation => .mutation
+  | .Acquisition => .acquisition
+  | .Disclosure => .disclosure
+
 def stageOf : transition.Stage → Auths.Product.Recovery.Stage
-  | .Attempting => .attempting
+  | .Reserved => .reserved
+  | .EntryGranted => .entryGranted
   | .NotEntered => .notEntered
   | .Unknown => .unknown
   | .ResponseRecorded => .responseRecorded
   | .Observed => .observed
   | .ObservedByProvider => .observedByProvider
+
+  | .Acknowledged => .acknowledged
 
 def readingOf : transition.Reading → Auths.Product.Recovery.Reading
   | .None => .none
@@ -2109,6 +2106,10 @@ def storedLinkOf : transition.Link → Auths.Product.Recovery.Link
   | .AfterResponse => .afterResponse
 
 def viewOf (view : transition.AttemptView) : Auths.Product.Recovery.AttemptView where
+  protocol := protocolOf view.protocol
+  revision := view.revision.val
+  entry := byteList view.entry.val
+  acknowledgement := byteList view.acknowledgement.val
   fixed := byteList view.fixed.val
   stage := stageOf view.stage
   refusal := view.refusal
@@ -2204,46 +2205,166 @@ theorem same_bytes_eq (left right : Slice Std.U8) :
     have := congrArg List.length same
     simpa [byteList] using this
 
+namespace TransitionFacts
+
+open Auths.Product.Recovery
+
+theorem requires_entry_eq (value : transition.Stage) :
+    transition.requires_entry value = ok (requiresEntry (stageOf value)) := by
+  cases value <;> rfl
+
+theorem acknowledgement_stage_eq (value : transition.Stage) :
+    transition.acknowledgement_stage value = ok (acknowledgementStage (stageOf value)) := by
+  cases value <;> rfl
+
+theorem refusal_stage_eq (value : transition.Stage) :
+    transition.refusal_stage value = ok (refusalStage (stageOf value)) := by
+  cases value <;> rfl
+
+theorem requires_response_eq (value : transition.Stage) :
+    transition.requires_response value = ok (requiresResponse (stageOf value)) := by
+  cases value <;> rfl
+
+theorem permits_response_eq (value : transition.Stage) :
+    transition.permits_response value = ok (permitsResponse (stageOf value)) := by
+  cases value <;> rfl
+
+theorem observed_stage_eq (value : transition.Stage) :
+    transition.observed_stage value = ok (observedStage (stageOf value)) := by
+  cases value <;> rfl
+
+theorem provider_stage_eq (value : transition.Stage) :
+    transition.provider_stage value = ok (providerStage (stageOf value)) := by
+  cases value <;> rfl
+
+theorem has_reading_eq (value : transition.Reading) :
+    transition.has_reading value = ok (hasReading (readingOf value)) := by
+  cases value <;> rfl
+
+theorem has_link_eq (value : transition.Link) :
+    transition.has_link value = ok (hasLink (storedLinkOf value)) := by
+  cases value <;> rfl
+
+theorem resolves_unknown_eq (value : transition.Link) :
+    transition.resolves_unknown value = ok (resolvesUnknown (storedLinkOf value)) := by
+  cases value <;> rfl
+
+theorem protocol_consistent_eq (view : transition.AttemptView) :
+    transition.protocol_consistent view = ok (protocolConsistent (viewOf view)) := by
+  rcases view with ⟨protocol, revision, fixed, entry, stage, refusal, preEntry, response,
+    acknowledgement, locator, reading, evidence, observation, link⟩
+  cases protocol <;> cases stage <;> cases reading <;> cases link <;>
+    simp [transition.protocol_consistent, transition.acknowledgement_stage, absent_eq,
+      alloc.vec.Vec.deref, protocolConsistent, viewOf, protocolOf, stageOf, readingOf,
+      storedLinkOf] <;> (repeat' split) <;> simp_all
+
 theorem consistent_eq (view : transition.AttemptView) :
-    transition.consistent view = ok (Auths.Product.Recovery.consistent (viewOf view)) := by
-  rcases view with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
-    observation, link⟩
-  simp only [transition.consistent, absent_eq, bind_tc_ok, alloc.vec.Vec.deref,
-    Auths.Product.Recovery.consistent, viewOf]
-  rcases stage with _ | _ | _ | _ | _ | _ <;> rcases reading with _ | _ | _ | _ <;>
-    rcases link with _ | _ | _ <;>
-    simp [transition.refusal_stage, transition.requires_response, transition.permits_response,
-      transition.observed_stage, transition.provider_stage, transition.has_reading,
-      transition.has_link, transition.resolves_unknown, stageOf, readingOf, storedLinkOf,
-      Auths.Product.Recovery.refusalStage, Auths.Product.Recovery.requiresResponse,
-      Auths.Product.Recovery.permitsResponse, Auths.Product.Recovery.observedStage,
-      Auths.Product.Recovery.providerStage, Auths.Product.Recovery.hasReading,
-      Auths.Product.Recovery.hasLink, Auths.Product.Recovery.resolvesUnknown] <;>
+    transition.consistent view = ok (consistent (viewOf view)) := by
+  rcases view with ⟨protocol, revision, fixed, entry, stage, refusal, preEntry, response,
+    acknowledgement, locator, reading, evidence, observation, link⟩
+  cases stage <;> cases reading <;> cases link <;>
+    simp [transition.consistent, absent_eq, protocol_consistent_eq, requires_entry_eq,
+      acknowledgement_stage_eq, refusal_stage_eq, requires_response_eq, permits_response_eq,
+      observed_stage_eq, provider_stage_eq, has_reading_eq, has_link_eq, resolves_unknown_eq,
+      alloc.vec.Vec.deref, consistent, viewOf, UScalar.lt_equiv, UScalar.le_equiv,
+      stageOf, readingOf, storedLinkOf, requiresEntry, acknowledgementStage, refusalStage,
+      requiresResponse, permitsResponse, observedStage, providerStage, hasReading,
+      hasLink, resolvesUnknown] <;> (repeat' split) <;> simp_all
+
+theorem same_protocol_eq (left right : transition.Protocol) :
+    transition.same_protocol left right = ok (decide (protocolOf left = protocolOf right)) := by
+  cases left <;> cases right <;> rfl
+
+theorem link_equal_eq (left right : transition.Link) :
+    transition.link_equal left right = ok (decide (storedLinkOf left = storedLinkOf right)) := by
+  cases left <;> cases right <;> rfl
+
+theorem stage_transition_allowed_eq (source target : transition.Stage) (link : transition.Link) :
+    transition.stage_transition_allowed source target link =
+      ok (stageTransitionAllowed (stageOf source) (stageOf target) (storedLinkOf link)) := by
+  cases source <;> cases target <;> cases link <;> rfl
+
+theorem adds_pre_entry_eq (source target : transition.Stage) :
+    transition.adds_pre_entry source target = ok (addsPreEntry (stageOf source) (stageOf target)) := by
+  cases source <;> cases target <;> rfl
+
+theorem adds_response_eq (source target : transition.Stage) :
+    transition.adds_response source target = ok (addsResponse (stageOf source) (stageOf target)) := by
+  cases source <;> cases target <;> rfl
+
+theorem checkpoint_valid_eq (old new : transition.AttemptView) :
+    transition.checkpoint_valid old new = ok (checkpointValid (viewOf old) (viewOf new)) := by
+  cases oldStage : old.stage <;> cases newStage : new.stage <;>
+    simp [transition.checkpoint_valid, checkpointValid, viewOf,
+      oldStage, newStage, stageOf, absent_eq, same_bytes_eq, alloc.vec.Vec.deref] <;>
     (repeat' split) <;> simp_all
 
-/-- The translated transition rule returns exactly the model's decision for
-every pair of records. -/
+theorem entry_kept_eq (old new : transition.AttemptView) :
+    transition.entry_kept old new = ok (entryKept (viewOf old) (viewOf new)) := by
+  cases oldStage : old.stage <;> cases newStage : new.stage <;>
+    simp [transition.entry_kept, entryKept, viewOf,
+      oldStage, newStage, stageOf, absent_eq, same_bytes_eq, alloc.vec.Vec.deref] <;>
+    (repeat' split) <;> simp_all
+
+theorem acknowledgement_kept_eq (old new : transition.AttemptView) :
+    transition.acknowledgement_kept old new = ok (acknowledgementKept (viewOf old) (viewOf new)) := by
+  cases oldStage : old.stage <;> cases newStage : new.stage <;>
+    simp [transition.acknowledgement_kept, transition.acknowledgement_stage, acknowledgementKept, viewOf,
+      oldStage, newStage, stageOf, absent_eq, same_bytes_eq, alloc.vec.Vec.deref] <;>
+    (repeat' split) <;> simp_all
+
+theorem pre_entry_kept_eq (old new : transition.AttemptView) :
+    transition.pre_entry_kept old new = ok (preEntryKept (viewOf old) (viewOf new)) := by
+  simp only [transition.pre_entry_kept, preEntryKept, viewOf, absent_eq, same_bytes_eq,
+    alloc.vec.Vec.deref, adds_pre_entry_eq, bind_tc_ok]
+  (repeat' split) <;> simp_all
+
+theorem response_kept_eq (old new : transition.AttemptView) :
+    transition.response_kept old new = ok (responseKept (viewOf old) (viewOf new)) := by
+  simp only [transition.response_kept, responseKept, viewOf, same_bytes_eq,
+    alloc.vec.Vec.deref, adds_response_eq, bind_tc_ok]
+  (repeat' split) <;> simp_all
+
+theorem plan_kept_eq (old new : transition.AttemptView) :
+    transition.plan_kept old new = ok (planKept (viewOf old) (viewOf new)) := by
+  simp only [transition.plan_kept, planKept, viewOf, link_equal_eq]
+  (repeat' split) <;> simp_all
+
+end TransitionFacts
+
+private theorem result_guard (condition : Prop) [Decidable condition] (value : Bool) :
+    (if condition then ok value else ok false) = ok (decide condition && value) := by
+  by_cases condition <;> simp_all
+
+/-- Exact refinement for all three protocols, including revision overflow refusal,
+immutable entry grants, and distinct response, recipient ACK and observation evidence. -/
 theorem translated_valid_transition_refines_model (old new : transition.AttemptView) :
     transition.valid_transition old new ⦃ valid =>
       valid = Auths.Product.Recovery.validTransition (viewOf old) (viewOf new) ⦄ := by
-  rcases old with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
-    observation, link⟩
-  rcases new with ⟨fixed', stage', refusal', preEntry', response', locator', reading', evidence',
-    observation', link'⟩
-  simp only [transition.valid_transition, transition.plan_kept, transition.checkpoint_valid,
-    transition.pre_entry_kept, transition.response_kept, same_bytes_eq, absent_eq,
-    consistent_eq, bind_tc_ok, alloc.vec.Vec.deref, Auths.Product.Recovery.validTransition,
-    Auths.Product.Recovery.planKept, Auths.Product.Recovery.checkpointValid,
-    Auths.Product.Recovery.preEntryKept, Auths.Product.Recovery.responseKept, viewOf]
-  rcases stage with _ | _ | _ | _ | _ | _ <;> rcases stage' with _ | _ | _ | _ | _ | _ <;>
-    rcases link with _ | _ | _ <;> rcases link' with _ | _ | _ <;>
-    simp [transition.stage_transition_allowed, transition.adds_pre_entry,
-      transition.adds_response, transition.link_equal, transition.resolves_unknown, stageOf,
-      storedLinkOf, Auths.Product.Recovery.stageTransitionAllowed,
-      Auths.Product.Recovery.addsPreEntry, Auths.Product.Recovery.addsResponse,
-      Auths.Product.Recovery.resolvesUnknown, List.isEmpty_iff] <;>
-    (repeat' split) <;> simp_all <;>
-    (repeat' split) <;> simp_all
+  unfold transition.valid_transition
+  rw [TransitionFacts.same_protocol_eq, bind_tc_ok]
+  by_cases protocol : protocolOf old.protocol = protocolOf new.protocol
+  · simp only [protocol, decide_true, if_true]
+    by_cases bounded : old.revision < 9007199254740991#u64
+    · simp only [bounded, if_true]
+      have bounded' : old.revision.val < 9007199254740991 := by simpa using bounded
+      have fits : old.revision.val + (1#u64 : Std.U64).val ≤ UScalar.max .U64 := by
+        scalar_tac
+      obtain ⟨next, nextEq, nextVal⟩ :=
+        spec_imp_exists (UScalar.add_spec (x := old.revision) (y := 1#u64) fits)
+      rw [nextEq, bind_tc_ok]
+      have revisionEq : (new.revision = next) ↔ new.revision.val = old.revision.val + 1 := by
+        rw [UScalar.eq_equiv, nextVal]
+        simp
+      simp only [TransitionFacts.consistent_eq, TransitionFacts.entry_kept_eq,
+        TransitionFacts.plan_kept_eq, TransitionFacts.stage_transition_allowed_eq,
+        TransitionFacts.checkpoint_valid_eq, TransitionFacts.pre_entry_kept_eq,
+        TransitionFacts.response_kept_eq, TransitionFacts.acknowledgement_kept_eq,
+        same_bytes_eq, alloc.vec.Vec.deref, bind_tc_ok, revisionEq, result_guard, spec_ok]
+      simp [Auths.Product.Recovery.validTransition, viewOf, protocol, bounded', Bool.and_assoc]
+    · have bounded' : ¬ old.revision.val < 9007199254740991 := by simpa using bounded
+      simp [bounded, Auths.Product.Recovery.validTransition, viewOf, bounded', spec_ok]
+  · simp [protocol, Auths.Product.Recovery.validTransition, viewOf, spec_ok]
 
 end Transition
 

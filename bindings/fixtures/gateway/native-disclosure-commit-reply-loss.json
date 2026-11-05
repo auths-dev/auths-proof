@@ -1,0 +1,203 @@
+{
+  "schema": "auths.native-disclosure-commit-reply-loss/1",
+  "cases": [
+    {
+      "phase": "admission",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "reserved",
+      "post_error_native_phase": "reserved",
+      "new_delivery_allowed": true,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "admission",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": null,
+      "post_error_native_phase": null,
+      "new_delivery_allowed": true,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "entry",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "entry-granted",
+      "post_error_native_phase": "entry-granted",
+      "new_delivery_allowed": false,
+      "recipient_deliveries": 0,
+      "native_snapshot_before_historical_ack": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": false,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "entry",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "reserved",
+      "post_error_native_phase": "reserved",
+      "new_delivery_allowed": true,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "acknowledgement",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "acknowledged",
+      "post_error_native_phase": "acknowledged",
+      "new_delivery_allowed": false,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 3,
+        "stage": "acknowledged",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "acknowledgement",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "entry-granted",
+      "post_error_native_phase": "unknown",
+      "new_delivery_allowed": false,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "unknown",
+      "outcome": "committed",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "unknown",
+      "post_error_native_phase": "unknown",
+      "new_delivery_allowed": false,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    },
+    {
+      "phase": "unknown",
+      "outcome": "aborted",
+      "selected_commit_uses_tls": true,
+      "actual_native_adapter_commit_errors": 1,
+      "independent_commit_phase": "entry-granted",
+      "post_error_native_phase": "entry-granted",
+      "new_delivery_allowed": false,
+      "recipient_deliveries": 1,
+      "native_snapshot_before_historical_ack": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_deliveries": 1,
+        "reserved_bytes": 21,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1
+      },
+      "native_historical_ack_refined_or_replayed": true,
+      "provider_source_reads": 1,
+      "additional_provider_or_custody_calls": 0,
+      "one_allocation_count_and_byte_sum_slot": true,
+      "existing_source_and_charges_conserved": true,
+      "terminal_replay_has_zero_wire_bytes_and_no_journal_or_witness_change": true
+    }
+  ],
+  "scope": "actual native HTTP source acquisition, native release gateway and recipient in independent OS processes, real TLS COMMIT replies withheld by opaque proxy, independently observed committed/aborted outcomes; native Unix authentication, exact received ACKs and opaque gateway wire capture; fixed public fixture keys/clock, same-UID local processes",
+  "excluded": [
+    "file faults",
+    "server or power failure",
+    "hostile OS or live-provider qualification"
+  ]
+}

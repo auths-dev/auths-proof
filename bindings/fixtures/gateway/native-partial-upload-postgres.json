@@ -1,0 +1,37 @@
+{
+  "schema": "auths.native-partial-upload/1",
+  "adapter": "postgres",
+  "scope": "real gateway worker, approved request, TCP relay/destination, SIGKILL, maintained durable store",
+  "excluded": [
+    "kernel backpressure",
+    "provider atomicity or known non-effect",
+    "power loss",
+    "live provider qualification"
+  ],
+  "cases": [
+    {
+      "recipe": "airtable",
+      "sigkill_during_request": true,
+      "destination_connections": 1,
+      "declared_native_body_bytes": 125,
+      "destination_consumed_body_bytes": 1,
+      "exact_approved_prefix": true,
+      "complete_destination_requests": 0,
+      "reopened_result": "unknown",
+      "retained_charges_and_journal_unchanged": true,
+      "replay_has_no_custody_or_transport": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "sigkill_during_request": true,
+      "destination_connections": 1,
+      "declared_native_body_bytes": 49,
+      "destination_consumed_body_bytes": 1,
+      "exact_approved_prefix": true,
+      "complete_destination_requests": 0,
+      "reopened_result": "unknown",
+      "retained_charges_and_journal_unchanged": true,
+      "replay_has_no_custody_or_transport": true
+    }
+  ]
+}

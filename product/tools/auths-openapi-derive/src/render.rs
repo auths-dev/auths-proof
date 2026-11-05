@@ -171,8 +171,27 @@ fn recipe_json(request: &Request, mapping: &Mapping, digest: &str, method: &str)
             json!({"kind": "form", "fields": Value::Object(map)})
         }
     };
+    // OpenAPI describes transport shapes, not reviewed units or consequences.
+    // Empty units/consequences deliberately fail the native review contract.
+    let review_fields = mapping
+        .arguments
+        .iter()
+        .map(|argument| {
+            let declaration = match &argument.schema {
+                ArgSchema::Integer { .. } => {
+                    json!({"kind": "integer", "label": argument.name, "unit": ""})
+                }
+                ArgSchema::Boolean => json!({"kind": "boolean", "label": argument.name}),
+                ArgSchema::String { .. } | ArgSchema::Enum(_) => {
+                    json!({"kind": "text", "label": argument.name})
+                }
+            };
+            (argument.name.clone(), declaration)
+        })
+        .collect::<Map<_, _>>();
     let recipe = json!({
-        "schema": "auths.gateway-recipe-source/2",
+        "schema": "auths.gateway-recipe-source/3",
+        "review": {"schema": "auths.effect-review-contract/1", "consequences": [], "fields": review_fields},
         "profile_schema_digest": digest,
         "service": request.service,
         "tool": format!("{}_v{}", mapping.tool, request.version),
@@ -340,6 +359,7 @@ fn report(request: &Request, mapping: &Mapping, source: &Source<'_>) -> Vec<Stri
     }
     lines.extend([
         "  wrote:      profile.toml recipe.json derivation.json".to_owned(),
+        "  review:     complete recipe.review consequences, labels and integer units; incomplete declarations cannot compile".to_owned(),
         "  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json".to_owned(),
         "  claim:      derived shape only; provider effect unqualified".to_owned(),
     ]);

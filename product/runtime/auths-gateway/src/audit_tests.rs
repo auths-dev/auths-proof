@@ -6,7 +6,7 @@
 //! audit exists to catch a gateway, or a bundle, that says otherwise.
 
 use super::*;
-use crate::observer::{OutcomeRecord, READ_BACK_SCHEMA, read_back_facts};
+use crate::observer::{OutcomeRecord, PRIVATE_OUTCOME_SCHEMA, READ_BACK_SCHEMA, read_back_facts};
 use crate::{AuditPins, AuditReport, AuditStatus, GatewayAttemptStage, pre_entry_digest};
 use sha2::{Digest as _, Sha256};
 
@@ -146,7 +146,7 @@ fn signed_outcome(
         &LogicalOperationId::parse(operation).expect("operation"),
     );
     let signed = GatewayObserver::from_test_seed(h::OBSERVER_SEED)
-        .sign(OUTCOME_SCHEMA, &subject, NOW + 1, facts)
+        .sign(PRIVATE_OUTCOME_SCHEMA, &subject, NOW + 1, facts)
         .expect("signed outcome");
     Base64UrlUnpadded::encode_string(signed.bytes())
 }
@@ -166,6 +166,85 @@ fn verdicts(report: &AuditReport) -> Vec<(AuditStatus, String)> {
         .iter()
         .map(|entry| (entry.status, entry.code.clone()))
         .collect()
+}
+
+#[test]
+fn private_export_preserves_inputs_and_rejects_substituted_or_unbounded_evidence() {
+    let (source, lock, recipe) = ceiling_recipe();
+    let harness = Harness::open(recipe.clone(), Backend::File);
+    let arguments = harness.arguments("private-export", RECORD, &json!({"amount":100}));
+    let submission = harness.sign(None, &arguments, &[]);
+    let signed = signed_outcome(&recipe, "private-export", &submission, |record| {
+        record.relative_basis = Some(1000);
+        record.relative_basis_digest = Some([0x0b; 32]);
+    });
+    let inventory = entry(
+        "private-export",
+        &submission,
+        Some("untrusted-public-history"),
+    );
+    let (bytes, pins, _) = bundle(
+        &source,
+        &lock,
+        &harness.context,
+        std::slice::from_ref(&inventory),
+    );
+    let base = json!({"schema":"auths.gateway-private-audit/1","operation_id":"private-export",
+        "outcome_b64":signed,"pre_entry_b64":[]});
+    let export = || crate::PrivateAuditBundle::new(&bytes).expect("bounded inventory");
+    let absent: Value =
+        serde_json::from_slice(&export().finish().expect("assembled")).expect("JSON");
+    assert!(absent["entries"][0]["outcome_b64"].is_null());
+    for (field, replacement) in [
+        ("schema", json!("auths.gateway-private-audit/0")),
+        ("operation_id", json!("another-operation")),
+        ("outcome_b64", json!("AB")),
+        ("outcome_b64", json!("AQID=")),
+        ("outcome_b64", json!("A".repeat(6000))),
+        ("pre_entry_b64", json!(vec!["AQID"; 5])),
+        ("private_unregistered_field", json!(true)),
+    ] {
+        let mut altered = base.clone();
+        altered[field] = replacement;
+        assert!(
+            export()
+                .record(
+                    "private-export",
+                    Some(&serde_json::to_vec(&altered).expect("wire"))
+                )
+                .is_err()
+        );
+    }
+    let text = base.to_string();
+    let duplicate = format!(
+        "{},\"schema\":\"auths.gateway-private-audit/1\"}}",
+        &text[..text.len() - 1]
+    );
+    assert!(
+        export()
+            .record("private-export", Some(duplicate.as_bytes()))
+            .is_err()
+    );
+    assert!(export().record("another-operation", None).is_err());
+    let mut complete = export();
+    complete
+        .record("private-export", Some(text.as_bytes()))
+        .expect("native private facts");
+    let completed = complete.finish().expect("completed private bundle");
+    let parsed: Value = serde_json::from_slice(&completed).expect("JSON");
+    for field in ["operation_id", "proof_b64", "action_b64"] {
+        assert!(
+            parsed["entries"][0][field] == inventory[field],
+            "original submission field changed"
+        );
+    }
+    assert_eq!(audit(&completed, &pins).verified, 1);
+    let mut excessive: Value = serde_json::from_slice(&bytes).expect("inventory");
+    excessive["entries"] = json!(vec![inventory; crate::MAX_AUDIT_ENTRIES + 1]);
+    assert!(
+        crate::PrivateAuditBundle::new(&serde_json::to_vec(&excessive).expect("oversized items"))
+            .is_err()
+    );
 }
 
 /// The audit flags a bundle whose basis does not admit its argument, and one
@@ -355,24 +434,15 @@ async fn audit_checks_the_pre_entry_observations() {
     let submission = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
     let result = harness.submit(&submission, NOW + 30).await;
     assert!(
-        matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+        matches!(
+            result,
+            GatewaySubmitResult::ResponseRecorded { status: 200 }
+        ),
         "{result:?}"
     );
-    let outcome = signed_bytes(harness.outcome("pre-entry", NOW + 31).await);
-    let GatewayObserveResult::PreEntry {
-        observations_b64, ..
-    } = harness
-        .core
-        .observe(
-            &GatewayObserveRequest::PreEntry {
-                operation_id: "pre-entry".to_owned(),
-            },
-            NOW + 31,
-        )
-        .await
-    else {
-        panic!("expected the stored pre-entry observations");
-    };
+    let private = harness.private_audit("pre-entry", NOW + 31).await;
+    let outcome = Base64UrlUnpadded::decode_vec(&private.outcome_b64).expect("private outcome");
+    let observations_b64 = private.pre_entry_b64;
     assert_eq!(observations_b64.len(), 1);
     let base = |pre_entry: Option<Vec<String>>, outcome: &[u8]| {
         let mut value = entry(

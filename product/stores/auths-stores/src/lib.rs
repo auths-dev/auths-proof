@@ -6,8 +6,9 @@ mod gateway_attempt;
 mod lifecycle;
 
 pub use gateway_attempt::{
-    GatewayRecordEntry, GatewayRecordInsert, GatewayRecordKind, MAX_GATEWAY_BATCH_ENTRIES,
-    MAX_GATEWAY_RECORD_BYTES, validate_gateway_batch,
+    GATEWAY_FENCE_DEADLINE, GATEWAY_LOCK_TIMEOUT, GatewayRecordEntry, GatewayRecordInsert,
+    GatewayRecordKind, MAX_GATEWAY_BATCH_ENTRIES, MAX_GATEWAY_FENCE_RECORDS,
+    MAX_GATEWAY_RECORD_BYTES, validate_gateway_batch, validate_gateway_fence,
 };
 pub use lifecycle::{
     InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,

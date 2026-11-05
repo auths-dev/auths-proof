@@ -59,6 +59,10 @@ jobs:
           cp target/release/auths-gateway target/airtable-demo/auths-gateway
           cargo build --locked --release -p auths-gateway --features loopback-provider --bin auths-gateway
           cp target/release/auths-gateway target/airtable-demo/auths-gateway-simulation
+          target/airtable-demo/auths-gateway review \
+            --recipe demos/airtable-gateway/managed-recipe.json \
+            --profile-lock demos/airtable-gateway/profile.lock.json > target/airtable-demo/managed-review.json
+          cmp demos/airtable-gateway/managed-review.json target/airtable-demo/managed-review.json
       - run: npm ci
         working-directory: bindings/typescript
       - run: cargo install wasm-pack --version 0.15.0 --locked
@@ -75,9 +79,13 @@ jobs:
           npm install --ignore-scripts --no-save --no-audit --no-fund "$GITHUB_WORKSPACE"/target/airtable-demo/auths-dev-sdk-*.tgz
           npm run build
           node --check web/app.js
+          node --check web/owner.js
           npm run test:web
       - name: Verify private live launcher boundaries
-        run: python demos/airtable-gateway/tests/test_launch.py
+        run: |
+          python demos/airtable-gateway/tests/test_launch.py
+          python demos/airtable-gateway/tests/test_owner_review.py
+          python demos/airtable-gateway/tests/test_provider_ledger.py
       - name: Construct the source-free demo handoff
         run: |
           python demos/airtable-gateway/tools/package.py \
@@ -138,10 +146,21 @@ jobs:
           sudo mkdir -p /evidence
           sudo chmod 777 /evidence
           python3 package/airtable-gateway-demo/tests/browser.py
+          docker run -d --init --name airtable-owner-workbench \
+            -p 127.0.0.1:8181:8181 -p 127.0.0.1:8182:8182 \
+            auths-airtable-gateway-demo --port 8181 --owner-ui-port 8182
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:8181/api/status >/dev/null; then break; fi
+            sleep 1
+          done
+          python3 package/airtable-gateway-demo/tests/owner_browser.py
           cp /evidence/*.png evidence/
+          cp /evidence/owner-journey.json evidence/
       - name: Stop the packaged operator
         if: always()
-        run: docker stop --time 30 airtable-workbench || true
+        run: |
+          docker stop --time 30 airtable-workbench || true
+          docker stop --time 30 airtable-owner-workbench || true
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:

@@ -1,0 +1,302 @@
+{
+  "schema": "auths.native-managed-scope/1",
+  "adapter": "file",
+  "signed_contract_substitutions": [
+    {
+      "field": "task",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "scope",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "participants",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "ancestors",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "charges",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "partition",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "epoch",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "operator_namespace",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "recipe_digest",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "content_contract",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    },
+    {
+      "field": "maximum_response_bytes",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "entry_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "provider_reads": 0
+    }
+  ],
+  "cross_partition": {
+    "same_valid_native_proof": true,
+    "different_partition_effect_identity": true,
+    "foreign_exact_approval_refused": true,
+    "foreign_history_refused": true,
+    "foreign_disclosure_source_refused": true,
+    "original_replay_retained": true,
+    "provider_reads": 1,
+    "retained_attempts": 1
+  },
+  "disclosure_substitutions": [
+    {
+      "field": "task",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "scope",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "participants",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "ancestors",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "charges",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "partition",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "epoch",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "operator_namespace",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "recipe_digest",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "content_contract",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "maximum_response_bytes",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "disclosure_contract",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "source_effect",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "source_operation",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "recipient",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "channel",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "delivery_instance",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    },
+    {
+      "field": "maximum_disclosure_bytes",
+      "native_authorized": true,
+      "managed_compile_refused": true,
+      "reservation_refused": true,
+      "journal_unchanged": true,
+      "credential_leases": 0,
+      "additional_provider_reads": 0
+    }
+  ],
+  "original_disclosure_acknowledged": true,
+  "cross_recipe": {
+    "same_namespace_partition_epoch_actor_resource": true,
+    "explicit_operator_activation": true,
+    "old_native_proof_still_authorized": true,
+    "activation_without_connection_reapproval_refused": true,
+    "native_connection_rotation_cas": true,
+    "old_recipe_compile_refused": true,
+    "old_approval_refused": true,
+    "fresh_approval_cannot_overwrite_retained_operation": true,
+    "foreign_history_and_disclosure_source_refused": true,
+    "original_history_retained": true,
+    "new_exact_operation_succeeds": true,
+    "provider_reads": 2,
+    "retained_attempts": 3
+  },
+  "scope": "native verification, managed compilation and entry over one durable adapter with independent engine configurations and actual local HTTP",
+  "excluded": [
+    "multi-agent task semantics",
+    "hostile OS containment",
+    "installed language framing",
+    "all binding dimensions"
+  ]
+}

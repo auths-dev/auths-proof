@@ -2019,6 +2019,61 @@ pub fn formal_source_closure_json(
     }))
 }
 
+/// Complete inputs of the authoritative Lean phase, independent of unrelated
+/// native gateway/demo changes. Cargo metadata closes every local refinement
+/// dependency, including data/build inputs; production translation dependencies
+/// are separately bound by the validated production source closure.
+pub fn formal_proof_inputs_digest(root: &Path) -> Result<String, String> {
+    let mut paths: BTreeSet<String> =
+        local_formal_rust_source_paths(root, &["auths-formal-refinement".to_owned()])?
+            .into_iter()
+            .collect();
+    proof_inputs_digest_from_paths(root, &mut paths)
+}
+
+fn proof_inputs_digest_from_paths(
+    root: &Path,
+    paths: &mut BTreeSet<String>,
+) -> Result<String, String> {
+    for path in git_stdout(root, &["ls-files"])?.lines() {
+        if proof_control_input(path) {
+            paths.insert(path.to_owned());
+        }
+    }
+    let mut digest = Sha256::new();
+    digest.update(b"auths-proof-lean-inputs/v1\0");
+    for relative in paths.iter() {
+        let path = validated_formal_source_path(root, relative)?;
+        let bytes = fs::read(&path)
+            .map_err(|error| format!("could not read proof input {}: {error}", path.display()))?;
+        digest.update(relative.as_bytes());
+        digest.update([0]);
+        digest.update(bytes);
+        digest.update([0xff]);
+    }
+    Ok(hex::encode(digest.finalize()))
+}
+
+fn proof_control_input(path: &str) -> bool {
+    path.starts_with("formal/")
+        || path.starts_with("core/formal-vectors/")
+        || path.starts_with(".cargo/")
+        || path.starts_with(".github/ci/")
+        || path.starts_with(".github/actions/")
+        || path.starts_with(".github/scripts/")
+        || matches!(
+            path,
+            "Cargo.toml"
+                | "Cargo.lock"
+                | "rust-toolchain"
+                | "rust-toolchain.toml"
+                | ".github/workflows/ci.yml"
+                | ".github/workflows/formal-artifact-updater.yml"
+                | ".github/workflows/release.yml"
+                | ".github/workflows/release-builder.yml"
+        )
+}
+
 fn validate_formal_source_path(relative: &str) -> Result<(), String> {
     let path = Path::new(relative);
     if relative.is_empty()
@@ -2712,6 +2767,108 @@ serde = "2"
         assert!(!exact.matches("nested/Cargo.lock"));
         assert!(prefix.matches("docs/specs/example.md"));
         assert!(!prefix.matches("documentation/file"));
+    }
+
+    #[test]
+    fn complete_lean_input_policy_binds_proofs_and_controls_not_native_or_docs() {
+        for path in [
+            "formal/Auths/NewImport.lean",
+            "formal/Generated/Output.lean",
+            "formal/assurance-manifest-v1.toml",
+            "formal/lean-toolchain",
+            "formal/lake-manifest.json",
+            "formal/lakefile.lean",
+            "formal/translation-toolchain.lock",
+            "core/formal-vectors/v1/new.json",
+            ".cargo/config.toml",
+            "Cargo.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            ".github/actions/setup-lean/action.yml",
+            ".github/scripts/reuse-formal-lean.py",
+            ".github/workflows/ci.yml",
+            ".github/ci/phase-ownership.toml",
+        ] {
+            assert!(
+                proof_control_input(path),
+                "unbound proof/control input {path}"
+            );
+        }
+        for path in [
+            "docs/plans/progress.md",
+            "product/runtime/auths-gateway/src/store.rs",
+            "product/runtime/auths-gateway/src/native_crash_tests.rs",
+            "demos/airtable-gateway/app.py",
+        ] {
+            assert!(
+                !proof_control_input(path),
+                "unrelated source invalidated proof inputs: {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn complete_lean_digest_changes_for_proof_inputs_but_not_native_or_docs() {
+        let repository = TemporaryRepository::new("lean-input-digest");
+        let dependency = "new/location/refinement-dependency/src/policy.dat";
+        let bound = [
+            "formal/Auths.lean",
+            "formal/Generated.lean",
+            "formal/assurance-manifest-v1.toml",
+            "formal/lean-toolchain",
+            "formal/lake-manifest.json",
+            "Cargo.lock",
+            "core/formal-vectors/v1/vector.json",
+            ".github/scripts/reuse-formal-lean.py",
+            dependency,
+        ];
+        for path in bound {
+            repository.write(path, "before");
+        }
+        for path in [
+            "docs/progress.md",
+            "product/runtime/auths-gateway/src/store.rs",
+            "product/runtime/auths-gateway/src/native_tests.rs",
+        ] {
+            repository.write(path, "before");
+        }
+        repository.commit("complete fixture inputs");
+        let digest = || {
+            proof_inputs_digest_from_paths(
+                repository.path(),
+                &mut BTreeSet::from([dependency.to_owned()]),
+            )
+            .expect("complete digest")
+        };
+        let before = digest();
+        for path in [
+            "docs/progress.md",
+            "product/runtime/auths-gateway/src/store.rs",
+            "product/runtime/auths-gateway/src/native_tests.rs",
+        ] {
+            repository.write(path, "after");
+        }
+        assert_eq!(
+            before,
+            digest(),
+            "native/docs-only edits must reuse the same proof key"
+        );
+        for path in bound {
+            repository.write(path, "after");
+            assert_ne!(
+                before,
+                digest(),
+                "proof/control/dependency edit must invalidate {path}"
+            );
+            repository.write(path, "before");
+        }
+        repository.write("formal/Auths/NewImport.lean", "new imported proof");
+        repository.git(&["add", "formal/Auths/NewImport.lean"]);
+        assert_ne!(
+            before,
+            digest(),
+            "new imports must invalidate, not only edits"
+        );
     }
 
     #[test]

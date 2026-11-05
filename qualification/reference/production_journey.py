@@ -71,6 +71,10 @@ class Journey:
         self.run, self.attempt, self.commit = artifact_wait.identity(environment)
         require(environment.get('GITHUB_ACTIONS') == 'true'
                 and environment.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'qualification.journey.host')
+        policy_path = environment.get('AUTHS_QUALIFICATION_EFFECT_POLICY')
+        require(type(policy_path) is str and Path(policy_path).is_absolute(),
+                'qualification.journey.effect-policy-required')
+        self.effect_policy = read(Path(policy_path), 4096)
         self.family, self.root = family, Path(root).absolute()
         self.keys = provider_keys(family, environment)
         require(not self.root.exists() and self.root.resolve() == self.root
@@ -85,6 +89,7 @@ class Journey:
         self.root.mkdir(mode=0o700)
         self.work = self.root / 'publication'
         self.work.mkdir(mode=0o700)
+        write_bytes(self.work / 'effect-policy.json', self.effect_policy, new=True)
         (self.work / 'cases').mkdir(mode=0o700)
         self.mailboxes = self.root / 'mailboxes'
         self.mailboxes.mkdir(mode=0o700)

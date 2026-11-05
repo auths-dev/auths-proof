@@ -207,8 +207,8 @@ A new package is incomplete until all applicable items below are handled:
    touches the corresponding risk.
 7. Update architecture snapshots with `cargo xtask arch --update` when the
    package graph intentionally changes.
-8. Run the narrow layer check while iterating, then run the authoritative suite
-   before handoff.
+8. Map and write the complete test/check batch before execution, then run the
+   required layer and authoritative verification together before handoff.
 
 Deleting or moving a package requires the inverse work: remove stale workspace,
 architecture, compliance, ownership, fixture, and generated-snapshot entries.
@@ -311,7 +311,30 @@ intentional result of a dependency update. Do not regenerate them gratuitously.
 
 ## Testing and handoff
 
-Use the smallest useful check during development:
+### Batch test and assurance hardening
+
+Never use incremental write–run cycles when adding or hardening tests, checks,
+or assurance evidence. Repeatedly writing one case, running it, fixing it, and
+moving to the next can explode the time to completion.
+
+1. Map the complete set of checks to add and the requirements they cover.
+2. Write the entire planned batch, including implementation changes, tests,
+   assertions, fixture generators, and CI wiring.
+3. Save execution for the end of the coding batch. This includes test-based
+   fixture generation and artifact constructors; do not run each assurance case
+   as it is written.
+4. Run combined verification and collect all independent failures together.
+   Arrange verification to expose the full failure set rather than stopping at
+   the first independent failure.
+5. Fix the collected failures in one coherent batch, then rerun the affected
+   verification together. Do not return to one-test-at-a-time repair cycles.
+
+Keep all required coverage and acceptance criteria intact. Apply the same batch
+discipline to CI repairs and follow the GitHub-first policy below for where
+final verification runs.
+
+At the verification phase, choose the smallest set of checks covering the
+complete batch:
 
 ```text
 cargo xtask core
@@ -343,9 +366,11 @@ to its PR without first running local build, test, lint, formal, package, fuzz,
 or secret-scanning gates. Running the same expensive suite locally and then in
 GitHub duplicates work without removing the required hosted gate.
 
-If GitHub CI fails, inspect the hosted failure first. Reproduce only the
-specific failing check locally when that is useful for diagnosis, then push the
-fix and let GitHub CI verify it again. Run local checks before the first push
+If GitHub CI fails, inspect the hosted cohort's failures first and collect their
+root causes into a coherent repair batch. Finish those changes before running
+local reproductions or publishing another verification revision. Reproduce only
+the failed checks needed for diagnosis or verification, then push the complete
+repair batch and let GitHub CI verify it again. Run local checks before the first push
 only when the user explicitly requests them or when a repository-local result
 is required to construct the change. Never report an unrun local check as
 passing; cite the successful GitHub run as the merge evidence.

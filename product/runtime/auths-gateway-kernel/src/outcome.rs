@@ -42,13 +42,14 @@ pub struct OutcomeFacts {
     pub relative_basis_digest: bool,
 }
 
-/// Whether an outcome may name `stage`: every stage but `attempting`, which
-/// an outcome reports as `unknown`.
+/// Whether a provider outcome may name `stage`. Entry grants project unknown;
+/// recipient acknowledgement belongs to the distinct disclosure projection.
 #[must_use]
 pub const fn outcome_stage(stage: Stage) -> bool {
     match stage {
-        Stage::Attempting => false,
-        Stage::NotEntered
+        Stage::EntryGranted | Stage::Acknowledged => false,
+        Stage::Reserved
+        | Stage::NotEntered
         | Stage::Unknown
         | Stage::ResponseRecorded
         | Stage::Observed
@@ -122,7 +123,8 @@ mod tests {
                 ..NONE
             }
         ));
-        assert!(!outcome_facts_present(Stage::Attempting, NONE));
+        assert!(!outcome_facts_present(Stage::EntryGranted, NONE));
+        assert!(!outcome_facts_present(Stage::Acknowledged, NONE));
     }
 
     #[test]
@@ -166,13 +168,15 @@ mod proofs {
     use super::*;
 
     fn any_stage() -> Stage {
-        match kani::any::<u8>() % 6 {
-            0 => Stage::Attempting,
+        match kani::any::<u8>() % 8 {
+            0 => Stage::EntryGranted,
             1 => Stage::NotEntered,
             2 => Stage::Unknown,
             3 => Stage::ResponseRecorded,
             4 => Stage::Observed,
-            _ => Stage::ObservedByProvider,
+            5 => Stage::Reserved,
+            6 => Stage::ObservedByProvider,
+            _ => Stage::Acknowledged,
         }
     }
 
@@ -196,11 +200,11 @@ mod proofs {
         let pairs = facts.http_status == facts.response_digest
             && facts.relative_basis == facts.relative_basis_digest;
         let table = match stage {
-            Stage::Attempting => false,
+            Stage::EntryGranted | Stage::Acknowledged => false,
             Stage::NotEntered => {
                 facts.refusal && !facts.http_status && !facts.observation && !facts.evidence_digest
             }
-            Stage::Unknown => {
+            Stage::Reserved | Stage::Unknown => {
                 !facts.refusal && !facts.http_status && !facts.observation && !facts.evidence_digest
             }
             Stage::ResponseRecorded => {

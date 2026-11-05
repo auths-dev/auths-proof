@@ -9,7 +9,7 @@
       "typescriptEntryPoints": 10,
       "typescriptPublicSymbols": 163,
       "pythonModules": 15,
-      "pythonPublicSymbols": 189,
+      "pythonPublicSymbols": 190,
       "maintainedTypescriptRecipes": 2,
       "maintainedPythonRecipes": 2
     },
@@ -212,8 +212,8 @@
     {
       "id": "gateway-signed-outcome-verification",
       "rust": "product/runtime/auths-gateway/src/observer.rs",
-      "typescript": "bindings/typescript/test/integration/gateway-outcome-v2.test.js",
-      "python": "bindings/python/tests/test_gateway_outcome_v2.py",
+      "typescript": "bindings/typescript/test/integration/gateway-outcome-v3.test.js",
+      "python": "bindings/python/tests/test_gateway_outcome_v3.py",
       "experience": {
         "targetJourney": "recover-an-unknown-write-from-a-gateway-signed-outcome",
         "imports": [

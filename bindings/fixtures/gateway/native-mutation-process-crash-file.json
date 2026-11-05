@@ -1,0 +1,548 @@
+{
+  "schema": "auths.native-mutation-process-crash/1",
+  "adapter": "file",
+  "scope": "full native mutation verification/approval, separate OS workers and custody, maintained Airtable and closed Stripe-plain recipe data, real local HTTP, actual adapter commit boundaries; fixed public keys and maintained clock",
+  "excluded": [
+    "full Stripe guard/prerequisite schedules",
+    "disclosure schedules",
+    "mid-upload socket/backpressure faults",
+    "device/power failure and whole-store rollback",
+    "live provider qualification and hostile OS/human-presence guarantees"
+  ],
+  "cases": [
+    {
+      "recipe": "airtable",
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "during-response",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "approval-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "authority-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "revoked",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "configuration-replaced",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "approval-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "authority-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "revoked",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "airtable",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "configuration-replaced",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 0,
+      "native_sum_units": 0,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": true,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-entry-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "during-response",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-response-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "unknown"
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-response-commit",
+      "sigkill": true,
+      "resume_gate": "current",
+      "provider_writes_at_kill": 1,
+      "native_result_after_reopen": {
+        "outcome": "response-recorded",
+        "status": 200
+      },
+      "prior_grant_absent": false,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 1,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "approval-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "authority-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "revoked",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "after-reservation-commit",
+      "sigkill": true,
+      "resume_gate": "configuration-replaced",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "approval-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "authority-expired",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "revoked",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    },
+    {
+      "recipe": "stripe-plain",
+      "pause": "before-entry-commit",
+      "sigkill": true,
+      "resume_gate": "configuration-replaced",
+      "provider_writes_at_kill": 0,
+      "native_result_after_reopen": {
+        "outcome": "reserved",
+        "revision": 1
+      },
+      "prior_grant_absent": true,
+      "continued_after_fresh_authorization": false,
+      "provider_writes_after_replays": 0,
+      "native_count_slots": 1,
+      "native_sum_units": 500,
+      "same_reviewed_request_and_declared_idempotency": true,
+      "subsequent_replays_leave_journal_slots_and_execution_witness_unchanged": true
+    }
+  ]
+}

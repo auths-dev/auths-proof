@@ -1,199 +1,183 @@
-//! Credential checks at onboarding: `install` and admin `rotate` test a
-//! candidate secret before anything is stored.
-//!
-//! In order: the secret starts with a declared prefix; the probe finds its
-//! declared value; the account read names the expected account; and each
-//! denied read is refused with a declared status. Every read shares one
-//! 20-second deadline and goes over the pinned transport with the version
-//! headers and never an account-scope header. The candidate secret is read
-//! only to build the credential header and is never logged or returned.
+//! Pure candidate probe predicate and a test-only pre-cutover onboarding oracle.
 
-use crate::submit::{account_commitment, account_label, denied_result};
-use crate::transport::{GatewayHttpTransport, ProviderResponse};
-use crate::{CompiledRecipe, CredentialRequirement};
-use auths_gateway_kernel::order::DeniedResult;
+use crate::transport::ProviderResponse;
 use serde_json::Value;
-use std::time::Duration;
-use subtle::ConstantTimeEq as _;
-use tokio::time::Instant;
-
-/// Every onboarding read shares this deadline.
-const ONBOARDING_DEADLINE: Duration = Duration::from_secs(20);
-
-/// The account a candidate secret must name.
-#[derive(Clone, Copy, Debug)]
-pub enum OnboardingAccount<'a> {
-    /// A first install: the account read must equal the operator's label.
-    Label(&'a str),
-    /// A rotation: the account read must hash to the connection record's
-    /// commitment.
-    Commitment([u8; 32]),
-}
-
-/// Why a candidate secret was refused; nothing was stored.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum OnboardingFailure {
-    /// The secret starts with no declared prefix.
-    Guard,
-    /// The probe did not find its declared value.
-    Probe,
-    /// The account read did not name the expected account.
-    Account,
-    /// A denied read was not refused with a declared status.
-    Capability,
-}
-
-impl OnboardingFailure {
-    /// The stable code at `install`.
-    #[must_use]
-    pub const fn install_code(self) -> &'static str {
-        match self {
-            Self::Guard => "gateway.install.credential-guard",
-            Self::Probe => "gateway.install.credential-probe",
-            Self::Account => "gateway.install.credential-account",
-            Self::Capability => "gateway.install.credential-capability",
-        }
-    }
-
-    /// The stable code at admin `rotate`.
-    #[must_use]
-    pub const fn admin_code(self) -> &'static str {
-        match self {
-            Self::Guard => "gateway.admin.credential-guard",
-            Self::Probe => "gateway.admin.credential-probe",
-            Self::Account => "gateway.admin.credential-account",
-            Self::Capability => "gateway.admin.credential-capability",
-        }
-    }
-}
-
-/// Runs every declared credential check on `secret` before it is stored.
-/// A recipe without a guard passes without any read, so its first install
-/// stays offline.
-///
-/// # Errors
-///
-/// Returns the first failed check. A transport that cannot be prepared, a
-/// read that fails, and the shared deadline all fail the check they reach.
-pub async fn check_candidate_credential(
-    recipe: &CompiledRecipe,
-    requirement: &CredentialRequirement,
-    secret: &[u8],
-    account: OnboardingAccount<'_>,
-) -> Result<(), OnboardingFailure> {
-    check_with_transport(
-        recipe,
-        || GatewayHttpTransport::prepare(recipe, requirement).ok(),
-        secret,
-        account,
-    )
-    .await
-}
-
-/// [`check_candidate_credential`] against a plain-HTTP provider double on
-/// `127.0.0.1:port`, in a `loopback-provider` development build. The checks,
-/// their order, and the shared deadline are the same; only the destination
-/// of the reads differs.
-///
-/// # Errors
-///
-/// As [`check_candidate_credential`].
-#[cfg(feature = "loopback-provider")]
-pub async fn check_candidate_credential_loopback(
-    recipe: &CompiledRecipe,
-    requirement: &CredentialRequirement,
-    secret: &[u8],
-    account: OnboardingAccount<'_>,
-    port: u16,
-) -> Result<(), OnboardingFailure> {
-    check_with_transport(
-        recipe,
-        || GatewayHttpTransport::prepare_loopback(recipe, requirement, port).ok(),
-        secret,
-        account,
-    )
-    .await
-}
-
-/// [`check_candidate_credential`] over the transport `prepare` returns, which
-/// is prepared only when a check needs the network.
-async fn check_with_transport(
-    recipe: &CompiledRecipe,
-    prepare: impl FnOnce() -> Option<GatewayHttpTransport>,
-    secret: &[u8],
-    account: OnboardingAccount<'_>,
-) -> Result<(), OnboardingFailure> {
-    let Some(guard) = recipe.guard_checks() else {
-        return Ok(());
-    };
-    if !guard.admits_secret(secret) {
-        return Err(OnboardingFailure::Guard);
-    }
-    let reads = recipe
-        .credential_reads()
-        .map_err(|_| OnboardingFailure::Probe)?;
-    let first_network = if reads.probe().is_some() {
-        OnboardingFailure::Probe
-    } else if reads.account().is_some() {
-        OnboardingFailure::Account
-    } else if reads.denied().is_empty() {
-        return Ok(());
-    } else {
-        OnboardingFailure::Capability
-    };
-    let transport = prepare().ok_or(first_network)?;
-    let deadline = Instant::now() + ONBOARDING_DEADLINE;
-    let read = |read: &crate::ClosedCredentialRead| {
-        let transport = &transport;
-        let read = read.clone();
-        async move {
-            tokio::time::timeout_at(deadline, transport.credential_read(&read, secret))
-                .await
-                .ok()
-                .flatten()
-        }
-    };
-    if let (Some(probe), Some((pointer, equals))) = (reads.probe(), &guard.probe) {
-        let response = read(probe).await;
-        if !probe_passes(response.as_ref(), pointer, equals) {
-            return Err(OnboardingFailure::Probe);
-        }
-    }
-    if let (Some(account_read), Some(pointer)) = (reads.account(), &guard.account_pointer) {
-        let response = read(account_read).await;
-        let label = account_label(response.as_ref(), pointer).ok_or(OnboardingFailure::Account)?;
-        let equal = match account {
-            OnboardingAccount::Label(expected) => label.as_bytes() == expected.as_bytes(),
-            OnboardingAccount::Commitment(expected) => {
-                bool::from(account_commitment(&label).ct_eq(&expected))
-            }
-        };
-        if !equal {
-            return Err(OnboardingFailure::Account);
-        }
-    }
-    for (denied, refused) in reads.denied().iter().zip(&guard.denied_refused) {
-        let response = read(denied).await;
-        if denied_result(response.as_ref(), refused) != DeniedResult::Refused {
-            return Err(OnboardingFailure::Capability);
-        }
-    }
-    Ok(())
-}
 
 /// A complete 2xx JSON response with no version mismatch whose pointer
 /// holds exactly the declared value.
-fn probe_passes(response: Option<&ProviderResponse>, pointer: &str, equals: &Value) -> bool {
+pub(crate) fn probe_passes(
+    response: Option<&ProviderResponse>,
+    pointer: &str,
+    equals: &Value,
+) -> bool {
     response
         .and_then(ProviderResponse::usable_body)
-        .and_then(|body| serde_json::from_slice::<Value>(body).ok())
+        .and_then(crate::recipe::parse_provider_response)
         .is_some_and(|document| document.pointer(pointer) == Some(equals))
 }
 
 #[cfg(test)]
+mod reference {
+    use super::probe_passes;
+    use crate::CompiledRecipe;
+    #[cfg(feature = "loopback-provider")]
+    use crate::CredentialRequirement;
+    use crate::submit::{account_commitment, account_label, denied_result};
+    use crate::transport::GatewayHttpTransport;
+    use auths_gateway_kernel::order::DeniedResult;
+    use std::time::Duration;
+    use subtle::ConstantTimeEq as _;
+    use tokio::time::Instant;
+
+    /// Every onboarding read shares this deadline.
+    const ONBOARDING_DEADLINE: Duration = Duration::from_secs(20);
+
+    /// The account a candidate secret must name.
+    #[derive(Clone, Copy, Debug)]
+    pub enum OnboardingAccount<'a> {
+        /// A first install: the account read must equal the operator's label.
+        Label(&'a str),
+        /// A rotation: the account read must hash to the connection record's
+        /// commitment.
+        Commitment([u8; 32]),
+    }
+
+    /// Why a candidate secret was refused; nothing was stored.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum OnboardingFailure {
+        /// The secret starts with no declared prefix.
+        Guard,
+        /// The probe did not find its declared value.
+        Probe,
+        /// The account read did not name the expected account.
+        Account,
+        /// A denied read was not refused with a declared status.
+        Capability,
+    }
+
+    impl OnboardingFailure {
+        /// The stable code at `install`.
+        #[must_use]
+        pub const fn install_code(self) -> &'static str {
+            match self {
+                Self::Guard => "gateway.install.credential-guard",
+                Self::Probe => "gateway.install.credential-probe",
+                Self::Account => "gateway.install.credential-account",
+                Self::Capability => "gateway.install.credential-capability",
+            }
+        }
+
+        /// The stable code at admin `rotate`.
+        #[must_use]
+        pub const fn admin_code(self) -> &'static str {
+            match self {
+                Self::Guard => "gateway.admin.credential-guard",
+                Self::Probe => "gateway.admin.credential-probe",
+                Self::Account => "gateway.admin.credential-account",
+                Self::Capability => "gateway.admin.credential-capability",
+            }
+        }
+    }
+
+    /// The retained reference check against a plain-HTTP provider double on
+    /// `127.0.0.1:port`, in a `loopback-provider` development build. The checks,
+    /// their order, and the shared deadline are the same; only the destination
+    /// of the reads differs.
+    ///
+    /// # Errors
+    ///
+    /// As The retained reference check.
+    #[cfg(feature = "loopback-provider")]
+    pub async fn check_candidate_credential_loopback(
+        recipe: &CompiledRecipe,
+        requirement: &CredentialRequirement,
+        secret: &[u8],
+        account: OnboardingAccount<'_>,
+        port: u16,
+    ) -> Result<(), OnboardingFailure> {
+        check_with_transport(
+            recipe,
+            || GatewayHttpTransport::prepare_loopback(recipe, requirement, port).ok(),
+            secret,
+            account,
+        )
+        .await
+    }
+
+    /// The retained reference check over the transport `prepare` returns, which
+    /// is prepared only when a check needs the network.
+    pub(super) async fn check_with_transport(
+        recipe: &CompiledRecipe,
+        prepare: impl FnOnce() -> Option<GatewayHttpTransport>,
+        secret: &[u8],
+        account: OnboardingAccount<'_>,
+    ) -> Result<(), OnboardingFailure> {
+        let Some(guard) = recipe.guard_checks() else {
+            return Ok(());
+        };
+        if !guard.admits_secret(secret) {
+            return Err(OnboardingFailure::Guard);
+        }
+        let reads = recipe
+            .credential_reads()
+            .map_err(|_| OnboardingFailure::Probe)?;
+        let first_network = if reads.probe().is_some() {
+            OnboardingFailure::Probe
+        } else if reads.account().is_some() {
+            OnboardingFailure::Account
+        } else if reads.denied().is_empty() {
+            return Ok(());
+        } else {
+            OnboardingFailure::Capability
+        };
+        let transport = prepare().ok_or(first_network)?;
+        let deadline = Instant::now() + ONBOARDING_DEADLINE;
+        let read = |read: &crate::ClosedCredentialRead| {
+            let transport = &transport;
+            let read = read.clone();
+            async move {
+                tokio::time::timeout_at(deadline, transport.credential_read(&read, secret))
+                    .await
+                    .ok()
+                    .flatten()
+            }
+        };
+        if let (Some(probe), Some((pointer, equals))) = (reads.probe(), &guard.probe) {
+            let response = read(probe).await;
+            if !probe_passes(response.as_ref(), pointer, equals) {
+                return Err(OnboardingFailure::Probe);
+            }
+        }
+        if let (Some(account_read), Some(pointer)) = (reads.account(), &guard.account_pointer) {
+            let response = read(account_read).await;
+            let label =
+                account_label(response.as_ref(), pointer).ok_or(OnboardingFailure::Account)?;
+            let equal = match account {
+                OnboardingAccount::Label(expected) => label.as_bytes() == expected.as_bytes(),
+                OnboardingAccount::Commitment(expected) => {
+                    bool::from(account_commitment(&label).ct_eq(&expected))
+                }
+            };
+            if !equal {
+                return Err(OnboardingFailure::Account);
+            }
+        }
+        for (denied, refused) in reads.denied().iter().zip(&guard.denied_refused) {
+            let response = read(denied).await;
+            if denied_result(response.as_ref(), refused) != DeniedResult::Refused {
+                return Err(OnboardingFailure::Capability);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 mod tests {
-    use super::*;
-    use serde_json::json;
+    use super::reference::*;
+    use crate::CompiledRecipe;
+    use crate::transport::GatewayHttpTransport;
+    use serde_json::{Value, json};
     use std::collections::BTreeMap;
     use std::net::Ipv4Addr;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};

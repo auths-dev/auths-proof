@@ -1,0 +1,65 @@
+{
+  "schema": "auths.native-window-capacity/1",
+  "adapter": "file",
+  "scope": "full native acquisition engine; signed bounded grants, exact approval, separate native OS workers and local custody, actual common adapter transactions and HTTP; fixed public fixture keys and maintained test clock",
+  "excluded": [
+    "mutation/disclosure fixed-window contention",
+    "cross-window expiry and clock rollback",
+    "partial batch and durability faults",
+    "human review UI and hostile OS containment",
+    "provider qualification"
+  ],
+  "cases": [
+    {
+      "limit": "count",
+      "window_seconds": 3600,
+      "window_index": 497222,
+      "prefix": 1,
+      "contenders": 2,
+      "final_winners": 1,
+      "refusal_code": "gateway.policy.window-exhausted",
+      "durable_grants": 2,
+      "reserved_calls": 2,
+      "reserved_bytes": 2048,
+      "count_slots": 2,
+      "sum_slots": 0,
+      "actual_http_reads": 2,
+      "reopened_replay_preserves_attempt_and_counter_bytes": true,
+      "reopened_replay_leases_and_sends_nothing": true
+    },
+    {
+      "limit": "byte-sum",
+      "window_seconds": 3600,
+      "window_index": 497222,
+      "prefix": 1,
+      "contenders": 2,
+      "final_winners": 1,
+      "refusal_code": "gateway.policy.sum-exhausted",
+      "durable_grants": 2,
+      "reserved_calls": 2,
+      "reserved_bytes": 2048,
+      "count_slots": 2,
+      "sum_slots": 2,
+      "actual_http_reads": 2,
+      "reopened_replay_preserves_attempt_and_counter_bytes": true,
+      "reopened_replay_leases_and_sends_nothing": true
+    },
+    {
+      "limit": "count-and-byte-sum",
+      "window_seconds": 3600,
+      "window_index": 497222,
+      "prefix": 1,
+      "contenders": 2,
+      "final_winners": 1,
+      "refusal_code": "gateway.policy.window-exhausted",
+      "durable_grants": 2,
+      "reserved_calls": 2,
+      "reserved_bytes": 2048,
+      "count_slots": 2,
+      "sum_slots": 2,
+      "actual_http_reads": 2,
+      "reopened_replay_preserves_attempt_and_counter_bytes": true,
+      "reopened_replay_leases_and_sends_nothing": true
+    }
+  ]
+}

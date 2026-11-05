@@ -28,3 +28,14 @@ jobs:
           compiler-cache: "false"
       - name: Probe actual app UID against gateway credential and admin socket
         run: cargo test --locked -p auths-gateway --test isolated_process -- --ignored --nocapture
+      - name: Exercise every managed application schema from a distinct unprivileged UID
+        env:
+          AUTHS_EVIDENCE_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: cargo test --locked -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --ignored --exact interface_tests::distinct_uid_managed_interface_evidence --nocapture
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ap074-managed-interface-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ap074-managed-interface-isolation.json
+          if-no-files-found: error
+          retention-days: 30

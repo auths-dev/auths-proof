@@ -169,7 +169,7 @@ class Operator:
             raise Refusal('live.airtable-http-' + str(error.code)) from None
 
     def install(self, state, digest, join=False):
-        argv = [self.binary, 'install', '--state-dir', state, '--recipe', self.work / 'recipe.json',
+        argv = [self.binary, 'install', '--effect-policy', self.args.effect_policy, '--state-dir', state, '--recipe', self.work / 'recipe.json',
                 '--profile-lock', self.work / 'profile.lock.json', '--trusted-context', self.app / 'context.cbor',
                 '--approve-digest', digest, '--provider', 'airtable', '--alias', 'live-rehearsal',
                 '--attempt-store', self.work / 'store', '--credential-stdin']
@@ -270,14 +270,14 @@ class Operator:
                                   uid=self.app_uid) for index, sock in enumerate([first, second])]
             results = [json.loads(future.result()) for future in futures]
         require(any(value.get('outcome') == 'observed-by-provider' for value in results), 'live.write-not-observed')
-        require(all(value.get('outcome') in ['observed-by-provider', 'not-entered'] for value in results),
+        require(all(value.get('outcome') in ['observed-by-provider', 'unknown'] for value in results),
                 'live.race-unexpected-outcome')
         observed = next(value for value in results if value.get('outcome') == 'observed-by-provider')
         readback = self.api('GET', '/v0/' + self.args.base + '/' + self.args.table + '/' + self.record)
         require(readback['fields']['DemoStatus'] == 'Approved' and
                 readback['fields']['auths_echo'] == observed['evidence']['echo'], 'live.fresh-read-back-mismatch')
         replay = json.loads(self.run('proof-replay', self.child('submit', first), uid=self.app_uid))
-        require(replay.get('outcome') == 'not-entered' and replay.get('code') == 'gateway.attempt.replay', 'live.replay-not-refused')
+        require(replay == observed, 'live.replay-history-mismatch')
         altered = json.loads(self.run('altered-action', self.child('altered', first), uid=self.app_uid))
         require(altered.get('outcome') in ['not-entered', 'denied', 'indeterminate'], 'live.altered-action-entered')
         support = self.run('support-bundle', [self.binary, 'support-bundle', '--state-dir', self.work / 'first'])
@@ -286,7 +286,7 @@ class Operator:
         self.stop()
         restarted = self.start('first')
         replay_after = json.loads(self.run('restart-replay', self.child('submit', restarted), uid=self.app_uid))
-        require(replay_after.get('outcome') == 'not-entered' and replay_after.get('code') == 'gateway.attempt.replay',
+        require(replay_after == observed,
                 'live.restart-replay-entered')
         self.stop()
         report = {'schema': 'auths.recipe-qualification-simulation/1', 'simulation': True,
@@ -323,6 +323,7 @@ def main():
     parser.add_argument('--inputs', type=Path)
     parser.add_argument('--wheel', type=Path)
     parser.add_argument('--credential-stdin', action='store_true')
+    parser.add_argument('--effect-policy', type=Path, help='Operator-installed human approval policy')
     parser.add_argument('--base')
     parser.add_argument('--table')
     parser.add_argument('--commit')
@@ -332,6 +333,7 @@ def main():
         if args.consumer:
             consumer(args.consumer, args.consumer_work, args.consumer_socket)
             return
+        require(args.effect_policy is not None and args.effect_policy.is_file(), 'live.effect-policy-required')
         operator = Operator(args)
         def interrupted(_signal, _frame):
             raise Refusal('live.interrupted')

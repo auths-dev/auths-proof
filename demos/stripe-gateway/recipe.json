@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
   "profile_schema_digest": "d2f5b926a3b6989d13b3a4614372e298442de697d92d5e06330288f7de4e257a",
   "service": "stripe-platform-refunds",
   "tool": "create_refund_v1",
@@ -167,5 +167,27 @@
       "name": "metadata[auths_echo]"
     },
     "observe": "/metadata/auths_echo"
+  },
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Issue one refund against the identified payment intent for the displayed amount. This is not a recurring charge.",
+      "The provider determines refund settlement timing. A response or receipt does not itself establish settlement."
+    ],
+    "fields": {
+      "amount": {
+        "kind": "integer",
+        "label": "Amount",
+        "unit": "minor units of the declared currency"
+      },
+      "currency": {
+        "kind": "identifier",
+        "label": "Currency"
+      },
+      "payment_intent": {
+        "kind": "identifier",
+        "label": "Payment intent"
+      }
+    }
   }
 }

@@ -50,10 +50,13 @@ def main():
     parser.add_argument('--name', default='auths-' + PLATFORM + '-gateway-demo')
     parser.add_argument('--port', type=int, default=PORT)
     parser.add_argument('--cleanup', action='store_true')
+    parser.add_argument('--owner-ui-port', type=int, help='Separate owner approval UI in simulation')
     args = parser.parse_args()
     if (args.live != (args.env_file is not None) or args.cleanup and not args.live
             or not 1024 <= args.port <= 65535 or not re.fullmatch(r'[a-z][a-z0-9-]{0,62}', args.name)
-            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}', args.image)):
+            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}', args.image)
+            or (args.owner_ui_port is not None and (args.live or args.cleanup
+                or not 1024 <= args.owner_ui_port <= 65535 or args.owner_ui_port == args.port))):
         parser.error('live requires an operator env file; cleanup requires live; name/image/port must be bounded')
     docker = shutil.which('docker')
     if docker is None:
@@ -69,14 +72,21 @@ def main():
         command.extend(['-v', args.name + '-journal:/run'])
     if not args.cleanup:
         command.extend(['-p', f'127.0.0.1:{args.port}:{args.port}'])
+    if args.owner_ui_port is not None:
+        command.extend(['-p', f'127.0.0.1:{args.owner_ui_port}:{args.owner_ui_port}'])
     command.extend([args.image, '--port', str(args.port)])
     if args.live:
         command.append('--live')
     if args.cleanup:
         command.append('--cleanup')
+    if args.owner_ui_port is not None:
+        command.extend(['--owner-ui-port', str(args.owner_ui_port)])
     payload = credentials(args.env_file) if args.live else b''
     print(('LIVE PROVIDER · DEVELOPMENT CUSTODY' if args.live else 'SIMULATION')
           + (' · CLEANUP' if args.cleanup else ' · http://localhost:' + str(args.port)), flush=True)
+    if args.owner_ui_port is not None:
+        print('Private owner review · http://localhost:' + str(args.owner_ui_port)
+              + ' · login file: /run/demo/private/owner-login in the operator container', flush=True)
     # No shell, credential arguments, environment export or app mount.
     raise SystemExit(subprocess.run(command, input=payload).returncode)
 

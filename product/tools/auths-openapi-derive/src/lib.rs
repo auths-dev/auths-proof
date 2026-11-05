@@ -8,8 +8,8 @@
 //! restricted profile schema or the gateway recipe compiler cannot express is
 //! rejected with a stable code, a JSON pointer, and the flag that would
 //! resolve it, if one exists. Nothing derived here is authority: the outputs
-//! are reviewed source that the existing profile generator and recipe
-//! compiler consume unchanged.
+//! are source drafts. The operator must complete the review contract with
+//! domain consequences and units before the native recipe compiler accepts them.
 
 mod diagnostic;
 mod document;
@@ -62,7 +62,7 @@ impl Derived {
         &self.profile_toml
     }
 
-    /// Returns the gateway recipe source (`auths.gateway-recipe-source/2`).
+    /// Returns the gateway recipe source (`auths.gateway-recipe-source/3`).
     #[must_use]
     pub fn recipe_json(&self) -> &str {
         &self.recipe_json

@@ -2,19 +2,85 @@
 //!
 //! This is a mechanism only: all-or-none insert-once batches, a
 //! compare-and-swap replacement, and a bounded sweep of expired slots, over
-//! bounded bytes tagged with one of five closed record kinds. The gateway
+//! bounded bytes tagged with one of seven closed record kinds. The gateway
 //! owns every record format, its stages, and which replacements are valid.
 
 use crate::lifecycle::{PostgresLifecycleStore, map_postgres_error};
 use auths_lifecycle::StoreError;
-use postgres::IsolationLevel;
+use postgres::{GenericClient, IsolationLevel, Transaction};
 use sha2::{Digest as _, Sha256};
+use std::time::{Duration, Instant};
 
 /// Largest gateway record the schema accepts.
 pub const MAX_GATEWAY_RECORD_BYTES: usize = 262_144;
 
 /// Largest number of records one batch may insert.
 pub const MAX_GATEWAY_BATCH_ENTRIES: usize = 64;
+
+/// Maximum number of records read by one final-decision fence.
+pub const MAX_GATEWAY_FENCE_RECORDS: usize = 64;
+/// Maximum lock acquisition wait for a gateway writer.
+pub const GATEWAY_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
+/// Maximum elapsed decision work before publishing a fenced replacement.
+pub const GATEWAY_FENCE_DEADLINE: Duration = Duration::from_secs(2);
+
+/// Checks the ordered fence read set. The first record is the replacement
+/// target and must be durable (not an expiring allocation slot).
+///
+/// # Errors
+/// Rejects empty/oversized sets, duplicate keys and an expiring target.
+pub fn validate_gateway_fence(keys: &[(GatewayRecordKind, [u8; 32])]) -> Result<(), StoreError> {
+    if keys.is_empty() || keys.len() > MAX_GATEWAY_FENCE_RECORDS {
+        return Err(StoreError::LimitExceeded);
+    }
+    if keys[0].0.expires() {
+        return Err(StoreError::Corrupt);
+    }
+    let mut sorted: Vec<_> = keys.iter().map(|(_, key)| key).collect();
+    sorted.sort_unstable();
+    if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(StoreError::Corrupt);
+    }
+    Ok(())
+}
+
+// All gateway writers participate, including connection/configuration writers.
+// The second int is a one-to-one signed mapping of the table OID, so isolated
+// qualification schemas do not share a lock accidentally.
+fn writer_fence(sql: &mut Transaction<'_>, timeout: Duration) -> Result<(), StoreError> {
+    sql.batch_execute(&format!(
+        "SET LOCAL lock_timeout = '{}ms'",
+        timeout.as_millis()
+    ))
+    .map_err(|error| map_postgres_error(&error))?;
+    sql.query_one("SELECT pg_advisory_xact_lock(1095780183, ('auths_gateway_records'::regclass::oid::bigint - 2147483648)::integer)", &[])
+        .map_err(|error| map_postgres_error(&error))?;
+    Ok(())
+}
+
+fn load_record(
+    sql: &mut impl GenericClient,
+    kind: GatewayRecordKind,
+    key: &[u8; 32],
+) -> Result<Option<Vec<u8>>, StoreError> {
+    let row = sql.query_opt(
+        "SELECT record_kind, record_bytes, record_sha256 FROM auths_gateway_records WHERE record_key = $1",
+        &[&&key[..]],
+    ).map_err(|error| map_postgres_error(&error))?;
+    row.map(|row| {
+        let stored: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+        let record: Vec<u8> = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
+        let digest: Vec<u8> = row.try_get(2).map_err(|_| StoreError::Corrupt)?;
+        if GatewayRecordKind::parse(&stored) != Some(kind)
+            || bounded(&record).is_err()
+            || Sha256::digest(&record).as_slice() != digest
+        {
+            return Err(StoreError::Corrupt);
+        }
+        Ok(record)
+    })
+    .transpose()
+}
 
 /// The closed record kinds of the gateway store.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -29,6 +95,10 @@ pub enum GatewayRecordKind {
     Connection,
     /// A commissioning run's immutable binding and consumed leases; never swept.
     CommissioningBudget,
+    /// Installed effect policy/configuration and shared qualification memory.
+    EffectConfiguration,
+    /// Permanent effect capacity allocation; never swept or refunded by age.
+    EffectAllocation,
 }
 
 impl GatewayRecordKind {
@@ -41,6 +111,8 @@ impl GatewayRecordKind {
             Self::SumSlot => "sum-slot",
             Self::Connection => "connection",
             Self::CommissioningBudget => "commissioning-budget",
+            Self::EffectConfiguration => "effect-configuration",
+            Self::EffectAllocation => "effect-allocation",
         }
     }
 
@@ -53,6 +125,8 @@ impl GatewayRecordKind {
             "sum-slot" => Some(Self::SumSlot),
             "connection" => Some(Self::Connection),
             "commissioning-budget" => Some(Self::CommissioningBudget),
+            "effect-configuration" => Some(Self::EffectConfiguration),
+            "effect-allocation" => Some(Self::EffectAllocation),
             _ => None,
         }
     }
@@ -133,7 +207,113 @@ pub enum GatewayRecordInsert {
     },
 }
 
+fn decision_deadline(started: Option<Instant>) -> Result<(), StoreError> {
+    if started.is_some_and(|started| started.elapsed() >= GATEWAY_FENCE_DEADLINE) {
+        return Err(StoreError::Timeout);
+    }
+    Ok(())
+}
+
+fn insert_rows(
+    sql: &mut Transaction<'_>,
+    entries: &[GatewayRecordEntry],
+    started: Option<Instant>,
+) -> Result<GatewayRecordInsert, StoreError> {
+    let mut order: Vec<usize> = (0..entries.len()).collect();
+    order.sort_unstable_by_key(|index| entries[*index].key);
+    for index in order {
+        decision_deadline(started)?;
+        let entry = &entries[index];
+        let digest: [u8; 32] = Sha256::digest(&entry.record).into();
+        let expires_at = entry
+            .expires_at
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|_| StoreError::LimitExceeded)?;
+        let inserted = sql
+            .query_opt(
+                "INSERT INTO auths_gateway_records
+                         (record_key, record_kind, expires_at, record_bytes, record_sha256)
+                     VALUES ($1, $2, $3, $4, $5)
+                     ON CONFLICT (record_key) DO NOTHING
+                     RETURNING record_key",
+                &[
+                    &&entry.key[..],
+                    &entry.kind.as_str(),
+                    &expires_at,
+                    &entry.record,
+                    &&digest[..],
+                ],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        if inserted.is_none() {
+            return Ok(GatewayRecordInsert::Exists { index });
+        }
+    }
+    decision_deadline(started)?;
+    Ok(GatewayRecordInsert::Inserted)
+}
+
 impl PostgresLifecycleStore {
+    /// Inserts one immutable batch after one native decision over dependencies
+    /// under the common writer fence. Only the first record's bytes may change.
+    /// Conflicting keys return without invoking `decide`; no automatic retry.
+    ///
+    /// # Errors
+    /// Refuses invalid/overlapping read and write sets, unavailable/corrupt
+    /// snapshots, failed decisions, deadlines and ambiguous commit acknowledgement.
+    pub fn fenced_gateway_insert<E: From<StoreError>>(
+        &self,
+        entries: &[GatewayRecordEntry],
+        dependencies: &[(GatewayRecordKind, [u8; 32])],
+        decide: impl FnOnce(&[Option<Vec<u8>>]) -> Result<Vec<u8>, E>,
+    ) -> Result<GatewayRecordInsert, E> {
+        validate_gateway_batch(entries)?;
+        let mut keys: Vec<_> = entries
+            .iter()
+            .map(|entry| (entry.kind, entry.key))
+            .collect();
+        keys.extend_from_slice(dependencies);
+        validate_gateway_fence(&keys)?;
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
+            .map_err(|error| map_postgres_error(&error))?;
+        sql.batch_execute(&format!("SET LOCAL statement_timeout = '{}ms'; SET LOCAL idle_in_transaction_session_timeout = '{}ms'", self.gateway_statement_timeout.as_millis(), self.gateway_idle_timeout.as_millis()))
+            .map_err(|error| map_postgres_error(&error))?;
+        writer_fence(&mut sql, self.gateway_lock_timeout)?;
+        let started = Instant::now();
+        for (index, entry) in entries.iter().enumerate() {
+            decision_deadline(Some(started))?;
+            if load_record(&mut sql, entry.kind, &entry.key)?.is_some() {
+                sql.rollback().map_err(|error| map_postgres_error(&error))?;
+                return Ok(GatewayRecordInsert::Exists { index });
+            }
+        }
+        let snapshots = dependencies
+            .iter()
+            .map(|(kind, key)| {
+                decision_deadline(Some(started))?;
+                load_record(&mut sql, *kind, key)
+            })
+            .collect::<Result<Vec<_>, StoreError>>()?;
+        decision_deadline(Some(started))?;
+        let next = decide(&snapshots)?;
+        bounded(&next)?;
+        let mut entries = entries.to_vec();
+        entries[0].record = next;
+        let result = insert_rows(&mut sql, &entries, Some(started))?;
+        if let GatewayRecordInsert::Exists { .. } = result {
+            sql.rollback().map_err(|error| map_postgres_error(&error))?;
+            return Ok(result);
+        }
+        decision_deadline(Some(started))?;
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
+        Ok(result)
+    }
+
     /// Inserts every entry, or none when any key already exists. Rows are
     /// inserted in ascending key order inside one transaction, so two
     /// concurrent batches cannot deadlock.
@@ -147,42 +327,17 @@ impl PostgresLifecycleStore {
         entries: &[GatewayRecordEntry],
     ) -> Result<GatewayRecordInsert, StoreError> {
         validate_gateway_batch(entries)?;
-        let mut order: Vec<usize> = (0..entries.len()).collect();
-        order.sort_unstable_by_key(|index| entries[*index].key);
         let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
         let mut sql = client
             .build_transaction()
             .isolation_level(IsolationLevel::ReadCommitted)
             .start()
             .map_err(|error| map_postgres_error(&error))?;
-        for index in order {
-            let entry = &entries[index];
-            let digest: [u8; 32] = Sha256::digest(&entry.record).into();
-            let expires_at = entry
-                .expires_at
-                .map(i64::try_from)
-                .transpose()
-                .map_err(|_| StoreError::LimitExceeded)?;
-            let inserted = sql
-                .query_opt(
-                    "INSERT INTO auths_gateway_records
-                         (record_key, record_kind, expires_at, record_bytes, record_sha256)
-                     VALUES ($1, $2, $3, $4, $5)
-                     ON CONFLICT (record_key) DO NOTHING
-                     RETURNING record_key",
-                    &[
-                        &&entry.key[..],
-                        &entry.kind.as_str(),
-                        &expires_at,
-                        &entry.record,
-                        &&digest[..],
-                    ],
-                )
-                .map_err(|error| map_postgres_error(&error))?;
-            if inserted.is_none() {
-                sql.rollback().map_err(|error| map_postgres_error(&error))?;
-                return Ok(GatewayRecordInsert::Exists { index });
-            }
+        writer_fence(&mut sql, self.gateway_lock_timeout)?;
+        let result = insert_rows(&mut sql, entries, None)?;
+        if let GatewayRecordInsert::Exists { .. } = result {
+            sql.rollback().map_err(|error| map_postgres_error(&error))?;
+            return Ok(result);
         }
         sql.commit().map_err(|error| map_postgres_error(&error))?;
         Ok(GatewayRecordInsert::Inserted)
@@ -200,27 +355,66 @@ impl PostgresLifecycleStore {
         key: &[u8; 32],
     ) -> Result<Option<Vec<u8>>, StoreError> {
         let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
-        let row = client
-            .query_opt(
-                "SELECT record_kind, record_bytes, record_sha256
-                 FROM auths_gateway_records
-                 WHERE record_key = $1",
-                &[&&key[..]],
-            )
+        load_record(&mut *client, kind, key)
+    }
+
+    /// Reads one bounded snapshot under the common gateway writer fence and
+    /// replaces the first record with the decision's result. The decision is
+    /// invoked once, after lock acquisition, and must do bounded native work
+    /// without network, custody or nested store calls. The adapter never retries.
+    ///
+    /// # Errors
+    /// Refuses malformed read sets, absent target, corrupt state, decision
+    /// failure or elapsed deadline. Database/commit errors return no durable
+    /// acknowledgement, including when the commit outcome is ambiguous.
+    pub fn fenced_gateway_replace<E: From<StoreError>>(
+        &self,
+        keys: &[(GatewayRecordKind, [u8; 32])],
+        decide: impl FnOnce(&[Option<Vec<u8>>]) -> Result<Vec<u8>, E>,
+    ) -> Result<(), E> {
+        validate_gateway_fence(keys)?;
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
             .map_err(|error| map_postgres_error(&error))?;
-        row.map(|row| {
-            let stored: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
-            let record: Vec<u8> = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
-            let digest: Vec<u8> = row.try_get(2).map_err(|_| StoreError::Corrupt)?;
-            if GatewayRecordKind::parse(&stored) != Some(kind)
-                || bounded(&record).is_err()
-                || Sha256::digest(&record).as_slice() != digest
-            {
-                return Err(StoreError::Corrupt);
-            }
-            Ok(record)
-        })
-        .transpose()
+        sql.batch_execute(&format!("SET LOCAL statement_timeout = '{}ms'; SET LOCAL idle_in_transaction_session_timeout = '{}ms'", self.gateway_statement_timeout.as_millis(), self.gateway_idle_timeout.as_millis()))
+            .map_err(|error| map_postgres_error(&error))?;
+        writer_fence(&mut sql, self.gateway_lock_timeout)?;
+        let started = Instant::now();
+        let records = keys
+            .iter()
+            .map(|(kind, key)| {
+                if started.elapsed() >= GATEWAY_FENCE_DEADLINE {
+                    return Err(StoreError::Timeout);
+                }
+                load_record(&mut sql, *kind, key)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if records[0].is_none() {
+            return Err(StoreError::Conflict.into());
+        }
+        if started.elapsed() >= GATEWAY_FENCE_DEADLINE {
+            return Err(StoreError::Timeout.into());
+        }
+        let next = decide(&records)?;
+        bounded(&next)?;
+        if started.elapsed() >= GATEWAY_FENCE_DEADLINE {
+            return Err(StoreError::Timeout.into());
+        }
+        let digest: [u8; 32] = Sha256::digest(&next).into();
+        let changed = sql.execute("UPDATE auths_gateway_records SET record_bytes = $3, record_sha256 = $4 WHERE record_key = $1 AND record_kind = $2",
+            &[&&keys[0].1[..], &keys[0].0.as_str(), &next, &&digest[..]])
+            .map_err(|error| map_postgres_error(&error))?;
+        if changed != 1 {
+            return Err(StoreError::Conflict.into());
+        }
+        if started.elapsed() >= GATEWAY_FENCE_DEADLINE {
+            return Err(StoreError::Timeout.into());
+        }
+        sql.commit()
+            .map_err(|error| E::from(map_postgres_error(&error)))
     }
 
     /// Lists at most `limit` keys of the records of `kind`, in key order.
@@ -278,7 +472,11 @@ impl PostgresLifecycleStore {
         let current_digest: [u8; 32] = Sha256::digest(current).into();
         let next_digest: [u8; 32] = Sha256::digest(next).into();
         let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
-        let replaced = client
+        let mut sql = client
+            .transaction()
+            .map_err(|error| map_postgres_error(&error))?;
+        writer_fence(&mut sql, self.gateway_lock_timeout)?;
+        let replaced = sql
             .execute(
                 "UPDATE auths_gateway_records
                  SET record_bytes = $4, record_sha256 = $5
@@ -293,7 +491,7 @@ impl PostgresLifecycleStore {
             )
             .map_err(|error| map_postgres_error(&error))?;
         if replaced == 1 {
-            Ok(())
+            sql.commit().map_err(|error| map_postgres_error(&error))
         } else {
             Err(StoreError::Conflict)
         }
@@ -315,7 +513,11 @@ impl PostgresLifecycleStore {
         let now = i64::try_from(now).map_err(|_| StoreError::LimitExceeded)?;
         let limit = i64::try_from(limit).map_err(|_| StoreError::LimitExceeded)?;
         let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
-        let deleted = client
+        let mut sql = client
+            .transaction()
+            .map_err(|error| map_postgres_error(&error))?;
+        writer_fence(&mut sql, self.gateway_lock_timeout)?;
+        let deleted = sql
             .execute(
                 "DELETE FROM auths_gateway_records
                  WHERE record_key IN (
@@ -327,7 +529,9 @@ impl PostgresLifecycleStore {
                 &[&now, &limit],
             )
             .map_err(|error| map_postgres_error(&error))?;
-        usize::try_from(deleted).map_err(|_| StoreError::Corrupt)
+        let deleted = usize::try_from(deleted).map_err(|_| StoreError::Corrupt)?;
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
+        Ok(deleted)
     }
 }
 
@@ -353,6 +557,33 @@ mod tests {
     }
 
     #[test]
+    fn fence_sets_are_bounded_distinct_and_target_durable_state() {
+        let keys: Vec<_> = (0..64)
+            .map(|n| (GatewayRecordKind::Attempt, [n; 32]))
+            .collect();
+        assert_eq!(validate_gateway_fence(&keys), Ok(()));
+        assert_eq!(validate_gateway_fence(&[]), Err(StoreError::LimitExceeded));
+        let mut over = keys.clone();
+        over.push((GatewayRecordKind::Connection, [64; 32]));
+        assert_eq!(
+            validate_gateway_fence(&over),
+            Err(StoreError::LimitExceeded)
+        );
+        assert_eq!(
+            validate_gateway_fence(&[keys[0], (GatewayRecordKind::Connection, keys[0].1)]),
+            Err(StoreError::Corrupt)
+        );
+        assert_eq!(
+            validate_gateway_fence(&[(GatewayRecordKind::CountSlot, [0; 32])]),
+            Err(StoreError::Corrupt)
+        );
+        assert_eq!(
+            validate_gateway_fence(&[(GatewayRecordKind::SumSlot, [0; 32])]),
+            Err(StoreError::Corrupt)
+        );
+    }
+
+    #[test]
     fn gateway_records_are_bounded_before_any_database_call() {
         assert_eq!(bounded(&[]), Err(StoreError::LimitExceeded));
         assert_eq!(bounded(&[0; 1]), Ok(()));
@@ -361,7 +592,7 @@ mod tests {
             bounded(&vec![0; MAX_GATEWAY_RECORD_BYTES + 1]),
             Err(StoreError::LimitExceeded)
         );
-        let schema = include_str!("../migrations/postgres_lifecycle_v6.sql");
+        let schema = include_str!("../migrations/postgres_lifecycle_v8.sql");
         assert!(
             schema.contains("octet_length(record_bytes) BETWEEN 1 AND 262144"),
             "the schema bound and the Rust bound are the same"
@@ -372,6 +603,8 @@ mod tests {
             "sum-slot",
             "connection",
             "commissioning-budget",
+            "effect-configuration",
+            "effect-allocation",
         ] {
             assert_eq!(
                 GatewayRecordKind::parse(kind).map(GatewayRecordKind::as_str),

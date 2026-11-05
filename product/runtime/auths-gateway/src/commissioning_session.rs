@@ -54,8 +54,64 @@ pub struct CommissioningSession<'a> {
 
 /// Obtained only from exact authorized branches and the closed verified request.
 pub(super) struct CommissionedAction {
+    claimed: OnceLock<crate::commissioning_budget::CommissioningBudgetSnapshot>,
     principal_sha256: Sha256Digest,
     canonical_action_sha256: Sha256Digest,
+}
+
+// Owned authenticated inputs for re-evaluation inside the attempt fence.
+// It performs no budget allocation or local floor I/O.
+pub(crate) struct EntryAuthority {
+    authority: VerifiedCommissioningPermit,
+    tuple: QualificationTuple,
+    protected_run: BoundedText<256>,
+    principal: Sha256Digest,
+    action: Sha256Digest,
+    trust: Sha256Digest,
+    resources: Sha256Digest,
+    pub(crate) budget_key: crate::GatewayAttemptKey,
+    claimed: crate::commissioning_budget::CommissioningBudgetSnapshot,
+}
+
+impl EntryAuthority {
+    pub(crate) fn check(
+        &self,
+        gate: &crate::qualification::FencedQualification,
+        budget: &[u8],
+    ) -> Result<(), &'static str> {
+        let (now, trusted) = (gate.now, gate.trusted);
+        let current =
+            crate::commissioning_budget::CommissioningBudgetSnapshot::from_canonical_json(
+                budget,
+                &self.authority.permit().body().statement.binding,
+            )
+            .map_err(CommissioningBudgetRefusal::code)?;
+        let state = current
+            .entry_state(&self.claimed, now, &gate.state)
+            .map_err(CommissioningBudgetRefusal::code)?;
+        self.authority
+            .evaluate(
+                &CommissioningRequest {
+                    source_commit: &self
+                        .authority
+                        .permit()
+                        .body()
+                        .statement
+                        .binding
+                        .source_commit,
+                    tuple: &self.tuple,
+                    protected_run: &self.protected_run,
+                    principal_sha256: self.principal,
+                    trusted_context_sha256: self.trust,
+                    resources_sha256: self.resources,
+                    canonical_action_sha256: self.action,
+                },
+                now,
+                trusted,
+                &state,
+            )
+            .map_err(permit_code)
+    }
 }
 
 impl GatewayEngine {
@@ -91,6 +147,7 @@ impl GatewayEngine {
             recipe_digest: self.recipe.digest_hex(),
             profile_lock_sha256: tuple.profile_lock_sha256.to_hex(),
             trusted_context_sha256: self.trusted_context_sha256.to_hex(),
+            effect_policy: self.effect_policy.clone(),
             provider: self.connection.provider().as_str().to_owned(),
             alias: self.connection.alias().as_str().to_owned(),
             deployment: "production".to_owned(),
@@ -183,11 +240,23 @@ impl CommissioningSession<'_> {
     /// No proof/request can select this method through an ordinary app socket.
     /// The exact actor and action must match the finite signed permit; before
     /// every custody acquisition an atomic lifetime unit and host floor commit.
-    pub async fn submit(&self, proof: &[u8], action: &[u8]) -> GatewaySubmitResult {
+    pub async fn submit(
+        &self,
+        proof: &[u8],
+        action: &[u8],
+        approval: crate::effect::ExactEffectApproval,
+    ) -> GatewaySubmitResult {
+        let approved = match self
+            .engine
+            .approve_submission(proof, action, approval)
+            .await
+        {
+            Ok(approved) => approved,
+            Err(result) => return result,
+        };
         let io = EngineIo {
             engine: self.engine,
-            proof,
-            action,
+            pending: std::sync::Mutex::new(Some(approved)),
             started: Instant::now(),
             prepared: OnceLock::new(),
             commissioning: Some(self),
@@ -214,11 +283,33 @@ impl CommissioningSession<'_> {
             return Err("gateway.commissioning.binding-mismatch");
         };
         let action = CommissionedAction {
+            claimed: OnceLock::new(),
             principal_sha256: commissioning_principal_sha256(actor),
             canonical_action_sha256: Sha256Digest::from_bytes(*command.request.action_commitment()),
         };
         self.check(&action)?;
         Ok(action)
+    }
+
+    pub(super) fn entry_authority(
+        &self,
+        action: &CommissionedAction,
+    ) -> Result<EntryAuthority, &'static str> {
+        Ok(EntryAuthority {
+            budget_key: self.budget.key(),
+            claimed: action
+                .claimed
+                .get()
+                .cloned()
+                .ok_or("gateway.commissioning.registration-missing")?,
+            authority: self.authority.clone(),
+            tuple: self.tuple.clone(),
+            protected_run: self.protected_run.clone(),
+            principal: action.principal_sha256,
+            action: action.canonical_action_sha256,
+            trust: self.engine.trusted_context_sha256,
+            resources: self.resources_sha256,
+        })
     }
 
     pub(super) fn check(&self, action: &CommissionedAction) -> Result<(), &'static str> {
@@ -278,11 +369,16 @@ impl CommissioningSession<'_> {
         .await
         .map_err(|_| "gateway.commissioning.store-unavailable")?
         .map_err(CommissioningBudgetRefusal::code)?;
-        match update.refusal() {
-            Some(refusal) => Err(refusal.code()),
+        if let Some(refusal) = update.refusal() {
+            Err(refusal.code())
+        } else {
             // A queued host lock or durable store write can outlast the permit
             // window. Capacity stays spent, but custody requires fresh time.
-            None => self.check(action),
+            action
+                .claimed
+                .set(update.snapshot().clone())
+                .map_err(|_| "gateway.commissioning.binding-mismatch")?;
+            self.check(action)
         }
     }
 }

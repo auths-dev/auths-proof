@@ -1,6 +1,22 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "1bdf7a75cf7806c4c806e1319c31ff2a52bb2b145451320300e3db044ad6aa60",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "fields_DemoStatus": {
+        "kind": "text",
+        "label": "fields_DemoStatus"
+      },
+      "record_id": {
+        "kind": "text",
+        "label": "record_id"
+      }
+    }
+  },
+  "digest": "384d1c43210ae26ec6fc75f77ba8ccacca3d801d7c514e7ba33b8c761a48aaea",
   "operator_namespace": "airtable-demo",
   "service": "airtable-gateway-demo",
   "tool": "set_demo_status_v1",

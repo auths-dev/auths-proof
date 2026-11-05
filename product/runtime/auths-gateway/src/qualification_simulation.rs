@@ -6,6 +6,9 @@
 use super::*;
 use serde::Serialize;
 
+#[path = "prerequisite_race_tests.rs"]
+mod prerequisite_race_tests;
+
 const STRIPE_VERSION: &str = "2025-03-31.basil";
 const STRIPE_PAYMENT: &str = "pi_TEST0000000001";
 
@@ -163,15 +166,16 @@ impl SimulationProvider for RecordProvider {
 impl<P: ProviderPort> ProviderPort for OracleProvider<P> {
     async fn write(
         &self,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        let request = permit.request();
         assert_eq!(
             request_facts(request),
             self.expected,
             "independent wire oracle"
         );
         self.checked.fetch_add(1, Ordering::SeqCst);
-        self.inner.write(request).await
+        self.inner.write(permit).await
     }
 
     async fn action_read(
@@ -240,7 +244,8 @@ fn publish(family: Family, recipe: &CompiledRecipe, cases: &[Measurement]) {
         "verification_boundary": "native-verified-command projection",
         "provider": "in-process mutable double", "cases": cases,
         "excluded_claims": ["live provider acceptance", "production qualification",
-            "production PostgreSQL/custody", "independent human onboarding"]});
+            "production PostgreSQL/custody", "independent human onboarding",
+            "independent AP074 recovery authorization"]});
     if let Some(directory) = std::env::var_os("AUTHS_QUALIFICATION_SIMULATION_OUTPUT") {
         let directory = std::path::PathBuf::from(directory);
         std::fs::create_dir_all(&directory).expect("report directory");
@@ -258,8 +263,9 @@ fn publish(family: Family, recipe: &CompiledRecipe, cases: &[Measurement]) {
 
 /// Runs each lifecycle against real durable claims, with both original and
 /// fresh proof commitments. A lost response or response-record crash must
-/// use only recovery the recipe's derived capability permits: Airtable's
-/// verified locator and echo can re-observe; Stripe needs its response locator.
+/// retain unknown on replay. Explicit operator observation mechanics are tested
+/// separately: Airtable has a verified locator; Stripe needs its response locator.
+/// These simulations do not establish AP074 independent recovery authorization.
 async fn lifecycle<P: SimulationProvider>(
     family: Family,
     provider: &OracleProvider<P>,
@@ -271,7 +277,11 @@ async fn lifecycle<P: SimulationProvider>(
     let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
     let args = family.arguments("qualification-1");
     let command = family.command(&recipe, &args, ORIGINAL);
-    let attempts = GatewayAttempts::new(recording.clone());
+    let attempts = GatewayAttempts::new(
+        recording.clone(),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let mut first = TestIo::new(provider, command.clone());
     first.recipe = Some(&recipe);
     let result = run(&attempts, &recipe, &observer, &first).await;
@@ -280,15 +290,19 @@ async fn lifecycle<P: SimulationProvider>(
         assert!(matches!(result, GatewaySubmitResult::Unknown));
     } else {
         assert!(
-            matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+            matches!(
+                result,
+                GatewaySubmitResult::ResponseRecorded { status: 200 }
+            ),
             "{result:?}"
         );
     }
+    let cases_result = result.clone();
     let mut cases = vec![measurement(
         if ambiguous {
             "ambiguous-write"
         } else {
-            "exact-write-and-read-back"
+            "exact-write-response-recorded"
         },
         &result,
         first.leases(),
@@ -312,34 +326,46 @@ async fn lifecycle<P: SimulationProvider>(
         let before = provider.checked.load(Ordering::SeqCst);
         let entries_before = provider.inner.entries();
         let result = run(attempts, &recipe, &observer, &io).await;
-        let recovery = ambiguous && matches!(family, Family::Airtable) && commitment == ORIGINAL;
-        if recovery {
-            assert!(
-                matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
-                "{} {name} ambiguous={ambiguous}: {result:?}",
-                family.name()
-            );
+        let same_binding = commitment == ORIGINAL;
+        if same_binding {
+            assert_eq!(result, cases_result, "{name}: return historical result");
         } else {
-            assert!(!matches!(
+            assert_eq!(
                 result,
-                GatewaySubmitResult::ObservedByProvider { .. }
-            ));
+                crate::engine::not_entered("gateway.effect.operation-conflict")
+            );
         }
-        assert_eq!(
-            io.leases(),
-            usize::from(recovery),
-            "{name}: only declared read-back recovery leases"
-        );
+        assert_eq!(io.leases(), 0, "{name}: replay never leases credentials");
         assert_eq!(
             provider.checked.load(Ordering::SeqCst),
             before,
             "{name}: no second write"
         );
-        cases.push(measurement(
+        let mut readback = measurement(
             name,
             &result,
             io.leases(),
             provider.inner.entries() - entries_before,
+        );
+        readback.confirmed_by_read_back = 0; // Historical evidence is not a new provider read.
+        cases.push(readback);
+    }
+    if ambiguous && matches!(family, Family::Airtable) {
+        let io = TestIo::new(provider, family.command(&recipe, &args, ORIGINAL));
+        let entries_before = provider.inner.entries();
+        let result = super::reobserve_operator(store.attempts(), &recipe, &observer, &io)
+            .await
+            .expect("explicit operator observation mechanics");
+        assert!(matches!(
+            result,
+            GatewaySubmitResult::ObservedByProvider { .. }
+        ));
+        assert_eq!(provider.inner.entries(), entries_before);
+        cases.push(measurement(
+            "reference-only-operator-read-back",
+            &result,
+            io.leases(),
+            0,
         ));
     }
     cases
@@ -362,33 +388,37 @@ async fn race<P: SimulationProvider>(family: Family, provider: &OracleProvider<P
     assert_eq!(
         provider.checked.load(Ordering::SeqCst),
         1,
-        "two store handles: one write"
+        "two store handles: one write; left={left:?}, right={right:?}"
     );
-    let confirmations = [&left, &right]
+    let recorded = [&left, &right]
         .into_iter()
-        .filter(|result| matches!(result, GatewaySubmitResult::ObservedByProvider { .. }))
+        .filter(|result| {
+            matches!(
+                result,
+                GatewaySubmitResult::ResponseRecorded { status: 200 }
+            )
+        })
         .count();
     assert!(
-        (1..=2).contains(&confirmations),
-        "the single write has fresh read-back"
+        (1..=2).contains(&recorded),
+        "the single write has a recorded response"
     );
     let leases = first.leases() + second.leases();
-    // Either contender can reconcile once a locator is retained; Airtable
-    // can also recover its fixed locator while the first claim is in flight.
-    // Count actual read calls so an extra write lease cannot pass as recovery.
-    let reads = provider.read_backs.load(Ordering::SeqCst);
-    assert!((1..=2).contains(&reads), "bounded fresh read-back calls");
     assert_eq!(
-        leases,
-        1 + reads,
-        "one write lease plus measured read leases"
+        provider.read_backs.load(Ordering::SeqCst),
+        0,
+        "neither concurrent submission may acquire an implicit recovery read"
+    );
+    assert!(
+        (1..=2).contains(&leases),
+        "each admitted contender leases at most once; the read/write permits remain unique"
     );
     Measurement {
         case: "two-instance-race".to_owned(),
         verdict: "one-authorized-entry".to_owned(),
         credential_leases: leases,
         provider_entries: provider.inner.entries(),
-        confirmed_by_read_back: usize::from(confirmations > 0),
+        confirmed_by_read_back: 0,
     }
 }
 

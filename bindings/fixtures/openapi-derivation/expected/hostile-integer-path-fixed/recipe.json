@@ -1,5 +1,15 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [],
+    "fields": {
+      "a": {
+        "kind": "text",
+        "label": "a"
+      }
+    }
+  },
   "profile_schema_digest": "245011e2bdf4718d913d7d1bb3758dba223efdd23065a3828efec232bd962b82",
   "service": "hostile",
   "tool": "hIntegerPath_v1",

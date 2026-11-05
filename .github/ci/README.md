@@ -71,3 +71,63 @@ When adding a path, package, domain workflow, or phase:
 3. run `cargo run --locked -p auths-ci-plan -- check`;
 4. add a planner test proving unrelated domains remain excluded;
 5. keep scheduled fuzz targets synchronized with `cargo xtask fuzz-inventory`.
+
+### Reusing clean Lean evidence across follow-up commits
+
+The base-relative planner still schedules required formal gates. Both the early
+feedback job and authoritative Lean job may avoid recompilation by independently
+locating a successful **clean** authoritative Lean producer on the same repository,
+workflow and pull request. This reuses a completed proof attestation, never cached
+`.olean` outputs. Main/release/scheduled or forked executions remain cold.
+
+`.github/scripts/reuse-formal-lean.py` checks bounded GitHub metadata, the exact
+successful job attempt, source revision, repository/PR identity, artifact identity
+and the API-reported ZIP SHA-256. It accepts only one bounded `lean.json` member.
+The native `cargo xtask ci formal-lean-reuse` owner separately requires matching
+proof, toolchain, execution-policy, translation-source and toolchain-lock hashes,
+plus a complete `proof_inputs_sha256` from the original clean run. Reused records
+cannot seed another reuse chain. Missing, expired, malformed, oversized, failed,
+untrusted or different-input evidence selects the existing full fresh build.
+
+The complete hash includes all tracked authored/generated Lean, Lake manifests,
+imports, assurance/axiom policies and vectors; root Cargo/config/toolchain inputs;
+workflow/setup/reuse controllers; the full xtask/control-plane packages; and every
+local package and data file transitively reachable from `auths-formal-refinement`
+according to locked Cargo metadata. The separate validated production closure
+binds all translated Rust roots and their dependencies. New local dependencies
+are traversed rather than selected by a fixed crate allowlist. Unrelated native
+gateway/tests, demos and repository documentation do not enter this proof hash;
+proof/compiler/generated/import/toolchain/assurance/controller changes do.
+Conservative Cargo or controller changes may cause an additional cold run.
+
+A hit still validates the current Rust toolchain, source closure, algebra/bridges,
+translation inventory/reports, workflow and warning policies, runs current
+`auths-formal-refinement` tests and checks the current Kani harness inventory.
+Input hashes are checked again after these current-head checks. It then emits a
+new current-head/current-run phase record linked to the original run, attempt,
+job, source revision, artifact ID and ZIP digest. The final aggregator still
+requires successful translation, Lean and Kani phases with exact current input
+bindings. The feedback job's hit remains feedback, not independent qualification.
+Kani remains a separate current-head gate; it is not skipped by Lean reuse.
+
+Legacy records lack the complete-input field and are intentionally ineligible.
+The initial rollout therefore requires fresh verification. Later unchanged-input
+follow-ups can use that successful producer. The search is bounded to ten of the
+latest fifty same-branch PR runs of this exact CI workflow (other workflows do
+not consume that bound) and one hundred artifacts/jobs per candidate;
+no eligible retained producer means another fresh run. This availability limit
+never converts missing proof evidence into a passing skipped gate.
+
+GitHub's run-associated PR object contains a mutable current head snapshot. It
+establishes PR/repository membership, not the historical source SHA. The immutable
+run, exact-attempt successful job, artifact metadata and phase record must all
+agree on the producer source; changing any one remains a cold miss.
+
+Both Lean jobs prepare the pinned toolchain and Lake dependency checkout before
+attempting reuse. The current-head validator audits the actual Aeneas package
+commit, clean worktree and reviewed warning inventory; a fresh checkout cannot
+perform those checks before dependency setup. Setup/cache restoration is not
+proof qualification. Only the expensive repository proof compilation remains
+conditional on a successful independently validated reuse result. Missing or
+invalid packages still fail closed, and the native workflow guard requires this
+unconditional order in both jobs.

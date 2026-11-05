@@ -104,6 +104,7 @@ fn with_preconditions(
     lock["schema_digest"] = Value::String(digest.clone());
     let mut source: Value = serde_json::from_slice(source).expect("source");
     source["profile_schema_digest"] = Value::String(digest);
+    source["review"] = super::synthetic_review(&lock["command_schema"]["fields"]);
     if let Some(preconditions) = preconditions {
         source["preconditions"] = preconditions;
     }
@@ -209,7 +210,8 @@ fn preconditions_are_closed_reviewed_and_digest_bound() {
     let names: Vec<String> = (0..9).map(|index| format!("v{index}")).collect();
     assert_eq!(
         with_preconditions(&many, Some(json!({"verified": names})), false).err(),
-        Some(GatewayRecipeError::PreconditionConflict)
+        Some(GatewayRecipeError::InvalidSource),
+        "the complete review field bound rejects an oversized declaration before precondition validation"
     );
 }
 
@@ -386,9 +388,11 @@ fn idempotency_key_is_domain_separated_and_bound_to_namespace_and_operation() {
         "the separator keeps the two fields apart"
     );
     let replay = crate::GatewayAttemptKey::for_operation(
+        &crate::effect::fixture_policy().expect("policy"),
         &namespace("stripe-refunds"),
         &operation("refund-1"),
-    );
+    )
+    .expect("key");
     assert_ne!(key[9..], hex::encode(replay.as_bytes()), "own hash domain");
 }
 
@@ -620,7 +624,8 @@ fn form_body_renders_an_integer_field_as_decimal_text() {
         "service": "refunds", "tool": "create_refund_v1", "version": 1
     });
     let source = json!({
-        "schema": "auths.gateway-recipe-source/2", "profile_schema_digest": digest,
+        "schema": "auths.gateway-recipe-source/3", "profile_schema_digest": digest,
+        "review": crate::recipe::synthetic_review(&schema["fields"]),
         "service": "refunds", "tool": "create_refund_v1", "operator_namespace": "refunds",
         "credential": {"kind": "bearer"}, "origin": "https://api.stripe.com",
         "write": {"method": "POST",
@@ -695,9 +700,11 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
     let root = std::fs::canonicalize(temp.path())
         .expect("canonical temp")
         .join("attempts");
-    let store = crate::GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("private store"),
-    ));
+    let store = crate::GatewayAttempts::new(
+        Arc::new(FileGatewayAttemptStore::open(&root).expect("private store")),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let tasks: Vec<_> = (0..16)
         .map(|_| {
             let store = store.clone();
@@ -721,15 +728,17 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
         15
     );
     drop(store);
-    let restarted = crate::GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("restart"),
-    ));
+    let restarted = crate::GatewayAttempts::new(
+        Arc::new(FileGatewayAttemptStore::open(&root).expect("restart")),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
     let snapshot = restarted
         .read(request.namespace(), request.operation_id())
         .await
         .expect("read")
         .expect("retained claim");
-    assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
+    assert_eq!(snapshot.stage(), GatewayAttemptStage::Reserved);
     assert!(matches!(
         restarted
             .claim(&request, *recipe.digest(), 1_790_000_000)
@@ -752,13 +761,46 @@ async fn response_and_observation_are_distinct_durable_stages() {
     let root = std::fs::canonicalize(temp.path())
         .expect("canonical temp")
         .join("attempts");
-    let store = crate::GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("store"),
-    ));
-    let claim = store
-        .claim(&request, *recipe.digest(), 1_790_000_000)
+    let store = crate::GatewayAttempts::new(
+        Arc::new(FileGatewayAttemptStore::open(&root).expect("store")),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts");
+    let command = crate::scenario_tests::admitted(
+        &recipe,
+        &args,
+        [9; 32],
+        Vec::new(),
+        60,
+        Vec::new(),
+        1_790_000_000,
+    )
+    .expect("command");
+    let approved = Arc::new(
+        crate::effect::approve_driver_fixture(command, *recipe.digest(), 1_790_000_000, None)
+            .expect("approval"),
+    );
+    let crate::store::BoundedClaim::Claimed(claim) = store
+        .claim_bounded(
+            &approved,
+            1_790_000_000,
+            crate::entry::EntryValidation::Oracle { now: 1_790_000_000 },
+        )
         .await
-        .expect("claim");
+        .expect("claim")
+    else {
+        panic!("claim refused")
+    };
+    let (claim, permit) = claim
+        .grant_entry(
+            approved,
+            crate::entry::EntryValidation::Oracle { now: 1_790_000_000 },
+            1_790_000_000,
+            &crate::GatewayPreEntry::default(),
+        )
+        .await
+        .expect("grant");
+    drop(permit);
     let response = claim
         .record_response(200, [3; 32], None)
         .await
@@ -1235,7 +1277,11 @@ fn oracle_request(recipe: &CompiledRecipe, arguments: &Map<String, Value>, commi
         .map(|echo| (&echo.write, request.echo_token().expect("token")));
     assert_eq!(
         request.body(),
-        oracle::body(&recipe.source.write.body, echo, arguments),
+        oracle::body(
+            &recipe.source.write.as_ref().expect("mutation recipe").body,
+            echo,
+            arguments
+        ),
         "body"
     );
     assert_eq!(
@@ -1243,7 +1289,10 @@ fn oracle_request(recipe: &CompiledRecipe, arguments: &Map<String, Value>, commi
         format!(
             "{}{}",
             recipe.source.origin,
-            oracle::path(&recipe.source.write.path, arguments)
+            oracle::path(
+                &recipe.source.write.as_ref().expect("mutation recipe").path,
+                arguments
+            )
         ),
         "url"
     );
@@ -1358,5 +1407,295 @@ proptest::proptest! {
             }
             Err(error) => proptest::prop_assert_eq!(error, GatewayRecipeError::UnsafePath),
         }
+    }
+}
+
+#[test]
+fn effect_review_contract_is_complete_typed_and_recipe_bound() {
+    let (airtable_recipe, airtable_lock) = fixture("airtable");
+    let source: Value = serde_json::from_slice(airtable_recipe).expect("source");
+    let original = compiled("airtable");
+    let reject = |source: &Value| {
+        assert!(
+            CompiledRecipe::compile(&serde_json::to_vec(source).expect("source"), airtable_lock)
+                .is_err()
+        );
+    };
+    let mut changed = source.clone();
+    changed["review"]["schema"] = json!("auths.effect-review-contract/999");
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]
+        .as_object_mut()
+        .expect("fields")
+        .remove("replacement");
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]["replacement"] =
+        json!({"kind": "integer", "label": "Replacement", "unit": "units"});
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]["replacement"]["label"] =
+        json!("Destination\nhttps://misleading.invalid");
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["consequences"] = json!([]);
+    reject(&changed);
+    let mut changed = source.clone();
+    changed["review"]["fields"]["replacement"]["label"] = json!("New record status");
+    let relabeled = CompiledRecipe::compile(
+        &serde_json::to_vec(&changed).expect("source"),
+        airtable_lock,
+    )
+    .expect("reviewed label");
+    assert_ne!(
+        original.digest(),
+        relabeled.digest(),
+        "review semantics change the approved recipe"
+    );
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native corpus emits its bounded rejection cases and positive seeds together"
+)]
+fn native_review_contract_fixture_is_current() {
+    let (source_bytes, lock) = fixture("airtable");
+    let source: Value = serde_json::from_slice(source_bytes).expect("source");
+    let mut cases = Vec::new();
+    for (name, pointer, value) in [
+        (
+            "unsupported-version",
+            "/review/schema",
+            json!("auths.effect-review-contract/999"),
+        ),
+        ("missing-field", "/review/fields", json!({})),
+        ("missing-consequences", "/review/consequences", json!([])),
+        (
+            "misleading-control",
+            "/review/fields/replacement/label",
+            json!("Status\nDestination: misleading"),
+        ),
+        (
+            "wrong-type",
+            "/review/fields/replacement",
+            json!({"kind": "integer", "label": "Replacement", "unit": "count"}),
+        ),
+    ] {
+        let mut candidate = source.clone();
+        *candidate.pointer_mut(pointer).expect("existing field") = value;
+        let bytes = serde_json::to_vec(&candidate).expect("case");
+        let refusal = CompiledRecipe::compile(&bytes, lock).expect_err(name);
+        cases.push(json!({"name": name, "source_json": String::from_utf8(bytes).expect("JSON"), "code": refusal.code()}));
+    }
+    let review = &source["review"];
+    let fields = serde_json::to_string(&review["fields"]).expect("fields");
+    let duplicate = format!(
+        "{{\"replacement\":{},{}",
+        review["fields"]["replacement"],
+        &fields[1..]
+    );
+    let review_bytes = serde_json::to_string(review).expect("review");
+    let candidate = serde_json::to_string(&source)
+        .expect("source")
+        .replace(&review_bytes, &review_bytes.replace(&fields, &duplicate));
+    let refusal =
+        CompiledRecipe::compile(candidate.as_bytes(), lock).expect_err("duplicate review field");
+    cases
+        .push(json!({"name": "duplicate-field", "source_json": candidate, "code": refusal.code()}));
+    let corpus = serde_json::to_vec_pretty(&json!({
+        "schema": "auths.effect-review-contract-fixture/1",
+        "profile_lock": serde_json::from_slice::<Value>(lock).expect("profile lock"),
+        "source_schema": RECIPE_SOURCE_SCHEMA,
+        "review_schema": RECIPE_REVIEW_SCHEMA,
+        "accepted": compiled("airtable").review_document(),
+        "rejected": cases,
+    }))
+    .expect("corpus");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let path = root.join("../../../bindings/fixtures/gateway/effect-review-contract.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &corpus).expect("write corpus");
+    }
+    assert_eq!(std::fs::read(path).expect("corpus"), corpus);
+    for name in ["airtable", "todoist", "github", "stripe-refund-approval"] {
+        let (source, lock) = if name == "stripe-refund-approval" {
+            (
+                &include_bytes!("../../../../../examples/stripe-refund-approval/recipe.json")[..],
+                &include_bytes!("../../../../../examples/stripe-refund-approval/profile.lock.json")
+                    [..],
+            )
+        } else {
+            fixture(name)
+        };
+        CompiledRecipe::compile(source, lock).expect("positive recipe seed");
+        let mut seed = u32::try_from(source.len())
+            .expect("bounded source")
+            .to_be_bytes()
+            .to_vec();
+        seed.extend_from_slice(source);
+        seed.extend_from_slice(lock);
+        let path = root.join("fuzz/corpus/target_gateway_recipe").join(name);
+        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+            std::fs::write(&path, &seed).expect("seed");
+        }
+        assert_eq!(std::fs::read(path).expect("seed"), seed);
+    }
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one standalone read recipe and negative source corpus"
+)]
+fn native_read_only_recipe_fixture_is_current() {
+    let (source, lock) = fixture("airtable");
+    let mut source: Value = serde_json::from_slice(source).expect("source");
+    let mut lock: Value = serde_json::from_slice(lock).expect("lock");
+    for field in [
+        "write",
+        "observation",
+        "echo",
+        "pre_entry",
+        "preconditions",
+        "relative_ceiling",
+        "bounds",
+    ] {
+        source.as_object_mut().expect("source").remove(field);
+    }
+    source["tool"] = json!(crate::effect::CONTENT_READ_TOOL);
+    lock["tool"] = source["tool"].clone();
+    lock["command_schema"]["fields"]
+        .as_object_mut()
+        .expect("fields")
+        .remove("replacement");
+    let schema = serde_json_canonicalizer::to_vec(&lock["command_schema"]).expect("schema");
+    lock["schema_digest"] = json!(hex::encode(Sha256::digest(&schema)));
+    source["profile_schema_digest"] = lock["schema_digest"].clone();
+    source["review"]["fields"]
+        .as_object_mut()
+        .expect("review fields")
+        .remove("replacement");
+    source["review"]["consequences"] = json!([
+        "Acquire the displayed resource as private content. Disclosure requires separate authorization; no provider mutation is available."
+    ]);
+    source["content"] = json!({"schema":"auths.gateway-content-read/1", "resource_field":"record_id",
+        "path":[{"kind":"fixed","value":"documents"},{"kind":"field","name":"record_id"}],
+        "query":[{"name":"format","value":"text/plain"}],"projection":{"kind":"utf8"},
+        "maximum_response_bytes":1024,"maximum_content_bytes":64});
+    let source_bytes = serde_json::to_vec_pretty(&source).expect("source");
+    let lock_bytes = serde_json::to_vec_pretty(&lock).expect("lock");
+    let recipe = CompiledRecipe::compile(&source_bytes, &lock_bytes).expect("read-only recipe");
+    assert!(matches!(
+        recipe.plans.execution,
+        lower::ExecutionPlan::ContentOnly
+    ));
+    assert_eq!(recipe.review().method(), None);
+    assert_eq!(recipe.recovery(), None);
+    assert!(recipe.review_document()["recovery"].is_null());
+    assert!(recipe.review().path().is_empty());
+    assert_eq!(recipe.review().maximum_body_bytes(), 0);
+    assert!(!recipe.review().has_observation());
+    assert!(recipe.credential_reads().expect("reads").is_empty());
+    let resource = json!({"record_id":"recTEST0000000001"})
+        .as_object()
+        .expect("resource")
+        .clone();
+    assert!(recipe.content_read(&resource).is_ok());
+    let args = arguments(
+        &recipe,
+        &json!({"operation_id":"write","record_id":"recTEST0000000001"}),
+    );
+    assert_eq!(
+        recipe.closed_request_from_arguments(&args, [0; 32]).err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
+    let mut negatives = Vec::new();
+    for field in [
+        "observation",
+        "echo",
+        "pre_entry",
+        "preconditions",
+        "relative_ceiling",
+        "bounds",
+    ] {
+        let mut hostile = source.clone();
+        hostile[field] = match field {
+            "observation" => {
+                json!({"path":[{"kind":"field","name":"record_id"}],"json_pointer":"/value","expected_field":"record_id","maximum_response_bytes":64})
+            }
+            "echo" => json!({"write":{"kind":"json-pointer","pointer":"/echo"},"observe":"/echo"}),
+            "pre_entry" => {
+                json!({"path":[{"kind":"field","name":"record_id"}],"pointers":["/value"],"maximum_response_bytes":64})
+            }
+            "preconditions" => json!({"verified":["record_id"]}),
+            "relative_ceiling" => {
+                json!({"argument":"record_id","basis_points":100,"path":[{"kind":"field","name":"record_id"}],"json_pointer":"/value","maximum_response_bytes":64})
+            }
+            "bounds" => json!({}),
+            _ => unreachable!(),
+        };
+        let error =
+            CompiledRecipe::compile(&serde_json::to_vec(&hostile).expect("hostile"), &lock_bytes)
+                .expect_err("mutation adjunct refused");
+        assert_eq!(error, GatewayRecipeError::InvalidSource);
+        negatives.push(json!({"case":field,"code":error.code()}));
+    }
+    for field in ["content", "tool"] {
+        let mut hostile = source.clone();
+        if field == "content" {
+            hostile.as_object_mut().expect("object").remove(field);
+        } else {
+            hostile[field] = json!("unbound_custom_read");
+        }
+        let error =
+            CompiledRecipe::compile(&serde_json::to_vec(&hostile).expect("hostile"), &lock_bytes)
+                .expect_err("missing protocol");
+        assert_eq!(error, GatewayRecipeError::InvalidSource);
+        negatives.push(json!({"case":format!("missing-or-wrong-{field}"),"code":error.code()}));
+    }
+    let mut smuggled = source.clone();
+    let mutation: Value = serde_json::from_slice(fixture("airtable").0).expect("mutation");
+    smuggled["write"] = mutation["write"].clone();
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&smuggled).expect("source"), &lock_bytes).err(),
+        Some(GatewayRecipeError::InvalidSource)
+    );
+    negatives.push(
+        json!({"case":"write-with-reserved-read-tool","code":"gateway.recipe.invalid-source"}),
+    );
+    let directory =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bindings/fixtures/gateway");
+    let mut seed = u32::try_from(source_bytes.len())
+        .expect("bounded source")
+        .to_be_bytes()
+        .to_vec();
+    seed.extend_from_slice(&source_bytes);
+    seed.extend_from_slice(&lock_bytes);
+    let seed_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("fuzz/corpus/target_gateway_recipe/content-only");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&seed_path, &seed).expect("seed");
+    }
+    assert_eq!(std::fs::read(seed_path).expect("seed"), seed);
+    let review = serde_json::to_vec_pretty(&recipe.review_document()).expect("review");
+    let corpus = serde_json::to_vec_pretty(&json!({"schema":"auths.read-only-recipe/1",
+        "source":source,"lock":lock,"review":recipe.review_document(),"negative_sources":negatives,
+        "mutation_plan_absent":true,"mutation_construction_refused":true,
+        "scope":"native compilation and closed request construction; process transport and installed binding evidence are separate"})).expect("corpus");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::create_dir_all(directory.join("content-only")).expect("directory");
+    }
+    for (name, bytes) in [
+        ("content-only/recipe.json", source_bytes),
+        ("content-only/profile.lock.json", lock_bytes),
+        ("content-only/review.json", review),
+        ("read-only-recipe.json", corpus),
+    ] {
+        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+            std::fs::write(directory.join(name), &bytes).expect("write");
+        }
+        assert_eq!(std::fs::read(directory.join(name)).expect("fixture"), bytes);
     }
 }

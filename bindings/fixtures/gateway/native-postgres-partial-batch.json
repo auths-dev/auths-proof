@@ -1,0 +1,117 @@
+{
+  "schema": "auths.native-postgres-partial-batch/1",
+  "scope": "full native acquisition engine in separate worker OS processes, actual TLS PostgreSQL transactions and server-side insert exceptions, nontransactional sequence witnesses, signed bounded authority/exact approval, separate local custody and real local HTTP; fixed public test keys and maintained clock",
+  "excluded": [
+    "commit acknowledgement or network delivery ambiguity",
+    "PostgreSQL server/power failure",
+    "mutation/disclosure transaction fault matrices",
+    "whole-store rollback or hostile OS containment",
+    "human review or provider qualification"
+  ],
+  "cases": [
+    {
+      "server_rejected_insert": 1,
+      "prior_successful_insert_prefix": 0,
+      "server_insert_sequence": 1,
+      "all_admission_rows_rolled_back": true,
+      "failed_worker_leases_and_transport_entries": 0,
+      "same_signed_inputs_reauthorized_after_reopen": true,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "actual_http_reads": 1,
+      "allocation_count_slot_and_sum_slot": 1,
+      "terminal_replay_preserves_attempt_and_execution_witness": true
+    },
+    {
+      "server_rejected_insert": 2,
+      "prior_successful_insert_prefix": 1,
+      "server_insert_sequence": 2,
+      "all_admission_rows_rolled_back": true,
+      "failed_worker_leases_and_transport_entries": 0,
+      "same_signed_inputs_reauthorized_after_reopen": true,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "actual_http_reads": 1,
+      "allocation_count_slot_and_sum_slot": 1,
+      "terminal_replay_preserves_attempt_and_execution_witness": true
+    },
+    {
+      "server_rejected_insert": 3,
+      "prior_successful_insert_prefix": 2,
+      "server_insert_sequence": 3,
+      "all_admission_rows_rolled_back": true,
+      "failed_worker_leases_and_transport_entries": 0,
+      "same_signed_inputs_reauthorized_after_reopen": true,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "actual_http_reads": 1,
+      "allocation_count_slot_and_sum_slot": 1,
+      "terminal_replay_preserves_attempt_and_execution_witness": true
+    },
+    {
+      "server_rejected_insert": 4,
+      "prior_successful_insert_prefix": 3,
+      "server_insert_sequence": 4,
+      "all_admission_rows_rolled_back": true,
+      "failed_worker_leases_and_transport_entries": 0,
+      "same_signed_inputs_reauthorized_after_reopen": true,
+      "native_history": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": 200,
+        "response_bytes": 21,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 21
+        }
+      },
+      "actual_http_reads": 1,
+      "allocation_count_slot_and_sum_slot": 1,
+      "terminal_replay_preserves_attempt_and_execution_witness": true
+    }
+  ]
+}

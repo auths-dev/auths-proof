@@ -125,3 +125,52 @@ the translation, toolchain, source, and evidence inputs still match. Changes
 to those inputs require two fresh, byte-identical reproductions. The complete
 qualified path remains in hosted CI; contributors do not need to install the
 formal toolchains locally to receive proof diagnostics.
+
+## AP074 gateway correspondence review
+
+The AP074 repair replaces the earlier implicit-read submission model with the
+shipping `order::next_step` machine. A successful deadline check names durable
+grant creation; only `Granted(true)` names `Send`. A replay stops with `Stored`,
+and recording a response stops with `Response`. The ordering proofs retain
+native verification, durable reservation, credential checks, pre-entry reads,
+relative ceilings, and at most one send. A post-send path cannot produce a
+refunding `NotEntered` result.
+
+The attempt projection now includes its protocol, bounded revision, entry grant,
+and recipient acknowledgement. `translated_valid_transition_refines_model`
+proves exact correspondence for every pair of translated views, including
+revision-overflow refusal. The natural model proves protocol retention,
+revision advancement, grant retention, and terminal-stage finality. Its unknown
+exit table distinguishes three evidence routes:
+
+- A late source response retains the original grant and records response facts,
+  without asserting provider observation.
+- A late recipient acknowledgement is restricted to disclosure, retains the
+  original grant, and cannot claim a provider response or observation.
+- An independently authorized linked observation can establish
+  `ObservedByProvider` from unknown only with the retained verified-locator link
+  and recorded provider evidence.
+
+The first two routes have separate `late_response_retains_source` and
+`late_acknowledgement_retains_source` theorems. The qualified unknown-observation
+claim is deliberately conditional on the target being `ObservedByProvider`;
+`unknown_exits_with_bound_evidence` proves the complete exit table. The old
+statement that *every* unknown exit must be provider observation is no longer
+true of the shipping contract and is not advertised as such.
+
+These are proofs about the decision leaves and canonical byte projections.
+They do not prove signature verification, exact recipient/challenge binding,
+source provenance, store atomicity, or external I/O. The runtime must establish
+those facts before constructing the projection and must authorize recovery as a
+separate operation. Nonempty acknowledgement bytes in the model are not a
+substitute for the runtime's authentication checks. Process, store, transport,
+and cryptographic tests remain required alongside these proofs.
+
+The reviewed gateway translation inventory is 126 local functions with zero
+external or opaque local functions. AP074 adds `acknowledgement_kept`,
+`acknowledgement_stage`, `entry_kept`, `protocol_consistent`, `requires_entry`,
+and `same_protocol`; all are closed transition checks covered by refinement.
+It removes `after_credentials`, `after_read_back`, and `lease_failed`, which
+implemented the obsolete mode-dependent implicit-read route. Regeneration uses
+the unchanged pinned Charon/Aeneas/Lean toolchains and two clean translations;
+the inventory change is not an exception to the translation or axiom gates.

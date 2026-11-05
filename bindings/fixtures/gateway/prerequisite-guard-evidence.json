@@ -1,0 +1,66 @@
+{
+  "schema": "auths.prerequisite-guard-evidence-fixture/1",
+  "scope": "native signed Stripe effect and synthetic response/checkpoint substitutions against the installed entry predicate; no installed transport or adapter race claim",
+  "cases": [
+    {
+      "case": "exact",
+      "accepted": true
+    },
+    {
+      "case": "account-mismatch",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-account",
+      "accepted": false
+    },
+    {
+      "case": "capability-excess",
+      "accepted": false
+    },
+    {
+      "case": "denied-version",
+      "accepted": false
+    },
+    {
+      "case": "currency-mismatch",
+      "accepted": false
+    },
+    {
+      "case": "above-ceiling",
+      "accepted": false
+    },
+    {
+      "case": "wrong-basis",
+      "accepted": false
+    },
+    {
+      "case": "wrong-digest",
+      "accepted": false
+    },
+    {
+      "case": "refreshed-basis-time",
+      "accepted": false
+    },
+    {
+      "case": "missing-basis",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-basis",
+      "accepted": false
+    },
+    {
+      "case": "wrong-order",
+      "accepted": false
+    },
+    {
+      "case": "missing-read",
+      "accepted": false
+    },
+    {
+      "case": "unrelated-observation",
+      "accepted": false
+    }
+  ]
+}

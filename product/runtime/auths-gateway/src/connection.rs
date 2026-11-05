@@ -54,6 +54,10 @@ pub struct LoadedConnection {
 }
 
 impl LoadedConnection {
+    pub(crate) fn private_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
     /// The decoded record.
     #[must_use]
     pub const fn record(&self) -> &ConnectionRecord {
@@ -152,6 +156,44 @@ impl SharedConnection {
     pub fn with_generation_floor(mut self, floor: crate::GenerationFloor) -> Self {
         self.floor = Some(Arc::new(floor));
         self
+    }
+
+    /// Bind a fresh host to its exact unpublished generation-one candidate.
+    /// There is still no live connection; runtime never initializes a floor.
+    pub(crate) async fn initialize_candidate_floor(
+        &self,
+        record: &ConnectionRecord,
+    ) -> Result<(), SharedConnectionError> {
+        if record.generation() != NonZeroU64::MIN {
+            return Err(SharedConnectionError::Corrupt);
+        }
+        if let Some(floor) = self.floor.clone() {
+            let record = record.clone();
+            tokio::task::spawn_blocking(move || floor.initialize(&record))
+                .await
+                .map_err(|_| SharedConnectionError::Rollback)?
+                .map_err(|_| SharedConnectionError::Rollback)?;
+        }
+        Ok(())
+    }
+
+    /// For first-install candidates only: check the already initialized host
+    /// floor without creating it or accepting a future rotation prematurely.
+    pub(crate) async fn check_candidate_floor(
+        &self,
+        record: &ConnectionRecord,
+    ) -> Result<(), SharedConnectionError> {
+        if record.generation() != NonZeroU64::MIN {
+            return Err(SharedConnectionError::Corrupt);
+        }
+        if let Some(floor) = self.floor.clone() {
+            let record = record.clone();
+            tokio::task::spawn_blocking(move || floor.accept(&record))
+                .await
+                .map_err(|_| SharedConnectionError::Rollback)?
+                .map_err(|_| SharedConnectionError::Rollback)?;
+        }
+        Ok(())
     }
 
     async fn accept_floor(
@@ -292,7 +334,7 @@ impl SharedConnection {
     }
 }
 
-/// Installs the first record of a connection: stores `secret` in this
+/// Installs the first record for a recipe with no credential reads: stores `secret` in this
 /// process's credential store at generation 1, then inserts the record that
 /// commits to it. A record already present is never replaced, and the
 /// secret stored for the refused install is deleted.
@@ -304,12 +346,20 @@ impl SharedConnection {
 /// Returns `gateway.install.connection-exists` when a record is present,
 /// and a credential-store or connection-store code otherwise.
 pub async fn install_connection(
+    recipe: &crate::CompiledRecipe,
     shared: &SharedConnection,
     credentials: &dyn ConnectionCredentialStore,
     draft: impl FnOnce([u8; 32]) -> Result<ConnectionRecord, &'static str>,
     connection_id: &ConnectionId,
     secret: SecretBytes,
 ) -> Result<ConnectionRecord, &'static str> {
+    if !recipe
+        .credential_reads()
+        .map_err(|_| "gateway.install.invalid-descriptor")?
+        .is_empty()
+    {
+        return Err("gateway.install.candidate-approval-required");
+    }
     let first = NonZeroU64::MIN;
     let reference = credentials
         .install(connection_id, first, secret)
@@ -335,8 +385,7 @@ pub async fn install_connection(
 }
 
 /// Joins a further process to an installed connection: loads the shared
-/// record, runs every credential check the recipe declares against the
-/// record's account commitment, and stores `candidate` at the record's
+/// record and stores `candidate` at the record's
 /// credential generation only when its reference commitment there equals
 /// the record's, compared in constant time. Because the commitment is bound
 /// to the credential generation rather than the current generation, a join
@@ -345,10 +394,11 @@ pub async fn install_connection(
 ///
 /// # Errors
 /// Returns `gateway.install.join-record-missing` without a record,
-/// `gateway.install.join-commitment-mismatch` for another secret, the
-/// onboarding codes of a refused candidate, and store codes otherwise.
+/// `gateway.install.join-commitment-mismatch` for another secret,
+/// and store codes otherwise. No provider read is performed.
 pub async fn join_connection(
     shared: &SharedConnection,
+    journal: &crate::CredentialJournal,
     credentials: &dyn ConnectionCredentialStore,
     recipe: &crate::CompiledRecipe,
     candidate: &zeroize::Zeroizing<Vec<u8>>,
@@ -364,14 +414,18 @@ pub async fn join_connection(
     }
     crate::GatewayConnectionDescriptor::from_record(record, recipe)
         .map_err(|_| "gateway.install.join-recipe-mismatch")?;
-    crate::onboarding::check_candidate_credential(
-        recipe,
-        recipe.review().credential(),
-        candidate,
-        crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
-    )
+    let notes = journal.clone();
+    let id = record.connection_id().clone();
+    let generation = record.credential_generation();
+    tokio::task::spawn_blocking(move || {
+        notes.initialize(&id)?;
+        notes.register(&id, generation)
+    })
     .await
-    .map_err(crate::onboarding::OnboardingFailure::install_code)?;
+    .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+    // Joining confirms exactly the already-published secret. It does not
+    // acquire new provider evidence or authorize a changed credential.
+
     let secret =
         SecretBytes::new(candidate.to_vec()).map_err(|_| "gateway.install.invalid-credential")?;
     match credentials

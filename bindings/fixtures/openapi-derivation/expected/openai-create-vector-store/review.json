@@ -1,6 +1,18 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "03f3497a3e815338994fb385b5876783bfb742ca049ec8aecf4be0cf6fb44d8f",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "name": {
+        "kind": "text",
+        "label": "name"
+      }
+    }
+  },
+  "digest": "7b4fed5ddda7b147ca95faae4fa535ee6052236794dd1f05097d79a2791aeb0b",
   "operator_namespace": "openai-demo",
   "service": "openai-vector-stores",
   "tool": "createVectorStore_v1",

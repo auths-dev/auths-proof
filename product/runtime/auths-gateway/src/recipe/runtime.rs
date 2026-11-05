@@ -77,7 +77,7 @@ pub(crate) enum CeilingReading {
 impl CeilingCheck {
     /// Reads the basis and binds from a complete 2xx JSON response body.
     pub(crate) fn read(&self, body: &[u8], arguments: &Map<String, Value>) -> CeilingReading {
-        let Ok(document) = serde_json::from_slice::<Value>(body) else {
+        let Some(document) = super::parse_provider_response(body) else {
             return CeilingReading::Unavailable;
         };
         let Some(value) = json_integer(&document, &self.json_pointer) else {
@@ -377,8 +377,8 @@ impl CompiledRecipe {
     pub(crate) fn idempotency_retention(&self) -> Option<u64> {
         self.source
             .write
-            .idempotency
             .as_ref()
+            .and_then(|write| write.idempotency.as_ref())
             .map(IdempotencySource::retention_seconds)
     }
 

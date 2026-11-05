@@ -116,7 +116,7 @@ class Deployment:
         require(family in ['stripe-platform-refund-v1', 'airtable-record-update-v1'],
                 'qualification.production.family')
         self.provider = 'stripe' if family == 'stripe-platform-refund-v1' else 'airtable'
-        for name in ['recipe.json', 'profile.lock.json', 'resources.json', *carrier['trusted_contexts'],
+        for name in ['recipe.json', 'profile.lock.json', 'resources.json', 'effect-policy.json', *carrier['trusted_contexts'],
                      *[context + '.operator.json' for context in carrier['trusted_contexts']]]:
             path = self.gateway / name
             write_bytes(path, read(self.work / name, 4 * 1024 * 1024), new=True)
@@ -186,7 +186,7 @@ class Deployment:
                 state.mkdir(mode=0o700)
                 os.chown(state, GATEWAY_UID, GATEWAY_UID)
                 trust = 'context-' + str(context) + '.cbor'
-                arguments = ['install', '--state-dir', state,
+                arguments = ['install', '--effect-policy', self.gateway / 'effect-policy.json', '--state-dir', state,
                     '--recipe', self.gateway / 'recipe.json', '--profile-lock', self.gateway / 'profile.lock.json',
                     '--trusted-context', self.gateway / trust, '--approve-digest', self.tuple['compiled_recipe_sha256'],
                     '--provider', self.provider, '--alias', ALIAS, '--credential-stdin',

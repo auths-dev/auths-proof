@@ -138,6 +138,95 @@ impl TestAttempts {
     pub(crate) fn raw(&self) -> Arc<dyn GatewayAttemptStore> {
         raw_at(&self.location)
     }
+
+    /// Actual server-side insert failure, confined to this test's owned schema.
+    /// Sequence increments survive rollback and witness the reached row prefix.
+    #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn reject_postgres_batch_insert(&self, fail_at: u64) {
+        assert!((1..=4).contains(&fail_at));
+        let schema = self.owned_postgres_schema();
+        let statement = format!(
+            "CREATE SEQUENCE {schema}.fixture_batch_insert_sequence;
+             CREATE FUNCTION {schema}.fixture_reject_batch_insert() RETURNS trigger
+             LANGUAGE plpgsql AS $body$
+             DECLARE reached bigint;
+             BEGIN
+               reached := nextval('{schema}.fixture_batch_insert_sequence'::regclass);
+               IF reached = {fail_at} THEN
+                 RAISE EXCEPTION 'synthetic native admission insert failure';
+               END IF;
+               RETURN NEW;
+             END; $body$;
+             CREATE TRIGGER fixture_reject_batch_insert BEFORE INSERT
+             ON {schema}.auths_gateway_records FOR EACH ROW
+             EXECUTE FUNCTION {schema}.fixture_reject_batch_insert();"
+        );
+        off_runtime(move || admin_client().batch_execute(&statement)).expect("test trigger");
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    fn owned_postgres_schema(&self) -> String {
+        let Location::Postgres {
+            schema,
+            owned: true,
+        } = &self.location
+        else {
+            panic!("only a locally owned PostgreSQL test schema may receive a trigger");
+        };
+        assert!(
+            schema.starts_with("gateway_")
+                && schema[8..].bytes().all(|byte| byte.is_ascii_hexdigit())
+        );
+        schema.clone()
+    }
+
+    /// Removes the trigger before retry; the nontransactional sequence proves
+    /// how many actual inserts reached the server before its exception.
+    #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn clear_postgres_batch_failure(&self) -> u64 {
+        let schema = self.owned_postgres_schema();
+        off_runtime(move || {
+            let mut client = admin_client();
+            let row = client
+                .query_one(
+                    &format!(
+                        "SELECT last_value, is_called FROM {schema}.fixture_batch_insert_sequence"
+                    ),
+                    &[],
+                )
+                .expect("sequence witness");
+            let reached: i64 = row.get(0);
+            let called: bool = row.get(1);
+            assert!(
+                called,
+                "the native worker must actually reach the server insert trigger"
+            );
+            client
+                .batch_execute(&format!(
+                    "DROP TRIGGER fixture_reject_batch_insert ON {schema}.auths_gateway_records"
+                ))
+                .expect("remove trigger");
+            u64::try_from(reached).expect("finite insert count")
+        })
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn postgres_gateway_record_counts(&self) -> std::collections::BTreeMap<String, u64> {
+        let schema = self.owned_postgres_schema();
+        off_runtime(move || {
+            admin_client().query(&format!("SELECT record_kind, count(*) FROM {schema}.auths_gateway_records GROUP BY record_kind ORDER BY record_kind"), &[]).expect("row counts").into_iter().map(|row| {
+            let count: i64 = row.get(1);
+            (row.get(0), u64::try_from(count).expect("bounded test count"))
+        }).collect()
+        })
+    }
+
+    /// Direct fixture connection for independent commit/rollback observation.
+    /// The ownership check confines test DDL to a schema this handle created.
+    #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+    pub(crate) fn postgres_commit_observer(&self) -> (String, Client) {
+        (self.owned_postgres_schema(), off_runtime(admin_client))
+    }
 }
 
 impl Drop for TestAttempts {
@@ -154,7 +243,11 @@ impl Drop for TestAttempts {
 }
 
 fn attempts_at(location: &Location) -> GatewayAttempts {
-    GatewayAttempts::new(raw_at(location))
+    GatewayAttempts::new(
+        raw_at(location),
+        crate::effect::fixture_policy().expect("policy"),
+    )
+    .expect("attempts")
 }
 
 fn raw_at(location: &Location) -> Arc<dyn GatewayAttemptStore> {

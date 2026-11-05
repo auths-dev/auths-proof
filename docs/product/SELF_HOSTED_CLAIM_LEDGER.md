@@ -158,10 +158,9 @@ The gateway can now hold an observer signing key and sign two kinds of
 observation for the application to attach to its next action:
 `auths.gateway-readback/1` (the value the gateway read from the recipe's
 observed field, and the echo field when present) and
-`auths.gateway-outcome/2` (the stored record of one logical operation: its
-commitment, stage, evaluation time, recipe digest, and, as recorded, the
-counter-set digest, refusal, response status and digest, read-back
-comparison, evidence digest, pre-entry digest, and relative-ceiling basis). A grant's observation requirement can then require, for example,
+`auths.gateway-outcome/3` (hiding effect/recipe/record references, conservative
+stage, evaluation time and bounded status/refusal). Protected full outcome facts
+and pre-entry bytes remain operator-only. A grant's observation requirement can then require, for example,
 that the record held the action's `expected` value, or that step N−1 is
 `observed-by-provider`, before the verifier authorizes step N. The gateway
 verifies at its own clock and exposes top-level verified MCP arguments as
@@ -209,9 +208,11 @@ observation never satisfies; and an observer that is also in the authority
 chain is refused. **The live Airtable run has not been done**, no hosted CI
 result is cited here, and no document may yet describe gateway grants as
 conditioned on observed provider state. The Python and TypeScript gateway
-clients expose the observation request (`observe_read_back`/`observe_outcome`,
-`observeReadBack`/`observeOutcome`) and return the exact signed bytes and
-media type, parsed as a closed result. Both SDKs can now attach a returned
+clients expose local outcome/pre-entry history and independently approved
+recovery. AP074 removes the unapproved application read-back request. Synthetic
+read-back observations for the reference journey now come only from the private
+harness control socket; they do not establish managed acquisition or disclosure.
+Both SDKs can now attach a returned
 observation to the next action (`attach_observations`/`attachObservations`,
 or `observations` on the authoring functions). The descriptors are bound by
 the action signature, and the SDK's final verification reaches the gateway's
@@ -293,13 +294,13 @@ multiplying either, all-or-none reservation, fixed-context tightening, and
 decider soundness, with the chain leaves translated and refined. No hosted
 CI result is cited here.
 
-### Outcome and audit `/2` with the provider result (AP-SPEC-063 §8, repository-local only)
+### Public outcome `/3` and private audit with the provider result (AP-SPEC-063 §8, repository-local only)
 
 **Claim.** For every claimed submission the gateway records the stage, the
 gateway evaluation time, the refusal code when it refused, and the HTTP
 status and response digest when a complete response exists. When an
 observer key is provisioned, it signs that record on request as
-`auths.gateway-outcome/2`, with the counter-set digest, the pre-entry
+operator-private `auths.gateway-private-outcome/1`, with the counter-set digest, the pre-entry
 digest, and the relative-ceiling basis when recorded; the gateway refuses
 to sign, and the auditor refuses to accept, any fact set its stage could not
 carry. The offline audit (`auths.gateway-audit-report/3`) re-verifies each
@@ -326,7 +327,8 @@ proof whose outcome was removed. Until AP-SPEC-038 Epic 4 supplies a custody
 client, a production gateway signs no outcomes, so every entry audits as
 `unverified` and the audit fails.
 
-Current evidence is `bindings/fixtures/gateway/outcome-v2.json`: Rust
+Public evidence is `bindings/fixtures/gateway/outcome-v3.json`; native private
+full-fact cases remain in `private-outcome-v1.json`. Rust
 verifies every accepted vector with its exact facts and refuses every
 refused one, and Rust, the Python SDK (native), and the TypeScript SDK
 (WASM) reach the same verdict on every case of a grant requiring

@@ -40,7 +40,7 @@
     "semanticSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/contract/effect-axis.ts"] },
     "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/contract/self-hosted.ts"] },
     "productionIntegration": { "status": "external-review-required", "evidence": ["../../docs/specs/0040-generic-profile-sdk-and-contributor-system.md"] },
-    "operationalCompleteness": { "status": "external-review-required", "evidence": ["test/integration/gateway-outcome-v2.test.js", "../../product/runtime/auths-gateway/src/engine.rs"] },
+    "operationalCompleteness": { "status": "external-review-required", "evidence": ["test/integration/gateway-outcome-v3.test.js", "../../product/runtime/auths-gateway/src/engine.rs"] },
     "debuggability": { "status": "verified", "evidence": ["src/doctor.ts", "README.md"] },
     "extensibility": { "status": "verified", "evidence": ["src/self-hosted.ts", "src/testkit/self-hosted-conformance.ts"] },
     "portability": { "status": "verified", "evidence": ["test/package/packed-node.test.js", "test/package/packed-browser.mjs"] },

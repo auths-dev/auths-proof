@@ -249,7 +249,7 @@ evidence pipeline for the recipe it names.
 
 - Epics 2–7 of AP-SPEC-063 implement the capabilities. Epic 1 commits their
   vectors under `bindings/fixtures/gateway/` (`hostile-recipes-v2.json`,
-  `attempt-scenarios-v3.json`, `bounds-aggregate.json`, `outcome-v2.json`,
+  `attempt-scenarios-v3.json`, `bounds-aggregate.json`, `outcome-v3.json`,
   `key-identity.json`, and `codes.json`), each with a test showing that
   current code does not satisfy it.
 - ADR 0012 stays in force. Epic 8 rewrote its decision and consequences

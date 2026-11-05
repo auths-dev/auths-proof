@@ -97,11 +97,26 @@ fn request_seeds_build_a_closed_request() {
 #[test]
 fn attempt_seeds_are_records_and_valid_transitions() {
     for (name, data) in seeds("target_gateway_attempt") {
+        if name.starts_with("obsolete-transition-") {
+            let (old, new) = split(&data);
+            assert!(fuzzing::attempt_stage(old).is_none(), "obsolete {name}");
+            assert!(fuzzing::attempt_stage(new).is_none(), "obsolete {name}");
+            continue;
+        }
+        if name.starts_with("obsolete-record-") {
+            assert!(fuzzing::attempt_stage(&data).is_none(), "obsolete {name}");
+            continue;
+        }
+
         if name.starts_with("transition-") {
             let (old, new) = split(&data);
             assert_eq!(
                 fuzzing::attempt_stage(old),
-                Some(GatewayAttemptStage::Attempting),
+                Some(if name.starts_with("transition-reserved-") {
+                    GatewayAttemptStage::Reserved
+                } else {
+                    GatewayAttemptStage::EntryGranted
+                }),
                 "{name}"
             );
             assert_eq!(fuzzing::attempt_transition(old, new), Some(true), "{name}");
@@ -114,10 +129,56 @@ fn attempt_seeds_are_records_and_valid_transitions() {
 #[test]
 fn outcome_seeds_verify_or_are_refused_as_named() {
     let observer = fuzzing::test_observer(0x5a);
+    let vectors: Value = serde_json::from_slice(
+        &fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../../bindings/fixtures/gateway/outcome-v3.json"),
+        )
+        .expect("canonical public outcome vectors"),
+    )
+    .expect("vector JSON");
+    let mut accepted = 0;
+    let mut refused = 0;
     for (name, data) in seeds("target_gateway_outcome") {
         let verified = fuzzing::verify_outcome(&data, &observer);
-        assert_eq!(verified.is_some(), name != "outcome-v1-schema", "{name}");
+        if name.starts_with("obsolete-") {
+            assert!(verified.is_none(), "obsolete {name}");
+            continue;
+        }
+        let (prefix, id) = name.split_once('-').expect("closed seed name");
+        let expected = match prefix {
+            "accepted" => {
+                accepted += 1;
+                true
+            }
+            "refused" => {
+                refused += 1;
+                false
+            }
+            _ => panic!("unknown outcome seed class: {name}"),
+        };
+        assert!(
+            vectors[prefix]
+                .as_array()
+                .expect("cases")
+                .iter()
+                .any(|v| v["id"] == id),
+            "unknown canonical case: {name}"
+        );
+        assert_eq!(verified.is_some(), expected, "{name}");
     }
+    assert!(
+        accepted > 0 && refused > 0,
+        "both decoder paths require seeds"
+    );
+    assert_eq!(
+        accepted,
+        vectors["accepted"].as_array().expect("accepted").len()
+    );
+    assert_eq!(
+        refused,
+        vectors["refused"].as_array().expect("refused").len()
+    );
 }
 
 #[cfg(unix)]
@@ -126,6 +187,6 @@ fn frame_seeds_parse_as_their_closed_schemas() {
     for (name, data) in seeds("target_gateway_app_frame") {
         let parsed = fuzzing::app_frame_kind(&data).is_some()
             || auths_gateway::admin::parse_admin_request(&data).is_ok();
-        assert!(parsed, "{name}");
+        assert_eq!(parsed, !name.starts_with("obsolete-"), "{name}");
     }
 }

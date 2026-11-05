@@ -1,4 +1,4 @@
-//! The compile rules of recipe source `/2`.
+//! The compile rules of recipe source `/3`.
 //!
 //! Each rule refuses with its stable code. The rules are independent: a
 //! source that breaks exactly one rule fails with that rule's code whatever
@@ -731,7 +731,7 @@ pub(super) fn validate_guard(
         return Ok(());
     };
     let declared = [
-        Some(source.write.path.as_slice()),
+        source.write.as_ref().map(|write| write.path.as_slice()),
         source
             .observation
             .as_ref()
@@ -761,10 +761,28 @@ pub(super) fn validate_source(
         fields,
         consumed: Consumption::default(),
     };
-    rules.path(&source.write.path, PathRole::Write)?;
-    rules.body(&source.write.body)?;
-    if let Some(idempotency) = &source.write.idempotency {
-        Rules::idempotency(idempotency, &source.write.body)?;
+    if let Some(write) = &source.write {
+        rules.path(&write.path, PathRole::Write)?;
+        rules.body(&write.body)?;
+        if let Some(idempotency) = &write.idempotency {
+            Rules::idempotency(idempotency, &write.body)?;
+        }
+    } else {
+        let content = source
+            .content
+            .as_ref()
+            .ok_or(GatewayRecipeError::InvalidSource)?;
+        if source.observation.is_some()
+            || source.echo.is_some()
+            || source.pre_entry.is_some()
+            || source.preconditions.is_some()
+            || source.relative_ceiling.is_some()
+            || source.bounds.is_some()
+        {
+            return Err(GatewayRecipeError::InvalidSource);
+        }
+        content.validate(fields)?;
+        rules.consume(content.resource_field());
     }
     if let Some(observation) = &source.observation {
         rules.observation(observation)?;
@@ -774,7 +792,11 @@ pub(super) fn validate_source(
             .observation
             .as_ref()
             .ok_or(GatewayRecipeError::EchoWithoutObservation)?;
-        validate_echo(echo, &source.write.body, observation)?;
+        let write = source
+            .write
+            .as_ref()
+            .ok_or(GatewayRecipeError::InvalidSource)?;
+        validate_echo(echo, &write.body, observation)?;
     }
     if let Some(pre_entry) = &source.pre_entry {
         rules.pre_entry(pre_entry)?;
@@ -803,4 +825,17 @@ pub(super) fn validate_source(
         }
     }
     Ok(())
+}
+
+/// Content GETs use the existing fixed/verified-field path grammar. No
+/// response locator or echo can select their resource.
+pub(super) fn validate_content_path(
+    path: &[PathSegment],
+    fields: &BTreeMap<String, FieldSchema>,
+) -> Result<(), GatewayRecipeError> {
+    Rules {
+        fields,
+        consumed: Consumption::default(),
+    }
+    .path(path, PathRole::Write)
 }

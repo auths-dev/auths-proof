@@ -1,5 +1,19 @@
 {
-  "schema": "auths.gateway-recipe-source/2",
+  "schema": "auths.gateway-recipe-source/3",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [],
+    "fields": {
+      "content": {
+        "kind": "text",
+        "label": "content"
+      },
+      "description": {
+        "kind": "text",
+        "label": "description"
+      }
+    }
+  },
   "profile_schema_digest": "4f43d83855ce5ab31f514e5cd3d2b39c2692372b228d987e0b99c9695ad44d24",
   "service": "todoist-gateway-demo",
   "tool": "create_task_v2",

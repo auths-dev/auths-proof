@@ -9,22 +9,22 @@
 //! installed transport and credential store; the tests supply a counting
 //! provider double through the same driver.
 
-use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, replay_refused};
+use crate::effect::{ApprovedEffect, PrerequisiteKind};
+use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
-use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
+use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES};
 use crate::store::BoundedClaim;
-use crate::transport::{
-    GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
-};
+#[cfg(test)]
+use crate::transport::ProviderPort;
+use crate::transport::{GatewayTransportError, ProviderResponse, WriteTransportOutcome};
 use crate::{
-    ClaimedGatewayAttempt, ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe,
-    GatewayAttemptError, GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis,
-    ObservableGatewayAttempt, RequestHeader,
+    ClaimedGatewayAttempt, CompiledRecipe, GatewayAttemptError, GatewayAttempts, GatewayObserver,
+    GatewayPreEntry, GatewayRelativeBasis,
 };
 use auths_gateway_kernel::order::{
-    AccountResult, CeilingRead, ClaimResult, DeniedResult, Mode, Phase, PreEntryResult, Refusal,
-    ResponseRecord, Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, SubmitState,
-    Verification, WriteResult, next_step, start,
+    AccountResult, CeilingRead, ClaimResult, DeniedResult, PreEntryResult, Refusal, ResponseRecord,
+    Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, Verification, WriteResult,
+    next_step, start,
 };
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
@@ -42,11 +42,22 @@ pub(crate) trait SubmitIo {
     /// A credential lease.
     type Lease;
 
+    /// Captures installed immutable inputs for native checking inside the store fence.
+    fn entry_validation(&self) -> Result<crate::entry::EntryValidation, &'static str>;
+
     /// Reads the gateway clock.
     fn clock(&self) -> Option<u64>;
 
     /// Verifies natively at `now` and projects the verified command.
-    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult>;
+    fn verify(
+        &self,
+        now: u64,
+        recipe: &CompiledRecipe,
+    ) -> Result<ApprovedEffect, GatewaySubmitResult>;
+
+    /// Revalidates the retained original authority and approval against the
+    /// prepared installation. This is still separate from the durable fence.
+    fn revalidate(&self, effect: &ApprovedEffect, now: u64) -> Result<(), GatewaySubmitResult>;
 
     /// Checks that every link's scope lists the verified account-scope
     /// value.
@@ -93,25 +104,186 @@ pub(crate) trait SubmitIo {
     async fn write(
         &self,
         lease: &Self::Lease,
-        request: &ClosedProviderRequest,
+        permit: crate::store::ProviderEntryPermit,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
-    /// Performs one bounded GET of an action read or observation under
-    /// `lease`.
-    async fn action_read(
+    /// Content uses a distinct metadata-preserving response path.
+    async fn acquire_content(
         &self,
-        lease: &Self::Lease,
-        url: &str,
-        headers: &[RequestHeader],
-        maximum_response_bytes: usize,
-    ) -> Option<ProviderResponse>;
+        _lease: &Self::Lease,
+        _permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        None
+    }
 
-    /// Performs one credential read under `lease`.
-    async fn credential_read(
+    /// Consumes one durably acknowledged permit for an exact compiled read.
+    async fn acquire(
         &self,
         lease: &Self::Lease,
-        read: &ClosedCredentialRead,
+        permit: crate::store::AcquisitionEntryPermit,
     ) -> Option<ProviderResponse>;
+}
+
+/// Narrow port for the common prerequisite acquisition sequence. It adds no
+/// authorization or transition semantics; the journal remains the sole owner.
+pub(crate) trait AcquisitionIo {
+    type Lease;
+    fn acquisition_enter(&self);
+    fn acquisition_leave(&self);
+    fn acquisition_clock(&self) -> Option<u64>;
+    fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str>;
+    async fn acquisition_content_send(
+        &self,
+        _lease: &Self::Lease,
+        _permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        None
+    }
+    async fn acquisition_send(
+        &self,
+        lease: &Self::Lease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse>;
+}
+
+impl<T: SubmitIo> AcquisitionIo for T {
+    type Lease = T::Lease;
+    fn acquisition_enter(&self) {
+        self.enter();
+    }
+    fn acquisition_leave(&self) {
+        self.leave();
+    }
+    fn acquisition_clock(&self) -> Option<u64> {
+        self.clock()
+    }
+    fn acquisition_validation(&self) -> Result<crate::entry::EntryValidation, &'static str> {
+        self.entry_validation()
+    }
+    async fn acquisition_content_send(
+        &self,
+        lease: &Self::Lease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<crate::transport::ContentProviderResponse> {
+        self.acquire_content(lease, permit).await
+    }
+    async fn acquisition_send(
+        &self,
+        lease: &Self::Lease,
+        permit: crate::store::AcquisitionEntryPermit,
+    ) -> Option<ProviderResponse> {
+        self.acquire(lease, permit).await
+    }
+}
+
+/// Acquire one compiler-selected prerequisite through the shared journal and
+/// consumed permit. Both mutation and recovery use this transport sequence.
+pub(crate) async fn acquire_prerequisite<I: AcquisitionIo>(
+    attempts: &GatewayAttempts,
+    approved: &std::sync::Arc<ApprovedEffect>,
+    kind: PrerequisiteKind,
+    io: &I,
+    lease: &I::Lease,
+) -> Option<crate::store::PrerequisiteResponse> {
+    let started = io.acquisition_clock()?;
+    let validation = io.acquisition_validation().ok()?;
+    match attempts
+        .claim_prerequisite(approved, kind, started, validation)
+        .await
+        .ok()?
+    {
+        crate::AcquisitionClaim::Reserved(reserved) => {
+            let validation = io.acquisition_validation().ok()?;
+            let entry_started = io.acquisition_clock()?;
+            let (granted, permit) = reserved
+                .grant_entry(std::sync::Arc::clone(approved), validation, entry_started)
+                .await
+                .ok()?;
+            if let Some(response) = io.acquisition_send(lease, permit).await {
+                let received_at = io.acquisition_clock()?;
+                granted
+                    .record_response(
+                        response.status,
+                        response.version_ok,
+                        &response.body,
+                        received_at,
+                    )
+                    .await
+                    .ok()?;
+            } else {
+                let _ = granted.record_unknown().await;
+                return None;
+            }
+        }
+        crate::AcquisitionClaim::Existing(_) => {}
+    }
+    // Only acknowledged, retained evidence is usable. Replays keep the
+    // original receipt time and cannot create another provider invocation.
+    let now = io.acquisition_clock()?;
+    let recorded = attempts.read_prerequisite(approved, kind, now).await.ok()?;
+    (recorded.observed_at <= recorded.received_at && recorded.received_at <= now)
+        .then_some(recorded)
+}
+/// Runs the same ordered credential prerequisites and primary read for recovery
+/// and staged candidates. Only durably retained responses feed native predicates.
+pub(crate) async fn complete_acquisition<I: AcquisitionIo>(
+    attempts: &GatewayAttempts,
+    recipe: &CompiledRecipe,
+    approved: std::sync::Arc<ApprovedEffect>,
+    reserved: crate::ReservedAcquisition,
+    io: &I,
+    lease: &I::Lease,
+) -> Result<crate::AcquisitionSnapshot, &'static str> {
+    for plan in approved
+        .prerequisite_plans()
+        .map_err(|_| "gateway.acquisition.binding")?
+    {
+        let kind = plan.kind().map_err(|_| "gateway.acquisition.binding")?;
+        let evidence = acquire_prerequisite(attempts, &approved, kind, io, lease)
+            .await
+            .ok_or("gateway.entry.prerequisite-evidence")?;
+        crate::entry::validate_credential_evidence(
+            recipe,
+            *approved.connection().account_commitment(),
+            &evidence,
+        )?;
+    }
+    let validation = io.acquisition_validation()?;
+    let now = io
+        .acquisition_clock()
+        .ok_or("gateway.verify.clock-unavailable")?;
+    let content = approved.content_target().is_some();
+    let (granted, permit) = reserved
+        .grant_entry(approved, validation, now)
+        .await
+        .map_err(|_| "gateway.entry.unavailable")?;
+    if content {
+        return match io.acquisition_content_send(lease, permit).await {
+            Some(response) => match io.acquisition_clock() {
+                Some(received_at) => granted.record_content_response(response, received_at).await,
+                None => granted.record_unknown().await,
+            },
+            None => granted.record_unknown().await,
+        }
+        .map_err(|_| "gateway.attempt.state-unavailable");
+    }
+    match io.acquisition_send(lease, permit).await {
+        Some(response) => match io.acquisition_clock() {
+            Some(received_at) => {
+                granted
+                    .record_response(
+                        response.status,
+                        response.version_ok,
+                        &response.body,
+                        received_at,
+                    )
+                    .await
+            }
+            None => granted.record_unknown().await,
+        },
+        None => granted.record_unknown().await,
+    }
+    .map_err(|_| "gateway.attempt.state-unavailable")
 }
 
 /// The installation one submission runs against.
@@ -173,10 +345,7 @@ pub(crate) fn account_commitment(label: &str) -> [u8; 32] {
 /// names at `pointer`: a JSON string of 1–256 bytes.
 pub(crate) fn account_label(response: Option<&ProviderResponse>, pointer: &str) -> Option<String> {
     let body = response?.usable_body()?;
-    match serde_json::from_slice::<Value>(body)
-        .ok()?
-        .pointer(pointer)?
-    {
+    match crate::recipe::parse_provider_response(body)?.pointer(pointer)? {
         Value::String(label) if !label.is_empty() && label.len() <= MAX_ACCOUNT_BYTES => {
             Some(label.clone())
         }
@@ -215,13 +384,20 @@ pub(crate) fn denied_result(response: Option<&ProviderResponse>, refused: &[u16]
 
 /// Ends the in-flight count of one entry when dropped, so a count taken
 /// before the final reload is released on every path.
-struct InFlight<'a, I: SubmitIo> {
+pub(crate) struct InFlight<'a, I: AcquisitionIo> {
     io: &'a I,
 }
 
-impl<I: SubmitIo> Drop for InFlight<'_, I> {
+impl<'a, I: AcquisitionIo> InFlight<'a, I> {
+    pub(crate) fn enter(io: &'a I) -> Self {
+        io.acquisition_enter();
+        Self { io }
+    }
+}
+
+impl<I: AcquisitionIo> Drop for InFlight<'_, I> {
     fn drop(&mut self) {
-        self.io.leave();
+        self.io.acquisition_leave();
     }
 }
 
@@ -232,15 +408,16 @@ struct Run<'a, I: SubmitIo> {
     guard: Option<GuardChecks>,
     ceiling: Option<CeilingCheck>,
     evaluated_at: u64,
-    verified: Option<VerifiedCommand>,
+    verified: Option<std::sync::Arc<ApprovedEffect>>,
     selected: Vec<SelectedRequirement>,
     claim: Option<ClaimedGatewayAttempt>,
-    observable: Option<ObservableGatewayAttempt>,
+    permit: Option<crate::store::ProviderEntryPermit>,
     lease: Option<I::Lease>,
     pre_entry: GatewayPreEntry,
     written: Option<(u16, [u8; 32], Vec<u8>, bool)>,
     refusal: Option<&'static str>,
     result: Option<GatewaySubmitResult>,
+    unresolved_prerequisite: Option<PrerequisiteKind>,
     in_flight: Option<InFlight<'a, I>>,
 }
 
@@ -255,12 +432,13 @@ impl<'a, I: SubmitIo> Run<'a, I> {
             verified: None,
             selected: Vec::new(),
             claim: None,
-            observable: None,
+            permit: None,
             lease: None,
             pre_entry: GatewayPreEntry::default(),
             written: None,
             refusal: None,
             result: None,
+            unresolved_prerequisite: None,
             in_flight: None,
         }
     }
@@ -289,33 +467,6 @@ pub(crate) async fn run<I: SubmitIo>(cx: &SubmitContext<'_>, io: &I) -> GatewayS
     state.finish(stop)
 }
 
-/// Runs the operator's read-only re-observation of `attempt`, which
-/// [`GatewayAttempts::resume_observable_operation`] reopened, through the
-/// same step machine a replay takes: a reload, a fresh lease that passes
-/// every credential check, and one read-back from the stored plan. The
-/// caller has already prepared the entry. Returns the recorded result, or
-/// `None` when the read-back recorded nothing.
-pub(crate) async fn reobserve<I: SubmitIo>(
-    cx: &SubmitContext<'_>,
-    io: &I,
-    attempt: ObservableGatewayAttempt,
-) -> Option<GatewaySubmitResult> {
-    let mut state = Run::new(cx, io);
-    state.observable = Some(attempt);
-    let resumed = SubmitState {
-        plan: plan(cx.recipe),
-        phase: Phase::Resume,
-        argument: 0,
-    };
-    match state
-        .drive(next_step(resumed, SubmitEvent::Resume(true)))
-        .await
-    {
-        Stop::Observed => state.result,
-        _ => None,
-    }
-}
-
 impl<I: SubmitIo> Run<'_, I> {
     fn refuse_before_claim(&mut self, result: GatewaySubmitResult) {
         self.result = Some(result);
@@ -341,7 +492,7 @@ impl<I: SubmitIo> Run<'_, I> {
             SubmitAction::Verify => SubmitEvent::Verification(self.verify()),
             SubmitAction::Admit => SubmitEvent::Admission(self.admit()),
             SubmitAction::BindScope => {
-                let bound = match &self.verified {
+                let bound = match self.verified.as_deref().and_then(ApprovedEffect::command) {
                     Some(verified) => self.io.bind_scope(verified),
                     None => Err("gateway.attempt.unavailable"),
                 };
@@ -355,30 +506,29 @@ impl<I: SubmitIo> Run<'_, I> {
                 if let Err(code) = prepared {
                     self.refuse_before_claim(not_entered(code));
                 }
-                SubmitEvent::Preparation(prepared.is_ok())
+                let valid = prepared.is_ok() && self.revalidate();
+                SubmitEvent::Preparation(valid)
             }
             SubmitAction::Claim => SubmitEvent::Claim(self.claim().await),
-            SubmitAction::Resume => SubmitEvent::Resume(self.resume().await),
-            SubmitAction::Reload(_) => SubmitEvent::Reload(self.io.reload().await),
+            SubmitAction::Reload => SubmitEvent::Reload(self.io.reload().await),
             SubmitAction::ReloadBeforeEntry => {
                 // Counted before the reload, so an admin change committed
                 // after this point is seen by the reload, and one committed
                 // before it waits for this entry.
-                self.io.enter();
-                self.in_flight = Some(InFlight { io: self.io });
+                self.in_flight = Some(InFlight::enter(self.io));
                 SubmitEvent::Reload(self.io.reload().await)
             }
-            SubmitAction::Lease(_) => {
+            SubmitAction::Lease => {
                 self.lease = self.io.lease().await;
                 SubmitEvent::Lease(self.lease.is_some())
             }
-            SubmitAction::CheckPrefix(_) => SubmitEvent::Prefix(match (&self.guard, &self.lease) {
+            SubmitAction::CheckPrefix => SubmitEvent::Prefix(match (&self.guard, &self.lease) {
                 (None, Some(_)) => true,
                 (Some(guard), Some(lease)) => self.io.secret_admitted(lease, guard),
                 (_, None) => false,
             }),
-            SubmitAction::ReadAccount(_) => SubmitEvent::Account(self.read_account().await),
-            SubmitAction::DeniedRead(_, index) => {
+            SubmitAction::ReadAccount => SubmitEvent::Account(self.read_account().await),
+            SubmitAction::DeniedRead(index) => {
                 SubmitEvent::Denied(self.denied_read(usize::from(index)).await)
             }
             SubmitAction::PreEntryRead => SubmitEvent::PreEntry(self.pre_entry_read().await),
@@ -393,9 +543,10 @@ impl<I: SubmitIo> Run<'_, I> {
                 },
                 None => false,
             }),
-            SubmitAction::CheckDeadline => {
-                SubmitEvent::Deadline(self.io.within_entry_deadline(self.evaluated_at))
-            }
+            SubmitAction::CheckDeadline => SubmitEvent::Deadline(
+                self.io.within_entry_deadline(self.evaluated_at) && self.revalidate(),
+            ),
+            SubmitAction::GrantEntry => SubmitEvent::Granted(self.grant_entry().await),
             SubmitAction::Send => SubmitEvent::Write(self.send().await),
             SubmitAction::RecordResponse => {
                 let recorded = self.record_response().await;
@@ -415,18 +566,48 @@ impl<I: SubmitIo> Run<'_, I> {
                 self.in_flight = None;
                 SubmitEvent::Recorded(recorded)
             }
-            SubmitAction::ReadBack(mode) => SubmitEvent::Recorded(self.read_back(mode).await),
             SubmitAction::Stop(_) => SubmitEvent::Start,
         }
     }
 
+    fn revalidate(&mut self) -> bool {
+        let (Some(effect), Some(now)) = (self.verified.as_ref(), self.io.clock()) else {
+            self.refuse_before_claim(not_entered("gateway.verify.clock-unavailable"));
+            return false;
+        };
+        match self.io.revalidate(effect, now) {
+            Ok(()) => true,
+            Err(result) => {
+                self.refusal = Some(match &result {
+                    GatewaySubmitResult::NotEntered { code }
+                        if code == "gateway.effect.approval" =>
+                    {
+                        "gateway.effect.approval"
+                    }
+                    GatewaySubmitResult::NotEntered { code }
+                        if code == "gateway.effect.binding-changed" =>
+                    {
+                        "gateway.effect.binding-changed"
+                    }
+                    _ => "gateway.effect.authority-unavailable",
+                });
+                self.refuse_before_claim(result);
+                false
+            }
+        }
+    }
+
     fn verify(&mut self) -> Verification {
-        let verified = match self.io.verify(self.evaluated_at) {
+        let approved = match self.io.verify(self.evaluated_at, self.cx.recipe) {
             Ok(verified) => verified,
             Err(result) => {
                 self.refuse_before_claim(result);
                 return Verification::Refused;
             }
+        };
+        let Some(verified) = approved.command() else {
+            self.refuse_before_claim(not_entered("gateway.effect.protocol"));
+            return Verification::Refused;
         };
         let argument = match &self.ceiling {
             None => 0,
@@ -438,7 +619,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 argument
             }
         };
-        self.verified = Some(verified);
+        self.verified = Some(std::sync::Arc::new(approved));
         Verification::Authorized { argument }
     }
 
@@ -446,7 +627,7 @@ impl<I: SubmitIo> Run<'_, I> {
     /// observer check; nothing is stored. The first failing check's code is
     /// the one reported.
     fn admit(&mut self) -> bool {
-        let Some(verified) = &self.verified else {
+        let Some(verified) = self.verified.as_deref().and_then(ApprovedEffect::command) else {
             return false;
         };
         if let Some(retention) = self.cx.recipe.idempotency_retention()
@@ -500,100 +681,112 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn claim(&mut self) -> ClaimResult {
-        let Some(verified) = &self.verified else {
+        let Some(approved) = self.verified.as_ref() else {
+            return ClaimResult::Unavailable;
+        };
+        let Ok(validation) = self.io.entry_validation() else {
             return ClaimResult::Unavailable;
         };
         match self
             .cx
             .attempts
-            .claim_bounded(
-                &verified.request,
-                *self.cx.recipe.digest(),
-                self.evaluated_at,
-                verified.bound.as_ref(),
-            )
+            .claim_bounded(approved, self.evaluated_at, validation)
             .await
         {
             Ok(BoundedClaim::Claimed(claim)) => {
                 self.claim = Some(*claim);
-                ClaimResult::Inserted
+                ClaimResult::Reserved
             }
             Ok(BoundedClaim::Exhausted(code)) => {
                 self.result = Some(not_entered(code));
                 ClaimResult::Refused
             }
-            Ok(BoundedClaim::Contended) => {
-                self.refuse_before_claim(not_entered("gateway.policy.count-unavailable"));
-                ClaimResult::Unavailable
+            Err(GatewayAttemptError::Replay) => {
+                self.result = Some(self.stored_result().await);
+                ClaimResult::Replay
             }
-            Err(GatewayAttemptError::Replay) => ClaimResult::Replay,
-            Err(_) => {
-                self.refuse_before_claim(not_entered("gateway.attempt.unavailable"));
+            Err(GatewayAttemptError::BindingConflict) => {
+                self.refuse_before_claim(not_entered("gateway.effect.operation-conflict"));
+                ClaimResult::Refused
+            }
+            Ok(BoundedClaim::Contended) | Err(_) => {
+                self.result = Some(self.stored_result().await);
                 ClaimResult::Unavailable
             }
         }
     }
 
-    async fn resume(&mut self) -> bool {
-        let Some(verified) = &self.verified else {
-            return false;
+    /// A replay or unacknowledged grant only loads the exact bound journal.
+    /// It never leases credentials or acquires provider evidence.
+    async fn stored_result(&self) -> GatewaySubmitResult {
+        let Some(approved) = self.verified.as_deref() else {
+            return unavailable_state();
         };
-        match self
-            .cx
-            .attempts
-            .resume_observable(&verified.request, *self.cx.recipe.digest())
-            .await
-        {
-            Ok(Some(attempt)) => {
-                self.observable = Some(attempt);
-                true
-            }
-            Ok(None) | Err(_) => false,
+        match self.cx.attempts.read_effect(approved).await {
+            Ok(Some(snapshot)) => crate::engine::stored_result(&snapshot),
+            Ok(None) | Err(_) => unavailable_state(),
         }
     }
 
-    async fn read_account(&self) -> AccountResult {
-        let (Some(lease), Some(pointer)) = (
-            &self.lease,
-            self.guard
-                .as_ref()
-                .and_then(|guard| guard.account_pointer.as_deref()),
-        ) else {
-            return AccountResult::Unavailable;
-        };
-        let Ok(reads) = self.cx.recipe.credential_reads() else {
-            return AccountResult::Unavailable;
-        };
-        let Some(read) = reads.account() else {
-            return AccountResult::Unavailable;
-        };
-        let response = self.io.credential_read(lease, read).await;
-        account_result(response.as_ref(), pointer, self.io.account_commitment())
+    async fn acquire_prerequisite(
+        &self,
+        kind: PrerequisiteKind,
+    ) -> Option<crate::store::PrerequisiteResponse> {
+        acquire_prerequisite(
+            self.cx.attempts,
+            self.verified.as_ref()?,
+            kind,
+            self.io,
+            self.lease.as_ref()?,
+        )
+        .await
     }
 
-    async fn denied_read(&self, index: usize) -> DeniedResult {
-        let (Some(lease), Some(refused)) = (
-            &self.lease,
-            self.guard
-                .as_ref()
-                .and_then(|guard| guard.denied_refused.get(index)),
-        ) else {
+    async fn read_account(&mut self) -> AccountResult {
+        let Some(pointer) = self
+            .guard
+            .as_ref()
+            .and_then(|guard| guard.account_pointer.as_deref())
+        else {
+            return AccountResult::Unavailable;
+        };
+        let acquired = self.acquire_prerequisite(PrerequisiteKind::Account).await;
+        if acquired.is_none() {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::Account);
+        }
+        account_result(
+            acquired.as_ref().map(|acquired| &acquired.response),
+            pointer,
+            self.io.account_commitment(),
+        )
+    }
+
+    async fn denied_read(&mut self, index: usize) -> DeniedResult {
+        let Some(refused) = self
+            .guard
+            .as_ref()
+            .and_then(|guard| guard.denied_refused.get(index))
+        else {
             return DeniedResult::Unavailable;
         };
-        let Ok(reads) = self.cx.recipe.credential_reads() else {
+        let Ok(index) = u8::try_from(index) else {
             return DeniedResult::Unavailable;
         };
-        let Some(read) = reads.denied().get(index) else {
-            return DeniedResult::Unavailable;
-        };
-        let response = self.io.credential_read(lease, read).await;
-        denied_result(response.as_ref(), refused)
+        let acquired = self
+            .acquire_prerequisite(PrerequisiteKind::DeniedCapability(index))
+            .await;
+        if acquired.is_none() {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::DeniedCapability(index));
+        }
+        denied_result(
+            acquired.as_ref().map(|acquired| &acquired.response),
+            refused,
+        )
     }
 
     async fn pre_entry_read(&mut self) -> PreEntryResult {
-        let (Some(lease), Some(verified), Some(observer), Some(pointers)) = (
-            &self.lease,
-            &self.verified,
+        let (Some(verified), Some(observer), Some(pointers)) = (
+            self.verified.as_deref().and_then(ApprovedEffect::command),
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
         ) else {
@@ -602,18 +795,12 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(read) = verified.request.pre_entry_read() else {
             return PreEntryResult::Unavailable;
         };
-        let Some(observed_at) = self.io.clock() else {
+        let Some(acquired) = self.acquire_prerequisite(PrerequisiteKind::PreEntry).await else {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::PreEntry);
             return PreEntryResult::Unavailable;
         };
-        let response = self
-            .io
-            .action_read(
-                lease,
-                read.url(),
-                read.headers(),
-                read.maximum_response_bytes(),
-            )
-            .await;
+        let observed_at = acquired.observed_at;
+        let response = Some(acquired.response);
         let Some(observations) = response
             .as_ref()
             .and_then(ProviderResponse::usable_body)
@@ -637,26 +824,21 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn ceiling_read(&mut self) -> CeilingRead {
-        let (Some(lease), Some(verified), Some(ceiling)) =
-            (&self.lease, &self.verified, &self.ceiling)
+        let (Some(verified), Some(ceiling)) = (
+            self.verified.as_deref().and_then(ApprovedEffect::command),
+            &self.ceiling,
+        ) else {
+            return CeilingRead::Unavailable;
+        };
+        let Some(acquired) = self
+            .acquire_prerequisite(PrerequisiteKind::RelativeCeiling)
+            .await
         else {
+            self.unresolved_prerequisite = Some(PrerequisiteKind::RelativeCeiling);
             return CeilingRead::Unavailable;
         };
-        let Some(read) = verified.request.relative_ceiling_read() else {
-            return CeilingRead::Unavailable;
-        };
-        let Some(read_at) = self.io.clock() else {
-            return CeilingRead::Unavailable;
-        };
-        let response = self
-            .io
-            .action_read(
-                lease,
-                read.url(),
-                read.headers(),
-                read.maximum_response_bytes(),
-            )
-            .await;
+        let read_at = acquired.observed_at;
+        let response = Some(acquired.response);
         let Some(body) = response.as_ref().and_then(ProviderResponse::usable_body) else {
             return CeilingRead::Unavailable;
         };
@@ -673,13 +855,45 @@ impl<I: SubmitIo> Run<'_, I> {
         }
     }
 
-    async fn send(&mut self) -> WriteResult {
-        let (Some(lease), Some(verified)) = (&self.lease, &self.verified) else {
-            return WriteResult::NotEntered;
+    async fn grant_entry(&mut self) -> bool {
+        let Ok(validation) = self.io.entry_validation() else {
+            return false;
         };
-        match self.io.write(lease, &verified.request).await {
-            Err(_) => WriteResult::NotEntered,
-            Ok(WriteTransportOutcome::Unknown) => WriteResult::Unknown,
+        let Some(approved) = &self.verified else {
+            return false;
+        };
+        let Some(entry_started) = self.io.clock() else {
+            return false;
+        };
+        let Some(claim) = self.claim.take() else {
+            return false;
+        };
+        let Ok((claim, permit)) = claim
+            .grant_entry(
+                std::sync::Arc::clone(approved),
+                validation,
+                entry_started,
+                &self.pre_entry,
+            )
+            .await
+        else {
+            // The grant may have committed without its acknowledgement.
+            // A fresh authoritative read may report reserved or unknown, never
+            // manufacture a permit. Unavailable state is indeterminate.
+            self.result = Some(self.stored_result().await);
+            return false;
+        };
+        self.claim = Some(claim);
+        self.permit = Some(permit);
+        true
+    }
+
+    async fn send(&mut self) -> WriteResult {
+        let (Some(lease), Some(permit)) = (&self.lease, self.permit.take()) else {
+            return WriteResult::Unknown;
+        };
+        match self.io.write(lease, permit).await {
+            Err(_) | Ok(WriteTransportOutcome::Unknown) => WriteResult::Unknown,
             Ok(WriteTransportOutcome::ResponseRecorded {
                 status,
                 digest,
@@ -693,9 +907,11 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn record_response(&mut self) -> ResponseRecord {
-        let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) =
-            (self.claim.take(), self.written.take(), &self.verified)
-        else {
+        let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) = (
+            self.claim.take(),
+            self.written.take(),
+            self.verified.as_deref().and_then(ApprovedEffect::command),
+        ) else {
             return ResponseRecord::Failed;
         };
         let locator = verified
@@ -705,23 +921,26 @@ impl<I: SubmitIo> Run<'_, I> {
             .filter(|_| version_ok && (200..300).contains(&status))
             .and_then(|template| template.extract_locator(&body));
         match claim.record_response(status, digest, locator).await {
-            Ok(observable) => {
-                let can_observe = observable.observation_request().is_some();
+            Ok(_) => {
                 self.result = Some(GatewaySubmitResult::ResponseRecorded { status });
-                self.observable = Some(observable);
-                ResponseRecord::Recorded {
-                    observable: can_observe,
-                }
+                ResponseRecord::Recorded
             }
             Err(_) => ResponseRecord::Failed,
         }
     }
 
     async fn record_not_entered(&mut self, refusal: Refusal) -> bool {
+        if self.unresolved_prerequisite.is_some() {
+            // Preserve the durable reservation. Recording a terminal predicate
+            // failure here could poison a concurrent owner's valid read/write.
+            self.result = Some(self.stored_result().await);
+            return false;
+        }
         let Some(claim) = self.claim.take() else {
             return false;
         };
         let code = match refusal {
+            Refusal::EntryDeadline => self.refusal.unwrap_or_else(|| refusal_code(refusal)),
             Refusal::CredentialUnavailable | Refusal::ConnectionChanged => self
                 .io
                 .authority_refusal()
@@ -736,105 +955,36 @@ impl<I: SubmitIo> Run<'_, I> {
         recorded
     }
 
-    /// One read-only observation from the stored plan, recording only what
-    /// the stored stage admits. The token comes from the stored commitment,
-    /// never from this submission.
-    async fn read_back(&mut self, _mode: Mode) -> bool {
-        let (Some(lease), Some(attempt)) = (&self.lease, self.observable.take()) else {
-            return false;
-        };
-        let Some(observation) = attempt.observation_request() else {
-            return false;
-        };
-        let Some(bytes) = self
-            .io
-            .action_read(
-                lease,
-                observation.url(),
-                observation.headers(),
-                observation.maximum_response_bytes(),
-            )
-            .await
-            .as_ref()
-            .and_then(ProviderResponse::usable_body)
-            .map(<[u8]>::to_vec)
-        else {
-            return false;
-        };
-        let token = attempt.echo_token();
-        let Some(reading) = observation.read_back(token.as_deref(), &bytes) else {
-            return false;
-        };
-        let Ok(snapshot) = attempt.snapshot() else {
-            return false;
-        };
-        let status = snapshot.response_status();
-        let result = match reading {
-            ReadBack::EchoMatched => {
-                let Some(observed_at) = self.io.clock() else {
-                    return false;
-                };
-                attempt
-                    .record_provider_evidence(&bytes, observed_at)
-                    .await
-                    .ok()
-                    .and_then(|snapshot| {
-                        snapshot.provider_evidence().map(|evidence| {
-                            GatewaySubmitResult::ObservedByProvider {
-                                status,
-                                evidence: evidence.into(),
-                            }
-                        })
-                    })
-            }
-            ReadBack::Value { matched } => match status {
-                Some(status) => attempt
-                    .record_observation(matched)
-                    .await
-                    .ok()
-                    .map(|_| GatewaySubmitResult::Observed { status, matched }),
-                None => None,
-            },
-            ReadBack::EchoMismatch => match status {
-                Some(status) => attempt.record_echo_mismatch().await.ok().map(|_| {
-                    GatewaySubmitResult::Observed {
-                        status,
-                        matched: false,
-                    }
-                }),
-                None => None,
-            },
-        };
-        match result {
-            Some(result) => {
-                self.result = Some(result);
-                true
-            }
-            None => false,
-        }
-    }
-
     fn finish(self, stop: Stop) -> GatewaySubmitResult {
         match stop {
             Stop::Refused => self
                 .result
                 .unwrap_or_else(|| not_entered("gateway.attempt.unavailable")),
-            Stop::StoreUnavailable => not_entered("gateway.attempt.unavailable"),
-            Stop::ClaimRefused | Stop::Response | Stop::Observed => {
+            Stop::StoreUnavailable | Stop::Stored | Stop::GrantUnavailable => {
+                self.result.unwrap_or_else(unavailable_state)
+            }
+            Stop::ClaimRefused | Stop::Response => {
                 self.result.unwrap_or(GatewaySubmitResult::Unknown)
             }
             Stop::NotEntered => self
                 .refusal
                 .map_or(GatewaySubmitResult::Unknown, not_entered),
-            Stop::Unknown | Stop::Halted => GatewaySubmitResult::Unknown,
-            Stop::ReplayRefused => replay_refused(),
+            Stop::Unknown => self.result.unwrap_or(GatewaySubmitResult::Unknown),
+            Stop::Halted => GatewaySubmitResult::Unknown,
         }
+    }
+}
+
+fn unavailable_state() -> GatewaySubmitResult {
+    GatewaySubmitResult::Indeterminate {
+        code: "gateway.attempt.state-unavailable".to_owned(),
     }
 }
 
 /// The lease-time credential checks of a read outside a submission (an
 /// observation request): the prefix guard, the account read, and each
 /// denied read in declaration order, stopping at the first failure.
+#[cfg(test)]
 pub(crate) async fn lease_checks<P: ProviderPort>(
     recipe: &CompiledRecipe,
     provider: &P,

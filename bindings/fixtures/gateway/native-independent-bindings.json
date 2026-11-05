@@ -1,0 +1,96 @@
+{
+  "schema": "auths.native-independent-bindings/1",
+  "scope": "ordinary native signed proof, compiled effect and exact approval; explicit synthetic trust/connection/clock",
+  "excluded": [
+    "durable entry",
+    "provider execution",
+    "human presence"
+  ],
+  "cases": [
+    {
+      "case": "actor",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "0ef44c858f71c0f218503776f0a0625dc9ed0da1078c810f1db6cf4dc6b0edf5",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "account",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "550aa34b98586d305ba6460a3fef835a85ba8aba1d9b82ca9cfcf2a6941bd5f1",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "credential-generation",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "7b09c56d4170cd0269b93eccc90c32591194dafb37b30d48758baa55a1fa4215",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "partition",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "6a37cc9555f0a7bd66aa970b067d34cb9c76b8dbbca8fff33c558966629cb5f4",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "epoch",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "bc519b75d202987afd7a41859accb4edc37b67732e4e579148a41681c603921a",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "operation",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "80e7fc02450cf8843cb5674eee84a5322dd1943170c6740c0e528f510e34d7a0",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "resource",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "e5ec2ffe6fc79a4c4818878feb79938784824941fd4162a67ccc6ef0eb912f0b",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "body",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "954501ad2171f36c83ee7c4fcd057d255b38ee73cc065f813d24bd27684197a6",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "header",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "063b0fc97864332f1743e96a435022b8fc676a4b77c0091f5cdf8c73c701e707",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "destination",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "b8a37e3c7a309302c503b7783dfd076067cd55b2bfadb055e0f059328f2d8974",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "approver",
+      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
+      "changed_effect": "6c37e8766fd6c7d02a899408826256a518189fa914b1e81c65e3d894c06be2bb",
+      "old_exact_approval_refused": true,
+      "fresh_native_authority_and_approval_accepted": true
+    },
+    {
+      "case": "namespace",
+      "native_compilation_refused": true
+    },
+    {
+      "case": "verifier-configuration",
+      "native_compilation_refused": true
+    }
+  ]
+}

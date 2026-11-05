@@ -92,9 +92,6 @@ def compile_plan(family, resources, reviewed, recipe_digest):
     def unknown(operation, label, leases=0, entries=0):
         return step(operation, 'unknown', 'unknown', label, leases, entries)
 
-    def replay():
-        return step('replay', 'refused', 'gateway.attempt.replay')
-
     def add(phase, identifier, scenario, steps, capabilities=()):
         cases.append({'id': phase + '-' + identifier, 'scenario': scenario,
             'capabilities': list(capabilities), 'phase': phase, 'steps': steps})
@@ -114,23 +111,19 @@ def compile_plan(family, resources, reviewed, recipe_digest):
     for phase in ['commissioning', 'live']:
         label = lambda index: phase + '-' + str(index).zfill(2)
         add(phase, 'fresh-replay', 'fresh-challenge-replay',
-            [observed('submit', label(0)), replay()])
-        add(phase, 'proof-replay', 'proof-replay', [observed('submit', label(1)), replay()])
+            [observed('submit', label(0)), step('replay', 'refused', 'gateway.effect.operation-conflict')])
+        add(phase, 'proof-replay', 'proof-replay', [observed('submit', label(1)), observed('replay', label(1), 0, 0, 0)])
         # The held owner response keeps an entered operation unresolved while
-        # the second actual process races its claim. Airtable can take one
-        # read-only recovery lease; its committed observation makes the
-        # owner response CAS lose, so that owner takes no observation lease.
-        # Stripe has no unrecorded response locator; its owner confirms later.
+        # the second actual process reads the granted journal. The follower
+        # takes no lease; the owner records its response and observation.
         add(phase, 'two-host-race', 'two-instance-race',
             [observed('race', label(2), leases=2)])
         for index, operation in [(3, 'restart'), (4, 'crash')]:
-            ending = observed('replay', label(index), 1, 0, 1) if reference is airtable_record \
-                else replay()
+            ending = unknown('replay', label(index))
             add(phase, operation, operation, [unknown('submit', label(index), 1, 1),
                 complete(operation, 'gateway-' + operation + '-completed'), ending])
         add(phase, 'ambiguous', 'ambiguous-response', [unknown('drop-response', label(5), 1, 1),
-            observed('replay', label(5), 1, 0, 1) if reference is airtable_record
-            else replay()])
+            unknown('replay', label(5))])
         for index, identifier, operation, scenario in [
             (6, 'response-loss', 'drop-response', 'response-loss'),
             (7, 'visibility', 'delay-visibility', 'delayed-visibility')]:

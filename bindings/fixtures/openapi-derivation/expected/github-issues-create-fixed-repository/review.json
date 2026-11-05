@@ -1,6 +1,22 @@
 {
-  "schema": "auths.gateway-recipe-review/2",
-  "digest": "41dd377c19a1700a08681079c5b313805a8c152236d88e81c47bff64f1bc97fd",
+  "schema": "auths.gateway-recipe-review/3",
+  "effect_review_contract": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Synthetic transport comparison only; no production review claim."
+    ],
+    "fields": {
+      "body": {
+        "kind": "text",
+        "label": "body"
+      },
+      "title": {
+        "kind": "text",
+        "label": "title"
+      }
+    }
+  },
+  "digest": "c986df14d2753051d48bc48c8c434b350da83d80fe63bcc51e46d6b171180118",
   "operator_namespace": "github-demo",
   "service": "github-gateway-demo",
   "tool": "create_issue_v1",

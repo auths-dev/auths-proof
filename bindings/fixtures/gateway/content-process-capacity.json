@@ -1,0 +1,56 @@
+{
+  "schema": "auths.content-process-capacity/1",
+  "scope": "two independent production daemon processes with separate joined local custody and CLI callers; real native proof/approval/fenced file adapter, counting local HTTP; source-lifetime acquisition count/response ceilings only, not managed fixed-window count/sum, PostgreSQL, distributed fencing or power loss",
+  "initial_allocations": 15,
+  "final_contenders": 2,
+  "final_grants": 1,
+  "exhausted": 1,
+  "provider_calls": 16,
+  "retained_calls": 16,
+  "retained_response_bytes": 16384,
+  "all_requests_exact": true,
+  "restart_replay_no_refetch": true,
+  "cross_process_history_matches": true,
+  "durable_grants": 16,
+  "permanent_allocations": 16,
+  "native_refusal_code": "gateway.acquisition.exhausted",
+  "journal_and_allocations_unchanged_after_restart_replay": true,
+  "successful_read": {
+    "outcome": "history",
+    "history": {
+      "kind": "acquisition",
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 32,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 32
+        }
+      }
+    }
+  },
+  "capacity_refusal": {
+    "outcome": "history",
+    "history": {
+      "kind": "acquisition",
+      "snapshot": {
+        "revision": 1,
+        "stage": "not-entered",
+        "reserved_calls": 0,
+        "reserved_bytes": 0,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    }
+  }
+}

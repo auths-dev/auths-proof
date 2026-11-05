@@ -171,6 +171,11 @@ fn install(root: &Path, state: &Path) {
         .digest_hex();
     let mut child = Command::new(BIN)
         .arg("install")
+        .arg("--effect-policy")
+        .arg(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../bindings/fixtures/gateway/effect-policy.json"
+        ))
         .arg("--state-dir")
         .arg(state)
         .arg("--recipe")
@@ -283,7 +288,7 @@ fn every_admin_command_answers_while_idle_application_connections_hold_the_capac
 
     let answered = |output: &Output, code: &str| {
         let response = printed(output);
-        assert_eq!(response["schema"], "auths.gateway-admin-response/1");
+        assert_eq!(response["schema"], "auths.gateway-admin-response/2");
         assert_eq!(response["code"], code, "{response}");
         response
     };
@@ -301,9 +306,17 @@ fn every_admin_command_answers_while_idle_application_connections_hold_the_capac
         &gateway.rotate(b"synthetic-rotated\n"),
         "gateway.admin.rotated",
     );
-    let unknown = gateway.admin("reobserve", &["--operation-id", "op-never-claimed"]);
+    let unknown = gateway.admin(
+        "recovery-record",
+        &[
+            "--source-operation",
+            "op-never-claimed",
+            "--acquisition-operation",
+            "read-never-claimed",
+        ],
+    );
     assert!(!unknown.status.success());
-    answered(&unknown, "gateway.reobserve.not-observable");
+    answered(&unknown, "gateway.recovery.unavailable");
     let revoked = gateway.admin("revoke", &[]);
     assert!(
         revoked.status.success(),

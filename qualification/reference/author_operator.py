@@ -16,7 +16,7 @@ from common import canonical, closed, require, sha256
 from expand import child, decode, read
 from resource_io import finish, write
 
-SCHEMA = 'auths.gateway-operator-attestation/1'
+SCHEMA = 'auths.gateway-operator-attestation/2'
 ALIAS = 'recipe-qualification'
 
 
@@ -56,14 +56,16 @@ def author(gateway, work):
                             '--profile-lock', work / 'profile.lock.json'])
     require(review['recipe_digest'] == tuple_value['compiled_recipe_sha256'],
             'qualification.operator.recipe-binding')
+    effect_policy = decode(read(work / 'effect-policy.json', 4096))
     for context in carrier['trusted_contexts']:
         installation = {'recipe_digest': tuple_value['compiled_recipe_sha256'],
             'profile_lock_sha256': sha256(read(work / 'profile.lock.json', 65536)),
             'trusted_context_sha256': sha256(read(work / context, 4 * 1024 * 1024)),
+            'effect_policy': effect_policy,
             'provider': provider, 'alias': ALIAS, 'deployment': 'production'}
         require(installation['profile_lock_sha256'] == tuple_value['profile_lock_sha256'],
                 'qualification.operator.lock-binding')
-        request = child(gateway, ['operator-request', '--recipe', work / 'recipe.json',
+        request = child(gateway, ['operator-request', '--effect-policy', work / 'effect-policy.json', '--recipe', work / 'recipe.json',
             '--profile-lock', work / 'profile.lock.json', '--trusted-context', work / context,
             '--provider', provider, '--alias', ALIAS, '--deployment', 'production',
             '--operator-principal', key.principal, '--principal-method', key.principal_method,

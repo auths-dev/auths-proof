@@ -1287,13 +1287,13 @@ def construct.construct_credential_read
     }
 
 /-- [auths_gateway_kernel::order::start]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 387:0-393:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 367:0-373:1
     Visibility: public -/
 def order.start (plan : order.SubmitPlan) : Result order.SubmitState := do
   ok { plan, phase := order.Phase.Start, argument := 0#u64 }
 
 /-- [auths_gateway_kernel::order::go]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 397:0-406:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 377:0-386:1
     Visibility: public -/
 def order.go
   (state : order.SubmitState) (phase : order.Phase)
@@ -1303,7 +1303,7 @@ def order.go
   ok { state := { state with phase }, action }
 
 /-- [auths_gateway_kernel::order::stop]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 410:0-412:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 390:0-392:1
     Visibility: public -/
 def order.stop
   (state : order.SubmitState) (stop : order.Stop) :
@@ -1312,13 +1312,13 @@ def order.stop
   order.go state order.Phase.Done (order.SubmitAction.Stop stop)
 
 /-- [auths_gateway_kernel::order::halt]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 416:0-418:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 396:0-398:1
     Visibility: public -/
 def order.halt (state : order.SubmitState) : Result order.SubmitDecision := do
   order.stop state order.Stop.Halted
 
 /-- [auths_gateway_kernel::order::not_entered]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 422:0-428:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 402:0-408:1
     Visibility: public -/
 def order.not_entered
   (state : order.SubmitState) (refusal : order.Refusal) :
@@ -1327,20 +1327,8 @@ def order.not_entered
   order.go state order.Phase.RecordNotEntered
     (order.SubmitAction.RecordNotEntered refusal)
 
-/-- [auths_gateway_kernel::order::lease_failed]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 433:0-439:1
-    Visibility: public -/
-def order.lease_failed
-  (state : order.SubmitState) (mode : order.Mode) (refusal : order.Refusal) :
-  Result order.SubmitDecision
-  := do
-  match mode with
-  | order.Mode.Entry => order.not_entered state refusal
-  | order.Mode.ReadBack => order.stop state order.Stop.Response
-  | order.Mode.Reobserve => order.stop state order.Stop.ReplayRefused
-
 /-- [auths_gateway_kernel::order::after_reads]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 445:0-451:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 414:0-420:1
     Visibility: public -/
 def order.after_reads
   (state : order.SubmitState) : Result order.SubmitDecision := do
@@ -1356,7 +1344,7 @@ def order.after_reads
         order.SubmitAction.ReloadBeforeEntry
 
 /-- [auths_gateway_kernel::order::ceiling_from]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 455:0-461:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 424:0-430:1
     Visibility: public -/
 def order.ceiling_from
   (state : order.SubmitState) : Result order.SubmitDecision := do
@@ -1365,7 +1353,7 @@ def order.ceiling_from
   else order.after_reads state
 
 /-- [auths_gateway_kernel::order::pre_entry_from]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 465:0-471:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 434:0-440:1
     Visibility: public -/
 def order.pre_entry_from
   (state : order.SubmitState) : Result order.SubmitDecision := do
@@ -1373,50 +1361,30 @@ def order.pre_entry_from
   then order.go state order.Phase.PreEntry order.SubmitAction.PreEntryRead
   else order.ceiling_from state
 
-/-- [auths_gateway_kernel::order::after_credentials]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 476:0-483:1
-    Visibility: public -/
-def order.after_credentials
-  (state : order.SubmitState) (mode : order.Mode) :
-  Result order.SubmitDecision
-  := do
-  match mode with
-  | order.Mode.Entry => order.pre_entry_from state
-  | order.Mode.ReadBack =>
-    order.go state (order.Phase.ReadBack order.Mode.ReadBack)
-      (order.SubmitAction.ReadBack order.Mode.ReadBack)
-  | order.Mode.Reobserve =>
-    order.go state (order.Phase.ReadBack order.Mode.Reobserve)
-      (order.SubmitAction.ReadBack order.Mode.Reobserve)
-
 /-- [auths_gateway_kernel::order::denied_from]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 487:0-497:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 444:0-450:1
     Visibility: public -/
 def order.denied_from
-  (state : order.SubmitState) (mode : order.Mode) (index : Std.U8) :
+  (state : order.SubmitState) (index : Std.U8) :
   Result order.SubmitDecision
   := do
   if index < state.plan.denied_reads
   then
-    order.go state (order.Phase.Denied mode index)
-      (order.SubmitAction.DeniedRead mode index)
-  else order.after_credentials state mode
+    order.go state (order.Phase.Denied index) (order.SubmitAction.DeniedRead
+      index)
+  else order.pre_entry_from state
 
 /-- [auths_gateway_kernel::order::after_prefix]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 501:0-507:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 454:0-460:1
     Visibility: public -/
 def order.after_prefix
-  (state : order.SubmitState) (mode : order.Mode) :
-  Result order.SubmitDecision
-  := do
+  (state : order.SubmitState) : Result order.SubmitDecision := do
   if state.plan.account_read
-  then
-    order.go state (order.Phase.Account mode) (order.SubmitAction.ReadAccount
-      mode)
-  else order.denied_from state mode 0#u8
+  then order.go state order.Phase.Account order.SubmitAction.ReadAccount
+  else order.denied_from state 0#u8
 
 /-- [auths_gateway_kernel::order::after_admission]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 511:0-517:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 464:0-470:1
     Visibility: public -/
 def order.after_admission
   (state : order.SubmitState) : Result order.SubmitDecision := do
@@ -1425,7 +1393,7 @@ def order.after_admission
   else order.go state order.Phase.Prepare order.SubmitAction.Prepare
 
 /-- [auths_gateway_kernel::order::pre_claim]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 521:0-527:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 474:0-480:1
     Visibility: public -/
 def order.pre_claim
   (state : order.SubmitState) (passed : Bool) (next : order.SubmitDecision) :
@@ -1436,58 +1404,54 @@ def order.pre_claim
   else order.stop state order.Stop.Refused
 
 /-- [auths_gateway_kernel::order::after_claim]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 531:0-542:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 484:0-491:1
     Visibility: public -/
 def order.after_claim
   (state : order.SubmitState) (result : order.ClaimResult) :
   Result order.SubmitDecision
   := do
   match result with
-  | order.ClaimResult.Inserted =>
-    order.go state (order.Phase.Reload order.Mode.Entry)
-      (order.SubmitAction.Reload order.Mode.Entry)
+  | order.ClaimResult.Reserved =>
+    order.go state order.Phase.Reload order.SubmitAction.Reload
   | order.ClaimResult.Refused => order.stop state order.Stop.ClaimRefused
-  | order.ClaimResult.Replay =>
-    order.go state order.Phase.Resume order.SubmitAction.Resume
+  | order.ClaimResult.Replay => order.stop state order.Stop.Stored
   | order.ClaimResult.Unavailable =>
     order.stop state order.Stop.StoreUnavailable
 
 /-- [auths_gateway_kernel::order::after_account]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 546:0-556:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 495:0-501:1
     Visibility: public -/
 def order.after_account
-  (state : order.SubmitState) (mode : order.Mode)
-  (result : order.AccountResult) :
+  (state : order.SubmitState) (result : order.AccountResult) :
   Result order.SubmitDecision
   := do
   match result with
-  | order.AccountResult.Equal => order.denied_from state mode 0#u8
+  | order.AccountResult.Equal => order.denied_from state 0#u8
   | order.AccountResult.Mismatch =>
-    order.lease_failed state mode order.Refusal.AccountMismatch
+    order.not_entered state order.Refusal.AccountMismatch
   | order.AccountResult.Unavailable =>
-    order.lease_failed state mode order.Refusal.AccountUnavailable
+    order.not_entered state order.Refusal.AccountUnavailable
 
 /-- [auths_gateway_kernel::order::after_denied]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 560:0-577:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 505:0-517:1
     Visibility: public -/
 def order.after_denied
-  (state : order.SubmitState) (mode : order.Mode) (index : Std.U8)
-  (result : order.DeniedResult) :
+  (state : order.SubmitState) (index : Std.U8) (result : order.DeniedResult) :
   Result order.SubmitDecision
   := do
   match result with
   | order.DeniedResult.Refused =>
     if index < state.plan.denied_reads
     then let i ← index + 1#u8
-         order.denied_from state mode i
+         order.denied_from state i
     else order.halt state
   | order.DeniedResult.Answered =>
-    order.lease_failed state mode order.Refusal.CapabilityExcess
+    order.not_entered state order.Refusal.CapabilityExcess
   | order.DeniedResult.Unavailable =>
-    order.lease_failed state mode order.Refusal.CapabilityUnavailable
+    order.not_entered state order.Refusal.CapabilityUnavailable
 
 /-- [auths_gateway_kernel::order::after_pre_entry]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 581:0-587:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 521:0-527:1
     Visibility: public -/
 def order.after_pre_entry
   (state : order.SubmitState) (result : order.PreEntryResult) :
@@ -1521,7 +1485,7 @@ def ratio.relative_ceiling_admits
   ok (scaled_argument <= scaled_basis)
 
 /-- [auths_gateway_kernel::order::after_ceiling]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 592:0-605:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 532:0-545:1
     Visibility: public -/
 def order.after_ceiling
   (state : order.SubmitState) (read : order.CeilingRead) :
@@ -1542,22 +1506,20 @@ def order.after_ceiling
     else order.not_entered state order.Refusal.CeilingBindingMismatch
 
 /-- [auths_gateway_kernel::order::after_write]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 609:0-615:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 549:0-554:1
     Visibility: public -/
 def order.after_write
   (state : order.SubmitState) (result : order.WriteResult) :
   Result order.SubmitDecision
   := do
   match result with
-  | order.WriteResult.NotEntered =>
-    order.not_entered state order.Refusal.TransportNotEntered
   | order.WriteResult.Unknown =>
     order.go state order.Phase.RecordUnknown order.SubmitAction.RecordUnknown
   | order.WriteResult.Response =>
     order.go state order.Phase.RecordResponse order.SubmitAction.RecordResponse
 
 /-- [auths_gateway_kernel::order::after_response]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 619:0-634:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 558:0-563:1
     Visibility: public -/
 def order.after_response
   (state : order.SubmitState) (record1 : order.ResponseRecord) :
@@ -1565,30 +1527,10 @@ def order.after_response
   := do
   match record1 with
   | order.ResponseRecord.Failed => order.stop state order.Stop.Unknown
-  | order.ResponseRecord.Recorded observable =>
-    if observable
-    then
-      order.go state (order.Phase.Reload order.Mode.ReadBack)
-        (order.SubmitAction.Reload order.Mode.ReadBack)
-    else order.stop state order.Stop.Response
-
-/-- [auths_gateway_kernel::order::after_read_back]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 638:0-648:1
-    Visibility: public -/
-def order.after_read_back
-  (state : order.SubmitState) (mode : order.Mode) (recorded : Bool) :
-  Result order.SubmitDecision
-  := do
-  if recorded
-  then order.stop state order.Stop.Observed
-  else
-    match mode with
-    | order.Mode.Entry => order.halt state
-    | order.Mode.ReadBack => order.stop state order.Stop.Response
-    | order.Mode.Reobserve => order.stop state order.Stop.ReplayRefused
+  | order.ResponseRecord.Recorded => order.stop state order.Stop.Response
 
 /-- [auths_gateway_kernel::order::pre_claim_step]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 653:0-705:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 568:0-620:1
     Visibility: public -/
 def order.pre_claim_step
   (state : order.SubmitState) (event : order.SubmitEvent) :
@@ -1605,7 +1547,6 @@ def order.pre_claim_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1615,6 +1556,7 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Clock =>
@@ -1628,7 +1570,6 @@ def order.pre_claim_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1638,6 +1579,7 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Verify =>
@@ -1657,7 +1599,6 @@ def order.pre_claim_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1667,6 +1608,7 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Admit =>
@@ -1680,7 +1622,6 @@ def order.pre_claim_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1690,6 +1631,7 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Scope =>
@@ -1703,7 +1645,6 @@ def order.pre_claim_step
       order.pre_claim state bound sd
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1713,6 +1654,7 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Prepare =>
@@ -1726,7 +1668,6 @@ def order.pre_claim_step
       let sd ← order.go state order.Phase.Claim order.SubmitAction.Claim
       order.pre_claim state prepared sd
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1736,6 +1677,7 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Claim =>
@@ -1747,7 +1689,6 @@ def order.pre_claim_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim result => order.after_claim state result
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1757,28 +1698,28 @@ def order.pre_claim_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.Resume => order.halt state
-  | order.Phase.Reload _ => order.halt state
-  | order.Phase.Lease _ => order.halt state
-  | order.Phase.Prefix _ => order.halt state
-  | order.Phase.Account _ => order.halt state
-  | order.Phase.Denied _ _ => order.halt state
+  | order.Phase.Reload => order.halt state
+  | order.Phase.Lease => order.halt state
+  | order.Phase.Prefix => order.halt state
+  | order.Phase.Account => order.halt state
+  | order.Phase.Denied _ => order.halt state
   | order.Phase.PreEntry => order.halt state
   | order.Phase.Ceiling => order.halt state
   | order.Phase.Checkpoint => order.halt state
   | order.Phase.EntryReload => order.halt state
   | order.Phase.Deadline => order.halt state
+  | order.Phase.Grant => order.halt state
   | order.Phase.Send => order.halt state
   | order.Phase.RecordResponse => order.halt state
   | order.Phase.RecordUnknown => order.halt state
   | order.Phase.RecordNotEntered => order.halt state
-  | order.Phase.ReadBack _ => order.halt state
   | order.Phase.Done => order.halt state
 
 /-- [auths_gateway_kernel::order::lease_step]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 710:0-766:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 625:0-667:1
     Visibility: public -/
 def order.lease_step
   (state : order.SubmitState) (event : order.SubmitEvent) :
@@ -1792,7 +1733,7 @@ def order.lease_step
   | order.Phase.Scope => order.halt state
   | order.Phase.Prepare => order.halt state
   | order.Phase.Claim => order.halt state
-  | order.Phase.Resume =>
+  | order.Phase.Reload =>
     match event with
     | order.SubmitEvent.Start => order.halt state
     | order.SubmitEvent.Clock _ => order.halt state
@@ -1801,38 +1742,10 @@ def order.lease_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume resumable =>
-      if resumable
-      then
-        order.go state (order.Phase.Reload order.Mode.Reobserve)
-          (order.SubmitAction.Reload order.Mode.Reobserve)
-      else order.stop state order.Stop.ReplayRefused
-    | order.SubmitEvent.Reload _ => order.halt state
-    | order.SubmitEvent.Lease _ => order.halt state
-    | order.SubmitEvent.Prefix _ => order.halt state
-    | order.SubmitEvent.Account _ => order.halt state
-    | order.SubmitEvent.Denied _ => order.halt state
-    | order.SubmitEvent.PreEntry _ => order.halt state
-    | order.SubmitEvent.Ceiling _ => order.halt state
-    | order.SubmitEvent.Recorded _ => order.halt state
-    | order.SubmitEvent.Deadline _ => order.halt state
-    | order.SubmitEvent.Write _ => order.halt state
-    | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.Reload mode =>
-    match event with
-    | order.SubmitEvent.Start => order.halt state
-    | order.SubmitEvent.Clock _ => order.halt state
-    | order.SubmitEvent.Verification _ => order.halt state
-    | order.SubmitEvent.Admission _ => order.halt state
-    | order.SubmitEvent.Scope _ => order.halt state
-    | order.SubmitEvent.Preparation _ => order.halt state
-    | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload unchanged =>
       if unchanged
-      then
-        order.go state (order.Phase.Lease mode) (order.SubmitAction.Lease mode)
-      else order.lease_failed state mode order.Refusal.ConnectionChanged
+      then order.go state order.Phase.Lease order.SubmitAction.Lease
+      else order.not_entered state order.Refusal.ConnectionChanged
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
     | order.SubmitEvent.Account _ => order.halt state
@@ -1841,9 +1754,10 @@ def order.lease_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.Lease mode =>
+  | order.Phase.Lease =>
     match event with
     | order.SubmitEvent.Start => order.halt state
     | order.SubmitEvent.Clock _ => order.halt state
@@ -1852,14 +1766,11 @@ def order.lease_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease leased =>
       if leased
-      then
-        order.go state (order.Phase.Prefix mode)
-          (order.SubmitAction.CheckPrefix mode)
-      else order.lease_failed state mode order.Refusal.CredentialUnavailable
+      then order.go state order.Phase.Prefix order.SubmitAction.CheckPrefix
+      else order.not_entered state order.Refusal.CredentialUnavailable
     | order.SubmitEvent.Prefix _ => order.halt state
     | order.SubmitEvent.Account _ => order.halt state
     | order.SubmitEvent.Denied _ => order.halt state
@@ -1867,9 +1778,10 @@ def order.lease_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.Prefix mode =>
+  | order.Phase.Prefix =>
     match event with
     | order.SubmitEvent.Start => order.halt state
     | order.SubmitEvent.Clock _ => order.halt state
@@ -1878,22 +1790,22 @@ def order.lease_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix allowed =>
       if allowed
-      then order.after_prefix state mode
-      else order.lease_failed state mode order.Refusal.ModeGuard
+      then order.after_prefix state
+      else order.not_entered state order.Refusal.ModeGuard
     | order.SubmitEvent.Account _ => order.halt state
     | order.SubmitEvent.Denied _ => order.halt state
     | order.SubmitEvent.PreEntry _ => order.halt state
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.Account mode =>
+  | order.Phase.Account =>
     match event with
     | order.SubmitEvent.Start => order.halt state
     | order.SubmitEvent.Clock _ => order.halt state
@@ -1902,19 +1814,19 @@ def order.lease_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
-    | order.SubmitEvent.Account result => order.after_account state mode result
+    | order.SubmitEvent.Account result => order.after_account state result
     | order.SubmitEvent.Denied _ => order.halt state
     | order.SubmitEvent.PreEntry _ => order.halt state
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.Denied mode index =>
+  | order.Phase.Denied index =>
     match event with
     | order.SubmitEvent.Start => order.halt state
     | order.SubmitEvent.Clock _ => order.halt state
@@ -1923,17 +1835,16 @@ def order.lease_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
     | order.SubmitEvent.Account _ => order.halt state
-    | order.SubmitEvent.Denied result =>
-      order.after_denied state mode index result
+    | order.SubmitEvent.Denied result => order.after_denied state index result
     | order.SubmitEvent.PreEntry _ => order.halt state
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.PreEntry => order.halt state
@@ -1941,15 +1852,15 @@ def order.lease_step
   | order.Phase.Checkpoint => order.halt state
   | order.Phase.EntryReload => order.halt state
   | order.Phase.Deadline => order.halt state
+  | order.Phase.Grant => order.halt state
   | order.Phase.Send => order.halt state
   | order.Phase.RecordResponse => order.halt state
   | order.Phase.RecordUnknown => order.halt state
   | order.Phase.RecordNotEntered => order.halt state
-  | order.Phase.ReadBack _ => order.halt state
   | order.Phase.Done => order.halt state
 
 /-- [auths_gateway_kernel::order::entry_step]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 772:0-840:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 673:0-742:1
     Visibility: public -/
 def order.entry_step
   (state : order.SubmitState) (event : order.SubmitEvent) :
@@ -1963,12 +1874,11 @@ def order.entry_step
   | order.Phase.Scope => order.halt state
   | order.Phase.Prepare => order.halt state
   | order.Phase.Claim => order.halt state
-  | order.Phase.Resume => order.halt state
-  | order.Phase.Reload _ => order.halt state
-  | order.Phase.Lease _ => order.halt state
-  | order.Phase.Prefix _ => order.halt state
-  | order.Phase.Account _ => order.halt state
-  | order.Phase.Denied _ _ => order.halt state
+  | order.Phase.Reload => order.halt state
+  | order.Phase.Lease => order.halt state
+  | order.Phase.Prefix => order.halt state
+  | order.Phase.Account => order.halt state
+  | order.Phase.Denied _ => order.halt state
   | order.Phase.PreEntry =>
     match event with
     | order.SubmitEvent.Start => order.halt state
@@ -1978,7 +1888,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -1988,6 +1897,7 @@ def order.entry_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Ceiling =>
@@ -1999,7 +1909,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2009,6 +1918,7 @@ def order.entry_step
     | order.SubmitEvent.Ceiling read => order.after_ceiling state read
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Checkpoint =>
@@ -2020,7 +1930,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2035,6 +1944,7 @@ def order.entry_step
           order.SubmitAction.ReloadBeforeEntry
       else order.stop state order.Stop.Unknown
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.EntryReload =>
@@ -2046,7 +1956,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload unchanged =>
       if unchanged
       then order.go state order.Phase.Deadline order.SubmitAction.CheckDeadline
@@ -2059,6 +1968,7 @@ def order.entry_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Deadline =>
@@ -2070,7 +1980,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2081,8 +1990,33 @@ def order.entry_step
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline within =>
       if within
-      then order.go state order.Phase.Send order.SubmitAction.Send
+      then order.go state order.Phase.Grant order.SubmitAction.GrantEntry
       else order.not_entered state order.Refusal.EntryDeadline
+    | order.SubmitEvent.Granted _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Grant =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted b =>
+      if b
+      then order.go state order.Phase.Send order.SubmitAction.Send
+      else order.stop state order.Stop.GrantUnavailable
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Send =>
@@ -2094,7 +2028,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2104,6 +2037,7 @@ def order.entry_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write result => order.after_write state result
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.RecordResponse =>
@@ -2115,7 +2049,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2125,6 +2058,7 @@ def order.entry_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.halt state
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response record1 => order.after_response state record1
   | order.Phase.RecordUnknown =>
@@ -2136,7 +2070,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2146,6 +2079,7 @@ def order.entry_step
     | order.SubmitEvent.Ceiling _ => order.halt state
     | order.SubmitEvent.Recorded _ => order.stop state order.Stop.Unknown
     | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.RecordNotEntered =>
@@ -2157,7 +2091,6 @@ def order.entry_step
     | order.SubmitEvent.Scope _ => order.halt state
     | order.SubmitEvent.Preparation _ => order.halt state
     | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
     | order.SubmitEvent.Reload _ => order.halt state
     | order.SubmitEvent.Lease _ => order.halt state
     | order.SubmitEvent.Prefix _ => order.halt state
@@ -2170,34 +2103,13 @@ def order.entry_step
       then order.stop state order.Stop.NotEntered
       else order.stop state order.Stop.Unknown
     | order.SubmitEvent.Deadline _ => order.halt state
-    | order.SubmitEvent.Write _ => order.halt state
-    | order.SubmitEvent.Response _ => order.halt state
-  | order.Phase.ReadBack mode =>
-    match event with
-    | order.SubmitEvent.Start => order.halt state
-    | order.SubmitEvent.Clock _ => order.halt state
-    | order.SubmitEvent.Verification _ => order.halt state
-    | order.SubmitEvent.Admission _ => order.halt state
-    | order.SubmitEvent.Scope _ => order.halt state
-    | order.SubmitEvent.Preparation _ => order.halt state
-    | order.SubmitEvent.Claim _ => order.halt state
-    | order.SubmitEvent.Resume _ => order.halt state
-    | order.SubmitEvent.Reload _ => order.halt state
-    | order.SubmitEvent.Lease _ => order.halt state
-    | order.SubmitEvent.Prefix _ => order.halt state
-    | order.SubmitEvent.Account _ => order.halt state
-    | order.SubmitEvent.Denied _ => order.halt state
-    | order.SubmitEvent.PreEntry _ => order.halt state
-    | order.SubmitEvent.Ceiling _ => order.halt state
-    | order.SubmitEvent.Recorded recorded =>
-      order.after_read_back state mode recorded
-    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Granted _ => order.halt state
     | order.SubmitEvent.Write _ => order.halt state
     | order.SubmitEvent.Response _ => order.halt state
   | order.Phase.Done => order.halt state
 
 /-- [auths_gateway_kernel::order::next_step]:
-    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 846:0-873:1
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 748:0-772:1
     Visibility: public -/
 def order.next_step
   (state : order.SubmitState) (event : order.SubmitEvent) :
@@ -2211,22 +2123,21 @@ def order.next_step
   | order.Phase.Scope => order.pre_claim_step state event
   | order.Phase.Prepare => order.pre_claim_step state event
   | order.Phase.Claim => order.pre_claim_step state event
-  | order.Phase.Resume => order.lease_step state event
-  | order.Phase.Reload _ => order.lease_step state event
-  | order.Phase.Lease _ => order.lease_step state event
-  | order.Phase.Prefix _ => order.lease_step state event
-  | order.Phase.Account _ => order.lease_step state event
-  | order.Phase.Denied _ _ => order.lease_step state event
+  | order.Phase.Reload => order.lease_step state event
+  | order.Phase.Lease => order.lease_step state event
+  | order.Phase.Prefix => order.lease_step state event
+  | order.Phase.Account => order.lease_step state event
+  | order.Phase.Denied _ => order.lease_step state event
   | order.Phase.PreEntry => order.entry_step state event
   | order.Phase.Ceiling => order.entry_step state event
   | order.Phase.Checkpoint => order.entry_step state event
   | order.Phase.EntryReload => order.entry_step state event
   | order.Phase.Deadline => order.entry_step state event
+  | order.Phase.Grant => order.entry_step state event
   | order.Phase.Send => order.entry_step state event
   | order.Phase.RecordResponse => order.entry_step state event
   | order.Phase.RecordUnknown => order.entry_step state event
   | order.Phase.RecordNotEntered => order.entry_step state event
-  | order.Phase.ReadBack _ => order.entry_step state event
   | order.Phase.Done => order.halt state
 
 /-- [auths_gateway_kernel::ratio::relative_basis]:
@@ -2312,14 +2223,14 @@ def recovery.recovery_capability
     }
 
 /-- [auths_gateway_kernel::transition::absent]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 89:0-91:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 113:0-115:1
     Visibility: public -/
 def transition.absent (bytes : Slice Std.U8) : Result Bool := do
   let i := Slice.len bytes
   ok (i = 0#usize)
 
 /-- [auths_gateway_kernel::transition::same_bytes_from]: loop body 0:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 97:4-104:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 121:4-128:1
     Visibility: public -/
 @[rust_loop_body]
 def transition.same_bytes_from_loop.body
@@ -2342,7 +2253,7 @@ def transition.same_bytes_from_loop.body
   else ok (done true)
 
 /-- [auths_gateway_kernel::transition::same_bytes_from]: loop 0:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 97:4-104:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 121:4-128:1
     Visibility: public -/
 @[rust_loop]
 def transition.same_bytes_from_loop
@@ -2354,7 +2265,7 @@ def transition.same_bytes_from_loop
     index
 
 /-- [auths_gateway_kernel::transition::same_bytes_from]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 95:0-104:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 119:0-128:1
     Visibility: public -/
 @[reducible]
 def transition.same_bytes_from
@@ -2362,7 +2273,7 @@ def transition.same_bytes_from
   transition.same_bytes_from_loop left right 0#usize
 
 /-- [auths_gateway_kernel::transition::same_bytes]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 108:0-114:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 132:0-138:1
     Visibility: public -/
 def transition.same_bytes
   (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
@@ -2373,7 +2284,7 @@ def transition.same_bytes
   else ok false
 
 /-- [auths_gateway_kernel::transition::resolves_unknown]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 119:0-124:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 143:0-148:1
     Visibility: public -/
 def transition.resolves_unknown (link : transition.Link) : Result Bool := do
   match link with
@@ -2382,7 +2293,7 @@ def transition.resolves_unknown (link : transition.Link) : Result Bool := do
   | transition.Link.AfterResponse => ok false
 
 /-- [auths_gateway_kernel::transition::has_link]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 128:0-133:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 152:0-157:1
     Visibility: public -/
 def transition.has_link (link : transition.Link) : Result Bool := do
   match link with
@@ -2391,67 +2302,77 @@ def transition.has_link (link : transition.Link) : Result Bool := do
   | transition.Link.AfterResponse => ok true
 
 /-- [auths_gateway_kernel::transition::refusal_stage]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 137:0-146:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 161:0-172:1
     Visibility: public -/
 def transition.refusal_stage (stage : transition.Stage) : Result Bool := do
   match stage with
-  | transition.Stage.Attempting => ok false
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok false
   | transition.Stage.NotEntered => ok true
   | transition.Stage.Unknown => ok false
   | transition.Stage.ResponseRecorded => ok false
   | transition.Stage.Observed => ok false
   | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.Acknowledged => ok false
 
 /-- [auths_gateway_kernel::transition::requires_response]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 150:0-155:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 176:0-186:1
     Visibility: public -/
 def transition.requires_response (stage : transition.Stage) : Result Bool := do
   match stage with
-  | transition.Stage.Attempting => ok false
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok false
   | transition.Stage.NotEntered => ok false
   | transition.Stage.Unknown => ok false
   | transition.Stage.ResponseRecorded => ok true
   | transition.Stage.Observed => ok true
   | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.Acknowledged => ok false
 
 /-- [auths_gateway_kernel::transition::permits_response]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 159:0-164:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 190:0-199:1
     Visibility: public -/
 def transition.permits_response (stage : transition.Stage) : Result Bool := do
   match stage with
-  | transition.Stage.Attempting => ok false
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok false
   | transition.Stage.NotEntered => ok false
   | transition.Stage.Unknown => ok false
   | transition.Stage.ResponseRecorded => ok true
   | transition.Stage.Observed => ok true
   | transition.Stage.ObservedByProvider => ok true
+  | transition.Stage.Acknowledged => ok false
 
 /-- [auths_gateway_kernel::transition::observed_stage]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 168:0-177:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 203:0-214:1
     Visibility: public -/
 def transition.observed_stage (stage : transition.Stage) : Result Bool := do
   match stage with
-  | transition.Stage.Attempting => ok false
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok false
   | transition.Stage.NotEntered => ok false
   | transition.Stage.Unknown => ok false
   | transition.Stage.ResponseRecorded => ok false
   | transition.Stage.Observed => ok true
   | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.Acknowledged => ok false
 
 /-- [auths_gateway_kernel::transition::provider_stage]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 181:0-190:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 218:0-229:1
     Visibility: public -/
 def transition.provider_stage (stage : transition.Stage) : Result Bool := do
   match stage with
-  | transition.Stage.Attempting => ok false
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok false
   | transition.Stage.NotEntered => ok false
   | transition.Stage.Unknown => ok false
   | transition.Stage.ResponseRecorded => ok false
   | transition.Stage.Observed => ok false
   | transition.Stage.ObservedByProvider => ok true
+  | transition.Stage.Acknowledged => ok false
 
 /-- [auths_gateway_kernel::transition::has_reading]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 203:0-208:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 244:0-249:1
     Visibility: public -/
 def transition.has_reading (reading : transition.Reading) : Result Bool := do
   match reading with
@@ -2460,217 +2381,401 @@ def transition.has_reading (reading : transition.Reading) : Result Bool := do
   | transition.Reading.Mismatch => ok true
   | transition.Reading.EchoMismatch => ok true
 
+/-- [auths_gateway_kernel::transition::requires_entry]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 336:0-346:1
+    Visibility: public -/
+def transition.requires_entry (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok true
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok true
+  | transition.Stage.ResponseRecorded => ok true
+  | transition.Stage.Observed => ok true
+  | transition.Stage.ObservedByProvider => ok true
+  | transition.Stage.Acknowledged => ok true
+
+/-- [auths_gateway_kernel::transition::acknowledgement_stage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 278:0-280:1
+    Visibility: public -/
+def transition.acknowledgement_stage
+  (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Reserved => ok false
+  | transition.Stage.EntryGranted => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok false
+  | transition.Stage.Observed => ok false
+  | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.Acknowledged => ok true
+
+/-- [auths_gateway_kernel::transition::protocol_consistent]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 285:0-321:1
+    Visibility: public -/
+def transition.protocol_consistent
+  (view : transition.AttemptView) : Result Bool := do
+  match view.protocol with
+  | transition.Protocol.Mutation =>
+    let b ← transition.acknowledgement_stage view.stage
+    if b
+    then ok false
+    else let s := alloc.vec.Vec.deref view.acknowledgement
+         transition.absent s
+  | transition.Protocol.Acquisition =>
+    let b ←
+      match view.stage with
+      | transition.Stage.Reserved => ok true
+      | transition.Stage.EntryGranted => ok true
+      | transition.Stage.NotEntered => ok true
+      | transition.Stage.Unknown => ok true
+      | transition.Stage.ResponseRecorded => ok true
+      | transition.Stage.Observed => ok false
+      | transition.Stage.ObservedByProvider => ok false
+      | transition.Stage.Acknowledged => ok false
+    if b
+    then
+      let s := alloc.vec.Vec.deref view.acknowledgement
+      let b1 ← transition.absent s
+      if b1
+      then
+        let s1 := alloc.vec.Vec.deref view.pre_entry
+        let b2 ← transition.absent s1
+        if b2
+        then
+          let s2 := alloc.vec.Vec.deref view.locator
+          let b3 ← transition.absent s2
+          if b3
+          then
+            if view.observation
+            then ok false
+            else
+              if view.evidence
+              then ok false
+              else
+                let b4 ←
+                  match view.reading with
+                  | transition.Reading.None => ok true
+                  | transition.Reading.Match => ok false
+                  | transition.Reading.Mismatch => ok false
+                  | transition.Reading.EchoMismatch => ok false
+                if b4
+                then
+                  match view.link with
+                  | transition.Link.None => ok true
+                  | transition.Link.Verified => ok false
+                  | transition.Link.AfterResponse => ok false
+                else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  | transition.Protocol.Disclosure =>
+    let b ←
+      match view.stage with
+      | transition.Stage.Reserved => ok true
+      | transition.Stage.EntryGranted => ok true
+      | transition.Stage.NotEntered => ok true
+      | transition.Stage.Unknown => ok true
+      | transition.Stage.ResponseRecorded => ok false
+      | transition.Stage.Observed => ok false
+      | transition.Stage.ObservedByProvider => ok false
+      | transition.Stage.Acknowledged => ok true
+    if b
+    then
+      let s := alloc.vec.Vec.deref view.response
+      let b1 ← transition.absent s
+      if b1
+      then
+        let s1 := alloc.vec.Vec.deref view.pre_entry
+        let b2 ← transition.absent s1
+        if b2
+        then
+          let s2 := alloc.vec.Vec.deref view.locator
+          let b3 ← transition.absent s2
+          if b3
+          then
+            if view.observation
+            then ok false
+            else
+              if view.evidence
+              then ok false
+              else
+                let b4 ←
+                  match view.reading with
+                  | transition.Reading.None => ok true
+                  | transition.Reading.Match => ok false
+                  | transition.Reading.Mismatch => ok false
+                  | transition.Reading.EchoMismatch => ok false
+                if b4
+                then
+                  match view.link with
+                  | transition.Link.None => ok true
+                  | transition.Link.Verified => ok false
+                  | transition.Link.AfterResponse => ok false
+                else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+
 /-- [auths_gateway_kernel::transition::consistent]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 217:0-228:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 258:0-274:1
     Visibility: public -/
 def transition.consistent (view : transition.AttemptView) : Result Bool := do
   let s := alloc.vec.Vec.deref view.response
   let b ← transition.absent s
-  let b1 ← transition.refusal_stage view.stage
-  if b1 = view.refusal
+  let b1 ← transition.protocol_consistent view
+  if b1
   then
-    let b2 ← transition.requires_response view.stage
-    if b2
+    if view.revision > 0#u64
     then
-      if ¬ b
+      if view.revision <= 9007199254740991#u64
       then
-        let b3 ← transition.permits_response view.stage
-        if b3
-        then
-          let s1 := alloc.vec.Vec.deref view.locator
-          let b4 ← transition.absent s1
-          if b4
-          then
-            let b5 ← transition.observed_stage view.stage
-            let b6 ← transition.has_reading view.reading
-            if b5 = b6
-            then
-              if b6
-              then
-                if view.observation
-                then
-                  let b7 ← transition.provider_stage view.stage
-                  if b7 = view.evidence
-                  then
-                    if view.evidence
-                    then
-                      let b8 ← transition.has_link view.link
-                      if b8
-                      then ok true
-                      else ok false
-                    else ok true
-                  else ok false
-                else ok false
-              else
-                let b7 ← transition.provider_stage view.stage
-                if b7 = view.evidence
-                then
-                  if view.evidence
-                  then
-                    let b8 ← transition.has_link view.link
-                    if b8
-                    then ok true
-                    else ok false
-                  else ok true
-                else ok false
-            else ok false
-          else
-            let b5 ← transition.observed_stage view.stage
-            let b6 ← transition.has_reading view.reading
-            if b5 = b6
-            then
-              if b6
-              then
-                if view.observation
-                then
-                  let b7 ← transition.provider_stage view.stage
-                  if b7 = view.evidence
-                  then
-                    if view.evidence
-                    then
-                      let b8 ← transition.has_link view.link
-                      if b8
-                      then ok true
-                      else ok false
-                    else ok true
-                  else ok false
-                else ok false
-              else
-                let b7 ← transition.provider_stage view.stage
-                if b7 = view.evidence
-                then
-                  if view.evidence
-                  then
-                    let b8 ← transition.has_link view.link
-                    if b8
-                    then ok true
-                    else ok false
-                  else ok true
-                else ok false
-            else ok false
-        else ok false
-      else ok false
-    else
-      if ¬ b
-      then
-        let b3 ← transition.permits_response view.stage
-        if b3
-        then
-          let s1 := alloc.vec.Vec.deref view.locator
-          let b4 ← transition.absent s1
-          if b4
-          then
-            let b5 ← transition.observed_stage view.stage
-            let b6 ← transition.has_reading view.reading
-            if b5 = b6
-            then
-              if b6
-              then
-                if view.observation
-                then
-                  let b7 ← transition.provider_stage view.stage
-                  if b7 = view.evidence
-                  then
-                    if view.evidence
-                    then
-                      let b8 ← transition.has_link view.link
-                      if b8
-                      then ok true
-                      else ok false
-                    else ok true
-                  else ok false
-                else ok false
-              else
-                let b7 ← transition.provider_stage view.stage
-                if b7 = view.evidence
-                then
-                  if view.evidence
-                  then
-                    let b8 ← transition.has_link view.link
-                    if b8
-                    then ok true
-                    else ok false
-                  else ok true
-                else ok false
-            else ok false
-          else
-            let b5 ← transition.observed_stage view.stage
-            let b6 ← transition.has_reading view.reading
-            if b5 = b6
-            then
-              if b6
-              then
-                if view.observation
-                then
-                  let b7 ← transition.provider_stage view.stage
-                  if b7 = view.evidence
-                  then
-                    if view.evidence
-                    then
-                      let b8 ← transition.has_link view.link
-                      if b8
-                      then ok true
-                      else ok false
-                    else ok true
-                  else ok false
-                else ok false
-              else
-                let b7 ← transition.provider_stage view.stage
-                if b7 = view.evidence
-                then
-                  if view.evidence
-                  then
-                    let b8 ← transition.has_link view.link
-                    if b8
-                    then ok true
-                    else ok false
-                  else ok true
-                else ok false
-            else ok false
-        else ok false
-      else
-        let s1 := alloc.vec.Vec.deref view.locator
+        let b2 ← transition.requires_entry view.stage
+        let s1 := alloc.vec.Vec.deref view.entry
         let b3 ← transition.absent s1
-        if b3
+        if b2 != b3
         then
-          let b4 ← transition.observed_stage view.stage
-          let b5 ← transition.has_reading view.reading
-          if b4 = b5
+          let b4 ← transition.acknowledgement_stage view.stage
+          let s2 := alloc.vec.Vec.deref view.acknowledgement
+          let b5 ← transition.absent s2
+          if b4 != b5
           then
-            if b5
+            let b6 ← transition.refusal_stage view.stage
+            if b6 = view.refusal
             then
-              if view.observation
+              let b7 ← transition.requires_response view.stage
+              if b7
               then
-                let b6 ← transition.provider_stage view.stage
-                if b6 = view.evidence
+                if ¬ b
                 then
-                  if view.evidence
+                  let b8 ← transition.permits_response view.stage
+                  if b8
                   then
-                    let b7 ← transition.has_link view.link
-                    if b7
-                    then transition.resolves_unknown view.link
-                    else ok false
-                  else ok true
-                else ok false
-              else ok false
-            else
-              let b6 ← transition.provider_stage view.stage
-              if b6 = view.evidence
-              then
-                if view.evidence
-                then
-                  let b7 ← transition.has_link view.link
-                  if b7
-                  then transition.resolves_unknown view.link
+                    let s3 := alloc.vec.Vec.deref view.locator
+                    let b9 ← transition.absent s3
+                    if b9
+                    then
+                      let b10 ← transition.observed_stage view.stage
+                      let b11 ← transition.has_reading view.reading
+                      if b10 = b11
+                      then
+                        if b11
+                        then
+                          if view.observation
+                          then
+                            let b12 ← transition.provider_stage view.stage
+                            if b12 = view.evidence
+                            then
+                              if view.evidence
+                              then
+                                let b13 ← transition.has_link view.link
+                                if b13
+                                then ok true
+                                else ok false
+                              else ok true
+                            else ok false
+                          else ok false
+                        else
+                          let b12 ← transition.provider_stage view.stage
+                          if b12 = view.evidence
+                          then
+                            if view.evidence
+                            then
+                              let b13 ← transition.has_link view.link
+                              if b13
+                              then ok true
+                              else ok false
+                            else ok true
+                          else ok false
+                      else ok false
+                    else
+                      let b10 ← transition.observed_stage view.stage
+                      let b11 ← transition.has_reading view.reading
+                      if b10 = b11
+                      then
+                        if b11
+                        then
+                          if view.observation
+                          then
+                            let b12 ← transition.provider_stage view.stage
+                            if b12 = view.evidence
+                            then
+                              if view.evidence
+                              then
+                                let b13 ← transition.has_link view.link
+                                if b13
+                                then ok true
+                                else ok false
+                              else ok true
+                            else ok false
+                          else ok false
+                        else
+                          let b12 ← transition.provider_stage view.stage
+                          if b12 = view.evidence
+                          then
+                            if view.evidence
+                            then
+                              let b13 ← transition.has_link view.link
+                              if b13
+                              then ok true
+                              else ok false
+                            else ok true
+                          else ok false
+                      else ok false
                   else ok false
-                else ok true
-              else ok false
+                else ok false
+              else
+                if ¬ b
+                then
+                  let b8 ← transition.permits_response view.stage
+                  if b8
+                  then
+                    let s3 := alloc.vec.Vec.deref view.locator
+                    let b9 ← transition.absent s3
+                    if b9
+                    then
+                      let b10 ← transition.observed_stage view.stage
+                      let b11 ← transition.has_reading view.reading
+                      if b10 = b11
+                      then
+                        if b11
+                        then
+                          if view.observation
+                          then
+                            let b12 ← transition.provider_stage view.stage
+                            if b12 = view.evidence
+                            then
+                              if view.evidence
+                              then
+                                let b13 ← transition.has_link view.link
+                                if b13
+                                then ok true
+                                else ok false
+                              else ok true
+                            else ok false
+                          else ok false
+                        else
+                          let b12 ← transition.provider_stage view.stage
+                          if b12 = view.evidence
+                          then
+                            if view.evidence
+                            then
+                              let b13 ← transition.has_link view.link
+                              if b13
+                              then ok true
+                              else ok false
+                            else ok true
+                          else ok false
+                      else ok false
+                    else
+                      let b10 ← transition.observed_stage view.stage
+                      let b11 ← transition.has_reading view.reading
+                      if b10 = b11
+                      then
+                        if b11
+                        then
+                          if view.observation
+                          then
+                            let b12 ← transition.provider_stage view.stage
+                            if b12 = view.evidence
+                            then
+                              if view.evidence
+                              then
+                                let b13 ← transition.has_link view.link
+                                if b13
+                                then ok true
+                                else ok false
+                              else ok true
+                            else ok false
+                          else ok false
+                        else
+                          let b12 ← transition.provider_stage view.stage
+                          if b12 = view.evidence
+                          then
+                            if view.evidence
+                            then
+                              let b13 ← transition.has_link view.link
+                              if b13
+                              then ok true
+                              else ok false
+                            else ok true
+                          else ok false
+                      else ok false
+                  else ok false
+                else
+                  let s3 := alloc.vec.Vec.deref view.locator
+                  let b8 ← transition.absent s3
+                  if b8
+                  then
+                    let b9 ← transition.observed_stage view.stage
+                    let b10 ← transition.has_reading view.reading
+                    if b9 = b10
+                    then
+                      if b10
+                      then
+                        if view.observation
+                        then
+                          let b11 ← transition.provider_stage view.stage
+                          if b11 = view.evidence
+                          then
+                            if view.evidence
+                            then
+                              let b12 ← transition.has_link view.link
+                              if b12
+                              then transition.resolves_unknown view.link
+                              else ok false
+                            else ok true
+                          else ok false
+                        else ok false
+                      else
+                        let b11 ← transition.provider_stage view.stage
+                        if b11 = view.evidence
+                        then
+                          if view.evidence
+                          then
+                            let b12 ← transition.has_link view.link
+                            if b12
+                            then transition.resolves_unknown view.link
+                            else ok false
+                          else ok true
+                        else ok false
+                    else ok false
+                  else ok false
+            else ok false
           else ok false
         else ok false
+      else ok false
+    else ok false
   else ok false
 
+/-- [auths_gateway_kernel::transition::same_protocol]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 325:0-332:1
+    Visibility: public -/
+def transition.same_protocol
+  (left : transition.Protocol) (right : transition.Protocol) :
+  Result Bool
+  := do
+  match left with
+  | transition.Protocol.Mutation =>
+    match right with
+    | transition.Protocol.Mutation => ok true
+    | transition.Protocol.Acquisition => ok false
+    | transition.Protocol.Disclosure => ok false
+  | transition.Protocol.Acquisition =>
+    match right with
+    | transition.Protocol.Mutation => ok false
+    | transition.Protocol.Acquisition => ok true
+    | transition.Protocol.Disclosure => ok false
+  | transition.Protocol.Disclosure =>
+    match right with
+    | transition.Protocol.Mutation => ok false
+    | transition.Protocol.Acquisition => ok false
+    | transition.Protocol.Disclosure => ok true
+
 /-- [auths_gateway_kernel::transition::stage_transition_allowed]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 235:0-260:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 352:0-373:1
     Visibility: public -/
 def transition.stage_transition_allowed
   (from1 : transition.Stage) (to1 : transition.Stage) (link : transition.Link)
@@ -2678,106 +2783,199 @@ def transition.stage_transition_allowed
   Result Bool
   := do
   match from1 with
-  | transition.Stage.Attempting =>
+  | transition.Stage.Reserved =>
     match to1 with
-    | transition.Stage.Attempting => ok true
+    | transition.Stage.Reserved => ok true
+    | transition.Stage.EntryGranted => ok true
     | transition.Stage.NotEntered => ok true
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  | transition.Stage.EntryGranted =>
+    match to1 with
+    | transition.Stage.Reserved => ok false
+    | transition.Stage.EntryGranted => ok false
+    | transition.Stage.NotEntered => ok false
     | transition.Stage.Unknown => ok true
     | transition.Stage.ResponseRecorded => ok true
     | transition.Stage.Observed => ok false
     | transition.Stage.ObservedByProvider => transition.resolves_unknown link
+    | transition.Stage.Acknowledged => ok true
   | transition.Stage.NotEntered => ok false
   | transition.Stage.Unknown =>
     match to1 with
-    | transition.Stage.Attempting => ok false
+    | transition.Stage.Reserved => ok false
+    | transition.Stage.EntryGranted => ok false
     | transition.Stage.NotEntered => ok false
     | transition.Stage.Unknown => ok false
-    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.ResponseRecorded => ok true
     | transition.Stage.Observed => ok false
     | transition.Stage.ObservedByProvider => transition.resolves_unknown link
+    | transition.Stage.Acknowledged => ok true
   | transition.Stage.ResponseRecorded =>
     match to1 with
-    | transition.Stage.Attempting => ok false
+    | transition.Stage.Reserved => ok false
+    | transition.Stage.EntryGranted => ok false
     | transition.Stage.NotEntered => ok false
     | transition.Stage.Unknown => ok false
     | transition.Stage.ResponseRecorded => ok false
     | transition.Stage.Observed => ok true
     | transition.Stage.ObservedByProvider => ok true
+    | transition.Stage.Acknowledged => ok false
   | transition.Stage.Observed => ok false
   | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.Acknowledged => ok false
 
 /-- [auths_gateway_kernel::transition::adds_pre_entry]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 265:0-280:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 377:0-379:1
     Visibility: public -/
 def transition.adds_pre_entry
   (from1 : transition.Stage) (to1 : transition.Stage) : Result Bool := do
-  match from1 with
-  | transition.Stage.Attempting =>
+  let b ←
+    match from1 with
+    | transition.Stage.Reserved => ok true
+    | transition.Stage.EntryGranted => ok false
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  if b
+  then
     match to1 with
-    | transition.Stage.Attempting => ok true
+    | transition.Stage.Reserved => ok true
+    | transition.Stage.EntryGranted => ok false
     | transition.Stage.NotEntered => ok true
     | transition.Stage.Unknown => ok false
     | transition.Stage.ResponseRecorded => ok false
     | transition.Stage.Observed => ok false
     | transition.Stage.ObservedByProvider => ok false
-  | transition.Stage.NotEntered => ok false
-  | transition.Stage.Unknown => ok false
-  | transition.Stage.ResponseRecorded => ok false
-  | transition.Stage.Observed => ok false
-  | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  else ok false
 
 /-- [auths_gateway_kernel::transition::adds_response]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 284:0-300:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 383:0-385:1
     Visibility: public -/
 def transition.adds_response
   (from1 : transition.Stage) (to1 : transition.Stage) : Result Bool := do
-  match from1 with
-  | transition.Stage.Attempting =>
+  let b ←
+    match from1 with
+    | transition.Stage.Reserved => ok false
+    | transition.Stage.EntryGranted => ok true
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok true
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  if b
+  then
     match to1 with
-    | transition.Stage.Attempting => ok false
+    | transition.Stage.Reserved => ok false
+    | transition.Stage.EntryGranted => ok false
     | transition.Stage.NotEntered => ok false
     | transition.Stage.Unknown => ok false
     | transition.Stage.ResponseRecorded => ok true
     | transition.Stage.Observed => ok false
     | transition.Stage.ObservedByProvider => ok false
-  | transition.Stage.NotEntered => ok false
-  | transition.Stage.Unknown => ok false
-  | transition.Stage.ResponseRecorded => ok false
-  | transition.Stage.Observed => ok false
-  | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  else ok false
 
 /-- [auths_gateway_kernel::transition::checkpoint_valid]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 305:0-321:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 389:0-395:1
     Visibility: public -/
 def transition.checkpoint_valid
   (old : transition.AttemptView) (new : transition.AttemptView) :
   Result Bool
   := do
-  match old.stage with
-  | transition.Stage.Attempting =>
-    match new.stage with
-    | transition.Stage.Attempting =>
+  let b ←
+    match old.stage with
+    | transition.Stage.Reserved => ok true
+    | transition.Stage.EntryGranted => ok false
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  if b
+  then
+    let b1 ←
+      match new.stage with
+      | transition.Stage.Reserved => ok true
+      | transition.Stage.EntryGranted => ok false
+      | transition.Stage.NotEntered => ok false
+      | transition.Stage.Unknown => ok false
+      | transition.Stage.ResponseRecorded => ok false
+      | transition.Stage.Observed => ok false
+      | transition.Stage.ObservedByProvider => ok false
+      | transition.Stage.Acknowledged => ok false
+    if b1
+    then
       let s := alloc.vec.Vec.deref old.pre_entry
-      let b ← transition.absent s
-      if b
+      let b2 ← transition.absent s
+      if b2
       then
         let s1 := alloc.vec.Vec.deref new.pre_entry
-        let b1 ← transition.absent s1
-        ok (¬ b1)
+        let b3 ← transition.absent s1
+        ok (¬ b3)
       else ok false
-    | transition.Stage.NotEntered => ok true
-    | transition.Stage.Unknown => ok true
-    | transition.Stage.ResponseRecorded => ok true
-    | transition.Stage.Observed => ok true
-    | transition.Stage.ObservedByProvider => ok true
-  | transition.Stage.NotEntered => ok true
-  | transition.Stage.Unknown => ok true
-  | transition.Stage.ResponseRecorded => ok true
-  | transition.Stage.Observed => ok true
-  | transition.Stage.ObservedByProvider => ok true
+    else ok true
+  else ok true
+
+/-- [auths_gateway_kernel::transition::entry_kept]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 399:0-405:1
+    Visibility: public -/
+def transition.entry_kept
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  let b ←
+    match old.stage with
+    | transition.Stage.Reserved => ok true
+    | transition.Stage.EntryGranted => ok false
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  if b
+  then
+    let b1 ←
+      match new.stage with
+      | transition.Stage.Reserved => ok false
+      | transition.Stage.EntryGranted => ok true
+      | transition.Stage.NotEntered => ok false
+      | transition.Stage.Unknown => ok false
+      | transition.Stage.ResponseRecorded => ok false
+      | transition.Stage.Observed => ok false
+      | transition.Stage.ObservedByProvider => ok false
+      | transition.Stage.Acknowledged => ok false
+    if b1
+    then
+      let s := alloc.vec.Vec.deref old.entry
+      let b2 ← transition.absent s
+      if b2
+      then
+        let s1 := alloc.vec.Vec.deref new.entry
+        let b3 ← transition.absent s1
+        ok (¬ b3)
+      else ok false
+    else
+      let s := alloc.vec.Vec.deref old.entry
+      let s1 := alloc.vec.Vec.deref new.entry
+      transition.same_bytes s s1
+  else
+    let s := alloc.vec.Vec.deref old.entry
+    let s1 := alloc.vec.Vec.deref new.entry
+    transition.same_bytes s s1
 
 /-- [auths_gateway_kernel::transition::pre_entry_kept]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 326:0-332:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 410:0-416:1
     Visibility: public -/
 def transition.pre_entry_kept
   (old : transition.AttemptView) (new : transition.AttemptView) :
@@ -2798,7 +2996,7 @@ def transition.pre_entry_kept
     transition.same_bytes s1 s2
 
 /-- [auths_gateway_kernel::transition::response_kept]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 337:0-340:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 421:0-424:1
     Visibility: public -/
 def transition.response_kept
   (old : transition.AttemptView) (new : transition.AttemptView) :
@@ -2818,8 +3016,47 @@ def transition.response_kept
       transition.same_bytes s2 s3
     else ok false
 
+/-- [auths_gateway_kernel::transition::acknowledgement_kept]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 429:0-436:1
+    Visibility: public -/
+def transition.acknowledgement_kept
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  let b ←
+    match old.stage with
+    | transition.Stage.Reserved => ok false
+    | transition.Stage.EntryGranted => ok true
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok true
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+    | transition.Stage.Acknowledged => ok false
+  if b
+  then
+    let b1 ← transition.acknowledgement_stage new.stage
+    if b1
+    then
+      let s := alloc.vec.Vec.deref old.acknowledgement
+      let b2 ← transition.absent s
+      if b2
+      then
+        let s1 := alloc.vec.Vec.deref new.acknowledgement
+        let b3 ← transition.absent s1
+        ok (¬ b3)
+      else ok false
+    else
+      let s := alloc.vec.Vec.deref old.acknowledgement
+      let s1 := alloc.vec.Vec.deref new.acknowledgement
+      transition.same_bytes s s1
+  else
+    let s := alloc.vec.Vec.deref old.acknowledgement
+    let s1 := alloc.vec.Vec.deref new.acknowledgement
+    transition.same_bytes s s1
+
 /-- [auths_gateway_kernel::transition::link_equal]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 350:0-365:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 459:0-474:1
     Visibility: public -/
 def transition.link_equal
   (left : transition.Link) (right : transition.Link) : Result Bool := do
@@ -2841,7 +3078,7 @@ def transition.link_equal
     | transition.Link.AfterResponse => ok true
 
 /-- [auths_gateway_kernel::transition::plan_kept]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 344:0-346:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 453:0-455:1
     Visibility: public -/
 def transition.plan_kept
   (old : transition.AttemptView) (new : transition.AttemptView) :
@@ -2852,33 +3089,57 @@ def transition.plan_kept
   else ok false
 
 /-- [auths_gateway_kernel::transition::valid_transition]:
-    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 373:0-381:1
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 482:0-496:1
     Visibility: public -/
 def transition.valid_transition
   (old : transition.AttemptView) (new : transition.AttemptView) :
   Result Bool
   := do
-  let s := alloc.vec.Vec.deref old.fixed
-  let s1 := alloc.vec.Vec.deref new.fixed
-  let b ← transition.same_bytes s s1
+  let b ← transition.same_protocol old.protocol new.protocol
   if b
   then
-    let b1 ← transition.plan_kept old new
-    if b1
+    if old.revision < 9007199254740991#u64
     then
-      let b2 ←
-        transition.stage_transition_allowed old.stage new.stage old.link
-      if b2
+      let i ← old.revision + 1#u64
+      if new.revision = i
       then
-        let b3 ← transition.checkpoint_valid old new
-        if b3
+        let b1 ← transition.consistent old
+        if b1
         then
-          let b4 ← transition.pre_entry_kept old new
-          if b4
+          let b2 ← transition.entry_kept old new
+          if b2
           then
-            let b5 ← transition.response_kept old new
-            if b5
-            then transition.consistent new
+            let s := alloc.vec.Vec.deref old.fixed
+            let s1 := alloc.vec.Vec.deref new.fixed
+            let b3 ← transition.same_bytes s s1
+            if b3
+            then
+              let b4 ← transition.plan_kept old new
+              if b4
+              then
+                let b5 ←
+                  transition.stage_transition_allowed old.stage new.stage
+                    old.link
+                if b5
+                then
+                  let b6 ← transition.checkpoint_valid old new
+                  if b6
+                  then
+                    let b7 ← transition.pre_entry_kept old new
+                    if b7
+                    then
+                      let b8 ← transition.response_kept old new
+                      if b8
+                      then
+                        let b9 ← transition.acknowledgement_kept old new
+                        if b9
+                        then transition.consistent new
+                        else ok false
+                      else ok false
+                    else ok false
+                  else ok false
+                else ok false
+              else ok false
             else ok false
           else ok false
         else ok false

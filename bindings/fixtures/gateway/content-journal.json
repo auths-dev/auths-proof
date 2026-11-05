@@ -1,0 +1,476 @@
+{
+  "schema": "auths.gateway-content-journal-fixture/3",
+  "scope": "native signed compilation, installed file admission/entry, real bounded HTTP, reopened journal replay; no disclosure or process/PostgreSQL qualification",
+  "permanent_source_attempts": 16,
+  "real_http_requests": 15,
+  "protected_content_mutations_refused": true,
+  "same_content_foreign_source_refused": true,
+  "history": [
+    {
+      "case": 0,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 25
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 1,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-encoding"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "single",
+          "value": "gzip"
+        }
+      }
+    },
+    {
+      "case": 2,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-media-type"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "invalid"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 3,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-media-type"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "missing"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 4,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-encoding"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "invalid"
+        }
+      }
+    },
+    {
+      "case": 5,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-media-type"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "application/json"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 6,
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "private_response_metadata": null
+    },
+    {
+      "case": 7,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 403,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-status"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 8,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 25
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 9,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 0,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 0
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 10,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 64,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 64
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 11,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 65,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.content-too-large"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 12,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 1,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.invalid-response"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": 13,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": true,
+        "content_projection": {
+          "kind": "ready",
+          "bytes": 25
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "single",
+          "value": "identity"
+        }
+      }
+    },
+    {
+      "case": 14,
+      "snapshot": {
+        "revision": 3,
+        "stage": "response-recorded",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": 200,
+        "response_bytes": 25,
+        "response_version_ok": false,
+        "content_projection": {
+          "kind": "rejected",
+          "code": "gateway.content.response-version"
+        }
+      },
+      "private_response_metadata": {
+        "media_type": {
+          "kind": "single",
+          "value": "text/plain"
+        },
+        "encoding": {
+          "kind": "missing"
+        }
+      }
+    },
+    {
+      "case": "lost-permit",
+      "snapshot": {
+        "revision": 3,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 1024,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    },
+    {
+      "case": "source-exhausted",
+      "snapshot": {
+        "revision": 1,
+        "stage": "not-entered",
+        "reserved_calls": 0,
+        "reserved_bytes": 0,
+        "policy_count_counters": 0,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      }
+    }
+  ],
+  "disclosure_compilation": [
+    {
+      "bytes": 25,
+      "native_release_compiled": true,
+      "read_authority_refused": true,
+      "no_provider_prerequisites": true,
+      "managed_disclosure_count_and_bytes": true,
+      "acquisition_budget_argument_refused": true,
+      "substitutions_refused": [
+        "channel",
+        "instance",
+        "recipient"
+      ],
+      "different_partition_refused": true,
+      "new_operation_retains_capacity_keys": true,
+      "old_approval_refused": true,
+      "exact_ack_validates": true,
+      "scope": "compilation and evidence only; no delivery grant or transport"
+    },
+    {
+      "bytes": 0,
+      "native_release_compiled": true,
+      "read_authority_refused": true,
+      "no_provider_prerequisites": true,
+      "managed_disclosure_count_and_bytes": true,
+      "acquisition_budget_argument_refused": true,
+      "substitutions_refused": [
+        "channel",
+        "instance",
+        "recipient"
+      ],
+      "different_partition_refused": true,
+      "new_operation_retains_capacity_keys": true,
+      "old_approval_refused": true,
+      "exact_ack_validates": true,
+      "scope": "compilation and evidence only; no delivery grant or transport"
+    }
+  ],
+  "disclosure_journal": {
+    "fixture": "disclosure-journal.json",
+    "admissions": 16,
+    "refusals": 2,
+    "journal_only_delivered_bytes": 0,
+    "unix_delivery_fixture": "disclosure-delivery.json"
+  }
+}

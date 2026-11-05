@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import http.client
 import ipaddress
-import json
 import queue
 import socket
 import ssl
@@ -18,21 +17,14 @@ import certifi
 
 from .contracts import MAX_METADATA_BYTES, ReadCommand, TaskDescriptor
 from .token_store import TokenVault
+from .google_metadata import (
+    DriveRepresentation, GoogleDenied, GoogleUnavailable, validate_metadata,
+)
 
 HOST = "www.googleapis.com"
-DOC_MIME = "application/vnd.google-apps.document"
-TEXT_MIME = "text/plain"
 METADATA_LIMIT = MAX_METADATA_BYTES
 REQUEST_DEADLINE_SECONDS = 15
 _DNS_SLOTS = threading.BoundedSemaphore(4)
-
-
-class GoogleDenied(PermissionError):
-    """Provider refusal; no private file detail is included."""
-
-
-class GoogleUnavailable(RuntimeError):
-    """Transport or malformed provider result; retry needs fresh admission."""
 
 
 @dataclass
@@ -217,7 +209,7 @@ class GoogleDriveReader:
     def set_attempt_observer(self, observer: ProviderAttemptObserver) -> None:
         self.trace.observer = observer
 
-    def _metadata(self, command: ReadCommand) -> tuple[dict, str]:
+    def _metadata(self, command: ReadCommand) -> tuple[DriveRepresentation, str]:
         if command not in self.task.calls():
             raise GoogleDenied("document is outside approved task")
         if int(time.time()) >= self.task.expires_at:
@@ -232,23 +224,7 @@ class GoogleDriveReader:
             raise GoogleDenied("Google refused document metadata")
         if status != 200 or "application/json" not in content_type:
             raise GoogleUnavailable("Google metadata request was unsuccessful")
-        try:
-            metadata = json.loads(body)
-        except (ValueError, UnicodeDecodeError) as error:
-            raise GoogleUnavailable("Google metadata is malformed") from error
-        if not isinstance(metadata, dict) or metadata.get("id") != command.file_id or metadata.get("trashed") is True:
-            raise GoogleDenied("Google document metadata did not match")
-        capabilities = metadata.get("capabilities")
-        if not isinstance(capabilities, dict) or capabilities.get("canDownload") is not True:
-            raise GoogleDenied("Google does not permit download")
-        mime = metadata.get("mimeType")
-        if mime not in {DOC_MIME, TEXT_MIME}:
-            raise GoogleDenied("unsupported Google document type")
-        if mime == TEXT_MIME:
-            size = metadata.get("size")
-            if size is not None and (not str(size).isdecimal() or int(size) > command.max_bytes):
-                raise GoogleDenied("document exceeds approved byte limit")
-        return metadata, lease.access_token
+        return validate_metadata(body, command), lease.access_token
 
     def inspect_exact(self, command: ReadCommand) -> None:
         """Check employee-readable metadata without fetching document content."""
@@ -259,10 +235,9 @@ class GoogleDriveReader:
     def read_exact(self, command: ReadCommand) -> bytes:
         self.trace = ProviderTrace(observer=self.trace.observer,
                                    task_expires_at=self.task.expires_at)
-        metadata, access_token = self._metadata(command)
+        representation, access_token = self._metadata(command)
         file_id = quote(command.file_id, safe="")
-        mime = metadata["mimeType"]
-        if mime == DOC_MIME:
+        if representation is DriveRepresentation.GOOGLE_DOCUMENT:
             path = f"/drive/v3/files/{file_id}/export?mimeType=text%2Fplain"
         else:
             path = f"/drive/v3/files/{file_id}?alt=media"

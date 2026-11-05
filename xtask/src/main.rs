@@ -58,7 +58,7 @@ pub(crate) use sdk_vocabulary::*;
 pub(crate) use semantic_freeze::*;
 pub(crate) use stripe::*;
 
-const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal coverage [--update]|formal mutations <s1|s2|s3|all> [--update] [--jobs <n>]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>";
+const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal coverage [--update]|formal mutations <s1|s2|s3|all> [--update] [--jobs <n>]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-lean-reuse|formal-kani|formal-evidence|compliance]|release-check>";
 
 fn main() -> ExitCode {
     match run() {
@@ -90,11 +90,12 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
                 }
                 [phase] if phase == "formal-translation-reuse" => ci_formal_translation_reuse(),
                 [phase] if phase == "formal-lean-authoritative" => ci_formal_lean_authoritative(),
+                [phase] if phase == "formal-lean-reuse" => ci_formal_lean_reuse(),
                 [phase] if phase == "formal-kani" => ci_formal_kani(),
                 [phase] if phase == "formal-evidence" => ci_formal_evidence(),
                 [phase] if phase == "compliance" => ci_compliance(),
                 _ => Err(format!(
-                    "unknown CI phase {}; expected preflight, authoritative, formal-proof-fast, formal-translation-reproduce, formal-translation-reuse, formal-lean-authoritative, formal-kani, formal-evidence, or compliance",
+                    "unknown CI phase {}; expected preflight, authoritative, formal-proof-fast, formal-translation-reproduce, formal-translation-reuse, formal-lean-authoritative, formal-lean-reuse, formal-kani, formal-evidence, or compliance",
                     arguments.join(" ")
                 )),
             }
@@ -190,7 +191,7 @@ mod tests {
     fn help_output_is_stable() {
         assert_eq!(
             USAGE,
-            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal coverage [--update]|formal mutations <s1|s2|s3|all> [--update] [--jobs <n>]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>"
+            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal coverage [--update]|formal mutations <s1|s2|s3|all> [--update] [--jobs <n>]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-lean-reuse|formal-kani|formal-evidence|compliance]|release-check>"
         );
     }
 
@@ -208,7 +209,7 @@ mod tests {
             dispatch(["ci".to_owned(), "unknown".to_owned()]).expect_err("unknown phase must fail");
         assert_eq!(
             error,
-            "unknown CI phase unknown; expected preflight, authoritative, formal-proof-fast, formal-translation-reproduce, formal-translation-reuse, formal-lean-authoritative, formal-kani, formal-evidence, or compliance"
+            "unknown CI phase unknown; expected preflight, authoritative, formal-proof-fast, formal-translation-reproduce, formal-translation-reuse, formal-lean-authoritative, formal-lean-reuse, formal-kani, formal-evidence, or compliance"
         );
     }
 }

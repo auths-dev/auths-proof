@@ -1,0 +1,126 @@
+{
+  "schema": "auths.gateway-recovery-policy-budget-fixture/1",
+  "scope": "native signed bounded read compilation; real file concurrent admission and restart; oracle entry; no provider or PostgreSQL claim",
+  "cases": [
+    {
+      "limit": "count",
+      "maximum_response_bytes": 16384,
+      "prior_unknown_operations": 0,
+      "winning_operations": 1,
+      "uncharged_refusals": [
+        {
+          "revision": 1,
+          "stage": "not-entered",
+          "reserved_calls": 0,
+          "reserved_bytes": 0,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": null,
+          "response_bytes": null,
+          "response_version_ok": null
+        }
+      ],
+      "retained_after_restart": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 0,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "substituted_membership_refused": true,
+      "old_window_entry_refused": true,
+      "new_window_requires_new_binding_and_approval": true,
+      "mutation_counter_identity_distinct": true,
+      "unknown_keeps_policy_charge": true,
+      "rejected_policies": [
+        "different-argument",
+        "response-above-ceiling",
+        "response-above-sum"
+      ]
+    },
+    {
+      "limit": "sum",
+      "maximum_response_bytes": 16384,
+      "prior_unknown_operations": 0,
+      "winning_operations": 1,
+      "uncharged_refusals": [
+        {
+          "revision": 1,
+          "stage": "not-entered",
+          "reserved_calls": 0,
+          "reserved_bytes": 0,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": null,
+          "response_bytes": null,
+          "response_version_ok": null
+        }
+      ],
+      "retained_after_restart": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "substituted_membership_refused": true,
+      "old_window_entry_refused": true,
+      "new_window_requires_new_binding_and_approval": true,
+      "mutation_counter_identity_distinct": true,
+      "unknown_keeps_policy_charge": true,
+      "rejected_policies": [
+        "different-argument",
+        "response-above-ceiling",
+        "response-above-sum"
+      ]
+    },
+    {
+      "limit": "sum-predecessor",
+      "maximum_response_bytes": 16384,
+      "prior_unknown_operations": 1,
+      "winning_operations": 1,
+      "uncharged_refusals": [
+        {
+          "revision": 1,
+          "stage": "not-entered",
+          "reserved_calls": 0,
+          "reserved_bytes": 0,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0,
+          "response_status": null,
+          "response_bytes": null,
+          "response_version_ok": null
+        }
+      ],
+      "retained_after_restart": {
+        "revision": 2,
+        "stage": "unknown",
+        "reserved_calls": 1,
+        "reserved_bytes": 16384,
+        "policy_count_counters": 1,
+        "policy_byte_counters": 1,
+        "response_status": null,
+        "response_bytes": null,
+        "response_version_ok": null
+      },
+      "substituted_membership_refused": true,
+      "old_window_entry_refused": true,
+      "new_window_requires_new_binding_and_approval": true,
+      "mutation_counter_identity_distinct": true,
+      "unknown_keeps_policy_charge": true,
+      "rejected_policies": [
+        "different-argument",
+        "response-above-ceiling",
+        "response-above-sum"
+      ]
+    }
+  ]
+}

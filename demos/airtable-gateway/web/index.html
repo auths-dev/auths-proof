@@ -5,7 +5,8 @@
 <main><p class="eyebrow">Exact authority. A separate execution boundary.</p>
 <h1>Let the app propose a status.<br>Keep the Airtable token out of its hands.</h1>
 <p class="intro">Set one record’s <strong>DemoStatus</strong> in a fixed disposable table.
-The app submits proof and the exact action. The general gateway owns the PATCH and token.</p>
+The app submits proof and the exact action. The general gateway owns the PATCH and token.
+With the authenticated owner UI, separately approve bounded private acquisition and release to the local agent.</p>
 <div id="connection" role="status">Checking the demo…</div>
 <section class="workbench"><article><h2>Approved authority</h2><dl>
 <dt>Fixed base</dt><dd id="base">—</dd><dt>Fixed table</dt><dd id="table">—</dd>
@@ -29,15 +30,20 @@ Another writer can overwrite the record. This profile declares no numeric spend 
 <option value="rate-limit">Provider returns 429</option><option value="provider-error">Provider returns 500</option>
 <option value="malformed-response">Malformed provider JSON</option><option value="oversized-response">Oversized provider response</option>
 <option value="typescript-positive">Fresh update through installed TypeScript client</option><option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read signed stored outcome</option>
-</select><p id="proposal">Each experiment fixes its record, operation and signed arguments.</p>
+<option value="recover-exact">Separately approve and observe the exact operation</option>
+<option value="managed-acquire">Approve bounded private acquisition through Python</option>
+<option value="managed-acquire-typescript">Approve another acquisition through TypeScript</option>
+<option value="managed-disclose">Separately approve disclosure to the local agent</option>
+<option value="managed-content-history">Inspect retained acquisition facts; no new read</option>
+<option value="managed-release-history">Inspect retained recipient ACK; no redelivery</option></select><p id="proposal">Each experiment fixes its record, operation and signed arguments.</p>
 <p id="approval-review" class="small">The native review binds the exact action, authority and expiry.</p>
 <a id="provider-link" hidden target="_blank" rel="noopener noreferrer">Open on Airtable ↗</a>
 <button id="submit" disabled>Submit through the gateway</button>
-<p class="small">Run the exact update before replay. Recovery resubmits the original operation to the native replay boundary;
-only another read can occur. Wait three seconds after response loss before observing again. The local simulator supplies signed responses only for this closed fixture; its UI state is never authority.</p></article></section>
+<p class="small">Run the exact update before replay. Recovery requests a separate native proof and exact approval for a bounded read.
+Replaying the original operation only inspects retained history. Wait three seconds after response loss before observing again. The local simulator supplies signed responses only for this closed fixture; its UI state is never authority.</p></article></section>
 <section class="result" aria-live="polite"><div><p class="eyebrow">Measured native result</p><h2 id="outcome">No action submitted</h2></div>
-<ol class="stages"><li>Verify proof</li><li>Claim operation</li><li>Enter provider</li><li>Record response</li><li>Observe value + echo</li></ol>
-<p id="explanation">Authorization, a recorded HTTP response and a matching fresh value/echo are separate facts.</p>
+<ol class="stages"><li>Verify authority</li><li>Approve exact effect</li><li>Admit and grant</li><li>Enter provider or recipient</li><li>Record response or ACK</li><li>Observe separately</li></ol>
+<p id="explanation">Authorization, an acquisition response, a recipient ACK and a matching fresh value/echo are separate facts.</p>
 <pre id="result-json">{}</pre><a href="/receipt" id="receipt-link">Inspect the evidence →</a></section>
 <section class="limits"><h2>What this run can establish</h2>
 <p>This is a development demo, not protected production qualification. Simulation never reaches Airtable.

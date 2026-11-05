@@ -1,4 +1,4 @@
-"""Proof/action-only application socket behavior with no provider credential."""
+"""Proof/action/exact-approval application socket behavior with no provider credential."""
 
 from __future__ import annotations
 
@@ -29,6 +29,9 @@ from auths.gateway import (
     GatewayProviderEvidence,
     GatewaySignedObservation,
     GatewayUnknown,
+    GatewayReserved,
+    GatewayResponseRecorded,
+    GatewayIndeterminate,
 )
 
 _ECHO = "auths-e1-" + "ab" * 32
@@ -52,8 +55,8 @@ def socket_dir() -> Iterator[Path]:
 def _provider_result(status: object = 200, **evidence: object) -> bytes:
     body = {
         "channel": "read-back",
-        "echo": _ECHO,
-        "evidence_digest": _DIGEST,
+        "schema": "auths.gateway-public-evidence/1",
+        "evidence_commitment": _DIGEST,
         "observed_at": 1_790_000_000,
     }
     body.update(evidence)
@@ -65,7 +68,7 @@ def _provider_result(status: object = 200, **evidence: object) -> bytes:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_sends_only_proof_and_action(socket_dir) -> None:
+def test_client_sends_proof_action_and_native_approval(socket_dir) -> None:
     async def scenario() -> None:
         socket = socket_dir / "gateway.sock"
         seen: list[dict[str, str]] = []
@@ -84,14 +87,15 @@ def test_client_sends_only_proof_and_action(socket_dir) -> None:
         server = await asyncio.start_unix_server(handle, path=str(socket))
         async with server:
             result = await GatewayClient(GatewayEndpoint(socket)).submit(
-                proof=b"proof", action=b"action"
+                proof=b"proof", action=b"action", approval=b"approval"
             )
         assert result == GatewayObserved(status=200, matched=True)
         assert seen == [
             {
-                "schema": "auths.gateway-submit/1",
+                "schema": "auths.gateway-submit/2",
                 "proof_b64": "cHJvb2Y",
                 "action_b64": "YWN0aW9u",
+                "approval_b64": "YXBwcm92YWw",
             }
         ]
 
@@ -103,7 +107,10 @@ def test_client_rejects_invalid_endpoint_and_oversized_input(socket_dir) -> None
         GatewayEndpoint(socket_dir.name)  # type: ignore[arg-type]
     client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
     with pytest.raises(ValueError):
-        asyncio.run(client.submit(proof=b"", action=b"action"))
+        asyncio.run(client.submit(proof=b"", action=b"action", approval=b"approval"))
+    for approval in (b"", b"a" * 4097):
+        with pytest.raises(ValueError):
+            asyncio.run(client.submit(proof=b"p", action=b"a", approval=approval))
 
 
 @pytest.mark.parametrize("code", [
@@ -138,10 +145,39 @@ def test_result_parser_does_not_infer_effect() -> None:
             _parse_result(hostile)
 
 
+def test_result_parser_matches_native_public_evidence_corpus() -> None:
+    from auths.gateway import _parse_result
+
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/gateway/native-public-mutation-evidence-file.json"
+    corpus = json.loads(fixture.read_text())
+    for case in corpus["wire_cases"]:
+        if case["accepted"]:
+            result = _parse_result(case["response"].encode())
+            assert isinstance(result, GatewayObservedByProvider)
+            assert result.evidence.schema == "auths.gateway-public-evidence/1"
+        else:
+            with pytest.raises(GatewayProtocolError):
+                _parse_result(case["response"].encode())
+
+
+def test_all_result_variants_match_native_wire_corpus() -> None:
+    from auths.gateway import _parse_result
+
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/gateway/native-public-mutation-evidence-file.json"
+    corpus = json.loads(fixture.read_text())
+    for case in corpus["result_wire_cases"]:
+        if case["accepted"]:
+            result = _parse_result(case["response"].encode())
+            assert result.outcome == json.loads(case["response"])["outcome"], case["case"]
+        else:
+            with pytest.raises(GatewayProtocolError):
+                _parse_result(case["response"].encode())
+
+
 def test_result_parser_exposes_observed_by_provider_without_evidence_bytes() -> None:
     from auths.gateway import _parse_result
 
-    evidence = GatewayProviderEvidence("read-back", _ECHO, _DIGEST, 1_790_000_000)
+    evidence = GatewayProviderEvidence("read-back", "auths.gateway-public-evidence/1", _DIGEST, 1_790_000_000)
     assert _parse_result(_provider_result()) == GatewayObservedByProvider(200, evidence)
     assert _parse_result(_provider_result(None)) == GatewayObservedByProvider(
         None, evidence
@@ -152,7 +188,11 @@ def test_result_parser_exposes_observed_by_provider_without_evidence_bytes() -> 
         _provider_result(channel="webhook"),
         _provider_result(echo="auths-e1-app-supplied"),
         _provider_result(echo=_ECHO.upper()),
-        _provider_result(evidence_digest="00"),
+        _provider_result(evidence_commitment="00"),
+        _provider_result(evidence_commitment=_DIGEST + "\n"),
+        _provider_result(observed_at=1 << 53),
+        _provider_result(schema="auths.gateway-public-evidence/0"),
+        _provider_result(evidence_digest=_DIGEST),
         _provider_result(observed_at=-1),
         _provider_result(observed_at=True),
         _provider_result(evidence_b64="e30"),
@@ -204,30 +244,23 @@ async def _serve_once(
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_requests_read_back_and_returns_signed_bytes(socket_dir) -> None:
+def test_client_recovery_carries_exact_native_envelope_and_returns_bytes(socket_dir) -> None:
+    corpus = json.loads((Path(__file__).resolve().parents[2] / "fixtures/gateway/application-recovery-frame.json").read_text())
+    request = corpus["request"]
+    def decode(field: str) -> bytes:
+        encoded = request["submission"][field]
+        return base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
     async def scenario() -> None:
         seen: list[dict[str, object]] = []
-        server = await _serve_once(socket_dir / "gateway.sock", _signed(), seen)
+        reply = json.dumps(corpus["cases"][0]["response"]).encode()
+        server = await _serve_once(socket_dir / "gateway.sock", reply, seen)
         async with server:
             client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
-            result = await client.observe_read_back({"record_id": "recTEST0000000001"})
-        assert result == GatewaySignedObservation(
-            "auths.gateway-readback/1",
-            _SUBJECT,
-            1_790_000_000,
-            _MEDIA_TYPE,
-            _OBSERVATION,
-        )
-        assert seen == [
-            {
-                "schema": "auths.gateway-observe/2",
-                "request": {
-                    "kind": "read-back",
-                    "arguments": {"record_id": "recTEST0000000001"},
-                },
-            }
-        ]
-
+            result = await client.recover(request["source_operation"], proof=decode("proof_b64"),
+                                          action=decode("action_b64"), approval=decode("approval_b64"))
+        assert result == reply
+        assert seen == [request]
+        assert not hasattr(client, "observe_read_back")
     asyncio.run(scenario())
 
 
@@ -244,14 +277,14 @@ def test_client_requests_outcome_and_surfaces_refusal(socket_dir) -> None:
 
     subject = "auths-gateway://ns/operations/step-1"
     signed, seen = asyncio.run(
-        scenario(_signed(schema="auths.gateway-outcome/2", subject=subject))
+        scenario(_signed(schema="auths.gateway-outcome/3", subject=subject))
     )
     assert signed == GatewaySignedObservation(
-        "auths.gateway-outcome/2", subject, 1_790_000_000, _MEDIA_TYPE, _OBSERVATION
+        "auths.gateway-outcome/3", subject, 1_790_000_000, _MEDIA_TYPE, _OBSERVATION
     )
     assert seen == [
         {
-            "schema": "auths.gateway-observe/2",
+            "schema": "auths.gateway-observe/4",
             "request": {"kind": "outcome", "operation_id": "step-1"},
         }
     ]
@@ -271,28 +304,28 @@ def test_client_rejects_malformed_observation_frames(socket_dir) -> None:
             client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
             if outcome is not None:
                 return await client.observe_outcome(outcome)
-            return await client.observe_read_back({"record_id": "rec1"})
+            return await client.observe_outcome("step-1")
 
     # A signed read-back is not accepted as the answer to an outcome request.
     with pytest.raises(GatewayProtocolError):
         asyncio.run(scenario(_signed(), "step-1"))
     for hostile in [
-        _signed(schema="auths.gateway-outcome/2"),
-        _signed(media_type="application/cbor"),
-        _signed(subject=""),
-        _signed(subject="s" * 1_025),
-        _signed(observed_at=-1),
-        _signed(observed_at=True),
-        _signed(observed_at="1790000000"),
-        _signed(observation_b64=""),
-        _signed(observation_b64=_b64(_OBSERVATION) + "="),
-        _signed(observation_b64=base64.b64encode(b"\xfb\xff").decode()),
-        _signed(observation_b64="AB"),
-        _signed(observation_b64="A"),
-        _signed(observation_b64="QUJD RA"),
-        _signed(observation_b64=_b64(b"x" * 4_097)),
-        _signed(confirmed=True),
-        _signed(observation=_b64(_OBSERVATION)),
+        _signed(schema="retired"),
+        _signed(schema="auths.gateway-outcome/3", media_type="application/cbor"),
+        _signed(schema="auths.gateway-outcome/3", subject=""),
+        _signed(schema="auths.gateway-outcome/3", subject="s" * 1_025),
+        _signed(schema="auths.gateway-outcome/3", observed_at=-1),
+        _signed(schema="auths.gateway-outcome/3", observed_at=True),
+        _signed(schema="auths.gateway-outcome/3", observed_at="1790000000"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=""),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=_b64(_OBSERVATION) + "="),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=base64.b64encode(b"\xfb\xff").decode()),
+        _signed(schema="auths.gateway-outcome/3", observation_b64="AB"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64="A"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64="QUJD RA"),
+        _signed(schema="auths.gateway-outcome/3", observation_b64=_b64(b"x" * 4_097)),
+        _signed(schema="auths.gateway-outcome/3", confirmed=True),
+        _signed(schema="auths.gateway-outcome/3", observation=_b64(_OBSERVATION)),
         b'{"outcome":"refused"}',
         b'{"outcome":"refused","code":""}',
         b'{"outcome":"refused","code":"x","reason":"y"}',
@@ -322,27 +355,33 @@ def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
         body: dict[str, object] = {
             "outcome": "pre-entry",
             "operation_id": "step-1",
-            "observations_b64": [_b64(_OBSERVATION)],
+            "observations": 1, "record_commitment": "01" * 32,
         }
         body.update(overrides)
         return json.dumps(body).encode()
 
     result, seen = asyncio.run(scenario(reply()))
-    assert result == GatewayPreEntryObservations("step-1", (_OBSERVATION,))
+    assert result == GatewayPreEntryObservations("step-1", 1, "01" * 32)
     assert seen == [
         {
-            "schema": "auths.gateway-observe/2",
+            "schema": "auths.gateway-observe/4",
             "request": {"kind": "pre-entry", "operation_id": "step-1"},
         }
     ]
-    empty, _ = asyncio.run(scenario(reply(observations_b64=[])))
-    assert empty == GatewayPreEntryObservations("step-1", ())
+    empty, _ = asyncio.run(scenario(reply(observations=0)))
+    assert empty == GatewayPreEntryObservations("step-1", 0, "01" * 32)
     refused, _ = asyncio.run(
         scenario(b'{"outcome":"refused","code":"gateway.observer.operation-unknown"}')
     )
     assert refused == GatewayObservationRefused("gateway.observer.operation-unknown")
     for hostile in [
         reply(operation_id="step-2"),
+        reply(observations=5),
+        reply(observations=-1),
+        reply(observations=True),
+        reply(record_commitment="01" * 31),
+        reply(record_commitment="01" * 32 + "\n"),
+        reply(record_commitment="AB" * 32),
         reply(observations_b64=[_b64(_OBSERVATION)] * 5),
         reply(observations_b64=[""]),
         reply(observations_b64=[_b64(_OBSERVATION) + "="]),
@@ -356,18 +395,13 @@ def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
 
 def test_client_rejects_unbounded_observation_requests(socket_dir) -> None:
     client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
-    for arguments in [
-        {},
-        {"record_id": ""},
-        {"record_id": "x" * 129},
-        {"record_id": "a\x00b"},
-        {"record_id": 7},
-        {"-record": "rec1"},
-        {f"field{index}": "v" for index in range(17)},
-    ]:
+    assert not hasattr(client, "observe_read_back")
+    for proof, action, approval in [(b"", b"a", b"a"), (b"p", b"", b"a"), (b"p", b"a", b""), (b"p", b"a", b"a" * 4097)]:
         with pytest.raises(ValueError):
-            asyncio.run(client.observe_read_back(arguments))  # type: ignore[arg-type]
+            asyncio.run(client.recover("source-1", proof=proof, action=action, approval=approval))
     for operation in ["", "-step", "step 1", "s" * 129, "stép"]:
+        with pytest.raises(ValueError):
+            asyncio.run(client.recover(operation, proof=b"p", action=b"a", approval=b"a"))
         with pytest.raises(ValueError):
             asyncio.run(client.observe_outcome(operation))
         with pytest.raises(ValueError):
@@ -415,8 +449,81 @@ def test_connect_failure_names_the_path_and_cause(socket_dir: Path) -> None:
     missing = socket_dir / "missing.sock"
     client = GatewayClient(GatewayEndpoint(missing))
     with pytest.raises(GatewayProtocolError) as failed:
-        asyncio.run(client.submit(proof=b"p", action=b"a"))
+        asyncio.run(client.submit(proof=b"p", action=b"a", approval=b"approval"))
     text = str(failed.value)
     assert "outcome may be unknown" in text
     assert str(missing) in text
     assert os.strerror(errno.ENOENT) in text
+
+
+def test_native_replay_projection_corpus() -> None:
+    from auths.gateway import _parse_result
+
+    corpus = json.loads(
+        (Path(__file__).resolve().parents[2] / "fixtures/gateway/replay-projection.json").read_text()
+    )
+    assert corpus["schema"] == "auths.gateway-replay-projection-fixture/1"
+    assert _parse_result(json.dumps(corpus["unknown_replay"]["result"]).encode()) == GatewayUnknown()
+    assert _parse_result(json.dumps(corpus["response_without_observation"]["result"]).encode()) == GatewayResponseRecorded(200)
+    expected = [GatewayReserved(1), GatewayUnknown(),
+                GatewayIndeterminate("gateway.attempt.state-unavailable")]
+    assert len(corpus["unacknowledged_grants"]) == len(expected)
+    for case, result in zip(corpus["unacknowledged_grants"], expected):
+        assert _parse_result(json.dumps(case["result"]).encode()) == result
+    for value in corpus["reserved_decoding"]["valid"]:
+        assert _parse_result(json.dumps(value).encode()) == GatewayReserved(value["revision"])
+    for value in corpus["reserved_decoding"]["invalid"]:
+        with pytest.raises(GatewayProtocolError):
+            _parse_result(json.dumps(value).encode())
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix application socket")
+@pytest.mark.parametrize("route", ["content", "content-history", "disclosure-ack"])
+def test_content_controls_preserve_native_envelopes(socket_dir, route) -> None:
+    corpus = json.loads((Path(__file__).resolve().parents[2] / "fixtures/gateway/application-content-frame.json").read_text())
+    request = corpus["requests"][route]
+    reply = json.dumps(next(case["response"] for case in corpus["cases"] if case["route"] == route and case["case"] == "valid")).encode()
+    def decode(value: str) -> bytes:
+        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    async def scenario() -> None:
+        seen: list[dict[str, object]] = []
+        server = await _serve_once(socket_dir / "gateway.sock", reply, seen)
+        async with server:
+            client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
+            if route == "content":
+                result = await client.acquire_content(**{name: decode(request["submission"][name + "_b64"]) for name in ("proof", "action", "approval")})
+            elif route == "content-history":
+                result = await client.content_history(request["operation"])
+            else:
+                result = await client.acknowledge_disclosure(request["operation"], decode(request["acknowledgement_b64"]))
+        assert result == reply
+        assert seen == [request]
+    asyncio.run(scenario())
+
+
+def test_content_controls_refuse_unbounded_or_invalid_input(socket_dir) -> None:
+    client = GatewayClient(GatewayEndpoint(socket_dir / "unused.sock"))
+    for operation in ("", "bad/id", "a" * 129):
+        with pytest.raises(ValueError):
+            asyncio.run(client.content_history(operation))
+        with pytest.raises(ValueError):
+            asyncio.run(client.acknowledge_disclosure(operation, b"ack"))
+    for acknowledgement in (b"", b"a" * 4097):
+        with pytest.raises(ValueError):
+            asyncio.run(client.acknowledge_disclosure("fixture-1", acknowledgement))
+
+
+def test_history_parsers_match_native_public_corpus() -> None:
+    from auths.gateway import _parse_observe_result, _parse_pre_entry_result
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/gateway/native-public-mutation-evidence-file.json"
+    corpus = json.loads(fixture.read_text())
+    for case in corpus["history_wire_cases"]:
+        def parse() -> object:
+            if case["kind"] == "pre-entry":
+                return _parse_pre_entry_result(case["response"].encode(), "step-1")
+            return _parse_observe_result(case["response"].encode(), "auths.gateway-outcome/3")
+        if case["accepted"]:
+            parse()
+        else:
+            with pytest.raises(GatewayProtocolError):
+                parse()

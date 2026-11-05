@@ -16,15 +16,15 @@ def test_packaged_workbench_and_unsigned_evidence():
         expect(page.locator('#approval-review')).to_contain_text('create_refund_v1')
         for case, outcome in [('approval-insufficient', 'DENIED'),
                               ('approval-duplicate', 'NOT-SUBMITTED'),
-                              ('above-boundary', 'NOT-ENTERED'), ('exact', 'OBSERVED-BY-PROVIDER'),
-                              ('replay', 'NOT-ENTERED'), ('lost-response', 'UNKNOWN')]:
+                              ('above-boundary', 'NOT-ENTERED'), ('exact', 'RESPONSE-RECORDED'), ('recover-exact', 'RECOVERY-REPORT'),
+                              ('replay', 'OBSERVED-BY-PROVIDER'), ('lost-response', 'UNKNOWN')]:
             page.locator('#experiment').select_option(case)
             page.locator('#submit').click()
             expect(page.locator('#outcome')).to_have_text(outcome, timeout=45000)
             expect(page.locator('#submit')).to_be_enabled()
         expect(page.locator('#explanation')).to_contain_text('no automatic retry')
         page.locator('#receipt-link').click()
-        expect(page.locator('#result-json')).to_contain_text('auths.gateway-audit-bundle/2')
+        expect(page.locator('#result-json')).to_contain_text('auths.gateway-audit-bundle/3')
         expect(page.locator('#result-json')).to_contain_text('outcome_b64')
         page.screenshot(path='/evidence/workbench-evidence.png', full_page=True)
         page.goto('http://localhost:8080')

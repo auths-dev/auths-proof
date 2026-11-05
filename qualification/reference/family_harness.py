@@ -99,6 +99,8 @@ def prepare(family, work):
     require(result.returncode == 0, 'qualification.harness.installed-author')
     tuple_value = candidate(family, work)
     write(work / 'tuple.json', tuple_value, new=True)
+    # Credential-free synthetic preparation uses the native synthetic policy corpus.
+    write_bytes(work / 'effect-policy.json', read(ROOT / 'bindings/fixtures/gateway/effect-policy.json', 4096), new=True)
     operator = command([python, '-B', kit / 'author_operator.py',
                         '--gateway', gateway(), '--work', work], cwd=work)
     require(operator.returncode == 0, 'qualification.harness.installed-operator')

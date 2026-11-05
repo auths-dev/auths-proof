@@ -814,12 +814,12 @@ fn gateway_seeds(kind: GatewaySeeds) -> Result<Vec<Vec<u8>>, String> {
             }
         }
         GatewaySeeds::Attempt => {
-            for name in ["attempt-scenarios-v3.json", "outcome-v2.json", "codes.json"] {
+            for name in ["attempt-scenarios-v3.json", "outcome-v3.json", "codes.json"] {
                 seeds.push(read_gateway_fixture(name)?);
             }
         }
         GatewaySeeds::Outcome | GatewaySeeds::AppFrame => {
-            let vectors = gateway_fixture_json("outcome-v2.json")?;
+            let vectors = gateway_fixture_json("outcome-v3.json")?;
             let entries = ["accepted", "refused"]
                 .iter()
                 .filter_map(|list| vectors[*list].as_array())
@@ -842,7 +842,7 @@ fn gateway_seeds(kind: GatewaySeeds) -> Result<Vec<Vec<u8>>, String> {
                 for kind in ["outcome", "pre-entry"] {
                     seeds.push(
                         serde_json::json!({
-                            "schema": "auths.gateway-observe/2",
+                            "schema": "auths.gateway-observe/4",
                             "request": {"kind": kind, "operation_id": operation},
                         })
                         .to_string()
@@ -851,16 +851,15 @@ fn gateway_seeds(kind: GatewaySeeds) -> Result<Vec<Vec<u8>>, String> {
                 }
             }
             if matches!(kind, GatewaySeeds::AppFrame) {
+                let recovery = gateway_fixture_json("application-recovery-frame.json")?;
+                seeds.push(recovery["request"].to_string().into_bytes());
                 for case in vectors["verdicts"].as_array().into_iter().flatten() {
-                    seeds.push(
-                        serde_json::json!({
-                            "schema": "auths.gateway-submit/1",
-                            "proof_b64": case["proof_b64"],
-                            "action_b64": case["action_b64"],
-                        })
-                        .to_string()
-                        .into_bytes(),
-                    );
+                    // Framing corpus only: native verification must still refuse
+                    // an approval belonging to a different effect.
+                    let mut submission = recovery["request"]["submission"].clone();
+                    submission["proof_b64"] = case["proof_b64"].clone();
+                    submission["action_b64"] = case["action_b64"].clone();
+                    seeds.push(submission.to_string().into_bytes());
                 }
             }
         }

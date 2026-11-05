@@ -20,7 +20,7 @@ use auths_model::{
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
-use p256::{EncodedPoint, PublicKey};
+use p256::{PublicKey, Sec1Point};
 
 const P256_SUITE: &str = "p256-sha256-v1";
 
@@ -53,7 +53,7 @@ impl CustodyIdentity {
     /// valid P-256 point or cannot be represented under `form`.
     pub fn p256(form: CustodyPrincipalForm, sec1: &[u8]) -> Result<Self, CustodyError> {
         let key = PublicKey::from_sec1_bytes(sec1).map_err(|_| CustodyError::EvidenceMismatch)?;
-        let public_key = EncodedPoint::from(key).compress().as_bytes().to_vec();
+        let public_key = Sec1Point::from(key).compress().as_bytes().to_vec();
         let invalid = |_| CustodyError::EvidenceMismatch;
         let suite = SignatureSuiteId::parse(P256_SUITE).map_err(invalid)?;
         let (principal, method, verification, evidence_type, media_type, bytes) = match form {

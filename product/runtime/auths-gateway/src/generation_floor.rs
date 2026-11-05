@@ -37,7 +37,9 @@ impl GenerationFloor {
         Self { directory }
     }
 
-    /// Creates the floor during a fresh installation. An existing floor is
+    /// Creates the floor during a fresh installation, including its exact
+    /// unpublished generation-one candidate. This does not create a live
+    /// connection or authorize a lease. An existing floor is
     /// checked rather than replaced; runtime startup never initializes one.
     ///
     /// # Errors

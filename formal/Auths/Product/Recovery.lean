@@ -1,4 +1,5 @@
 import Mathlib.Logic.ExistsUnique
+import Mathlib.Tactic.Tauto
 
 /-!
 # Recovery capability of a gateway recipe
@@ -7,7 +8,8 @@ What a recipe can prove after an ambiguous write is a total function of three
 declarations (the observation locator, the echo, and the idempotency
 mechanism) plus whether a pre-entry re-read is declared. The class names what
 a later read-back can establish; `unknownResolution` says whether the gateway
-can ever resolve an `unknown` write, which only a verified-locator link can.
+can ever resolve an `unknown` write by provider observation, which only a verified-locator link can.
+Late source responses and authenticated recipient acknowledgements are separate evidence routes.
 No declaration makes the provider write conditional.
 
 The attempt record then moves through a closed stage table. The gateway store
@@ -143,14 +145,23 @@ theorem write_never_conditional (declarations : Declarations) :
 
 /-! ## Attempt-record transitions -/
 
+/-- The independently authorized external boundary of this journal. -/
+inductive Protocol where
+  | mutation
+  | acquisition
+  | disclosure
+  deriving DecidableEq, Repr
+
 /-- The stage of an attempt record. -/
 inductive Stage where
-  | attempting
+  | reserved
+  | entryGranted
   | notEntered
   | unknown
   | responseRecorded
   | observed
   | observedByProvider
+  | acknowledged
   deriving DecidableEq, Repr
 
 /-- The read-back comparison recorded with an `observed` stage. -/
@@ -171,11 +182,15 @@ inductive Link where
 /-- The fields of one stored attempt record the transition rule inspects;
 byte strings are empty when absent. -/
 structure AttemptView where
+  protocol : Protocol
+  revision : Nat
   fixed : List Nat
+  entry : List Nat
   stage : Stage
   refusal : Bool
   preEntry : List Nat
   response : List Nat
+  acknowledgement : List Nat
   locator : List Nat
   reading : Reading
   evidence : Bool
@@ -219,17 +234,49 @@ def providerStage : Stage → Bool
 
 /-- The stages with no outgoing transition. -/
 def terminalStage : Stage → Bool
-  | .notEntered | .observed | .observedByProvider => true
-  | .attempting | .unknown | .responseRecorded => false
+  | .notEntered | .observed | .observedByProvider | .acknowledged => true
+  | .reserved | .entryGranted | .unknown | .responseRecorded => false
 
 def hasReading : Reading → Bool
   | .none => false
   | _ => true
 
+def requiresEntry : Stage → Bool
+  | .reserved | .notEntered => false
+  | _ => true
+
+def acknowledgementStage : Stage → Bool
+  | .acknowledged => true
+  | _ => false
+
+/-- Protocols have disjoint evidence vocabularies. A response is not a delivery
+acknowledgement; neither is an independently authorized provider observation. -/
+def protocolConsistent (view : AttemptView) : Bool :=
+  match view.protocol with
+  | .mutation => decide (view.stage ≠ .acknowledged) && view.acknowledgement.isEmpty
+  | .acquisition =>
+      (match view.stage with
+       | .reserved | .entryGranted | .notEntered | .unknown | .responseRecorded => true
+       | _ => false) &&
+      view.acknowledgement.isEmpty && view.preEntry.isEmpty && view.locator.isEmpty &&
+      !view.observation && !view.evidence && decide (view.reading = .none) &&
+      decide (view.link = .none)
+  | .disclosure =>
+      (match view.stage with
+       | .reserved | .entryGranted | .notEntered | .unknown | .acknowledged => true
+       | _ => false) &&
+      view.response.isEmpty && view.preEntry.isEmpty && view.locator.isEmpty &&
+      !view.observation && !view.evidence && decide (view.reading = .none) &&
+      decide (view.link = .none)
+
 /-- A view's fields agree with its stage. -/
 def consistent (view : AttemptView) : Bool :=
   let hasResponse := !view.response.isEmpty
-  decide (refusalStage view.stage = view.refusal) &&
+  protocolConsistent view && decide (view.revision > 0) &&
+    decide (view.revision ≤ 9007199254740991) &&
+    decide (requiresEntry view.stage ≠ view.entry.isEmpty) &&
+    decide (acknowledgementStage view.stage ≠ view.acknowledgement.isEmpty) &&
+    decide (refusalStage view.stage = view.refusal) &&
     (!requiresResponse view.stage || hasResponse) &&
     (!hasResponse || permitsResponse view.stage) &&
     (view.locator.isEmpty || hasResponse) &&
@@ -242,27 +289,38 @@ def consistent (view : AttemptView) : Bool :=
 /-- The closed stage table, given the stored plan's link. -/
 def stageTransitionAllowed (source target : Stage) (link : Link) : Bool :=
   match source, target with
-  | .attempting, .attempting | .attempting, .notEntered | .attempting, .unknown
-  | .attempting, .responseRecorded => true
-  | .attempting, .observedByProvider => resolvesUnknown link
-  | .unknown, .observedByProvider => resolvesUnknown link
+  | .reserved, .reserved | .reserved, .notEntered | .reserved, .entryGranted => true
+  | .entryGranted, .unknown | .entryGranted, .responseRecorded | .entryGranted, .acknowledged
+  | .unknown, .responseRecorded | .unknown, .acknowledged => true
+  | .entryGranted, .observedByProvider | .unknown, .observedByProvider => resolvesUnknown link
   | .responseRecorded, .observed | .responseRecorded, .observedByProvider => true
   | _, _ => false
 
 def addsPreEntry (source target : Stage) : Bool :=
   match source, target with
-  | .attempting, .attempting | .attempting, .notEntered => true
+  | .reserved, .reserved | .reserved, .notEntered => true
   | _, _ => false
 
 def addsResponse (source target : Stage) : Bool :=
   match source, target with
-  | .attempting, .responseRecorded => true
+  | .entryGranted, .responseRecorded | .unknown, .responseRecorded => true
   | _, _ => false
 
 def checkpointValid (old new : AttemptView) : Bool :=
   match old.stage, new.stage with
-  | .attempting, .attempting => old.preEntry.isEmpty && !new.preEntry.isEmpty
+  | .reserved, .reserved => old.preEntry.isEmpty && !new.preEntry.isEmpty
   | _, _ => true
+
+def entryKept (old new : AttemptView) : Bool :=
+  match old.stage, new.stage with
+  | .reserved, .entryGranted => old.entry.isEmpty && !new.entry.isEmpty
+  | _, _ => decide (old.entry = new.entry)
+
+def acknowledgementKept (old new : AttemptView) : Bool :=
+  match old.stage, new.stage with
+  | .entryGranted, .acknowledged | .unknown, .acknowledged =>
+      old.acknowledgement.isEmpty && !new.acknowledgement.isEmpty
+  | _, _ => decide (old.acknowledgement = new.acknowledgement)
 
 def preEntryKept (old new : AttemptView) : Bool :=
   if old.preEntry.isEmpty then new.preEntry.isEmpty || addsPreEntry old.stage new.stage
@@ -277,9 +335,11 @@ def planKept (old new : AttemptView) : Bool :=
 
 /-- Whether `new` may replace `old`. -/
 def validTransition (old new : AttemptView) : Bool :=
-  decide (old.fixed = new.fixed) && planKept old new &&
+  decide (old.protocol = new.protocol) && decide (old.revision < 9007199254740991) &&
+    decide (new.revision = old.revision + 1) && consistent old && entryKept old new &&
+    decide (old.fixed = new.fixed) && planKept old new &&
     stageTransitionAllowed old.stage new.stage old.link && checkpointValid old new &&
-    preEntryKept old new && responseKept old new && consistent new
+    preEntryKept old new && responseKept old new && acknowledgementKept old new && consistent new
 
 /-- Each record replaces the previous one by a valid transition. -/
 def validChain : List AttemptView → Prop
@@ -311,27 +371,45 @@ theorem transition_consistent {old new : AttemptView} (valid : validTransition o
   simp only [validTransition, Bool.and_eq_true] at valid
   exact valid.2
 
+/-- Every accepted transition retains its protocol, advances exactly one bounded
+revision, and preserves a grant once present. This is a projection invariant;
+the runtime authenticates the grant before constructing the view. -/
+theorem transition_ownership {old new : AttemptView} (valid : validTransition old new = true) :
+    new.protocol = old.protocol ∧ new.revision = old.revision + 1 ∧
+      new.revision ≤ 9007199254740991 ∧
+      (old.entry ≠ [] → new.entry = old.entry) := by
+  have parts := valid
+  simp only [validTransition, Bool.and_eq_true, decide_eq_true_eq] at parts
+  have consistentOld : consistent old = true := by tauto
+  have consistentNew : consistent new = true := by tauto
+  have kept : entryKept old new = true := by tauto
+  refine ⟨by tauto, by tauto, ?_, ?_⟩
+  · simp only [consistent, Bool.and_eq_true, decide_eq_true_eq] at consistentNew
+    tauto
+  · intro present
+    cases oldStage : old.stage <;> cases newStage : new.stage <;>
+      simp_all [entryKept, consistent, requiresEntry, List.isEmpty_iff]
+
 theorem transition_keeps {old new : AttemptView} (consistentOld : consistent old = true)
     (valid : validTransition old new = true) : Keeps old new := by
   simp only [validTransition, Bool.and_eq_true, decide_eq_true_eq] at valid
-  obtain ⟨⟨⟨⟨⟨⟨fixedEq, planEq⟩, _⟩, _⟩, preKept⟩, responseKeptEq⟩, _⟩ := valid
+  have fixedEq : old.fixed = new.fixed := by tauto
+  have planEq : planKept old new = true := by tauto
+  have preKept : preEntryKept old new = true := by tauto
+  have responseKeptEq : responseKept old new = true := by tauto
   simp only [planKept, Bool.and_eq_true, decide_eq_true_eq] at planEq
   refine ⟨fixedEq.symm, planEq.1.symm, planEq.2.symm, fun present => ?_, fun present => ?_⟩
   · have nonempty : old.preEntry.isEmpty = false := by
       cases equal : old.preEntry with
       | nil => exact absurd equal present
       | cons _ _ => rfl
-    simp only [preEntryKept, nonempty, Bool.false_eq_true, if_false, decide_eq_true_eq]
-      at preKept
+    simp only [preEntryKept, nonempty, Bool.false_eq_true, if_false, decide_eq_true_eq] at preKept
     exact preKept.symm
-  · simp only [responseKept, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq]
-      at responseKeptEq
+  · simp only [responseKept, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq] at responseKeptEq
     rcases responseKeptEq with adds | ⟨responseEq, locatorEq⟩
     · exfalso
-      rcases old with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
-        observation, link⟩
-      cases stage <;> cases equal : new.stage <;> simp_all [addsResponse] <;>
-        cases response <;> simp_all [consistent, permitsResponse]
+      cases oldStage : old.stage <;> cases newStage : new.stage <;>
+        simp_all [addsResponse, consistent, permitsResponse, List.isEmpty_iff]
     · exact ⟨responseEq.symm, locatorEq.symm⟩
 
 theorem chain_step {views : List AttemptView} (chain : validChain views) (index : Nat)
@@ -386,75 +464,133 @@ theorem chain_keeps (views : List AttemptView) (chain : validChain views)
               exact induction restChain restStart earlier later (by omega)
                 (by simp at bound; omega)
 
-/-- A record in `unknown` leaves it only for `observed-by-provider`, only
-with a verified-locator link (the link of exactly the `linked` class), and
-only on a transition that records provider evidence; over every valid
-sequence of records, the same holds at every position. -/
+/-- Only the separately linked provider-evidence route resolves an unknown
+as observed-by-provider. Late source responses and recipient ACKs carry distinct
+facts; they do not establish this observation claim. -/
 theorem unknown_resolves_only_linked :
     (∀ old new : AttemptView, validTransition old new = true → old.stage = .unknown →
-        new.stage = .observedByProvider ∧ old.link = .verified ∧ new.link = .verified ∧
-          new.evidence = true) ∧
+        new.stage = .observedByProvider →
+          old.link = .verified ∧ new.link = .verified ∧ new.evidence = true) ∧
       (∀ views : List AttemptView, validChain views →
         ∀ (index : Nat) (bound : index + 1 < views.length),
           (views[index]'(by omega)).stage = .unknown →
-            views[index + 1].stage = .observedByProvider ∧
-              views[index + 1].link = .verified ∧ views[index + 1].evidence = true) ∧
+          views[index + 1].stage = .observedByProvider →
+            views[index + 1].link = .verified ∧ views[index + 1].evidence = true) ∧
       (∀ declarations : Declarations,
         linkOf (capability declarations).providerLink = .verified ↔
           (capability declarations).recoveryClass = .linked) := by
   have single : ∀ old new : AttemptView, validTransition old new = true →
-      old.stage = .unknown →
-        new.stage = .observedByProvider ∧ old.link = .verified ∧ new.link = .verified ∧
-          new.evidence = true := by
-    intro old new valid unknown
-    rcases old with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
-      observation, link⟩
-    rcases new with ⟨fixed', stage', refusal', preEntry', response', locator', reading',
-      evidence', observation', link'⟩
-    subst unknown
-    cases stage' <;> cases link <;>
-      simp_all [validTransition, planKept, stageTransitionAllowed, resolvesUnknown, consistent,
-        providerStage]
+      old.stage = .unknown → new.stage = .observedByProvider →
+        old.link = .verified ∧ new.link = .verified ∧ new.evidence = true := by
+    intro old new valid unknown provider
+    have stage : stageTransitionAllowed old.stage new.stage old.link = true := by
+      simp only [validTransition, Bool.and_eq_true] at valid
+      tauto
+    have plan : planKept old new = true := by
+      simp only [validTransition, Bool.and_eq_true] at valid
+      tauto
+    have consistency := transition_consistent valid
+    cases link : old.link <;>
+      simp_all [stageTransitionAllowed, resolvesUnknown, planKept, consistent, providerStage]
   refine ⟨single, ?_, ?_⟩
-  · intro views chain index bound unknown
-    obtain ⟨stage, _, link, evidence⟩ := single _ _ (chain_step chain index bound) unknown
-    exact ⟨stage, link, evidence⟩
+  · intro views chain index bound unknown provider
+    exact (single _ _ (chain_step chain index bound) unknown provider).2
   · intro declarations
     obtain ⟨observation, echo, idempotency, preEntry⟩ := declarations
-    cases observation <;> cases echo <;>
-      simp [capability, providerLink, classOf, linkOf]
+    cases observation <;> cases echo <;> simp [capability, providerLink, classOf, linkOf]
+
+/-- The closed unknown exit table includes late source evidence, but forbids
+re-entry, a new reservation, and a refunding not-entered result. -/
+theorem unknown_exits_with_bound_evidence (old new : AttemptView)
+    (valid : validTransition old new = true) (unknown : old.stage = .unknown) :
+    new.stage = .responseRecorded ∨ new.stage = .acknowledged ∨
+      (new.stage = .observedByProvider ∧ old.link = .verified) := by
+  have stage : stageTransitionAllowed old.stage new.stage old.link = true := by
+    simp only [validTransition, Bool.and_eq_true] at valid
+    tauto
+  cases target : new.stage <;> cases link : old.link <;>
+    simp_all [stageTransitionAllowed, resolvesUnknown]
+
+/-- A late response retains the source grant and protocol and advances one
+revision, records a nonempty response, and does not assert provider observation.
+Runtime validation of the response/source binding is outside this byte projection. -/
+theorem late_response_retains_source (old new : AttemptView)
+    (valid : validTransition old new = true) (unknown : old.stage = .unknown)
+    (response : new.stage = .responseRecorded) :
+    new.protocol = old.protocol ∧ new.revision = old.revision + 1 ∧
+      new.entry = old.entry ∧ old.entry ≠ [] ∧ new.response ≠ [] ∧
+      new.evidence = false ∧ new.acknowledgement = [] := by
+  have own := transition_ownership valid
+  have oldCons : consistent old = true := by
+    simp only [validTransition, Bool.and_eq_true] at valid
+    tauto
+  have newCons := transition_consistent valid
+  have entry : old.entry ≠ [] := by
+    simp [consistent, unknown, requiresEntry, List.isEmpty_iff] at oldCons
+    tauto
+  have newFields : new.response ≠ [] ∧ new.evidence = false ∧ new.acknowledgement = [] := by
+    simp [consistent, response, requiresResponse, providerStage, acknowledgementStage,
+      List.isEmpty_iff] at newCons
+    tauto
+  exact ⟨own.1, own.2.1, own.2.2.2 entry, entry, newFields⟩
+
+/-- A late recipient ACK is restricted to the disclosure protocol. It keeps the
+source grant/revision lineage, carries nonempty authenticated evidence, and
+cannot be confused with a response or provider observation. Signature and exact
+recipient/challenge binding are checked before the runtime projects these bytes. -/
+theorem late_acknowledgement_retains_source (old new : AttemptView)
+    (valid : validTransition old new = true) (unknown : old.stage = .unknown)
+    (acknowledged : new.stage = .acknowledged) :
+    old.protocol = .disclosure ∧ new.protocol = .disclosure ∧
+      new.revision = old.revision + 1 ∧ new.entry = old.entry ∧ old.entry ≠ [] ∧
+      new.acknowledgement ≠ [] ∧ new.response = [] ∧ new.evidence = false := by
+  have own := transition_ownership valid
+  have oldCons : consistent old = true := by
+    simp only [validTransition, Bool.and_eq_true] at valid
+    tauto
+  have newCons := transition_consistent valid
+  have entry : old.entry ≠ [] := by
+    simp [consistent, unknown, requiresEntry, List.isEmpty_iff] at oldCons
+    tauto
+  have fields : new.protocol = .disclosure ∧ new.acknowledgement ≠ [] ∧
+      new.response = [] ∧ new.evidence = false := by
+    cases protocol : new.protocol <;>
+      simp [consistent, protocolConsistent, protocol, acknowledged, acknowledgementStage,
+        providerStage, permitsResponse, List.isEmpty_iff] at newCons <;>
+      simp_all only [and_true, true_and] <;> tauto
+  exact ⟨own.1 ▸ fields.1, fields.1, own.2.1, own.2.2.2 entry, entry, fields.2⟩
 
 /-- `observed-by-provider` is reached only through a transition that records
 provider evidence, under a declared link of the plan stored at the claim:
-from `response-recorded`, or from `attempting` or `unknown` only with a
-verified-locator link. For a sequence starting from a claimed `attempting`
+from `response-recorded`, or from `entry-granted` or `unknown` only with a
+verified-locator link. For a sequence starting from a claimed `reserved`
 record, every `observed-by-provider` record was reached this way. -/
 theorem provider_claim_requires_evidence :
     (∀ old new : AttemptView, validTransition old new = true →
         new.stage = .observedByProvider →
           new.evidence = true ∧ hasLink new.link = true ∧ new.link = old.link ∧
             (old.stage = .responseRecorded ∨
-              ((old.stage = .attempting ∨ old.stage = .unknown) ∧ old.link = .verified))) ∧
-      (∀ (first : AttemptView) (rest : List AttemptView), first.stage = .attempting →
+              ((old.stage = .entryGranted ∨ old.stage = .unknown) ∧ old.link = .verified))) ∧
+      (∀ (first : AttemptView) (rest : List AttemptView), first.stage = .reserved →
         consistent first = true → validChain (first :: rest) →
           ∀ (index : Nat) (bound : index < rest.length),
             rest[index].stage = .observedByProvider →
               rest[index].evidence = true ∧ rest[index].link = first.link ∧
                 hasLink first.link = true ∧
                 (((first :: rest)[index]'(by simp; omega)).stage = .responseRecorded ∨
-                  ((((first :: rest)[index]'(by simp; omega)).stage = .attempting ∨
+                  ((((first :: rest)[index]'(by simp; omega)).stage = .entryGranted ∨
                       ((first :: rest)[index]'(by simp; omega)).stage = .unknown) ∧
                     first.link = .verified))) := by
   have single : ∀ old new : AttemptView, validTransition old new = true →
       new.stage = .observedByProvider →
         new.evidence = true ∧ hasLink new.link = true ∧ new.link = old.link ∧
           (old.stage = .responseRecorded ∨
-            ((old.stage = .attempting ∨ old.stage = .unknown) ∧ old.link = .verified)) := by
+            ((old.stage = .entryGranted ∨ old.stage = .unknown) ∧ old.link = .verified)) := by
     intro old new valid provider
-    rcases old with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
-      observation, link⟩
-    rcases new with ⟨fixed', stage', refusal', preEntry', response', locator', reading',
-      evidence', observation', link'⟩
+    rcases old with ⟨protocol, revision, fixed, entry, stage, refusal, preEntry, response, acknowledgement,
+      locator, reading, evidence, observation, link⟩
+    rcases new with ⟨protocol', revision', fixed', entry', stage', refusal', preEntry', response', acknowledgement',
+      locator', reading', evidence', observation', link'⟩
     subst provider
     cases stage <;> cases link <;> cases link' <;>
       simp_all [validTransition, planKept, stageTransitionAllowed, resolvesUnknown, consistent,
@@ -478,12 +614,12 @@ theorem provider_claim_requires_evidence :
   · rw [← previousLink]
     exact source
 
-/-- `not-entered`, `observed`, and `observed-by-provider` are exactly the
+/-- `not-entered`, `observed`, `observed-by-provider`, and `acknowledged` are the
 terminal stages; no transition leaves them, so in every valid sequence a
 terminal record is the last. -/
 theorem terminal_stages_final :
     (∀ stage : Stage, terminalStage stage = true ↔
-        stage = .notEntered ∨ stage = .observed ∨ stage = .observedByProvider) ∧
+        stage = .notEntered ∨ stage = .observed ∨ stage = .observedByProvider ∨ stage = .acknowledged) ∧
       (∀ old new : AttemptView, terminalStage old.stage = true →
         validTransition old new = false) ∧
       (∀ views : List AttemptView, validChain views →
@@ -492,8 +628,8 @@ theorem terminal_stages_final :
   have single : ∀ old new : AttemptView, terminalStage old.stage = true →
       validTransition old new = false := by
     intro old new terminal
-    rcases old with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
-      observation, link⟩
+    rcases old with ⟨protocol, revision, fixed, entry, stage, refusal, preEntry, response, acknowledgement,
+      locator, reading, evidence, observation, link⟩
     cases stage <;> simp_all [terminalStage, validTransition, stageTransitionAllowed]
   refine ⟨fun stage => by cases stage <;> simp [terminalStage], single, ?_⟩
   intro views chain index bound terminal

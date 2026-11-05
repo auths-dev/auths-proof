@@ -143,7 +143,7 @@ impl ConformanceSigner {
     ) -> Self {
         let key = SigningKey::from_slice(&KEY).expect("fixed P-256 key");
         let identity =
-            CustodyIdentity::p256(form, key.verifying_key().to_encoded_point(true).as_bytes())
+            CustodyIdentity::p256(form, key.verifying_key().to_sec1_point(true).as_bytes())
                 .expect("fixed identity");
         let descriptor = CustodyDescriptor::new(
             kind,
@@ -165,7 +165,7 @@ impl ConformanceSigner {
 
     fn signature(key: &SigningKey, message: &[u8]) -> Signature {
         let signature: Signature = key.sign(message);
-        signature.normalize_s().unwrap_or(signature)
+        signature.normalize_s()
     }
 }
 

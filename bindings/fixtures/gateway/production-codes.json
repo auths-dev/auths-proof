@@ -10,15 +10,12 @@
       "case": null
     },
     {
-      "code": "gateway.attempt.replay",
+      "code": "gateway.attempt.state-unavailable",
       "owner": "engine",
-      "stage": "recorded",
-      "status": "existing",
-      "epic": null,
-      "case": {
-        "fixture": "custody-hostile.json",
-        "id": "lease-never-precedes-claim"
-      }
+      "stage": "journal",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
     },
     {
       "code": "gateway.commissioning.binding-mismatch",

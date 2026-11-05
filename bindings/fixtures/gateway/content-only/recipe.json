@@ -1,0 +1,48 @@
+{
+  "schema": "auths.gateway-recipe-source/3",
+  "profile_schema_digest": "3dba7f501f17177fb10cf5562d01e09ee43de37e3546e37c8c5d59087eb05076",
+  "service": "airtable-gateway-demo",
+  "tool": "auths_gateway_content_read_v1",
+  "operator_namespace": "airtable-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.airtable.com",
+  "review": {
+    "schema": "auths.effect-review-contract/1",
+    "consequences": [
+      "Acquire the displayed resource as private content. Disclosure requires separate authorization; no provider mutation is available."
+    ],
+    "fields": {
+      "record_id": {
+        "kind": "identifier",
+        "label": "Record id"
+      }
+    }
+  },
+  "content": {
+    "schema": "auths.gateway-content-read/1",
+    "resource_field": "record_id",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "documents"
+      },
+      {
+        "kind": "field",
+        "name": "record_id"
+      }
+    ],
+    "query": [
+      {
+        "name": "format",
+        "value": "text/plain"
+      }
+    ],
+    "projection": {
+      "kind": "utf8"
+    },
+    "maximum_response_bytes": 1024,
+    "maximum_content_bytes": 64
+  }
+}

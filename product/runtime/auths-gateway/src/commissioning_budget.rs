@@ -177,6 +177,31 @@ impl CommissioningBudgetSnapshot {
         Ok(())
     }
 
+    pub(crate) fn entry_state(
+        &self,
+        floor: &Self,
+        now: u64,
+        state: &VerifierState,
+    ) -> Result<VerifierState, CommissioningBudgetRefusal> {
+        if !self.not_below(floor)
+            || floor.record.consumed_credential_leases == 0
+            || now < self.record.latest_verifier_time
+        {
+            return Err(CommissioningBudgetRefusal::Rollback);
+        }
+        let mut memory = crate::configuration::QualificationMemory::default();
+        memory.merge(state);
+        memory.merge(&VerifierState {
+            accepted_revocation_sequence: self.record.accepted_revocation_sequence,
+            revoked_signers: self.record.revoked_signers.clone(),
+            ..VerifierState::default()
+        });
+        if memory.blocked {
+            return Err(CommissioningBudgetRefusal::Corrupt);
+        }
+        Ok(memory.state())
+    }
+
     pub(crate) fn not_below(&self, floor: &Self) -> bool {
         self.record.budget_scope_sha256 == floor.record.budget_scope_sha256
             && self.record.budget_binding_sha256 == floor.record.budget_binding_sha256
@@ -224,6 +249,9 @@ pub struct CommissioningBudget {
 }
 
 impl CommissioningBudget {
+    pub(crate) fn key(&self) -> GatewayAttemptKey {
+        self.key
+    }
     /// Names the stable run/family key and its immutable reviewed binding.
     ///
     /// # Errors
