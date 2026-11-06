@@ -43,6 +43,18 @@ jobs:
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: cargo test -p auths-stores --test postgres_lifecycle -- --ignored
+      - name: Run every registered gateway PostgreSQL case
+        env:
+          AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_SERVER_NAME: localhost
+        run: |
+          set -o pipefail
+          mkdir -p target
+          # Keep broad-family output separate: the independent AP074 verifier
+          # requires exactly one execution of each retained per-selector case.
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --include-ignored postgres 2>&1 | tee target/ap073-postgresql-all.log
+          grep -Eq 'test result: ok\. [1-9][0-9]* passed; 0 failed; 0 ignored;' target/ap073-postgresql-all.log
       - name: Run gateway attempt-store conformance and hostile suites
         env:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
@@ -53,15 +65,6 @@ jobs:
           mkdir -p target
           {
           failures=0
-          # Run every registered PostgreSQL case, including tests whose ignore
-          # annotation changes. Without the fixture, cases must be ignored or
-          # fail explicitly; a successful early return is not backend evidence.
-          if ! cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --include-ignored postgres 2>&1 | tee target/ap073-postgresql-all.log; then
-            failures=$((failures + 1))
-          elif ! grep -Eq 'test result: ok\. [1-9][0-9]* passed; 0 failed; 0 ignored;' target/ap073-postgresql-all.log; then
-            echo "The configured PostgreSQL batch did not execute its selected tests"
-            failures=$((failures + 1))
-          fi
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current || failures=$((failures + 1))

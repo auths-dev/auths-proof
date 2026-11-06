@@ -2386,3 +2386,37 @@ That is a genuine result for its selected coverage, not retrospective proof of
 the omitted twenty cases. Publish this complete correction and require the
 corrected configured TLS job and all applicable checks/artifacts on its exact
 head. No merge, deployment or production-qualification claim is authorized.
+
+
+### Hosted TLS log provenance repair
+
+At `fefda0d0`, the corrected hosted family executes all 89 tests successfully
+with zero failed/ignored. Retained artifact `13506839308` (SHA-256
+`01e3deeb3dcb51174e89eb17ade6c78acf315f9821b7f02ae36c54f4e2bde5a2`)
+contains successful named executions of all twenty required AP073 cases. The
+job later fails the independent AP074 differential's strict selector-execution
+check: broad-family output was also captured in the legacy per-selector log,
+so four PostgreSQL transcripts occur twice. The checker correctly refuses that
+ambiguous input. This is not a backend assertion failure.
+
+Map the bounded correction before execution: put the unchanged broad-family
+command and nonzero/zero-ignored assertion in a dedicated configured TLS step;
+keep its log separately retained. The existing exact-selector batch and
+independent verifier stay unchanged, including their exactly-once requirement.
+The mixed artifact starts with the exact broad log bytes; removing that exact
+prefix reproduces the new workflow's separated capture without inventing test
+results. Re-run the actual differential checker and its mutation controls on
+these retained inputs using an existing installed SDK environment. No native
+code, fixtures, predicates, expected digests or acceptance rules change. Collect
+remaining current-cohort failures before publishing the workflow-only repair.
+
+The unchanged differential checker accepts the separated retained histories:
+two native adapters and 22 independent reference pairs. Its existing parser
+mutation test also passes, including rejection of duplicate, absent, zero-pass
+and ignored selector results. This is a diagnostic reproduction using the
+retained `fefda0d0` executions and an existing installed SDK environment, not
+a newly built package or a substitute for the corrected hosted job. The
+remaining current cohort has no additional reported failure; authoritative
+implementation and Lean checks have completed successfully, while Kani is
+still running. Require the corrected workflow and applicable checks on the
+new published head before final acceptance.
