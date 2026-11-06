@@ -118,6 +118,8 @@ struct Provider {
     stop: Arc<AtomicBool>,
     join: Option<JoinHandle<()>>,
     denied: Arc<std::sync::atomic::AtomicUsize>,
+    hold_write_reply: Arc<AtomicBool>,
+    write_applied: Arc<AtomicBool>,
 }
 impl Provider {
     fn start() -> Self {
@@ -138,6 +140,10 @@ impl Provider {
         let denied = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let refused = denied.clone();
         let finished = stop.clone();
+        let hold_write_reply = Arc::new(AtomicBool::new(false));
+        let hold_reply = hold_write_reply.clone();
+        let write_applied = Arc::new(AtomicBool::new(false));
+        let applied = write_applied.clone();
         let join = thread::spawn(move || {
             let mut record = json!({"fields":{"DemoStatus":"Pending"}});
             while !finished.load(Ordering::SeqCst) {
@@ -200,6 +206,17 @@ impl Provider {
                     assert_eq!(record["fields"]["DemoStatus"], "Approved");
                     assert_eq!(record["fields"].as_object().expect("fields").len(), 2);
                     assert!(record["fields"]["auths_echo"].is_string());
+                    let held = hold_reply.load(Ordering::SeqCst);
+                    applied.store(true, Ordering::SeqCst);
+                    if held {
+                        // The double applied the exact write. Keep the response
+                        // unavailable while the test kills the real gateway.
+                        while hold_reply.load(Ordering::SeqCst) && !finished.load(Ordering::SeqCst)
+                        {
+                            thread::sleep(Duration::from_millis(5));
+                        }
+                        continue;
+                    }
                     ("application/json", body)
                 } else if line
                     == format!("GET /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1")
@@ -225,6 +242,8 @@ impl Provider {
             stop,
             join: Some(join),
             denied,
+            hold_write_reply,
+            write_applied,
         }
     }
     fn authenticated(header: &str, secret: &[u8]) -> bool {
@@ -237,6 +256,23 @@ impl Provider {
     }
     fn calls(&self) -> Vec<String> {
         self.calls.lock().expect("calls").clone()
+    }
+    fn hold_write_response(&self) {
+        self.write_applied.store(false, Ordering::SeqCst);
+        self.hold_write_reply.store(true, Ordering::SeqCst);
+    }
+    fn wait_for_applied_write(&self) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !self.write_applied.load(Ordering::SeqCst) {
+            assert!(
+                Instant::now() < deadline,
+                "provider must apply the exact write before the gateway crash"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+    fn drop_write_response(&self) {
+        self.hold_write_reply.store(false, Ordering::SeqCst);
     }
 }
 impl Drop for Provider {

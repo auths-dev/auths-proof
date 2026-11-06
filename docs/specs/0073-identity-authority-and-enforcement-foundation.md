@@ -491,3 +491,16 @@ That hosted isolation result remains pending. The local artifact does not
 establish human presence, live provider qualification, every crash boundary,
 PostgreSQL, lifecycle/federation/native-resource conformance, formal refinement,
 or complete M0–M4/F01–F16 acceptance. The full program remains required.
+
+The installed process corpus now uses version 2 with independent retained-response
+and post-write-crash installations. In each, actual authenticated receipt precedes
+a gateway/recipient crash without an ACK. Reconnection yields historical facts
+without content files; the original late ACK and its replay preserve accounting,
+and a new independently signed/reviewed third release is refused. The second
+installation kills the gateway after the double applies the exact write while
+withholding all response bytes. The installed client's transport uncertainty and
+restarted native Unknown cannot release the shared write allowance or trigger
+another write. A distinct native read with independent exact approval supplies
+declared provider linkage; historical replay performs no provider I/O. This is
+bounded local process-failure evidence, not live provider qualification, human
+presence, power-loss evidence or complete F01–F16 acceptance.

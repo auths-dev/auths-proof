@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 
 import auths
-from auths.gateway import GatewayClient, GatewayEndpoint
+from auths.gateway import GatewayClient, GatewayEndpoint, GatewayProtocolError
 from auths.testkit import development_ed25519_identity_key
 
 MAX = 8 * 1024 * 1024
@@ -62,10 +62,12 @@ async def call(value):
     if operation == "control":
         return json.loads(await gateway.participant_control(unb64(value["evidence"])))
     submission = {name: unb64(value[name]) for name in ("proof", "action", "approval")}
-    if operation == "submit":
+    if operation in {"submit", "submit-interrupted"}:
         return dataclasses.asdict(await gateway.submit(**submission))
     if operation == "acquire":
         return json.loads(await gateway.acquire_content(**submission))
+    if operation == "recover":
+        return json.loads(await gateway.recover(value["source_operation"], **submission))
     raise ValueError("actor.unsupported-operation")
 
 
@@ -73,8 +75,16 @@ for line in iter(lambda: sys.stdin.buffer.readline(MAX + 1), b""):
     try:
         if len(line) > MAX or not line.endswith(b"\n"):
             raise ValueError("actor.invalid-frame")
-        result = asyncio.run(call(json.loads(line)))
+        value = json.loads(line)
+        result = asyncio.run(call(value))
         print(json.dumps(result, separators=(",", ":")), flush=True)
+    except GatewayProtocolError:
+        # A transport/protocol failure establishes neither safe failure nor
+        # success. The parent must inspect retained native facts after restart.
+        if value.get("operation") == "submit-interrupted":
+            print('{"transport_error":true,"outcome":"unknown"}', flush=True)
+        else:
+            print('{"actor_error":"unexpected-protocol-error"}', flush=True)
     except Exception:
         # External error messages can carry private request/path contents.
         print('{"actor_error":"request-refused"}', flush=True)

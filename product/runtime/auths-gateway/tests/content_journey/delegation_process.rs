@@ -10,6 +10,8 @@ use zeroize::Zeroizing;
 mod actor;
 #[path = "delegation_process/author.rs"]
 mod author;
+#[path = "delegation_process/recipient.rs"]
+mod recipient;
 use actor::{Actor, Language};
 use author::{Grant, Invocation, PublicIdentity, author, call, context, control_audience, grant};
 
@@ -195,10 +197,13 @@ fn approve_native(
     }
 }
 fn submission(actor: &mut Actor, socket: &Path, approved: &Approved, operation: &str) -> Value {
-    actor.call(json!({"operation":operation,"socket":path(socket),
+    actor.call(submission_request(socket, approved, operation))
+}
+fn submission_request(socket: &Path, approved: &Approved, operation: &str) -> Value {
+    json!({"operation":operation,"socket":path(socket),
         "proof":Base64UrlUnpadded::encode_string(&std::fs::read(&approved.proof).expect("proof")),
         "action":Base64UrlUnpadded::encode_string(&std::fs::read(&approved.action).expect("action")),
-        "approval":Base64UrlUnpadded::encode_string(&std::fs::read(&approved.approval).expect("approval"))}))
+        "approval":Base64UrlUnpadded::encode_string(&std::fs::read(&approved.approval).expect("approval"))})
 }
 fn forbidden(bytes: &[u8], secret: &[u8]) {
     use sha2::{Digest as _, Sha256};
@@ -220,11 +225,39 @@ fn forbidden(bytes: &[u8], secret: &[u8]) {
 
 #[test]
 #[ignore = "requires installed wheel/npm consumer; source-free CI explicitly runs this constructor"]
+fn native_installed_delegation_process_fixture_is_current() {
+    let mut cases = Vec::new();
+    let mut failures = Vec::new();
+    for crash_after_write in [false, true] {
+        match std::panic::catch_unwind(|| run_journey(crash_after_write)) {
+            Ok(report) => cases.push(report),
+            Err(_) => failures.push(crash_after_write),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "installed case failures (crash-after-write flags): {failures:?}"
+    );
+    let report = json!({"schema":"auths.installed-delegation-process-vectors/2",
+        "cases":cases});
+    let bytes = serde_json::to_vec_pretty(&report).expect("evidence");
+    if let Some(output) = std::env::var_os("AUTHS_DELEGATION_EVIDENCE_OUT") {
+        private(&PathBuf::from(output), &bytes);
+    } else {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../bindings/fixtures/gateway/engagement/installed-process.json");
+        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+            std::fs::write(&path, &bytes).expect("fixture");
+        }
+        assert_eq!(std::fs::read(path).expect("fixture"), bytes);
+    }
+}
+
 #[allow(
     clippy::too_many_lines,
-    reason = "complete native installed multi-agent read/disclose/write, refusal, restart and revocation journey"
+    reason = "complete installed process journey; separate protocols retain their native owners"
 )]
-fn native_installed_delegation_process_fixture_is_current() {
+fn run_journey(crash_after_write: bool) -> Value {
     let consumer = std::env::var_os("AUTHS_DELEGATION_CONSUMER_DIR")
         .map(PathBuf::from)
         .expect("installed consumer directory required");
@@ -428,7 +461,7 @@ fn native_installed_delegation_process_fixture_is_current() {
         remaining_depth: 2,
         ceilings: ParticipantCeilings {
             provider_reads: 4,
-            disclosures: 1,
+            disclosures: 2,
             disclosure_bytes: 512,
             writes: 1,
         },
@@ -725,6 +758,7 @@ fn native_installed_delegation_process_fixture_is_current() {
             "positive control must open its own memory"
         );
         let memory = vec![
+            format!("/proc/{}/mem", daemon.0.id()),
             format!("/proc/{}/mem", owner.pid),
             format!("/proc/{}/mem", machine.pid),
             format!("/proc/{}/mem", a.pid),
@@ -814,7 +848,7 @@ fn native_installed_delegation_process_fixture_is_current() {
         &serde_json::to_vec(&receive).expect("recipient input"),
         &secret,
     );
-    assert_eq!(a.call(receive)["outcome"], "recipient-ack-sent");
+    assert_eq!(a.call(receive.clone())["outcome"], "recipient-ack-sent");
     assert_eq!(
         a.call(
             json!({"operation":"received","expected":Base64UrlUnpadded::encode_string(&content)})
@@ -833,6 +867,157 @@ fn native_installed_delegation_process_fixture_is_current() {
         );
         thread::sleep(Duration::from_millis(10));
     }
+    // Actual native receipt precedes the crash. Only A retains the genuine
+    // acknowledgement; the orchestrator never sees its seed or plaintext.
+    let loss_call = operator.join("loss.call");
+    success(cli(
+        "effect-disclosure-call",
+        &[
+            ("--state-dir", path(&state)),
+            ("--target", path(&target_file)),
+            ("--operation", "delegated-lost-ack"),
+            ("--call-out", path(&loss_call)),
+        ],
+        &[],
+        None,
+    ));
+    let loss = approve_native(
+        &state,
+        author(
+            &mut b,
+            &b_resources,
+            &call_file(&loss_call),
+            audience.clone(),
+            &trust,
+            now,
+        ),
+        "loss",
+        &mut reviewer,
+        now,
+        &[("--disclosure", path(&target_file))],
+        &[],
+    );
+    let mut loss_receive = receive.clone();
+    for (name, file) in [
+        ("proof", &loss.proof),
+        ("action", &loss.action),
+        ("approval", &loss.approval),
+        ("binding", &loss.binding),
+    ] {
+        loss_receive[name] = json!(Base64UrlUnpadded::encode_string(
+            &std::fs::read(file).expect("native input")
+        ));
+    }
+    loss_receive["operation"] = json!("receive-without-ack");
+    loss_receive["native_test"] = json!(std::env::current_exe().expect("native recipient fixture"));
+    forbidden(
+        &serde_json::to_vec(&loss_receive).expect("recipient request"),
+        &secret,
+    );
+    forbidden(
+        &serde_json::to_vec(&loss_receive).expect("recipient request"),
+        &content,
+    );
+    assert_eq!(
+        a.call(loss_receive.clone())["outcome"],
+        "received-ack-retained-not-sent"
+    );
+    assert_eq!(
+        a.call(
+            json!({"operation":"received","expected":Base64UrlUnpadded::encode_string(&content)})
+        )["matches"],
+        true
+    );
+    let receipt_logs = daemon.finish_logs();
+    forbidden(&receipt_logs, &secret);
+    forbidden(&receipt_logs, &content);
+    assert_eq!(
+        a.call(json!({"operation":"crash-recipient"}))["crashed"],
+        true
+    );
+    daemon = Daemon::start(&state, &socket, provider.port);
+    let unknown_delivery = history(&socket, "delegated-lost-ack");
+    assert_eq!(unknown_delivery["history"]["snapshot"]["stage"], "unknown");
+    assert_eq!(
+        unknown_delivery["history"]["snapshot"]["reserved_deliveries"],
+        1
+    );
+    assert_eq!(
+        unknown_delivery["history"]["snapshot"]["reserved_bytes"],
+        content.len()
+    );
+    loss_receive["operation"] = json!("receive");
+    assert_eq!(
+        a.call(loss_receive.clone()),
+        unknown_delivery,
+        "restart cannot redeliver plaintext"
+    );
+    let late_request =
+        json!({"operation":"late-ack", "socket":socket, "source_operation":"delegated-lost-ack"});
+    let late_ack = a.call(late_request.clone());
+    assert_eq!(late_ack["history"]["snapshot"]["stage"], "acknowledged");
+    assert_eq!(
+        late_ack["history"]["snapshot"]["reserved_bytes"],
+        content.len()
+    );
+    assert_eq!(
+        a.call(late_request.clone()),
+        late_ack,
+        "late exact ACK is historical and idempotent"
+    );
+    assert_eq!(a.call(loss_receive.clone()), late_ack);
+    // Neither a genuine late ACK nor its replay refunds the shared ancestor
+    // allowance. Native review still succeeds for this independently signed
+    // exact action; actual release must refuse without creating output files.
+    let exhausted_call = operator.join("exhausted-release.call");
+    success(cli(
+        "effect-disclosure-call",
+        &[
+            ("--state-dir", path(&state)),
+            ("--target", path(&target_file)),
+            ("--operation", "delegated-third-release"),
+            ("--call-out", path(&exhausted_call)),
+        ],
+        &[],
+        None,
+    ));
+    let exhausted_release = approve_native(
+        &state,
+        author(
+            &mut b,
+            &b_resources,
+            &call_file(&exhausted_call),
+            audience.clone(),
+            &trust,
+            now,
+        ),
+        "exhausted-release",
+        &mut reviewer,
+        now,
+        &[("--disclosure", path(&target_file))],
+        &[],
+    );
+    let mut exhausted_receive = loss_receive.clone();
+    for (name, file) in [
+        ("proof", &exhausted_release.proof),
+        ("action", &exhausted_release.action),
+        ("approval", &exhausted_release.approval),
+        ("binding", &exhausted_release.binding),
+    ] {
+        exhausted_receive[name] = json!(Base64UrlUnpadded::encode_string(
+            &std::fs::read(file).expect("native release input")
+        ));
+    }
+    assert_eq!(
+        a.call(exhausted_receive)["outcome"],
+        "refused",
+        "late acknowledgement cannot restore disclosure capacity"
+    );
+    assert_eq!(
+        provider.calls().len(),
+        1,
+        "ACK loss and replay cannot refetch the source"
+    );
     let write_proof = author(
         &mut b,
         &b_resources,
@@ -861,8 +1046,32 @@ fn native_installed_delegation_process_fixture_is_current() {
     assert_eq!(provider.calls().len(), 1);
     assert_ne!(denied["outcome"], "response-recorded");
     private(&write.approval, &saved_approval);
-    let written = submission(&mut b, &socket, &write, "submit");
-    assert_eq!(written["outcome"], "response-recorded");
+    let written = if crash_after_write {
+        provider.hold_write_response();
+        let interrupted = thread::scope(|scope| {
+            let pending = scope.spawn(|| submission(&mut b, &socket, &write, "submit-interrupted"));
+            provider.wait_for_applied_write();
+            let logs = daemon.finish_logs();
+            forbidden(&logs, &secret);
+            forbidden(&logs, &content);
+            provider.drop_write_response();
+            pending
+                .join()
+                .expect("installed client after gateway crash")
+        });
+        assert_eq!(interrupted["transport_error"], true);
+        daemon = Daemon::start(&state, &socket, provider.port);
+        let retained = submission(&mut b, &socket, &write, "submit");
+        assert_eq!(
+            retained["outcome"], "unknown",
+            "lost write response cannot imply success or safe failure"
+        );
+        retained
+    } else {
+        let retained = submission(&mut b, &socket, &write, "submit");
+        assert_eq!(retained["outcome"], "response-recorded");
+        retained
+    };
     assert_eq!(
         provider
             .calls()
@@ -902,7 +1111,7 @@ fn native_installed_delegation_process_fixture_is_current() {
     forbidden(&first_logs, &content);
     daemon = Daemon::start(&state, &socket, provider.port);
     let replay = submission(&mut b, &socket, &write, "submit");
-    assert_eq!(replay["outcome"], "response-recorded");
+    assert_eq!(replay["outcome"], written["outcome"]);
     assert_eq!(
         provider
             .calls()
@@ -910,6 +1119,70 @@ fn native_installed_delegation_process_fixture_is_current() {
             .filter(|line| line.starts_with("PATCH "))
             .count(),
         1
+    );
+    // Recovery has distinct current native read authority and exact approval;
+    // neither a response nor this read is authority to retry the mutation.
+    let recovery_call = McpToolCall::from_canonical_bytes(&success(cli(
+        "effect-recovery-call",
+        &[
+            ("--state-dir", path(&state)),
+            ("--source-operation", "delegated-write"),
+            ("--recovery-operation", "delegated-observe"),
+        ],
+        &[],
+        None,
+    )))
+    .expect("native recovery call");
+    let recovery = approve_native(
+        &state,
+        author(
+            &mut b,
+            &b_resources,
+            &recovery_call,
+            audience.clone(),
+            &trust,
+            now,
+        ),
+        "recovery",
+        &mut reviewer,
+        now,
+        &[("--recovery-of", "delegated-write")],
+        &[],
+    );
+    let mut recovery_request = submission_request(&socket, &recovery, "recover");
+    recovery_request["source_operation"] = json!("delegated-write");
+    let recovered = b.call(recovery_request.clone());
+    assert_eq!(recovered["outcome"], "recovery-report");
+    assert_eq!(recovered["report"]["source"]["provider_linked"], true);
+    assert!(recovered["report"]["source"]["observation_match"].is_null());
+    assert_eq!(recovered["report"]["disposition"], "recorded");
+    if crash_after_write {
+        assert!(recovered["report"]["source"]["response_status"].is_null());
+    }
+    forbidden(
+        &serde_json::to_vec(&recovered).expect("redacted recovery report"),
+        &content,
+    );
+    forbidden(
+        &serde_json::to_vec(&recovered).expect("redacted recovery report"),
+        &secret,
+    );
+    assert_eq!(
+        provider.calls().len(),
+        3,
+        "one content read, one write, one independent recovery read"
+    );
+    let mut retained_recovery = recovered.clone();
+    retained_recovery["report"]["disposition"] = json!("already-recorded");
+    assert_eq!(b.call(recovery_request), retained_recovery);
+    assert_eq!(
+        submission(&mut b, &socket, &write, "submit")["outcome"],
+        "observed-by-provider"
+    );
+    assert_eq!(
+        provider.calls().len(),
+        3,
+        "recovery and mutation replay cannot re-enter the provider"
     );
     let revoke = author(
         &mut machine,
@@ -933,6 +1206,13 @@ fn native_installed_delegation_process_fixture_is_current() {
         b.control(&socket, &b_evidence),
         json!({"kind":"recorded","revision":3})
     );
+    assert_eq!(
+        a.call(late_request),
+        late_ack,
+        "withdrawal cannot erase already authenticated historical ACK facts"
+    );
+    assert_eq!(a.call(loss_receive), late_ack);
+    assert_eq!(provider.calls().len(), 3);
     let denied_call = operator.join("withdrawn.call");
     success(cli(
         "effect-content-call",
@@ -1011,10 +1291,14 @@ fn native_installed_delegation_process_fixture_is_current() {
     let logs = daemon.finish_logs();
     forbidden(&logs, &secret);
     forbidden(&logs, &content);
-    let report = json!({"schema":"auths.installed-delegation-process-vectors/1","distinct_uids":distinct,
-        "installed_python_and_npm":true,"fresh_process_held_keys":5,"private_keys_exported":0,
+    let report = json!({"case":if crash_after_write {"crash-after-provider-write"} else {"provider-response-retained"},"distinct_uids":distinct,
+        "installed_python_and_npm":true,"fresh_process_held_keys":5,"private_keys_exported_to_orchestrator":0,
         "native_enrollment_revisions":[1,2,3,4],"resource_authority_suffix":3,"scripted_independent_reviewer":true,"human_presence":false,
-        "native_read_calls":1,"separate_native_disclosure_ack":true,"native_provider_writes":1,
+        "native_content_read_calls":1,"separate_native_disclosure_ack":true,"native_provider_writes":1,
+        "disclosure_crash_after_receipt":true,"late_original_ack_after_restart":true,"disclosure_replay_deliveries":0,
+        "late_ack_cannot_refund_ancestor_disclosure_capacity":true,
+        "write_response_lost":crash_after_write,"replay_before_recovery":written["outcome"],
+        "independent_recovery_reads":1,"provider_linked_observation":true,"recovery_replay_provider_calls":0,
         "wrong_reviewer_refused":true,"ancestor_shared_limit_refused_second_writer":true,"restart_replay_new_writes":0,
         "old_enrollment_retry_revision":3,"current_control_revision":4,"original_control_audit_replayed":true,
         "withdrawn_descendant_new_review_refused":true,
@@ -1022,14 +1306,5 @@ fn native_installed_delegation_process_fixture_is_current() {
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");
     forbidden(&bytes, &secret);
     forbidden(&bytes, &content);
-    if let Some(output) = std::env::var_os("AUTHS_DELEGATION_EVIDENCE_OUT") {
-        private(&PathBuf::from(output), &bytes);
-    } else {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../bindings/fixtures/gateway/engagement/installed-process.json");
-        if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
-            std::fs::write(&path, &bytes).expect("fixture");
-        }
-        assert_eq!(std::fs::read(path).expect("fixture"), bytes);
-    }
+    report
 }

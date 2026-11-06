@@ -49,3 +49,18 @@ plaintext disclosure. Arbitrary post-disclosure network egress is not restricted
 The artifact does not establish live provider qualification, human presence,
 every crash/ACK-loss schedule, PostgreSQL or full AP073 acceptance. Those remain
 separate required evidence; this workflow is not a substitute for them.
+
+The version-2 corpus runs two independent fresh-key installations: retained
+provider response and a real gateway process kill after the double has applied
+the exact write but before any response. The interrupted installed client must
+report a transport/protocol failure, and restarted native history must remain
+unknown until a separately signed/approved current read supplies declared
+provider linkage. Recovery replay creates no provider I/O or write permission.
+Both cases also use a same-UID child of A running the shipping native recipient
+library to stop after receipt and private ACK persistence. A supplies its seed
+only over its own child's private stdin. The gateway and child are killed; A
+retains the original ACK privately. Reconnection returns history without creating
+content/ACK files; public npm late-ACK transport records the original fact,
+including after subtree withdrawal, without releasing accounting or redelivery.
+These are process-crash schedules, not filesystem/power-loss proofs or evidence
+for every admission boundary.

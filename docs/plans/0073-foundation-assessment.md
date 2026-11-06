@@ -1103,3 +1103,75 @@ DAC or sibling-memory isolation. The separately wired source-free hosted mode,
 PostgreSQL, exhaustive crash schedules, human presence, live qualification,
 M4, global binding/formal/release checks and full acceptance remain unestablished.
 No broad gate, push or CI observation ran. The full goal remains active.
+
+### Installed process crash/recovery batch: planned evidence
+
+Extend the installed constructor as one whole batch, with two fresh independent
+installations and schema `auths.installed-delegation-process-vectors/2`. Preserve
+the retained-response path. For the second path the credential-checking HTTP
+double validates/applies the exact write, signals that fact and withholds all
+response bytes while the orchestrator kills/reaps the real daemon. The installed
+Python client must see protocol/transport uncertainty. Restarted exact replay
+must report native Unknown, retain the shared one-write limit against A and
+perform no second PATCH. Each path then obtains independent native recovery
+read authority plus exact independent approval through the installed client;
+provider linkage may refine historical facts but never grants a write or refund.
+
+Both paths also stop a native recipient after authenticated receipt/own private
+ACK persistence, kill the daemon and recipient, and check permanent delivery
+accounting, no files/plaintext on historical reconnection, original npm late-ACK
+recording/replay, and retained historical facts after participant withdrawal.
+A's seed reaches only its own same-UID native child through private stdin; no
+private seed/ACK/plaintext is passed to the orchestrator before disclosure. The
+child uses the maintained native recipient client, not a new verifier. The
+counting provider fault is test-only and does not enter the gateway.
+
+Map to F05/F08/F09/F11/F13/F16, without claiming all those scenarios closed.
+Required constructor cohort: installed process, prior content/read-only/capacity,
+managed interface, installation and candidate artifacts, plus semantic closure
+if production source changes. This batch changes no production source or wire
+contract, so the already current semantic closure is unaffected. No results are
+claimed before that complete cohort runs. Distinct Linux UIDs, PostgreSQL,
+other crash boundaries, managed child lineage, lifecycle/federation/native
+resource conformance and formal/global hosted gates remain required.
+
+The first whole construction cohort preserved all six existing process artifacts.
+The installed cases exposed a test expectation mismatch: native recovery replay
+truthfully reports `already-recorded`, preserving all source/acquisition facts,
+times and accounting. The corrected assertion compares every other field
+unchanged. Running both independent cases then exposed a Python fixture error
+that referenced an unassigned request variable only on transport failure; parsing
+the request before invocation repaired that error without weakening native checks.
+Both complete cases passed after those repairs. Final review adds all three
+remaining assertion gaps together: exact lost-ACK plaintext receipt, gateway
+process-memory denial in hosted distinct-UID mode, and a separately signed,
+reviewed third disclosure refused after original late ACK plus replay, proving
+that acknowledgement cannot replenish shared capacity. This final constructor
+result is recorded below; it is not a new production accounting mechanism.
+
+### Installed crash/recovery constructor result
+
+The final installed constructor passed both complete fresh-key cases, including
+exact recipient bytes, no capacity refund after late ACK, Unknown after the
+actual post-write gateway crash, shared-limit refusal while Unknown, separately
+authorized provider-link recovery and replay without additional provider calls.
+The 3,014-byte version-2 artifact records only checked portable facts; each
+installation used one local UID. The final log is
+`/tmp/ap073-installed-crash/installed-reviewed.log` (10.78 s).
+The six independent existing constructors passed in the same whole batch and
+retained their canonical bytes: content, read-only, capacity, managed interface,
+installation and candidate (`/tmp/ap073-installed-crash/*.log`). Only the affected
+installed constructor was repeated after test-only repairs/final review. Native
+construction compiled without diagnostics and Rust formatting passed. Wheel/npm
+payloads were reused from the prior successful construction because no binding
+or production source changed in this batch. Semantic closure is unchanged.
+
+No hosted isolation, PostgreSQL, broad behavioral/formal/release gate, push or
+CI observation was performed. These checked process schedules do not establish
+power-loss/fsync semantics or every pre-claim/admission crash boundary. Required
+remaining engineering includes managed-created-child lineage/reconciliation,
+cross-recipe shared-capacity process schedules, the remaining admission/revocation
+and stale-floor cases, lifecycle/compromise/recovery and additional-domain/native
+resource conformance, complete binding/fixture parity and source-linked formal
+assurance. Exact-head hosted gates remain last, after implementation is complete.
+The full AP073 goal remains active and incomplete.
