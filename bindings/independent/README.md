@@ -131,3 +131,12 @@ The command reports every vector whose decision, code, stage, or digests
 differ from the manifest, and every vector missing from the report.
 `core/fixtures/v1/check-sites.json` names the check site each single-fault
 vector targets, so a divergence can be traced to one specified check.
+
+The WebAuthn UV freshness vectors deliberately repeat identical signed proof
+and action bytes at evaluation times 50 and 59. The signed UV flag contains no
+trusted ceremony timestamp, so both independent implementations retain UV as an
+undated claim. An unaged UV requirement can succeed; an age-limited requirement
+cannot. Adapter-context registration timestamps and verifier evaluation time
+must not be substituted for the missing ceremony timestamp. Native bindings
+report assurance interpretation revision 2, bound by
+`webauthn-v1/assurance-v2` in the installed adapter configuration.

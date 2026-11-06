@@ -249,3 +249,52 @@ binding, formal or hosted gate is claimed. No push or CI observation occurred.
 The pause/resume changed goal scheduling only. On resumption the native goal
 service reports `active`; the current source and constructor logs were reread.
 Full M0–M4/F01–F16 remains open.
+
+
+## F07 WebAuthn freshness batch
+
+Before extending the scoped effect compiler, restore the independently preserved
+`211fd87d` correction as a direct source cutover on AP074. The reviewed current
+`auths-assurance::evaluate_with_implications` already requires an observation
+time for any maximum-age constraint. Leave the historical UV event undated;
+do not add a gateway-only clock interpretation or a second freshness evaluator.
+Native adapter assurance revision 2 and configuration domain
+`webauthn-v1/assurance-v2` commit the change. Registration-derived claims retain
+their existing observation times and explicit registration validity checks.
+
+The complete planned batch includes native claim invariance over evaluation and
+asserted-signing times; root/actor portable ABI cases at two times, both with
+and without maximum age; four canonical age-limited root/actor corpus vectors;
+matching independent Go/TypeScript behavior; protocol/profile documentation;
+and a regenerated shared core corpus and native gateway semantic closure.
+No old canonical binaries or obsolete adapter configuration readers are copied.
+The only planned local executions construct required artifacts: `cargo xtask
+wire --update`, `cargo xtask semantic-digest` (the Go aggregate fixture pin),
+and `AUTHS_UPDATE_FIXTURES=1 cargo test -p auths-gateway --lib
+semantic_closure_is_current`. Broader ABI/binding/conformance behavior and F07's
+participant clock/fence obligations remain hosted closure work. Global semantic
+freeze/source-closure and qualification evidence must be refreshed against the
+final full source batch; stale qualification artifacts establish no AP073 claim.
+
+
+### F07 required artifact result, 6 November 2026
+
+All three planned constructors finished successfully in the same batch:
+`cargo xtask wire --update` generated 1,617 files for the 323-vector corpus;
+`cargo xtask semantic-digest` produced
+`323:deeed0ff7cb085ea1420aa15159ec13783413a156ae94cc1e5f7313beff02b07`,
+now pinned in the independent Go corpus test; and the filtered gateway
+`semantic_closure_is_current` constructor passed. Logs are
+`/tmp/ap073-webauthn-{core-wire,semantic-pin,gateway-closure}.log`. Inspection of
+the generated manifest confirms each root/actor recheck pair has identical
+signed proof/action bytes, distinct context bytes and the native
+`indeterminate/assurance-requirement-not-met` outcome. The unaged native fixture
+remains authorized in the semantic projection. Core protocol/corpus version
+counters are advanced; final global freeze/source/qualification refresh remains
+required with the complete implementation.
+
+The new adapter and portable-ABI regression tests are source-authored, not run.
+The independent Go/TypeScript executables, installed bindings, full conformance,
+participant timing/fence tests, formal and hosted gates have not run. F07 remains
+open for those wider obligations. No push, CI observation, provider operation,
+merge or deployment occurred.
