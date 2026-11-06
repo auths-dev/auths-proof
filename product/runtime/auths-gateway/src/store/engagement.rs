@@ -256,6 +256,9 @@ pub(super) fn validate_entry<S: JournalProtocol>(
     Ok(())
 }
 
+type AdmissionDecision<'a, S> =
+    dyn FnMut(&mut Record<S>, &[Option<Vec<u8>>]) -> Result<(), GatewayAttemptError> + 'a;
+
 /// Common all-or-none admission over operation, existing protocol slots and all
 /// ancestor slots. Only vacancy collisions retry; errors/ambiguous acknowledgements
 /// return immediately. The original first-row native decision runs under the same
@@ -265,7 +268,7 @@ pub(super) fn insert<S: JournalProtocol>(
     record: &mut Record<S>,
     entries: &[GatewayRecordEntry],
     dependencies: &[(GatewayRecordKind, GatewayAttemptKey)],
-    decision: &mut dyn FnMut(&mut Record<S>, &[Option<Vec<u8>>]) -> Result<(), GatewayAttemptError>,
+    decision: &mut AdmissionDecision<'_, S>,
 ) -> Result<GatewayInsert, GatewayAttemptError> {
     let first = entries.first().ok_or(GatewayAttemptError::Corrupt)?;
     if first.kind != GatewayRecordKind::Attempt

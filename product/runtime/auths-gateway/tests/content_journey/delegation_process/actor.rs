@@ -21,6 +21,11 @@ pub(super) struct Actor {
 }
 
 impl Actor {
+    #[expect(
+        clippy::too_many_lines,
+        clippy::assertions_on_constants,
+        reason = "one supervised actor launch includes an explicitly Linux-only opt-in UID isolation mode"
+    )]
     pub(super) fn start(language: Language, consumer: &Path, uid: Option<u32>) -> Self {
         let python = std::env::var_os("AUTHS_DELEGATION_PYTHON")
             .expect("installed wheel interpreter is required");
@@ -161,6 +166,10 @@ impl Drop for Actor {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the installed-process fixture owns complete authoring or transport inputs through one bounded operation"
+)]
 fn exchange(
     input: &mut std::process::ChildStdin,
     replies: &Receiver<Vec<u8>>,

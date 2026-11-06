@@ -15,6 +15,10 @@ fn document() -> Value {
     json!({"records":[item()]})
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test authoring accepts independently owned mutation inputs for retained cases"
+)]
 fn case(
     name: &str,
     definition: Value,
@@ -34,6 +38,10 @@ fn case(
     json!({"name":name,"selection":definition,"items_pointer":items,"marker_pointer":marker,"token":token(),"parent":"parent-fixture",
         "response_hex":hex::encode(document),"selected_handle":expected})
 }
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test authoring accepts independently owned mutation inputs for retained cases"
+)]
 fn json_case(name: &str, definition: Value, document: Value, expected: Option<&str>) -> Value {
     case(
         name,
@@ -44,6 +52,10 @@ fn json_case(name: &str, definition: Value, document: Value, expected: Option<&s
         expected,
     )
 }
+#[expect(
+    clippy::too_many_lines,
+    reason = "retain the complete explicit signed fixture or hostile-case matrix as one reviewable construction"
+)]
 fn cases() -> Vec<Value> {
     let mut cases = vec![
         json_case(

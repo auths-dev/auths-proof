@@ -377,6 +377,10 @@ impl EngagementConfiguration {
         clippy::too_many_lines,
         reason = "one prepared original-evidence publication and final native root fence"
     )]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "the control transition owns original evidence through its publication fence"
+    )]
     fn bootstrap_evidence(
         &self,
         evidence: EngagementControlEvidence,
@@ -453,6 +457,10 @@ impl EngagementConfiguration {
     #[allow(
         clippy::too_many_lines,
         reason = "one control transition keeps evidence preparation separate from its final native publication fence"
+    )]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "the control transition owns original evidence through its publication fence"
     )]
     fn update(
         &self,

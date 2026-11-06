@@ -75,7 +75,7 @@ fn one(backend: Backend, protocol: Protocol) -> Value {
         || {
             fixture.runtime.block_on(async {
                 if let Some(history) = &history {
-                    replay_release(&reopened, history).await;
+                    Box::pin(replay_release(&reopened, history)).await;
                 } else {
                     replay_content(&reopened, &input, &acquired).await;
                 }

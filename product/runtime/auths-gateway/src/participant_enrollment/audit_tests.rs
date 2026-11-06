@@ -150,7 +150,7 @@ fn lifecycle(backend: Backend) -> Value {
             }
             2 => {
                 changed["blobs"][0]["data_b64"] =
-                    json!(Base64::encode_string(b"SYNTHETIC-WRONG-EVIDENCE"))
+                    json!(Base64::encode_string(b"SYNTHETIC-WRONG-EVIDENCE"));
             }
             3 => changed["blobs"][0]["reference"]["bytes"] = json!(0),
             _ => changed["blobs"].as_array_mut().unwrap().reverse(),

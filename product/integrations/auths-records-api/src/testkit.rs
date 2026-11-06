@@ -100,8 +100,11 @@ pub trait FixtureSigner {
 }
 
 /// Authors the same native proof with independently held external signer keys.
-/// Inputs must satisfy the profile and native codec's fixture bounds. Panics on
-/// invalid authoring data or signer output; never use as an untrusted server API.
+/// Inputs must satisfy the profile and native codec's fixture bounds.
+/// Never use this fixture authoring helper as an untrusted server API.
+///
+/// # Panics
+/// Panics on invalid fixture authoring data or signer output.
 #[allow(
     clippy::too_many_arguments,
     clippy::too_many_lines,

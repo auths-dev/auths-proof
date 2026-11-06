@@ -59,7 +59,10 @@ pub(super) fn content_effect(
     )?;
     let from_action =
         compile_content_action(&installation(setup), NOW, &native.proof, &native.action)?;
-    assert!(effect.binding() == from_action.binding());
+    assert_eq!(
+        effect.binding().to_private_bytes().unwrap(),
+        from_action.binding().to_private_bytes().unwrap()
+    );
     Ok(effect)
 }
 
@@ -433,7 +436,7 @@ async fn native_engagement_information_fixture_is_current() {
 #[tokio::test]
 async fn postgres_native_information_scope_and_ancestor_accounting() {
     if postgres_configured() {
-        information_lifecycle(Backend::Postgres).await;
+        Box::pin(information_lifecycle(Backend::Postgres)).await;
     }
 }
 
@@ -461,7 +464,7 @@ async fn recipient_withdrawal_before_reservation(backend: Backend) {
     tokio::task::block_in_place(|| {
         setup
             .native
-            .withdraw_participant(&setup.controller, recipient)
+            .withdraw_participant(&setup.controller, recipient);
     });
     let attempts = setup.attempts(Arc::clone(&setup.store));
     assert!(
@@ -482,7 +485,7 @@ async fn recipient_withdrawal_before_reservation(backend: Backend) {
 #[tokio::test(flavor = "multi_thread")]
 async fn postgres_current_recipient_withdrawal_prevents_information_reservation() {
     if postgres_configured() {
-        recipient_withdrawal_before_reservation(Backend::Postgres).await;
+        Box::pin(recipient_withdrawal_before_reservation(Backend::Postgres)).await;
     }
 }
 
@@ -525,12 +528,12 @@ async fn zero_content(backend: Backend) {
 
 #[tokio::test]
 async fn file_empty_native_content_still_reserves_disclosure_count() {
-    zero_content(Backend::File).await;
+    Box::pin(zero_content(Backend::File)).await;
 }
 #[tokio::test]
 async fn postgres_empty_native_content_still_reserves_disclosure_count() {
     if postgres_configured() {
-        zero_content(Backend::Postgres).await;
+        Box::pin(zero_content(Backend::Postgres)).await;
     }
 }
 
@@ -619,11 +622,11 @@ async fn recovery_after_writer_withdrawal(backend: Backend) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn file_native_recovery_uses_current_reader_after_writer_withdrawal() {
-    recovery_after_writer_withdrawal(Backend::File).await;
+    Box::pin(recovery_after_writer_withdrawal(Backend::File)).await;
 }
 #[tokio::test(flavor = "multi_thread")]
 async fn postgres_native_recovery_uses_current_reader_after_writer_withdrawal() {
     if postgres_configured() {
-        recovery_after_writer_withdrawal(Backend::Postgres).await;
+        Box::pin(recovery_after_writer_withdrawal(Backend::Postgres)).await;
     }
 }

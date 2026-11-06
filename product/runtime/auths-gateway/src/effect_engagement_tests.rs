@@ -253,7 +253,7 @@ fn decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry() {
             3 => changed["scope"]["bound"]["ancestors"][1]["ceilings"]["writes"] = json!(2),
             4 => {
                 changed["scope"]["bound"]["ancestors"][1]["principal"] =
-                    changed["scope"]["bound"]["ancestors"][0]["principal"].clone()
+                    changed["scope"]["bound"]["ancestors"][0]["principal"].clone();
             }
             5 => changed["scope"]["bound"]["ancestors"][1]["expires_at"] = json!(NOW + 1000),
             6 => changed["scope"]["bound"]["authority_epoch"] = json!(0),
@@ -267,11 +267,11 @@ fn decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry() {
             }
             10 => {
                 changed["scope"]["bound"]["ancestors"][0]["capacity_enrollment"] =
-                    json!(vec![0; 32])
+                    json!(vec![0; 32]);
             }
             _ => {
                 changed["scope"]["bound"]["ancestors"][1]["capacity_enrollment"] =
-                    changed["scope"]["bound"]["ancestors"][0]["capacity_enrollment"].clone()
+                    changed["scope"]["bound"]["ancestors"][0]["capacity_enrollment"].clone();
             }
         }
         let encoded = serde_json_canonicalizer::to_vec(&changed).unwrap();

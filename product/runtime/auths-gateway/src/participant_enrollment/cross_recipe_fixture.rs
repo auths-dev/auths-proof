@@ -26,18 +26,22 @@ pub(crate) fn federated_recipe_fixture(
         connections,
         arguments,
         engagement,
-        Some([Signer::new(0x12), Signer::did_key(0x13)]),
+        Some(&[Signer::new(0x12), Signer::did_key(0x13)]),
     )
 }
 
 // Test authoring shares only mechanics. The normal corpus still has its
 // original one-issuer topology; federation supplies independently signed owners.
+#[expect(
+    clippy::too_many_lines,
+    reason = "retain the complete explicit signed fixture or hostile-case matrix as one reviewable construction"
+)]
 fn cross_recipe_with_owners(
     recipes: [&crate::CompiledRecipe; 2],
     connections: [&auths_connections::ConnectionRecord; 2],
     arguments: [&Map<String, Value>; 2],
     engagement: [u8; 32],
-    owners: Option<[Signer; 2]>,
+    owners: Option<&[Signer; 2]>,
 ) -> (EffectScopeFixture, [Submission; 2]) {
     let mut fixture = Fixture::with_depth(0x44, 1);
     fixture.pins.engagement_commitment = engagement;

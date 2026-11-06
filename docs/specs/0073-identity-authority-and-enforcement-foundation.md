@@ -1,6 +1,6 @@
 # AP-SPEC-073: Identity, delegated authority, and enforcement foundation
 
-- **Status:** Implementation and required local artifact construction written on merged AP074. Exact-head hosted acceptance remains pending; no AP073 acceptance criterion is closed.
+- **Status:** Implementation and required local artifact construction written on merged AP074. Acceptance requires all applicable exact-head hosted checks on [PR215](https://github.com/auths-dev/auths-proof/pull/215), using the source/evidence map in `docs/plans/0073-assurance-map.md`; construction results alone close no acceptance criterion.
 - **Date:** 26 October 2026.
 - **Updated:** 6 November 2026. The preserved AP073 checkpoint is `97163513`. The continuation baseline is merged AP074, `68987975`. Earlier task-ledger implementation claims do not apply to this branch. Full M0–M4 and F01–F16 remain required.
 - **Mission:** Build an authorization and identity layer for human–agent, machine–agent, and agent–agent work.

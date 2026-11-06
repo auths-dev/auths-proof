@@ -5670,7 +5670,10 @@ mod unix {
             private_file(&directory.path().join("installation.json"), &bytes)
                 .expect("private manifest");
             let loaded = installation(directory.path()).expect("same codec reads scoped policy");
-            assert!(loaded.effect_policy == manifest.effect_policy);
+            assert_eq!(
+                serde_json::to_value(&loaded.effect_policy).unwrap(),
+                serde_json::to_value(&manifest.effect_policy).unwrap()
+            );
             assert_eq!(
                 engine_recipe_marker(directory.path()).expect("validated marker"),
                 manifest.recipe_digest

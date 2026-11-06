@@ -154,8 +154,8 @@ async fn authenticate(approved: &ApprovedEffect, policy: &UnixDisclosurePolicy) 
     }
 }
 
-async fn received_and_ack(receiver: JoinHandle<Result<ReceivedDisclosure, &'static str>>) -> usize {
-    let received = receiver.await.unwrap().unwrap();
+async fn received_and_ack(task: JoinHandle<Result<ReceivedDisclosure, &'static str>>) -> usize {
+    let received = task.await.unwrap().unwrap();
     assert_eq!(received.content(), CONTENT);
     let count = received.content().len();
     received.acknowledge(&recipient()).await.unwrap();
@@ -223,7 +223,7 @@ async fn facts(
 
 async fn acknowledged(backend: Backend) -> Value {
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     let attempts = setup.attempts(Arc::clone(&setup.store));
     reserve(&setup, &approved).await;
     let rows = allocations(&setup, &approved).await;
@@ -255,7 +255,7 @@ async fn acknowledged(backend: Backend) -> Value {
 
 async fn lost_ack(backend: Backend) -> Value {
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     let attempts = setup.attempts(Arc::clone(&setup.store));
     reserve(&setup, &approved).await;
     let rows = allocations(&setup, &approved).await;
@@ -354,7 +354,7 @@ async fn lost_ack(backend: Backend) -> Value {
 
 async fn dropped_grant(backend: Backend, lose_reply: bool) -> Value {
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     reserve(&setup, &approved).await;
     let rows = allocations(&setup, &approved).await;
     let fault = Arc::new(FaultStore::new(setup.backend.raw()));
@@ -405,7 +405,7 @@ async fn dropped_grant(backend: Backend, lose_reply: bool) -> Value {
     facts(&setup, &approved, snapshot, vec![lost_wire, replay_wire]).await
 }
 
-async fn withdraw(setup: &Setup, approved: &ApprovedEffect, recipient: bool) {
+fn withdraw(setup: &Setup, approved: &ApprovedEffect, recipient: bool) {
     let binding = private(approved.effect().binding());
     let path = if recipient {
         &binding["scope"]["bound"]["recipient"]["ancestors"]
@@ -418,7 +418,7 @@ async fn withdraw(setup: &Setup, approved: &ApprovedEffect, recipient: bool) {
 
 async fn withdrawal(backend: Backend, after_grant: bool, recipient: bool) -> Value {
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     let attempts = setup.attempts(Arc::clone(&setup.store));
     let reserved = reserve(&setup, &approved).await;
     let before = record(&setup, OPERATION).await.unwrap();
@@ -433,7 +433,7 @@ async fn withdrawal(backend: Backend, after_grant: bool, recipient: bool) -> Val
             .grant_disclosure(Arc::clone(&approved), setup.validation(), NOW, channel)
             .await
             .unwrap();
-        withdraw(&setup, &approved, recipient).await;
+        withdraw(&setup, &approved, recipient);
         let (ack, count) = tokio::join!(deliver(permit), received_and_ack(receiver));
         assert_eq!(count, CONTENT.len());
         drop(grant);
@@ -449,7 +449,7 @@ async fn withdrawal(backend: Backend, after_grant: bool, recipient: bool) -> Val
         assert_eq!(allocations(&setup, &approved).await, rows);
         facts(&setup, &approved, snapshot, vec![wire.await.unwrap()]).await
     } else {
-        withdraw(&setup, &approved, recipient).await;
+        withdraw(&setup, &approved, recipient);
         assert!(
             attempts
                 .grant_disclosure(Arc::clone(&approved), setup.validation(), NOW, channel)
@@ -467,7 +467,7 @@ async fn withdrawal(backend: Backend, after_grant: bool, recipient: bool) -> Val
 
 async fn concurrent_grants(backend: Backend) -> Value {
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     reserve(&setup, &approved).await;
     let rows = allocations(&setup, &approved).await;
     let left = setup.attempts(Arc::clone(&setup.store));
@@ -524,7 +524,7 @@ async fn concurrent_grants(backend: Backend) -> Value {
 async fn wrong_key(backend: Backend) -> Value {
     use crate::effect::disclosure_auth::{Challenge, Response, bounded, decode};
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     let reserved = reserve(&setup, &approved).await;
     let before = record(&setup, OPERATION).await.unwrap();
     let (server, gateway_proxy) = UnixStream::pair().unwrap();
@@ -565,7 +565,7 @@ async fn wrong_key(backend: Backend) -> Value {
 async fn wrong_peer_uid(backend: Backend) -> Value {
     let uid = rustix::process::geteuid().as_raw();
     let policy = UnixDisclosurePolicy::new(uid, uid ^ 1, [0x78; 32]);
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     let reserved = reserve(&setup, &approved).await;
     let before = record(&setup, OPERATION).await.unwrap();
     let (server, gateway_proxy) = UnixStream::pair().unwrap();
@@ -602,7 +602,7 @@ async fn wrong_peer_uid(backend: Backend) -> Value {
 
 async fn lost_claim_reply(backend: Backend) -> Value {
     let policy = local_policy();
-    let (setup, approved) = setup(backend, &policy).await;
+    let (setup, approved) = Box::pin(setup(backend, &policy)).await;
     let fault = Arc::new(FaultStore::new(setup.backend.raw()));
     fault.lose_next_claim_reply();
     let attempts = setup.attempts(fault);

@@ -76,6 +76,7 @@ struct Recipient {
 
 /// Closed native compiler purpose; a source is protected journal provenance,
 /// never a separate application map or a writer's current read authority.
+#[derive(Clone, Copy)]
 pub(super) enum ScopePurpose<'a> {
     Mutation,
     Content,
@@ -295,9 +296,9 @@ impl EngagementScope {
                 && scope.connection_binding == connection
                 && scope.service == service
                 && scope.tool == tool
-                && match purpose.source() {
-                    Some(source) => matches!(&source.wire.scope, Scope::Engagement { bound } if bound.scope.resource == scope.resource),
-                    None => {
+                && if let Some(source) = purpose.source() {
+                    matches!(&source.wire.scope, Scope::Engagement { bound } if bound.scope.resource == scope.resource)
+                } else {
                         let args = call.get("arguments");
                         let args = if matches!(purpose, ScopePurpose::Content) { args.and_then(|args| args.get("resource_arguments")) } else { args };
                         let handle=args.and_then(|args| args.get(&scope.resource_argument)).and_then(serde_json::Value::as_str);
@@ -306,7 +307,6 @@ impl EngagementScope {
                             crate::participant_enrollment::EnrollmentResourceBinding::CreatedChild{..} => installed.lineages.iter().any(|lineage|
                                 lineage.admits(&policy.root,scope) && handle==Some(lineage.resource.as_str())),
                         }
-                    }
                 }
         });
         let scope = matches.next().ok_or(EffectBindingError::Invalid)?;

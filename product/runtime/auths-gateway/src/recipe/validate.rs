@@ -798,8 +798,8 @@ pub(super) fn validate_source(
     }
     if let Some(observation) = &source.observation {
         rules.observation(observation)?;
-        if let Some(selection) = &observation.created_resource {
-            if source
+        if let Some(selection) = &observation.created_resource
+            && (source
                 .echo
                 .as_ref()
                 .is_none_or(|echo| !selection.valid(&observation.json_pointer, &echo.observe))
@@ -819,10 +819,9 @@ pub(super) fn validate_source(
                         _ => false,
                     })
                 || !rules.consumed.body.contains(&observation.expected_field)
-                || source.preconditions.is_some()
-            {
-                return Err(GatewayRecipeError::UnsafeTemplate);
-            }
+                || source.preconditions.is_some())
+        {
+            return Err(GatewayRecipeError::UnsafeTemplate);
         }
     }
     if let Some(echo) = &source.echo {

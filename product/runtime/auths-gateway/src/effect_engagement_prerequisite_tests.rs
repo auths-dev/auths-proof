@@ -118,7 +118,7 @@ async fn lifecycle(backend: Backend) -> Value {
             1 => changed["prerequisite_budgets"][0]["maximum_response_bytes"] = json!(0),
             2 => {
                 changed["prerequisite_budgets"][0]["reservations"][0]["unit"] =
-                    json!("mutation-count")
+                    json!("mutation-count");
             }
             3 => {
                 changed["prerequisite_budgets"][0]["reservations"]
@@ -370,8 +370,8 @@ async fn native_engagement_prerequisite_fixture_is_current() {
 #[tokio::test(flavor = "multi_thread")]
 async fn postgres_native_prerequisite_read_charges_and_acknowledgements() {
     if postgres_configured() {
-        lifecycle(Backend::Postgres).await;
-        acknowledgement_loss(Backend::Postgres).await;
-        withdrawn_actor(Backend::Postgres).await;
+        Box::pin(lifecycle(Backend::Postgres)).await;
+        Box::pin(acknowledgement_loss(Backend::Postgres)).await;
+        Box::pin(withdrawn_actor(Backend::Postgres)).await;
     }
 }

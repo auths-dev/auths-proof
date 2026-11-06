@@ -1283,7 +1283,7 @@ fn root_bootstrap_commitment_covers_every_immutable_installation_dimension() {
                     .permitted_channels
                     .get_mut("agent-b-channel")
                     .unwrap()
-                    .channel_binding[0] ^= 1
+                    .channel_binding[0] ^= 1;
             }
             _ => {
                 let channel = changed
@@ -2144,6 +2144,10 @@ impl EffectScopeFixture {
             call.arguments(),
         )
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "retain the complete explicit signed fixture or hostile-case matrix as one reviewable construction"
+    )]
     pub(crate) fn recovery_evidence(
         &self,
         current: &EnrollmentTree,
@@ -2315,7 +2319,10 @@ impl EffectScopeFixture {
                 )
                 .unwrap();
         }
-        assert!(controller.snapshot().unwrap().tree() == &self.tree);
+        assert_eq!(
+            serde_json::to_value(controller.snapshot().unwrap().tree()).unwrap(),
+            serde_json::to_value(&self.tree).unwrap()
+        );
     }
 }
 

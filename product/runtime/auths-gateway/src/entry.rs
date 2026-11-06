@@ -74,6 +74,39 @@ pub(crate) struct InstalledEntry {
     pub(crate) commissioning: Option<crate::engine::commissioning::EntryAuthority>,
 }
 
+impl InstalledEntry {
+    fn enrollment(
+        &self,
+        snapshots: &[Option<Vec<u8>>],
+        now: u64,
+    ) -> Result<Option<crate::EngagementConfigurationSnapshot>, &'static str> {
+        let enrollment = match (self.policy.engagement(), &self.engagement) {
+            (None, None) => None,
+            (Some(policy), Some(controller)) => {
+                if crate::EngagementConfiguration::key_for_root(policy.root())
+                    .map_err(|_| "gateway.engagement.installation")?
+                    != controller.dependency_key()
+                {
+                    return Err("gateway.engagement.installation");
+                }
+                let snapshot = crate::EngagementConfiguration::decode_for_root(
+                    policy.root(),
+                    snapshots[2]
+                        .as_deref()
+                        .ok_or("gateway.engagement.state-unavailable")?,
+                )
+                .map_err(|_| "gateway.engagement.state-unavailable")?;
+                if snapshot.accepted_at() > now {
+                    return Err("gateway.engagement.clock-rollback");
+                }
+                Some(snapshot)
+            }
+            _ => return Err("gateway.engagement.installation"),
+        };
+        Ok(enrollment)
+    }
+}
+
 pub(crate) enum EntryValidation {
     Installed(Box<InstalledEntry>),
     /// A post-native driver oracle, never available in a production build.
@@ -231,29 +264,7 @@ impl EntryValidation {
                 }?;
                 #[cfg(not(unix))]
                 qualification.check()?;
-                let enrollment = match (entry.policy.engagement(), &entry.engagement) {
-                    (None, None) => None,
-                    (Some(policy), Some(controller)) => {
-                        if crate::EngagementConfiguration::key_for_root(policy.root())
-                            .map_err(|_| "gateway.engagement.installation")?
-                            != controller.dependency_key()
-                        {
-                            return Err("gateway.engagement.installation");
-                        }
-                        let snapshot = crate::EngagementConfiguration::decode_for_root(
-                            policy.root(),
-                            snapshots[2]
-                                .as_deref()
-                                .ok_or("gateway.engagement.state-unavailable")?,
-                        )
-                        .map_err(|_| "gateway.engagement.state-unavailable")?;
-                        if snapshot.accepted_at() > now {
-                            return Err("gateway.engagement.clock-rollback");
-                        }
-                        Some(snapshot)
-                    }
-                    _ => return Err("gateway.engagement.installation"),
-                };
+                let enrollment = entry.enrollment(snapshots, now)?;
                 let lineages = match approved.effect().binding().created_lineage() {
                     None => Vec::new(),
                     Some(lineage) => {
@@ -277,7 +288,11 @@ impl EntryValidation {
                                 entry.qualification.policy(),
                                 entry.configuration.candidate(),
                             )
-                            .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                            .with_enrollment(
+                                enrollment
+                                    .as_ref()
+                                    .map(crate::EngagementConfigurationSnapshot::tree),
+                            )
                             .with_lineages(&lineages),
                         now,
                     )

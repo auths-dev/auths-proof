@@ -2070,3 +2070,94 @@ locally. Hosted reruns are required for all repaired consumers and final heads.
 These reproductions do not close authoritative/formal/package gates skipped by
 the failed repository preflight. Update only changed source/freeze metadata and
 publish the collected repair batch; preserve the complete acceptance matrix.
+
+
+### Second hosted cohort: Clippy closure batch
+
+Revision `34e24d4a` passes the originally failing Python source-contract and
+provider simulation jobs plus generated identities and distinct-UID gateway
+isolation. Repository preflight reaches workspace Clippy and reports 22 gateway
+lints plus one missing panic-doc section in the records fixture authoring API.
+Map all diagnostics before reproducing: box the oversized disclosure future,
+use method references, make the borrowed-only scope purpose Copy, use let-else
+and equivalent conditional forms, name the existing admission callback type,
+extract scope validation and enrollment snapshot lookup without reordering native
+checks, and separate the created-resource review projection. Document fixture
+panics explicitly. Keep the two complete atomic grant-entry protocols intact:
+function-local expected line-count lints explain the durable-acknowledgement
+boundary rather than splitting it just for a length limit. Original-evidence
+control transitions intentionally own evidence through their publication fences;
+function-local expected ownership lints record that contract. No security check,
+wire schema, fixture expectation, store transaction or test count is relaxed.
+
+All source changes for this lint batch precede verification. Reproduce the failed
+workspace Clippy command to collect any remaining independent diagnostics, then
+run affected native evidence and regenerate only required source identities.
+The formal, PostgreSQL and packaged-demo cohorts continue independently; their
+results are not inferred from a passing lint check.
+
+
+The full failed-command reproduction first reached a 103-line WebAuthn ceremony
+test. Combine its two identical claim-presence assertions into a loop over both
+unchanged expected names; retain stale-time/signature/preimage assertions. This
+is test-only organization and changes no principal method behavior or claims.
+Continue the same collected workspace lint reproduction to expose downstream
+test-target diagnostics before publication.
+
+The downstream test-target cohort reports 85 gateway diagnostics, primarily 54
+oversized test futures retaining complete signed fixtures. Box those specific
+awaited fixture futures without changing their protocol calls, cancellation order
+or assertions; keep production future linting enabled. Complete unit-expression
+semicolons, use explicit variant patterns, remove an unused async marker, and
+correct names/iteration/static helper calls. Opaque private types retain no Debug
+surface; compare their complete serialized fixture values/bytes for equality.
+Keep explicit signed fixture constructors and adversarial matrices whole with
+function-local expected length lints, and document intentionally owned test-case
+inputs. Do not waive test execution, change hostile-case outcomes or suppress a
+crate-wide lint. This whole test-only repair batch precedes the next reproduction.
+
+
+The same published cohort passed configured TLS PostgreSQL qualification and the
+source-free installed Linux delegation selector: exactly one test passed with
+zero ignored (14.82s), containing all eight distinct-UID scenarios. Airtable's
+36-case self-test also passed. The job later failed only while uploading the
+root-owned 0600 redacted AP073 report. Transfer ownership of that one known report
+to the host owner of its package manifest; do not broaden modes, recurse through
+private directories, or alter credential custody. The next exact-head run must
+retain and independently inspect the report, so this is not yet final acceptance.
+
+Clippy then reached 16 integration/binary test diagnostics plus test-module
+placement. Correct similar identifiers, unit semicolons, an unnecessary closure
+drop, use placement and opaque policy equality. Keep complete process-launch/HTTP
+fixture constructors reviewable with narrowly explained expected lints; the UID
+assertion intentionally guards an opt-in Linux-only mode while default fixtures
+compile on macOS. Move the compliance test module after its implementation. All
+these changes and the one-file upload-ownership repair precede reproduction.
+
+The full `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+reproduction now passes. Its final log is
+`/tmp/ap073-second-ci-clippy-repair.log`; no crate-wide lint exemption was added.
+Required verification/construction mapping for the helper extraction and test
+organization: native enrollment/effect/approval, ancestor admission/control/
+hierarchy, acquisition/disclosure/prerequisites/live delivery, created-selection/
+recovery, instance recovery, cross-recipe/federation and semantic equality. Also
+exercise the unchanged WebAuthn ceremony and records presentation assertions.
+Resolve every actual compiled selector and assert exactly one pass, zero ignored;
+fixture equality runs without update mode except required semantic construction.
+Hosted PostgreSQL, source-free Linux package/browser and formal gates must rerun
+on the repair head; this local reproduction is not final acceptance.
+
+
+All seventeen mapped native/records/WebAuthn fixture-equality regressions passed
+with exactly one executed test and zero ignored each, with update mode disabled.
+No expected artifact output changed. Logs and results are
+`/tmp/ap073-second-ci-affected/` and
+`/tmp/ap073-second-ci-affected-results.log`; its constructor build is
+`/tmp/ap073-second-ci-affected-build.log`. Required semantic identity construction
+preceded these checks and equality passed on the new source. Full workspace
+Clippy also passed. The source maps now refer to PR215's exact-head required
+checks as the final acceptance record instead of embedding an enduring pending
+or passing status in the specification. Rebuild/freeze only changed identities,
+publish this complete repair batch, and require all applicable hosted gates on
+that revision. Historical passing PostgreSQL and source-free Linux results do
+not substitute for final-head results; no merge or deployment is authorized.

@@ -215,8 +215,10 @@ async fn native_prerequisite_compilation_fixture_is_current() {
         journals.push(journal_witness(&approved, &policy, base).await);
         if base == "stripe" {
             guard_evidence_fixture(&approved, &installed);
-            super::recovery_prerequisite_tests::fixture(&approved, &installed, &policy, &root)
-                .await;
+            Box::pin(super::recovery_prerequisite_tests::fixture(
+                &approved, &installed, &policy, &root,
+            ))
+            .await;
         }
         cases.push(json!({
             "recipe": base,

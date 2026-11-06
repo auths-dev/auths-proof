@@ -54,7 +54,7 @@ impl ParticipantControlOutcome {
 }
 
 fn apply(
-    controller: EngagementConfiguration,
+    controller: &EngagementConfiguration,
     evidence: EngagementControlEvidence,
 ) -> ParticipantControlOutcome {
     let result = (|| {
@@ -105,11 +105,10 @@ impl GatewayEngine {
         if evidence.is_root() {
             return ParticipantControlOutcome::refused("gateway.engagement.operator-required");
         }
-        let controller = match self.installed_engagement() {
-            Ok(Some(controller)) => controller,
-            _ => return ParticipantControlOutcome::refused("gateway.engagement.installation"),
+        let Ok(Some(controller)) = self.installed_engagement() else {
+            return ParticipantControlOutcome::refused("gateway.engagement.installation");
         };
-        tokio::task::spawn_blocking(move || apply(controller, evidence))
+        tokio::task::spawn_blocking(move || apply(&controller, evidence))
             .await
             .unwrap_or_else(|_| ParticipantControlOutcome::Indeterminate {
                 code: "gateway.engagement.state-unavailable".into(),
@@ -127,11 +126,10 @@ impl GatewayEngine {
         if !evidence.is_root() {
             return ParticipantControlOutcome::refused("gateway.engagement.root-required");
         }
-        let controller = match self.installed_engagement() {
-            Ok(Some(controller)) => controller,
-            _ => return ParticipantControlOutcome::refused("gateway.engagement.installation"),
+        let Ok(Some(controller)) = self.installed_engagement() else {
+            return ParticipantControlOutcome::refused("gateway.engagement.installation");
         };
-        tokio::task::spawn_blocking(move || apply(controller, evidence))
+        tokio::task::spawn_blocking(move || apply(&controller, evidence))
             .await
             .unwrap_or_else(|_| ParticipantControlOutcome::Indeterminate {
                 code: "gateway.engagement.state-unavailable".into(),

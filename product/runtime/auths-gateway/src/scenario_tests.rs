@@ -948,7 +948,7 @@ async fn record_scenarios(backend: Backend) {
             | "restart-during-unknown"
             | "changed-action-during-unknown"
             | "fresh-challenge-after-observed-by-provider" => {
-                run_resolution_case(id, backend).await
+                Box::pin(run_resolution_case(id, backend)).await
             }
             _ => run_first_attempt_case(id, backend).await,
         };
@@ -964,7 +964,7 @@ async fn record_scenarios(backend: Backend) {
 
 #[tokio::test]
 async fn record_scenarios_drive_the_counting_provider() {
-    record_scenarios(Backend::File).await;
+    Box::pin(record_scenarios(Backend::File)).await;
 }
 
 #[tokio::test]
@@ -974,7 +974,7 @@ async fn postgres_record_scenarios_drive_the_counting_provider() {
         postgres_configured(),
         "TLS PostgreSQL environment slots are required"
     );
-    record_scenarios(Backend::Postgres).await;
+    Box::pin(record_scenarios(Backend::Postgres)).await;
 }
 
 #[tokio::test]
@@ -2768,7 +2768,7 @@ async fn store_conformance(backend: Backend) {
     conformance_claim_exactly_once_and_replay(backend).await;
     conformance_complete_binding_and_scope(backend).await;
     conformance_fresh_challenge(backend).await;
-    conformance_unknown_and_reobserve(backend).await;
+    Box::pin(conformance_unknown_and_reobserve(backend)).await;
     conformance_echo_mismatch(backend).await;
     Box::pin(conformance_concurrent_reobservation(backend)).await;
     conformance_mechanism_fails_closed(backend).await;

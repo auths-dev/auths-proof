@@ -842,53 +842,7 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     if VerifyingKey::from_bytes(&approver).map_or(true, |key| key.is_weak()) {
         return Err(EffectBindingError::Invalid);
     }
-    match &wire.scope {
-        Scope::Unscoped => {
-            if wire
-                .reservations
-                .iter()
-                .any(|r| r.window == ReservationWindow::EngagementLifetime)
-            {
-                return Err(EffectBindingError::Invalid);
-            }
-        }
-        Scope::Engagement { bound } => {
-            bound.validate()?;
-            bound.independent_approver(&approver)?;
-            if !bound.matches_installation(&wire.recipe, &wire.connection) {
-                return Err(EffectBindingError::Invalid);
-            }
-            let expected = wire.scope.reservations(&wire.protocol)?;
-            let actual: Vec<_> = wire
-                .reservations
-                .iter()
-                .filter(|r| r.window == ReservationWindow::EngagementLifetime)
-                .cloned()
-                .collect();
-            let mut expected = expected;
-            expected.sort_by_key(|entry| (entry.key, entry.unit));
-            if actual != expected {
-                return Err(EffectBindingError::Invalid);
-            }
-        }
-    }
-    if wire.prerequisite_budgets.len() > prerequisite::MAX_PREREQUISITES
-        || (matches!(wire.protocol, Protocol::Disclosure { .. })
-            && !wire.prerequisite_budgets.is_empty())
-    {
-        return Err(EffectBindingError::Invalid);
-    }
-    if !wire.prerequisite_budgets.is_empty() {
-        let expected = wire.scope.prerequisite_reservations()?;
-        for (index, budget) in wire.prerequisite_budgets.iter().enumerate() {
-            if usize::from(budget.index) != index
-                || !(1..=65_536).contains(&budget.maximum_response_bytes)
-                || budget.reservations != expected
-            {
-                return Err(EffectBindingError::Invalid);
-            }
-        }
-    }
+    validate_scope(wire, &approver)?;
     let mut previous = None;
     for reservation in &wire.reservations {
         let key = (reservation.key, reservation.unit);
@@ -952,6 +906,57 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
             ..
         } => {
             if !label(recipient) || *maximum_bytes > 65_536 {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_scope(wire: &BindingWire, approver: &[u8; 32]) -> Result<(), EffectBindingError> {
+    match &wire.scope {
+        Scope::Unscoped => {
+            if wire
+                .reservations
+                .iter()
+                .any(|r| r.window == ReservationWindow::EngagementLifetime)
+            {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+        Scope::Engagement { bound } => {
+            bound.validate()?;
+            bound.independent_approver(approver)?;
+            if !bound.matches_installation(&wire.recipe, &wire.connection) {
+                return Err(EffectBindingError::Invalid);
+            }
+            let expected = wire.scope.reservations(&wire.protocol)?;
+            let actual: Vec<_> = wire
+                .reservations
+                .iter()
+                .filter(|r| r.window == ReservationWindow::EngagementLifetime)
+                .cloned()
+                .collect();
+            let mut expected = expected;
+            expected.sort_by_key(|entry| (entry.key, entry.unit));
+            if actual != expected {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+    }
+    if wire.prerequisite_budgets.len() > prerequisite::MAX_PREREQUISITES
+        || (matches!(wire.protocol, Protocol::Disclosure { .. })
+            && !wire.prerequisite_budgets.is_empty())
+    {
+        return Err(EffectBindingError::Invalid);
+    }
+    if !wire.prerequisite_budgets.is_empty() {
+        let expected = wire.scope.prerequisite_reservations()?;
+        for (index, budget) in wire.prerequisite_budgets.iter().enumerate() {
+            if usize::from(budget.index) != index
+                || !(1..=65_536).contains(&budget.maximum_response_bytes)
+                || budget.reservations != expected
+            {
                 return Err(EffectBindingError::Invalid);
             }
         }

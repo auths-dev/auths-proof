@@ -231,7 +231,7 @@ mod external_authoring_tests {
                 "nonce" => changed.input.presentation_nonce.push('x'),
                 "public-key" => {
                     changed.presenter_public_key =
-                        hex::encode(SigningKey::from_bytes(&[18; 32]).verifying_key().to_bytes())
+                        hex::encode(SigningKey::from_bytes(&[18; 32]).verifying_key().to_bytes());
                 }
                 "signature" => changed.signature = "00".repeat(64),
                 _ => unreachable!("closed fixture cases"),

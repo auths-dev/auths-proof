@@ -363,7 +363,6 @@ impl NativeFixture {
             read(&native_policy, &configuration, CREATED_RESOURCE, now),
             [0xB3; 32],
         );
-        drop(make);
         let mut preflight_refusals = Vec::new();
         for name in [
             "native-proof",
@@ -409,7 +408,7 @@ impl NativeFixture {
                 }
                 "native-audience" => {
                     envelope.presentation.input.executor_audience =
-                        "https://wrong.example.invalid".into()
+                        "https://wrong.example.invalid".into();
                 }
                 "native-stale-presentation" => envelope.presentation.input.expires_at = now - 1,
                 "native-configuration" => required.maximum_evaluator_work += 1,
@@ -603,7 +602,7 @@ impl NativeProvider {
         let stop = Arc::new(AtomicBool::new(false));
         let finished = Arc::clone(&stop);
         let hold = Arc::new(AtomicBool::new(false));
-        let held = Arc::clone(&hold);
+        let awaiting_response = Arc::clone(&hold);
         let applied = Arc::new(AtomicBool::new(false));
         let entered = Arc::clone(&applied);
         let secret = Zeroizing::new(secret);
@@ -705,8 +704,10 @@ impl NativeProvider {
                     }
                     marker = Some(wrapper.fields.auths_echo);
                     entered.store(true, Ordering::SeqCst);
-                    if held.load(Ordering::SeqCst) {
-                        while held.load(Ordering::SeqCst) && !finished.load(Ordering::SeqCst) {
+                    if awaiting_response.load(Ordering::SeqCst) {
+                        while awaiting_response.load(Ordering::SeqCst)
+                            && !finished.load(Ordering::SeqCst)
+                        {
                             thread::sleep(Duration::from_millis(5));
                         }
                         continue;

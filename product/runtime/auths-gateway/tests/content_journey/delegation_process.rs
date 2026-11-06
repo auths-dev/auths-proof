@@ -3,6 +3,7 @@
 use super::*;
 use auths_gateway::participant_enrollment::*;
 use auths_model::*;
+use sha2::Digest as _;
 use std::collections::BTreeMap;
 use zeroize::Zeroizing;
 
@@ -142,6 +143,10 @@ fn enrollment(
     clippy::too_many_arguments,
     reason = "exact native review and independent external signer"
 )]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the installed-process fixture owns complete authoring or transport inputs through one bounded operation"
+)]
 fn approve_native(
     state: &Path,
     proof: Invocation,
@@ -200,6 +205,10 @@ fn approve_native(
         approval,
     }
 }
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the installed-process fixture owns complete authoring or transport inputs through one bounded operation"
+)]
 fn refuse_content_review(state: &Path, invocation: Invocation, name: &str, now: u64) {
     let directory = state.parent().expect("private operator directory");
     let proof = directory.join(format!("{name}.proof"));
@@ -417,7 +426,6 @@ fn run_journey(case: InstalledCase) -> Value {
             source["review"]["fields"][name] = json!({"kind":"text","label":if name=="native_action"{"Complete native records action"}else{"Exact exchanged native proof commitment"}});
         }
         source["review"]["consequences"].as_array_mut().expect("review consequences").push(json!("The native resource independently verifies the selected native proof and complete canonical action before its protected store. The gateway retains AP073 admission and recovery."));
-        use sha2::Digest as _;
         lock["schema_digest"] = json!(hex::encode(sha2::Sha256::digest(
             serde_json_canonicalizer::to_vec(&lock["command_schema"]).unwrap()
         )));
@@ -1099,7 +1107,7 @@ fn run_journey(case: InstalledCase) -> Value {
         &[],
         None,
     ));
-    let loss = approve_native(
+    let uncertain_source = approve_native(
         &state,
         author(
             &mut b,
@@ -1117,10 +1125,10 @@ fn run_journey(case: InstalledCase) -> Value {
     );
     let mut loss_receive = receive.clone();
     for (name, file) in [
-        ("proof", &loss.proof),
-        ("action", &loss.action),
-        ("approval", &loss.approval),
-        ("binding", &loss.binding),
+        ("proof", &uncertain_source.proof),
+        ("action", &uncertain_source.action),
+        ("approval", &uncertain_source.approval),
+        ("binding", &uncertain_source.binding),
     ] {
         loss_receive[name] = json!(Base64UrlUnpadded::encode_string(
             &std::fs::read(file).expect("native input")

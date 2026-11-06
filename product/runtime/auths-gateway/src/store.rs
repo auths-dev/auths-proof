@@ -2984,6 +2984,10 @@ impl ClaimedGatewayAttempt {
     /// Validates the native authority, dependencies and every existing slot
     /// under the same writer fence, then persists one immutable grant. No
     /// deserialization path can construct the returned transport permit.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep the atomic entry fence and durable acknowledgement before permit creation visible as one protocol"
+    )]
     pub(crate) async fn grant_entry(
         self,
         approved: Arc<ApprovedEffect>,

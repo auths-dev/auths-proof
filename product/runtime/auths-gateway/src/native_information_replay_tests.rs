@@ -437,7 +437,7 @@ fn one_case(backend: Backend, protocol: Protocol, change: Change) -> Value {
     let result = fixture.runtime.block_on(async {
         match &disclosure {
             None => replay_content(&reopened, &source, &acquired).await,
-            Some(disclosure) => replay_release(&reopened, disclosure).await,
+            Some(disclosure) => Box::pin(replay_release(&reopened, disclosure)).await,
         }
     });
     assert_eq!(reopened.execution_witness(), witness);

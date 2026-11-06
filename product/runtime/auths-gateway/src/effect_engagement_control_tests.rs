@@ -106,14 +106,14 @@ impl Control {
             qualification: gate,
         }
     }
-    fn request(&self, evidence: EngagementControlEvidence) -> AppParticipantControl {
+    fn request(evidence: &EngagementControlEvidence) -> AppParticipantControl {
         AppParticipantControl {
             schema: APP_PARTICIPANT_SCHEMA.into(),
             evidence_b64: Base64UrlUnpadded::encode_string(&evidence.to_private_bytes().unwrap()),
         }
     }
     async fn send(&self, evidence: EngagementControlEvidence) -> ParticipantControlOutcome {
-        let bytes = serde_json::to_vec(&self.request(evidence)).unwrap();
+        let bytes = serde_json::to_vec(&Self::request(&evidence)).unwrap();
         serde_json::from_value(exchange(Arc::clone(&self.engine), &bytes).await).unwrap()
     }
     fn snapshot(&self) -> crate::EngagementConfigurationSnapshot {
@@ -179,7 +179,7 @@ impl Control {
 }
 async fn exchange(engine: Arc<GatewayEngine>, request: &[u8]) -> Value {
     let (server, mut client) = UnixStream::pair().unwrap();
-    let task = tokio::spawn(async move { app_session(server, &*engine).await });
+    let task = tokio::spawn(async move { Box::pin(app_session(server, &*engine)).await });
     write_frame(&mut client, request).await.unwrap();
     let result = serde_json::from_slice(&read_frame(&mut client).await.unwrap()).unwrap();
     task.await.unwrap();
@@ -188,6 +188,10 @@ async fn exchange(engine: Arc<GatewayEngine>, request: &[u8]) -> Value {
 fn recorded(revision: u64) -> ParticipantControlOutcome {
     ParticipantControlOutcome::Recorded { revision }
 }
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test authoring accepts independently owned mutation inputs for retained cases"
+)]
 fn case(id: &str, outcome: ParticipantControlOutcome, revision: u64) -> Value {
     json!({"id":id, "response":outcome, "revision":revision})
 }
@@ -228,7 +232,8 @@ async fn cases(backend: Backend) -> Value {
         "root authoring derives the installed connection natively"
     );
     assert!(!setup.eligible());
-    let request = serde_json::to_value(setup.request(setup.native.enrollment_evidence(0))).unwrap();
+    let request =
+        serde_json::to_value(Control::request(&setup.native.enrollment_evidence(0))).unwrap();
     let enrolled = setup.send(setup.native.enrollment_evidence(0)).await;
     assert_eq!(enrolled, recorded(2));
     assert!(setup.eligible());
@@ -254,8 +259,8 @@ async fn cases(backend: Backend) -> Value {
         .as_str()
         .unwrap();
     let mut proof = Base64::decode_vec(encoded).unwrap();
-    let last = proof.len() - 1;
-    proof[last] ^= 1;
+    let signature_index = proof.len() - 1;
+    proof[signature_index] ^= 1;
     forged["control"]["authorization"]["proof_b64"] = json!(Base64::encode_string(&proof));
     let forged =
         EngagementControlEvidence::from_json(&serde_json::to_vec(&forged).unwrap()).unwrap();
@@ -370,12 +375,13 @@ async fn cases(backend: Backend) -> Value {
             .await,
         recorded(1)
     );
-    let disconnected_request =
-        serde_json::to_vec(&disconnected.request(disconnected.native.enrollment_evidence(0)))
-            .unwrap();
+    let disconnected_request = serde_json::to_vec(&Control::request(
+        &disconnected.native.enrollment_evidence(0),
+    ))
+    .unwrap();
     let (server, mut client) = UnixStream::pair().unwrap();
     let engine = Arc::clone(&disconnected.engine);
-    let serving = tokio::spawn(async move { app_session(server, &*engine).await });
+    let serving = tokio::spawn(async move { Box::pin(app_session(server, &*engine)).await });
     write_frame(&mut client, &disconnected_request)
         .await
         .unwrap();
@@ -409,7 +415,7 @@ async fn cases(backend: Backend) -> Value {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn native_engagement_control_fixture_is_current() {
     control_transport_cap_fits_shared_frame_without_expanding_it();
-    let actual = cases(Backend::File).await;
+    let actual = Box::pin(cases(Backend::File)).await;
     let document = json!({"schema":"auths.engagement-control-vectors/1",
         "generated_by":"native_engagement_control_fixture_is_current",
         "max_control_bytes":crate::MAX_ENGAGEMENT_CONTROL_BYTES,
@@ -430,7 +436,7 @@ async fn native_engagement_control_fixture_is_current() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn postgres_native_engine_controls_retain_original_revision_after_withdrawal_and_lost_ack() {
     if postgres_configured() {
-        cases(Backend::Postgres).await;
+        Box::pin(cases(Backend::Postgres)).await;
     }
 }
 

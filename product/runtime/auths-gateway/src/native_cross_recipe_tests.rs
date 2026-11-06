@@ -73,7 +73,7 @@ fn template(recipe: &CompiledRecipe, index: usize) -> ConnectionRecord {
     let record = crate::harness::fixture_connection(recipe).unwrap();
     ConnectionRecord::new(
         record.provider_kind().clone(),
-        ConnectionAlias::parse(&format!("cross-{index}")).unwrap(),
+        ConnectionAlias::parse(format!("cross-{index}")).unwrap(),
         ConnectionId::parse(format!(
             "conn_{}",
             Base64UrlUnpadded::encode_string(&[u8::try_from(index).unwrap(); 16])
@@ -635,11 +635,11 @@ fn race(backend: Backend, federated: bool) -> Value {
     );
     assert_eq!(case.provider.count(), 1);
     assert_eq!(case.allocated_rows(), 2);
-    for index in 0..2 {
+    for (index, result) in results.iter().enumerate() {
         let replay = case.replay(index);
         assert_eq!(
             matches!(replay, GatewaySubmitResult::ResponseRecorded { .. }),
-            matches!(results[index], GatewaySubmitResult::ResponseRecorded { .. })
+            matches!(result, GatewaySubmitResult::ResponseRecorded { .. })
         );
     }
     assert_eq!(case.provider.count(), 1);

@@ -1044,6 +1044,10 @@ impl ReservedAcquisition {
         self.attempt.record.snapshot()
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep the atomic entry fence and durable acknowledgement before permit creation visible as one protocol"
+    )]
     pub(crate) async fn grant_entry(
         self,
         approved: Arc<ApprovedEffect>,

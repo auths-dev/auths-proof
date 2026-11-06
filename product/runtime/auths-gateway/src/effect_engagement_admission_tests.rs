@@ -476,12 +476,12 @@ async fn lifecycle(backend: Backend) -> Value {
 
 #[tokio::test]
 async fn file_native_ancestor_admission_survives_replay_and_reopen() {
-    lifecycle(Backend::File).await;
+    Box::pin(lifecycle(Backend::File)).await;
 }
 #[tokio::test]
 async fn postgres_native_ancestor_admission_survives_replay_and_reopen() {
     if postgres_configured() {
-        lifecycle(Backend::Postgres).await;
+        Box::pin(lifecycle(Backend::Postgres)).await;
     }
 }
 
@@ -522,12 +522,12 @@ async fn concurrent_siblings(backend: Backend) {
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn file_independent_adapters_cannot_double_spend_the_last_root_unit() {
-    concurrent_siblings(Backend::File).await;
+    Box::pin(concurrent_siblings(Backend::File)).await;
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn postgres_independent_adapters_cannot_double_spend_the_last_root_unit() {
     if postgres_configured() {
-        concurrent_siblings(Backend::Postgres).await;
+        Box::pin(concurrent_siblings(Backend::Postgres)).await;
     }
 }
 
@@ -586,14 +586,14 @@ async fn acknowledgement_loss(backend: Backend, grant: bool) {
 }
 #[tokio::test]
 async fn file_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint() {
-    acknowledgement_loss(Backend::File, false).await;
-    acknowledgement_loss(Backend::File, true).await;
+    Box::pin(acknowledgement_loss(Backend::File, false)).await;
+    Box::pin(acknowledgement_loss(Backend::File, true)).await;
 }
 #[tokio::test]
 async fn postgres_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint() {
     if postgres_configured() {
-        acknowledgement_loss(Backend::Postgres, false).await;
-        acknowledgement_loss(Backend::Postgres, true).await;
+        Box::pin(acknowledgement_loss(Backend::Postgres, false)).await;
+        Box::pin(acknowledgement_loss(Backend::Postgres, true)).await;
     }
 }
 
@@ -627,12 +627,12 @@ async fn missing_allocation(backend: Backend) {
 }
 #[tokio::test]
 async fn file_incomplete_allocation_snapshot_cannot_grant_entry() {
-    missing_allocation(Backend::File).await;
+    Box::pin(missing_allocation(Backend::File)).await;
 }
 #[tokio::test]
 async fn postgres_incomplete_allocation_snapshot_cannot_grant_entry() {
     if postgres_configured() {
-        missing_allocation(Backend::Postgres).await;
+        Box::pin(missing_allocation(Backend::Postgres)).await;
     }
 }
 
@@ -695,14 +695,14 @@ async fn revocation(backend: Backend, after_claim: bool) {
 }
 #[tokio::test]
 async fn file_native_root_revocation_orders_before_claim_or_entry() {
-    revocation(Backend::File, false).await;
-    revocation(Backend::File, true).await;
+    Box::pin(revocation(Backend::File, false)).await;
+    Box::pin(revocation(Backend::File, true)).await;
 }
 #[tokio::test]
 async fn postgres_native_root_revocation_orders_before_claim_or_entry() {
     if postgres_configured() {
-        revocation(Backend::Postgres, false).await;
-        revocation(Backend::Postgres, true).await;
+        Box::pin(revocation(Backend::Postgres, false)).await;
+        Box::pin(revocation(Backend::Postgres, true)).await;
     }
 }
 
@@ -776,7 +776,7 @@ async fn native_engagement_admission_fixture_is_current() {
         "generated_by":"native_engagement_admission_fixture_is_current",
         "scope":"native root activation, two child consents, real file admission and durable grant; controlled deployment clock; dropped permit; no provider send",
         "not_established":["actual-provider-effect", "postgres-execution", "cross-process-concurrency", "forced-process-crash", "cross-recipe-resource-authority", "installed-key-containment", "independent-original-control-proof-history"],
-        "case":lifecycle(Backend::File).await});
+        "case":Box::pin(lifecycle(Backend::File)).await});
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/engagement/admission.json");
     let mut bytes = serde_json::to_vec_pretty(&document).unwrap();
@@ -817,11 +817,11 @@ async fn winner_after_lookup(backend: Backend) {
 }
 #[tokio::test]
 async fn file_winner_after_history_lookup_reopens_without_a_second_charge() {
-    winner_after_lookup(Backend::File).await;
+    Box::pin(winner_after_lookup(Backend::File)).await;
 }
 #[tokio::test]
 async fn postgres_winner_after_history_lookup_reopens_without_a_second_charge() {
     if postgres_configured() {
-        winner_after_lookup(Backend::Postgres).await;
+        Box::pin(winner_after_lookup(Backend::Postgres)).await;
     }
 }

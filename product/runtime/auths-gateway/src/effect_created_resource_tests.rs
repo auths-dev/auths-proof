@@ -538,8 +538,7 @@ async fn lifecycle(backend: Backend, case: Case) -> Value {
         attempts
             .claim_bounded(&source, NOW, setup.validation())
             .await,
-        Err(crate::GatewayAttemptError::Replay)
-            | Err(crate::GatewayAttemptError::InvalidTransition)
+        Err(crate::GatewayAttemptError::Replay | crate::GatewayAttemptError::InvalidTransition)
     ));
     if case.unique() {
         let key = crate::GatewayAttemptKey::for_operation(

@@ -222,6 +222,10 @@ pub(super) fn context(
 pub(super) fn control_audience() -> Audience {
     Audience::parse(&format!("mcp://{PARTICIPANT_SERVICE}")).expect("control audience")
 }
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the installed-process fixture owns complete authoring or transport inputs through one bounded operation"
+)]
 pub(super) fn call(service: &str, tool: &str, args: Value) -> McpToolCall {
     McpToolCall::new(service, tool, args.as_object().expect("object").clone()).expect("native call")
 }

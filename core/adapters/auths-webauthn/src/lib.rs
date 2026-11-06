@@ -803,18 +803,15 @@ mod tests {
                 }
             }
         }
-        assert!(
-            control
-                .claims()
-                .iter()
-                .any(|claim| claim.kind().as_str() == "user-verified")
-        );
-        assert!(
-            control
-                .claims()
-                .iter()
-                .any(|claim| claim.kind().as_str() == "origin-bound")
-        );
+        for expected in ["user-verified", "origin-bound"] {
+            assert!(
+                control
+                    .claims()
+                    .iter()
+                    .any(|claim| claim.kind().as_str() == expected),
+                "{expected}"
+            );
+        }
 
         let error = method
             .verify_control(PrincipalControlInput {

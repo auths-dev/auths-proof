@@ -165,6 +165,9 @@ jobs:
             delegation_process::native_installed_delegation_process_fixture_is_current --nocapture \
             | tee evidence/ap073-installed-delegation.log
           grep -Fq 'test result: ok. 1 passed; 0 failed; 0 ignored;' evidence/ap073-installed-delegation.log
+          # The root-run fixture writes its redacted report privately. Transfer
+          # this one report to the host uploader without broad permission changes.
+          sudo chown --reference=evidence/ap073-package-manifest.json -- evidence/ap073-installed-delegation.json
       - name: Inspect the actual browser workbench and evidence
         run: |
           docker run -d --init --name airtable-workbench -p 127.0.0.1:8081:8081 auths-airtable-gateway-demo

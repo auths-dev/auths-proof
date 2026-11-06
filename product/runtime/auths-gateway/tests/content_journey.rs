@@ -145,6 +145,10 @@ impl Provider {
     fn with_created_content(secret: Vec<u8>, content: Vec<u8>, listing: CreatedListing) -> Self {
         Self::with_configuration(secret, true, content, Some(listing))
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one bounded HTTP fixture router retains credential checks and independent transport witnesses together"
+    )]
     fn with_configuration(
         secret: Vec<u8>,
         refuse_unauthorized: bool,

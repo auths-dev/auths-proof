@@ -17,6 +17,10 @@ impl RecoveryFixture {
     fn new() -> Self {
         Self::with_generations(1, [2, 2, 3])
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "retain the complete explicit signed fixture or hostile-case matrix as one reviewable construction"
+    )]
     fn with_generations(old_generation: u64, generations: [u64; 3]) -> Self {
         let mut original = Fixture::with_depth(0x44, 2);
         original.enrollment.child_instance_generation = old_generation;
@@ -277,7 +281,7 @@ impl RecoveryFixture {
                 let handle = pins
                     .and_then(|pins| match &pins.resource {
                         EnrollmentResourceBinding::Exact { handle } => Some(handle.as_str()),
-                        _ => None,
+                        EnrollmentResourceBinding::CreatedChild { .. } => None,
                     })
                     .unwrap_or("record-a");
                 chained(
@@ -321,6 +325,10 @@ impl RecoveryFixture {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "retain the complete explicit signed fixture or hostile-case matrix as one reviewable construction"
+)]
 fn recovery_relation_matrix() -> Value {
     let mut maximum =
         RecoveryFixture::with_generations(MAX_JSON_INTEGER - 1, [MAX_JSON_INTEGER; 3]);
@@ -413,13 +421,13 @@ fn recovery_relation_matrix() -> Value {
                     .as_bytes(),
             }),
             "old-control-grant" => {
-                changed.control_grant = fixture.original.enrollment.control_grant
+                changed.control_grant = fixture.original.enrollment.control_grant;
             }
             "old-resource-grant" => {
-                changed.scopes[0].grant_id = fixture.original.enrollment.scopes[0].grant_id
+                changed.scopes[0].grant_id = fixture.original.enrollment.scopes[0].grant_id;
             }
             "old-principal" => {
-                changed.child_principal = fixture.original.child.principal.as_str().into()
+                changed.child_principal = fixture.original.child.principal.as_str().into();
             }
             "zero-instance" => changed.child_instance_generation = 0,
             _ => panic!("case"),
@@ -550,6 +558,10 @@ fn native_instance_recovery_fixture_is_current() {
 /// Reach the actual retained-node bound with full native proofs, then refuse
 /// the next commissioned key. This exercises the shipping origin traversal on
 /// every prefix, rather than comparing a separately implemented graph model.
+#[expect(
+    clippy::too_many_lines,
+    reason = "retain the complete explicit signed fixture or hostile-case matrix as one reviewable construction"
+)]
 fn retained_successor_chain_boundary() -> Value {
     let mut fixture = Fixture::with_depth(0x44, 1);
     let signers: Vec<_> = (0..15).map(|index| Signer::new(0x80 + index)).collect();

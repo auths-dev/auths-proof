@@ -1,6 +1,8 @@
 # AP073 assurance boundaries and final acceptance map
 
-Status: implementation closure audit. Exact-head hosted results remain pending.
+Status: supported implementation and assurance boundaries. Final exact-head
+acceptance is recorded by the required checks on [PR215](https://github.com/auths-dev/auths-proof/pull/215);
+this source map is not itself a passing hosted result.
 This map distinguishes actual source-linked formal claims from product tests and
 trusted deployment assumptions. It does not assert end-to-end formal verification.
 

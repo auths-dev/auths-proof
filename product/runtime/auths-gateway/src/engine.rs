@@ -1574,7 +1574,11 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
                 .with_lineages(&lineages),
             now,
             proof,
@@ -1695,7 +1699,11 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
                 .with_lineages(&lineages),
             target,
             now,
@@ -1956,7 +1964,11 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
                 .with_lineages(&lineages),
             now,
             proof,
@@ -2060,7 +2072,11 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
                 .with_lineages(&lineages),
             &target,
             now,
@@ -2137,7 +2153,11 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
                 .with_lineages(&lineages),
             &target,
             now,
@@ -2431,7 +2451,11 @@ impl GatewayEngine {
         }
         let lineages = self
             .attempts
-            .created_lineages(self.effect_policy.engagement().map(|policy| policy.root()))
+            .created_lineages(
+                self.effect_policy
+                    .engagement()
+                    .map(crate::effect::EngagementPolicy::root),
+            )
             .await
             .map_err(|_| not_entered("gateway.engagement.created-history-unavailable"))?;
         Ok((loaded, now, enrollment, lineages))
@@ -4679,14 +4703,20 @@ pub(crate) mod tests {
         /// The processes of one connection over each shared store: the file
         /// store, and the `PostgreSQL` store where the TLS fixture runs.
         async fn across_processes(backend: crate::store_testkit::Backend) {
-            a_second_host_joins_only_with_the_matching_secret_after_state_changes(backend).await;
-            a_disable_or_revoke_through_one_process_stops_entry_in_another(backend).await;
-            a_cross_process_rotation_then_disable_and_enable_leases_on_every_host(backend).await;
+            Box::pin(
+                a_second_host_joins_only_with_the_matching_secret_after_state_changes(backend),
+            )
+            .await;
+            Box::pin(a_disable_or_revoke_through_one_process_stops_entry_in_another(backend)).await;
+            Box::pin(
+                a_cross_process_rotation_then_disable_and_enable_leases_on_every_host(backend),
+            )
+            .await;
         }
 
         #[tokio::test]
         async fn file_store_shares_the_connection_across_processes() {
-            across_processes(crate::store_testkit::Backend::File).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
@@ -4696,7 +4726,7 @@ pub(crate) mod tests {
                 crate::store_testkit::postgres_configured(),
                 "TLS PostgreSQL environment slots are required"
             );
-            across_processes(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::Postgres)).await;
         }
     }
 }
