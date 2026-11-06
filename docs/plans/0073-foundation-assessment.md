@@ -624,3 +624,108 @@ control-evidence audit history, managed created-resource/reconciliation,
 live scoped delivery and cross-process/cross-recipe schedules, installed
 machine→A→B journey, lifecycle/federation/resource contracts, final whole-program
 artifact/release inventories and exact-head assurance still required.
+
+## Original native control-evidence batch
+
+The next bounded batch addresses the previously confirmed F16 original-input
+retention gap in the existing configuration owner. Configuration schema 2 binds
+an ordered original-evidence/context reference and fenced clock sample to every
+changed root/enrollment/withdrawal revision and its before/after tree commitments.
+The existing immutable store stages content-addressed private chunks in fixed
+atomic groups and acknowledges their manifest before publication. The final
+control fence reloads manifests, current configuration and tree, samples time
+and repeats full native verification. No preparation record authorizes anything;
+failed/ambiguous preparation leaves the old authority state unchanged. Permanent
+store integrity/durability is an explicit assumption, and interrupted preparation
+may leave inert private orphans. No concurrent orphan-pruning path is added.
+
+An operator-private audit export includes the complete original native inputs
+and exact contexts. The offline verifier requires independently supplied root
+pins, original contexts and a trusted acknowledged checkpoint, then replays the
+maintained native relations for every transition. Stored contexts are not trust
+anchors. The result is historical data; a recorded time/digest does not establish
+external timestamp truth, checkpoint authenticity, whole-store rollback detection
+or present authority. Those deployment obligations remain open. Missing or
+corrupt evidence is an explicit export/verification error, never an unsupported
+success claim or reconstructed permit.
+
+The planned complete test batch includes real file and TLS PostgreSQL history /
+reopen; exact checkpoint/context/root checks; missing, duplicate, reordered,
+corrupted and oversized evidence; forged child acceptance with recomputed storage
+hashes and even a deliberately trusted forged metadata head; expired native
+control at a changed recorded time; historical audit after current expiry;
+actual retained chunk corruption; lost preparation and final control replies;
+missing publication manifests under the final fence; arbitrary-byte decoder
+properties; and opaque blob custody spanning more than one 64-row atomic group.
+The old artificial saturated-revision test is replaced with a check that revision
+must match the actual finite retained history; malformed history cannot become a
+valid snapshot. Compliance inventories include the new private types, schemas
+and authored evidence paths. Source-authored tests are not passing-run evidence.
+
+Only the required artifact-construction cohort will run locally after the whole
+batch is written: new native audit; revised native configuration; engagement
+information, prerequisites, effect and admission; semantic closure. These use
+controlled fixture clock/checkpoints, real file storage and native verification.
+They claim no externally anchored timestamp/checkpoint, actual process crash,
+PostgreSQL execution, installed containment or transport. Full AP073 M0–M4/F01–F16,
+source-linked formal refinement, complete corpus/global release identities and
+exact-head hosted acceptance remain in scope. No CI push/observation is authorized
+until the complete implementation/spec work is finished.
+
+### Initial control-audit constructor cohort
+
+The first complete seven-constructor cohort could not compile because a new
+property assertion nested a captured `format!` inside `proptest`'s diagnostic
+macro. All seven commands reported that same test-support expansion error; no
+constructor runtime result was established. The repair computes the redacted
+string before the property assertion. The full affected cohort will run again;
+no behavior or hosted gate is claimed from the failed compile.
+
+### Native replay result and final decoder review
+
+After the diagnostic-macro repair, all seven required constructors passed with
+`loopback-provider,testkit-harness`. The library target compiled 452 cases; only
+the seven filtered constructors ran. Logs are
+`/tmp/ap073-audit-repair-{audit,configuration,information,prerequisite,effect,admission,semantic-closure}.log`.
+The new audit constructor's independent file history and acknowledgement cases
+both executed, including native rejection of a forged child proof even with
+recomputed blob/configuration hashes and a deliberately trusted forged head.
+It also exercised actual retained chunk corruption and private export refusal.
+These are controlled native/store cases, not external checkpoint/timestamp or
+PostgreSQL evidence.
+
+Final decoder review tightened the central bounded-sequence reader so it skips
+rather than materializes the first excess private item before refusing the
+sequence. The native audit constructor now also refuses a 65-blob envelope.
+Refresh the required constructor cohort after this source change. Broader
+multi-batch blob custody and arbitrary-byte properties remain authored/unrun
+locally, together with PostgreSQL and full hosted/formal/binding acceptance.
+
+### Final acknowledged original-control audit artifacts
+
+After the bounded-sequence change, all seven required constructors passed as one
+cohort with `loopback-provider,testkit-harness`. The feature-complete library
+target compiled 452 cases; only the seven filtered constructors ran. Logs are
+`/tmp/ap073-audit-final-{audit,configuration,information,prerequisite,effect,admission,semantic-closure}.log`.
+Inspection of the new 50,348-byte native audit corpus confirms four actual
+configuration revisions and five distinct original-input/context blobs, including
+one deduplicated exact canonical context. Full native root/enrollment/withdrawal
+replay, forged child proof/recorded-time refusal, checkpoint/root/context checks,
+private retained-chunk corruption, reopen after expiry and lost preparation /
+publication reply cases executed on maintained file stores. No operation record,
+credential lease, provider request or transport permit was constructed by the
+audit fixture. The revised configuration corpus now labels its original evidence
+references and points to the complete private audit corpus.
+
+This establishes the bounded original-control retention/replay subrequirement
+under explicit trusted-input, clock and permanent-store assumptions. It does not
+close full F16, bind an external trusted checkpoint/timestamp, detect whole-store
+rollback, or establish PostgreSQL, actual process-crash, multi-batch blob custody,
+arbitrary-byte properties, installed/binding/formal or hosted behavior. The latter
+source-authored cases remain pending their prescribed final verification. Full
+AP073 M0–M4/F01–F16 remains active; no push, CI observation, merge or deployment
+occurred. Remaining work includes managed created-resource lineage/reconciliation,
+live scoped delivery/ACK loss and cross-process/cross-recipe schedules, installed
+machine→A→B with independent human exact approval and binding parity, lifecycle /
+federation/native-resource contracts, complete corpus/global release identities
+and source-linked formal/exact-head hosted evidence.

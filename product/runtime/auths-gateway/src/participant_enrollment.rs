@@ -629,7 +629,7 @@ fn bounded_inputs(
     )
 }
 
-fn bounded_invocations<'a>(
+pub(crate) fn bounded_invocations<'a>(
     invocations: impl IntoIterator<Item = EnrollmentInvocation<'a>>,
 ) -> Result<(), ParticipantEnrollmentError> {
     let mut total = 0usize;

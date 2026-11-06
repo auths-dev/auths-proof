@@ -14,6 +14,9 @@ use serde_json::{Map, json};
 #[path = "configuration_tests.rs"]
 mod configuration_tests;
 
+#[path = "audit_tests.rs"]
+mod audit_tests;
+
 const NOW: u64 = 1_790_000_000;
 const RESOURCE_SERVICE: &str = "engagement-records";
 const RESOURCE_TOOL: &str = "read_record";

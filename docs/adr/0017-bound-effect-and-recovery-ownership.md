@@ -1406,3 +1406,53 @@ reauthorization; terminal replay and historical ACK refinement perform no new I/
 or charging. Existing charge bytes remain intact. These test-only additions do
 not change a shipping owner, and establish neither actual kernel/device EIO,
 power-loss/whole-store rollback safety nor hostile OS/provider qualification.
+
+## AP073 original control-evidence custody
+
+AP073 extends the existing engagement configuration owner with original control
+proof custody. `auths.engagement-configuration/2` retains a bounded ordered
+history: complete native control/resource inputs and canonical trusted-context
+references, fenced clock samples and before/after tree commitments. It uses the
+same permanent `EffectConfiguration` record kind and adapter writer fence; no
+operation journal, counter owner, approver or transport authority is introduced.
+
+The maximum native context exceeds one store record and one atomic store batch.
+Consequently, preparation stores immutable content-addressed chunks in fixed
+all-or-none groups, then acknowledges an immutable manifest only after all chunk
+acknowledgements. A failed or ambiguous preparation stops before configuration
+publication. Partial groups are not silently repaired. Interrupted preparation
+may leave inert private orphan records, which carry no enrollment or operation
+rights. Native preflight rejects invalid controls before staging; final native
+verification still runs with current state and time under the publication fence.
+The fence checks both original-input/context manifests before acknowledging a
+changed configuration revision. Identical immutable input bytes may be reused;
+current native eligibility cannot be reused from those bytes or a stored decision.
+
+This protocol relies on the protected permanent store retaining acknowledged
+chunks/manifests without unauthorized replacement or deletion. The gateway has
+no pruning path for them. It does not claim atomic publication across arbitrary
+stores or recovery from a malicious/rolled-back durable store. Export rereads and
+checks every chunk and content digest; missing or corrupt evidence fails
+explicitly. An orphan does not enter the referenced history or consume participant
+capacity. Online orphan collection would need its own publication-safe contract
+and is not added here.
+
+Historical audit replays the maintained native root/enrollment/withdrawal
+relations over all original inputs. The caller independently supplies root pins,
+original trusted contexts and an acknowledged configuration checkpoint. Embedded
+contexts cannot install trust, and a checkpoint selected from the untrusted
+bundle itself provides no independent authenticity. Replaying at recorded clock
+samples establishes native authorization conditional on those samples; it proves
+neither timestamp truth, current eligibility nor an execution/delivery outcome.
+Checkpoint authentication and an external monotonic retention floor remain
+explicit deployment obligations. These source decisions and their narrow native
+fixtures do not close AP073's full installed, formal or hosted assurance gates.
+
+Bounds are explicit: sixteen retained participants; at most thirty-two changed
+control revisions; sixteen scopes; four MiB aggregate native invocation inputs
+per control; six MiB canonical control-evidence representation; sixteen MiB per
+canonical context blob; 160 KiB raw chunks; at most 64 rows per preparation group;
+256 MiB of distinct referenced private input/context bytes per engagement; 384 MiB
+maximum canonical private export. Contexts are deduplicated by exact canonical
+bytes. The existing 262,144-byte store-record and configuration/tree limits still
+apply. Unsupported bounds fail before authority publication.

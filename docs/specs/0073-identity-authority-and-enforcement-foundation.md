@@ -120,8 +120,23 @@ accounting now join the common journal owner in source. Bound-effect 6/compiler
 the typed child journal selects these instead of the parent's write charges.
 Required native file artifacts exercise bounded admission/replay/withdrawal
 histories with synthetic response facts and dropped permits. Live scoped
-transport/containment, cross-recipe process schedules, original control-evidence
-audit history and complete exact-revision assurance remain required.
+transport/containment, cross-recipe process schedules and complete exact-revision
+assurance remain required.
+
+Enrollment configuration uses `auths.engagement-configuration/2`. Every changed
+revision binds its original native control/resource inputs, exact canonical
+trusted context, fenced clock sample, and before/after tree commitments. These
+private inputs are staged as immutable content-addressed records in the same
+store; acknowledged manifests precede the final publication fence. A preparation
+failure may leave inert records but cannot publish authority. Existing permanent
+store durability and integrity assumptions apply; this is not a second operation
+journal or authority path. An independent private auditor replays the maintained
+native verifier for the complete root/enrollment/withdrawal sequence using
+independently supplied root pins, original contexts and a trusted checkpoint.
+Missing evidence is an explicit failure. A bundle cannot select its own trust.
+This verifies authorization at retained times, not timestamp truth, current
+eligibility or a transport grant. Checkpoint authentication and external rollback
+floors remain deployment obligations, not consequences of a content digest.
 
 ### 4.3 Evidence and implementation boundaries
 

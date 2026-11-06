@@ -22,7 +22,8 @@ pub use engine::{
 };
 mod configuration;
 pub use configuration::{
-    EngagementConfiguration, EngagementConfigurationError, EngagementConfigurationSnapshot,
+    EngagementAudit, EngagementAuditCheckpoint, EngagementConfiguration,
+    EngagementConfigurationError, EngagementConfigurationSnapshot,
 };
 mod connection;
 mod control_namespace;

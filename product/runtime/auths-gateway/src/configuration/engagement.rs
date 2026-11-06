@@ -14,7 +14,11 @@ use auths_model::TrustedContext;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-const SCHEMA: &str = "auths.engagement-configuration/1";
+mod audit;
+mod blob;
+pub use audit::{EngagementAudit, EngagementAuditCheckpoint};
+
+const SCHEMA: &str = "auths.engagement-configuration/2";
 const MAX_BYTES: usize = auths_stores::MAX_GATEWAY_RECORD_BYTES;
 const MAX_INTEGER: u64 = (1 << 53) - 1;
 
@@ -36,6 +40,15 @@ pub enum EngagementConfigurationError {
     /// A finite configuration revision bound was reached.
     #[error("engagement configuration revision exhausted")]
     RevisionExhausted,
+    /// Required private original evidence exceeded a finite supported bound.
+    #[error("engagement audit evidence limit exceeded")]
+    EvidenceLimit,
+    /// An acknowledged audit reference has no complete retained evidence.
+    #[error("engagement audit evidence is missing")]
+    MissingEvidence,
+    /// An audit root, context or checkpoint was not independently trusted.
+    #[error("engagement audit trusted inputs differ")]
+    UntrustedEvidence,
     /// Stored state is malformed, noncanonical or for another installation.
     #[error("engagement configuration is corrupt")]
     Corrupt,
@@ -54,6 +67,9 @@ impl EngagementConfigurationError {
             Self::Configuration => "gateway.engagement.configuration-changed",
             Self::ClockRollback => "gateway.engagement.clock-rollback",
             Self::RevisionExhausted => "gateway.engagement.revision-exhausted",
+            Self::EvidenceLimit => "gateway.engagement.evidence-limit",
+            Self::MissingEvidence => "gateway.engagement.evidence-missing",
+            Self::UntrustedEvidence => "gateway.engagement.evidence-untrusted",
             Self::Corrupt => "gateway.engagement.corrupt",
             Self::Store(_) => "gateway.engagement.store-unavailable",
         }
@@ -68,15 +84,19 @@ struct Record {
     revision: u64,
     accepted_at: u64,
     tree: String,
+    #[serde(deserialize_with = "audit::deserialize_events")]
+    events: Vec<audit::Event>,
 }
 
 /// Operator-private retained configuration. This is historical data, never a
 /// current authorization, capacity reservation or an execution/delivery permit.
 #[derive(Clone, Eq, PartialEq)]
 pub struct EngagementConfigurationSnapshot {
+    root: [u8; 32],
     revision: u64,
     accepted_at: u64,
     tree: EnrollmentTree,
+    events: Vec<audit::Event>,
 }
 
 impl std::fmt::Debug for EngagementConfigurationSnapshot {
@@ -86,6 +106,20 @@ impl std::fmt::Debug for EngagementConfigurationSnapshot {
 }
 
 impl EngagementConfigurationSnapshot {
+    /// Checkpoint of exactly these acknowledged private configuration bytes.
+    /// Retain it through a trusted channel independently of an audit bundle;
+    /// this digest is not a signature, trusted timestamp or rollback detector.
+    /// # Errors
+    /// Refuses malformed or oversized retained configuration.
+    pub fn audit_checkpoint(
+        &self,
+    ) -> Result<EngagementAuditCheckpoint, EngagementConfigurationError> {
+        audit::EngagementAuditCheckpoint::for_record(
+            &record_snapshot(self)?,
+            self.root,
+            self.revision,
+        )
+    }
     /// Last acknowledged native configuration revision.
     #[must_use]
     pub const fn revision(&self) -> u64 {
@@ -136,6 +170,27 @@ fn encode(record: &Record) -> Result<Vec<u8>, EngagementConfigurationError> {
         return Err(EngagementConfigurationError::Corrupt);
     }
     Ok(bytes)
+}
+
+fn record_snapshot(
+    snapshot: &EngagementConfigurationSnapshot,
+) -> Result<Vec<u8>, EngagementConfigurationError> {
+    audit::validate_history(snapshot)?;
+    let tree = String::from_utf8(
+        snapshot
+            .tree
+            .encode()
+            .map_err(|_| EngagementConfigurationError::Corrupt)?,
+    )
+    .map_err(|_| EngagementConfigurationError::Corrupt)?;
+    encode(&Record {
+        schema: SCHEMA.into(),
+        root: snapshot.root,
+        revision: snapshot.revision,
+        accepted_at: snapshot.accepted_at,
+        tree,
+        events: snapshot.events.clone(),
+    })
 }
 
 impl EngagementConfiguration {
@@ -217,31 +272,33 @@ impl EngagementConfiguration {
         }
         let tree = EnrollmentTree::decode(record.tree.as_bytes(), root)
             .map_err(|_| EngagementConfigurationError::Corrupt)?;
-        Ok(EngagementConfigurationSnapshot {
+        let snapshot = EngagementConfigurationSnapshot {
+            root: record.root,
             revision: record.revision,
             accepted_at: record.accepted_at,
             tree,
-        })
+            events: record.events,
+        };
+        audit::validate_history(&snapshot)?;
+        Ok(snapshot)
     }
 
     fn record(
         &self,
         snapshot: &EngagementConfigurationSnapshot,
     ) -> Result<Vec<u8>, EngagementConfigurationError> {
-        let tree = String::from_utf8(
-            snapshot
-                .tree
-                .encode()
-                .map_err(|_| EngagementConfigurationError::Corrupt)?,
-        )
-        .map_err(|_| EngagementConfigurationError::Corrupt)?;
-        encode(&Record {
-            schema: SCHEMA.to_owned(),
-            root: self.root.enrollment_commitment,
-            revision: snapshot.revision,
-            accepted_at: snapshot.accepted_at,
-            tree,
-        })
+        if snapshot.root != self.root.enrollment_commitment {
+            return Err(EngagementConfigurationError::Corrupt);
+        }
+        record_snapshot(snapshot)
+    }
+
+    fn preview_time(&self, adding_authority: bool) -> Result<u64, EngagementConfigurationError> {
+        let bytes = self.store.load(
+            GatewayRecordKind::EffectConfiguration,
+            &self.configuration.key(),
+        )?;
+        self.time(bytes.as_deref(), adding_authority)
     }
 
     fn time(
@@ -289,10 +346,41 @@ impl EngagementConfiguration {
     /// # Errors
     /// Refuses changed installation, native evidence, unavailable time, corrupt
     /// state or failed/ambiguous durability. It never returns an entry permit.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one acknowledged evidence preparation and final native bootstrap fence"
+    )]
     pub fn bootstrap(
         &self,
         proofs: &RootEnrollmentProofs<'_>,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
+        if let Some(bytes) = self
+            .store
+            .load(GatewayRecordKind::EffectConfiguration, &self.key)?
+        {
+            return self.decode(&bytes);
+        }
+        let evidence = audit::Evidence::root(proofs)?;
+        let now = self.preview_time(true)?;
+        let tree = evidence.apply(&self.root, &self.context, None, now)?;
+        let preview = EngagementConfigurationSnapshot {
+            root: self.root.enrollment_commitment,
+            revision: 1,
+            accepted_at: now,
+            tree,
+            events: Vec::new(),
+        };
+        let staged = audit::Staged::prepare(&*self.store, &self.context, &evidence, |staged| {
+            let mut preview = preview.clone();
+            preview.events.push(staged.event(&preview, None)?);
+            audit::validate_history(&preview)
+        })?;
+        let manifests = staged.entries()?;
+        let mut dependencies = vec![(
+            GatewayRecordKind::EffectConfiguration,
+            self.configuration.key(),
+        )];
+        dependencies.extend(manifests.iter().map(|entry| (entry.kind, entry.key)));
         let entry = GatewayRecordEntry {
             kind: GatewayRecordKind::EffectConfiguration,
             key: self.key,
@@ -301,24 +389,24 @@ impl EngagementConfiguration {
         };
         let mut refusal = None;
         let mut committed = None;
-        let result = self.store.fenced_insert_all(
-            &[entry],
-            &[(
-                GatewayRecordKind::EffectConfiguration,
-                self.configuration.key(),
-            )],
-            &mut |snapshots| {
+        let result = self
+            .store
+            .fenced_insert_all(&[entry], &dependencies, &mut |snapshots| {
                 let decision = (|| {
-                    if snapshots.len() != 1 {
+                    if snapshots.len() != dependencies.len() {
                         return Err(EngagementConfigurationError::Corrupt);
                     }
                     let now = self.time(snapshots[0].as_deref(), true)?;
-                    let tree = EnrollmentTree::bootstrap(&self.context, &self.root, now, proofs)?;
-                    let next = EngagementConfigurationSnapshot {
+                    staged.validate(&snapshots[1..])?;
+                    let tree = evidence.apply(&self.root, &self.context, None, now)?;
+                    let mut next = EngagementConfigurationSnapshot {
+                        root: self.root.enrollment_commitment,
                         revision: 1,
                         accepted_at: now,
                         tree,
+                        events: Vec::new(),
                     };
+                    next.events.push(staged.event(&next, None)?);
                     let bytes = self.record(&next)?;
                     committed = Some(next);
                     Ok(bytes)
@@ -327,8 +415,7 @@ impl EngagementConfiguration {
                     refusal = Some(error);
                     GatewayAttemptError::InvalidTransition
                 })
-            },
-        );
+            });
         match result {
             Ok(GatewayInsert::Inserted) => committed.ok_or(EngagementConfigurationError::Corrupt),
             Ok(GatewayInsert::Exists { index: 0 }) => self.snapshot(),
@@ -337,24 +424,54 @@ impl EngagementConfiguration {
         }
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one control transition keeps evidence preparation separate from its final native publication fence"
+    )]
     fn update(
         &self,
         adding_authority: bool,
-        change: impl FnOnce(&mut EnrollmentTree, u64) -> Result<(), EnrollmentTreeError>,
+        evidence: audit::Evidence,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
-        let keys = [
+        let current = self.snapshot()?;
+        let now = self.preview_time(adding_authority)?;
+        if now < current.accepted_at {
+            return Err(EngagementConfigurationError::ClockRollback);
+        }
+        let tree = evidence.apply(&self.root, &self.context, Some(&current.tree), now)?;
+        let staged = if tree == current.tree {
+            None
+        } else {
+            let before = audit::tree_commitment(&current.tree)?;
+            let mut preview = current.clone();
+            preview.tree = tree;
+            preview.revision += 1;
+            preview.accepted_at = now;
+            Some(audit::Staged::prepare(
+                &*self.store,
+                &self.context,
+                &evidence,
+                |staged| {
+                    preview.events.push(staged.event(&preview, Some(before))?);
+                    audit::validate_history(&preview)
+                },
+            )?)
+        };
+        let mut keys = vec![
             (GatewayRecordKind::EffectConfiguration, self.key),
             (
                 GatewayRecordKind::EffectConfiguration,
                 self.configuration.key(),
             ),
         ];
+        if let Some(staged) = &staged {
+            keys.extend(staged.entries()?.iter().map(|e| (e.kind, e.key)));
+        }
         let mut refusal = None;
         let mut committed = None;
-        let mut change = Some(change);
         let result = self.store.fenced_replace(&keys, &mut |snapshots| {
             let decision = (|| {
-                if snapshots.len() != 2 {
+                if snapshots.len() != keys.len() {
                     return Err(EngagementConfigurationError::Corrupt);
                 }
                 let bytes = snapshots[0]
@@ -365,22 +482,20 @@ impl EngagementConfiguration {
                 if now < next.accepted_at {
                     return Err(EngagementConfigurationError::ClockRollback);
                 }
-                let before = next
-                    .tree
-                    .encode()
-                    .map_err(|_| EngagementConfigurationError::Corrupt)?;
-                change.take().ok_or(EngagementConfigurationError::Corrupt)?(&mut next.tree, now)?;
-                if next
-                    .tree
-                    .encode()
-                    .map_err(|_| EngagementConfigurationError::Corrupt)?
-                    != before
-                {
-                    if next.revision == MAX_INTEGER {
+                let tree = evidence.apply(&self.root, &self.context, Some(&next.tree), now)?;
+                if tree != next.tree {
+                    let staged = staged
+                        .as_ref()
+                        .ok_or(EngagementConfigurationError::Corrupt)?;
+                    staged.validate(&snapshots[2..])?;
+                    if next.events.len() >= audit::MAX_EVENTS {
                         return Err(EngagementConfigurationError::RevisionExhausted);
                     }
+                    let before = audit::tree_commitment(&next.tree)?;
+                    next.tree = tree;
                     next.revision += 1;
                     next.accepted_at = now;
+                    next.events.push(staged.event(&next, Some(before))?);
                 }
                 let encoded = self.record(&next)?;
                 committed = Some(next);
@@ -408,9 +523,7 @@ impl EngagementConfiguration {
         parent: [u8; 32],
         proofs: &ParticipantEnrollmentProofs<'_>,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
-        self.update(true, |tree, now| {
-            tree.enroll(&self.context, parent, now, proofs).map(|_| ())
-        })
+        self.update(true, audit::Evidence::enroll(parent, proofs)?)
     }
 
     /// Irreversibly withdraws a subtree using fresh native control authority
@@ -426,8 +539,6 @@ impl EngagementConfiguration {
         &self,
         invocation: &EnrollmentInvocation<'_>,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
-        self.update(false, |tree, now| {
-            tree.revoke_authorized(&self.context, now, invocation)
-        })
+        self.update(false, audit::Evidence::revoke(*invocation)?)
     }
 }

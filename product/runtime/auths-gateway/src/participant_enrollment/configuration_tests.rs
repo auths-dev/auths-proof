@@ -66,7 +66,7 @@ fn stored_tree_refuses_distinct_identifiers_for_the_same_child_key() {
     );
 }
 
-fn controller(
+pub(super) fn controller(
     fixture: &Fixture,
     store: Arc<dyn GatewayAttemptStore>,
     clock: Arc<FixedClock>,
@@ -298,11 +298,35 @@ fn postgres_configuration_change_orders_before_new_native_enrollment() {
 /// Forward real native decisions and unchanged snapshots. A reply can be lost
 /// only after the maintained adapter actually commits; no bytes or grants are
 /// synthesized. Clock advancement occurs inside its acquired writer fence.
-struct ControlFaultStore {
+pub(super) struct ControlFaultStore {
     inner: Arc<dyn GatewayAttemptStore>,
     lose_reply: AtomicBool,
     advance_at_decision: AtomicBool,
     clock: Arc<FixedClock>,
+    lose_blob_reply: AtomicBool,
+    hide_manifest: AtomicBool,
+}
+
+impl ControlFaultStore {
+    pub(super) fn new(inner: Arc<dyn GatewayAttemptStore>, clock: Arc<FixedClock>) -> Self {
+        Self {
+            inner,
+            clock,
+            lose_reply: AtomicBool::new(false),
+            advance_at_decision: AtomicBool::new(false),
+            lose_blob_reply: AtomicBool::new(false),
+            hide_manifest: AtomicBool::new(false),
+        }
+    }
+    pub(super) fn lose_next_blob_reply(&self) {
+        self.lose_blob_reply.store(true, Ordering::SeqCst);
+    }
+    pub(super) fn hide_next_manifest(&self) {
+        self.hide_manifest.store(true, Ordering::SeqCst);
+    }
+    pub(super) fn lose_next_control_reply(&self) {
+        self.lose_reply.store(true, Ordering::SeqCst);
+    }
 }
 
 impl GatewayAttemptStore for ControlFaultStore {
@@ -323,6 +347,12 @@ impl GatewayAttemptStore for ControlFaultStore {
             if self.advance_at_decision.swap(false, Ordering::SeqCst) {
                 self.clock.set(NOW + 601);
             }
+            if self.hide_manifest.swap(false, Ordering::SeqCst) {
+                assert!(snapshots.len() >= 4);
+                let mut changed = snapshots.to_vec();
+                *changed.last_mut().unwrap() = None;
+                return decide(&changed);
+            }
             decide(snapshots)
         })?;
         if self.lose_reply.swap(false, Ordering::SeqCst) {
@@ -335,7 +365,18 @@ impl GatewayAttemptStore for ControlFaultStore {
         &self,
         entries: &[GatewayRecordEntry],
     ) -> Result<GatewayInsert, GatewayAttemptError> {
-        self.inner.insert_all(entries)
+        let result = self.inner.insert_all(entries)?;
+        if result == GatewayInsert::Inserted
+            && entries.first().is_some_and(|entry| {
+                serde_json::from_slice::<serde_json::Value>(&entry.record)
+                    .ok()
+                    .is_some_and(|v| v["schema"] == "auths.engagement-audit-blob/1")
+            })
+            && self.lose_blob_reply.swap(false, Ordering::SeqCst)
+        {
+            return Err(GatewayAttemptError::Unavailable);
+        }
+        Ok(result)
     }
     fn load(
         &self,
@@ -365,12 +406,7 @@ impl GatewayAttemptStore for ControlFaultStore {
 fn committed_enrollment_with_lost_reply_is_retained_without_republication() {
     let db = TestAttempts::open(Backend::File);
     let clock = Arc::new(FixedClock::at(NOW));
-    let store = Arc::new(ControlFaultStore {
-        inner: db.raw(),
-        lose_reply: AtomicBool::new(false),
-        advance_at_decision: AtomicBool::new(false),
-        clock: Arc::clone(&clock),
-    });
+    let store = Arc::new(ControlFaultStore::new(db.raw(), Arc::clone(&clock)));
     let mut fixture = Fixture::new();
     fixture.commit_root();
     let (control, _) = controller(&fixture, store.clone(), clock);
@@ -398,12 +434,7 @@ fn committed_enrollment_with_lost_reply_is_retained_without_republication() {
 fn enrollment_samples_current_time_inside_the_adapter_decision_fence() {
     let db = TestAttempts::open(Backend::File);
     let clock = Arc::new(FixedClock::at(NOW));
-    let store = Arc::new(ControlFaultStore {
-        inner: db.raw(),
-        lose_reply: AtomicBool::new(false),
-        advance_at_decision: AtomicBool::new(false),
-        clock: Arc::clone(&clock),
-    });
+    let store = Arc::new(ControlFaultStore::new(db.raw(), Arc::clone(&clock)));
     let mut fixture = Fixture::new();
     fixture.commit_root();
     let (control, _) = controller(&fixture, store.clone(), clock);
@@ -479,7 +510,7 @@ fn corrupt_configuration_never_becomes_absent_or_reactivates_root() {
 }
 
 #[test]
-fn configuration_revision_saturation_preserves_history_without_partial_enrollment() {
+fn configuration_revision_must_match_retained_transition_history() {
     let db = TestAttempts::open(Backend::File);
     let clock = Arc::new(FixedClock::at(NOW));
     let mut fixture = Fixture::new();
@@ -503,13 +534,20 @@ fn configuration_revision_saturation_preserves_history_without_partial_enrollmen
             &saturated,
         )
         .unwrap();
-    let before = control.snapshot().unwrap();
+    assert_eq!(
+        control.snapshot(),
+        Err(EngagementConfigurationError::Corrupt)
+    );
     assert_eq!(
         fixture.enroll_configuration(&control),
-        Err(EngagementConfigurationError::RevisionExhausted)
+        Err(EngagementConfigurationError::Corrupt)
     );
-    assert_eq!(control.snapshot().unwrap(), before);
-    assert_eq!(before.tree().participant_count(), 1);
+    assert_eq!(
+        store
+            .load(GatewayRecordKind::EffectConfiguration, &key)
+            .unwrap(),
+        Some(saturated)
+    );
 }
 
 #[test]
@@ -595,9 +633,9 @@ fn native_engagement_configuration_fixture_is_current() {
     assert!(store.attempt_keys(16).unwrap().is_empty());
 
     let value = serde_json::json!({
-        "schema": "auths.engagement-configuration-vectors/1",
+        "schema": "auths.engagement-configuration-vectors/2",
         "claim_boundary": "private native control configuration; no operation admission, budget reservation or transport permit",
-        "original_proof_retention": "not retained in these configuration records; independent audit needs original inputs",
+        "original_proof_retention": "immutable native inputs/context are referenced by acknowledged manifests; independent audit.json corpus includes the original bytes and trusted-input replay",
         "record_kind": GatewayRecordKind::EffectConfiguration.as_str(),
         "record_key_hex": hex::encode(key.as_bytes()),
         "records": [

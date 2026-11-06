@@ -16,7 +16,8 @@ use std::{collections::BTreeSet, sync::Arc};
 
 mod engagement;
 pub use engagement::{
-    EngagementConfiguration, EngagementConfigurationError, EngagementConfigurationSnapshot,
+    EngagementAudit, EngagementAuditCheckpoint, EngagementConfiguration,
+    EngagementConfigurationError, EngagementConfigurationSnapshot,
 };
 
 const SCHEMA: &str = "auths.effect-configuration/2";
