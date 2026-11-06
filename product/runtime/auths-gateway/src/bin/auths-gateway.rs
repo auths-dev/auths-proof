@@ -168,6 +168,61 @@ mod unix {
             epoch: u64,
             #[arg(long)]
             approver_public_key: String,
+            /// Final native root pins, independently reviewed by the operator.
+            #[arg(long)]
+            engagement_root: Option<PathBuf>,
+        },
+        /// Canonical native root authoring data; installs no authority. Optionally
+        /// fill this recipe's connection pins from a trusted existing installation.
+        EngagementRoot {
+            #[arg(long)]
+            pins: PathBuf,
+            #[arg(long)]
+            state_dir: Option<PathBuf>,
+        },
+        /// Canonicalize native control authoring JSON; verifies no authority.
+        ParticipantEvidence {
+            #[arg(long)]
+            input: PathBuf,
+        },
+        /// Compute a native enrollment commitment for child acceptance authoring.
+        ParticipantCommitment {
+            #[arg(long)]
+            enrollment: PathBuf,
+        },
+        /// Operator-only bootstrap under the installed root, never an app route.
+        EngagementBootstrap {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            evidence: PathBuf,
+        },
+        /// Submit signed enrollment/withdrawal evidence; receipts grant no effect.
+        ParticipantControl {
+            #[arg(long)]
+            app_socket: PathBuf,
+            #[arg(long)]
+            evidence: PathBuf,
+        },
+        /// Export complete private control history and its matching trusted head.
+        EngagementAuditExport {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            out: PathBuf,
+            #[arg(long)]
+            checkpoint: PathBuf,
+        },
+        /// Replay private history with independently trusted root/context/head.
+        EngagementAuditVerify {
+            #[arg(long)]
+            bundle: PathBuf,
+            #[arg(long)]
+            root: PathBuf,
+            #[arg(long, required = true)]
+            trusted_context: Vec<PathBuf>,
+            #[arg(long)]
+            checkpoint: PathBuf,
         },
         /// Review the current shared revision and this validated candidate installation.
         EffectConfigurationReview {
@@ -1633,8 +1688,7 @@ mod unix {
         if let Some(bytes) = &qualification_root {
             private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
         }
-        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
-            .map_err(|_| "gateway.install.manifest-invalid")?;
+        let manifest_bytes = encode_installation(&manifest)?;
         private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         let shared = SharedConnection::new(attempts.store(), provider, alias);
         let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
@@ -2143,15 +2197,50 @@ mod unix {
             .map_err(|_| "gateway.install.invalid-effect-policy")
     }
 
+    fn read_engagement_root(
+        path: &Path,
+    ) -> Result<auths_gateway::participant_enrollment::ParentEnrollmentPins, &'static str> {
+        serde_json::from_slice(&Zeroizing::new(read_bounded(path, 65536)?))
+            .map_err(|_| "gateway.engagement.installation")
+    }
+    fn read_control_evidence(
+        path: &Path,
+    ) -> Result<auths_gateway::EngagementControlEvidence, &'static str> {
+        let bytes = Zeroizing::new(read_bounded(
+            path,
+            auths_gateway::MAX_ENGAGEMENT_CONTROL_BYTES,
+        )?);
+        auths_gateway::EngagementControlEvidence::from_json(&bytes).map_err(|e| e.code())
+    }
+
+    /// Policy has its own native bound; the remaining installation metadata
+    /// retains its original 4 KiB bound. Both writers and readers use this
+    /// codec so a valid scoped policy cannot produce an unreadable install.
+    fn encode_installation(manifest: &Installation) -> Result<Vec<u8>, &'static str> {
+        let policy = manifest
+            .effect_policy
+            .to_private_bytes()
+            .map_err(|_| "gateway.serve.invalid-installation")?;
+        let bytes = serde_json_canonicalizer::to_vec(manifest)
+            .map_err(|_| "gateway.serve.invalid-installation")?;
+        if bytes.len() > auths_gateway::MAX_GATEWAY_INSTALLATION_BYTES
+            || bytes.len().saturating_sub(policy.len()) > 4096
+        {
+            return Err("gateway.serve.invalid-installation");
+        }
+        Ok(bytes)
+    }
+
     fn installation(state_dir: &Path) -> Result<Installation, &'static str> {
-        let manifest_bytes = read_bounded(&state_dir.join("installation.json"), 4_096)?;
+        let manifest_bytes = read_bounded(
+            &state_dir.join("installation.json"),
+            auths_gateway::MAX_GATEWAY_INSTALLATION_BYTES,
+        )?;
         let manifest: Installation = serde_json::from_slice(&manifest_bytes)
             .map_err(|_| "gateway.serve.invalid-installation")?;
         if manifest.effect_policy.to_private_bytes().is_err()
             || manifest.schema != MANIFEST_SCHEMA
-            || serde_json_canonicalizer::to_vec(&manifest)
-                .map_err(|_| "gateway.serve.invalid-installation")?
-                != manifest_bytes
+            || encode_installation(&manifest)? != manifest_bytes
             || (manifest.deployment == Deployment::Production) != manifest.attempt_store.is_none()
         {
             return Err("gateway.serve.invalid-installation");
@@ -3036,10 +3125,7 @@ mod unix {
     }
 
     fn engine_recipe_marker(state_dir: &Path) -> Result<String, &'static str> {
-        let bytes = read_bounded(&state_dir.join("installation.json"), 4_096)?;
-        let manifest: Installation =
-            serde_json::from_slice(&bytes).map_err(|_| "gateway.serve.invalid-installation")?;
-        Ok(manifest.recipe_digest)
+        Ok(installation(state_dir)?.recipe_digest)
     }
 
     /// Connects to an application socket, reporting a path over the
@@ -3516,6 +3602,32 @@ mod unix {
         println!(
             "{}",
             serde_json::to_string(&result).map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
+    async fn participant_exchange(
+        socket: &Path,
+        request: &auths_gateway::app::AppParticipantControl,
+    ) -> Result<(), Failure> {
+        request.decode()?;
+        let bytes = Zeroizing::new(
+            serde_json::to_vec(request).map_err(|_| "gateway.submit.encoding-failed")?,
+        );
+        let mut stream = connect_app_socket(socket, "gateway.submit.socket-unavailable").await?;
+        let clock = SessionClock::start(auths_gateway::app::APP_SESSION_LIMITS);
+        clock.write_frame(&mut stream, &bytes).await?;
+        let bytes = tokio::time::timeout(
+            auths_gateway::app::APP_SESSION_LIMITS.result_wait,
+            read_frame(&mut stream),
+        )
+        .await
+        .map_err(|_| "gateway.ipc.read-timeout")??;
+        let outcome: auths_gateway::ParticipantControlOutcome =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.submit.invalid-response")?;
+        println!(
+            "{}",
+            serde_json::to_string(&outcome).map_err(|_| "gateway.output")?
         );
         Ok(())
     }
@@ -4135,8 +4247,7 @@ mod unix {
         let bytes = read_attestation(attestation)?;
         authenticated_operator(&bytes, &manifest.operator_installation(), &context)?;
         manifest.operator_attestation_sha256 = Some(digest(&bytes));
-        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
-            .map_err(|_| "gateway.install.manifest-invalid")?;
+        let manifest_bytes = encode_installation(&manifest)?;
         replace_private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), &bytes)?;
         replace_private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         println!("operator attestation replaced");
@@ -4667,18 +4778,157 @@ mod unix {
                 partition,
                 epoch,
                 approver_public_key,
+                engagement_root,
             } => {
                 let mut approver = [0_u8; 32];
                 hex::decode_to_slice(&approver_public_key, &mut approver)
                     .map_err(|_| "gateway.install.invalid-effect-policy")?;
-                let policy = auths_gateway::effect::EffectPolicy::new(partition, epoch, approver)
-                    .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                let mut policy =
+                    auths_gateway::effect::EffectPolicy::new(partition, epoch, approver)
+                        .map_err(|_| "gateway.install.invalid-effect-policy")?;
+                if let Some(path) = engagement_root {
+                    let root = read_engagement_root(&path)?;
+                    policy = policy
+                        .with_engagement(
+                            auths_gateway::effect::EngagementPolicy::new(root, "gateway".into())
+                                .map_err(|_| "gateway.engagement.installation")?,
+                        )
+                        .map_err(|_| "gateway.engagement.installation")?;
+                }
                 let bytes = policy
                     .to_private_bytes()
                     .map_err(|_| "gateway.install.invalid-effect-policy")?;
                 std::io::stdout()
                     .write_all(&bytes)
                     .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
+            Command::EngagementRoot { pins, state_dir } => {
+                let mut root = read_engagement_root(&pins)?;
+                if let Some(state_dir) = state_dir {
+                    let engine = tokio::task::spawn_blocking(move || {
+                        load_engine_for(&state_dir, CredentialAccess::Operator)
+                    })
+                    .await
+                    .map_err(|_| "gateway.engagement.installation")??;
+                    root = engine
+                        .prepare_engagement_root(root)
+                        .await
+                        .map_err(|e| e.code())?;
+                } else {
+                    root.enrollment_commitment =
+                        auths_gateway::participant_enrollment::root_enrollment_commitment(&root)
+                            .map_err(|_| "gateway.engagement.installation")?;
+                }
+                std::io::stdout()
+                    .write_all(
+                        &serde_json_canonicalizer::to_vec(&root).map_err(|_| "gateway.output")?,
+                    )
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
+            Command::ParticipantEvidence { input } => {
+                let evidence = read_control_evidence(&input)?;
+                std::io::stdout()
+                    .write_all(&evidence.to_private_bytes().map_err(|e| e.code())?)
+                    .map_err(|_| "gateway.output")?;
+                Ok(())
+            }
+            Command::ParticipantCommitment { enrollment } => {
+                let bytes = Zeroizing::new(read_bounded(&enrollment, 65536)?);
+                let enrollment: auths_gateway::participant_enrollment::ParticipantEnrollment =
+                    serde_json::from_slice(&bytes)
+                        .map_err(|_| "gateway.engagement.invalid-frame")?;
+                println!(
+                    "{}",
+                    hex::encode(
+                        enrollment
+                            .commitment()
+                            .map_err(|_| "gateway.engagement.invalid-frame")?
+                    )
+                );
+                Ok(())
+            }
+            Command::EngagementBootstrap {
+                state_dir,
+                evidence,
+            } => {
+                let evidence = read_control_evidence(&evidence)?;
+                let engine = tokio::task::spawn_blocking(move || {
+                    load_engine_for(&state_dir, CredentialAccess::Operator)
+                })
+                .await
+                .map_err(|_| "gateway.engagement.installation")??;
+                let result = engine.bootstrap_engagement(evidence).await;
+                println!(
+                    "{}",
+                    serde_json::to_string(&result).map_err(|_| "gateway.output")?
+                );
+                Ok(())
+            }
+            Command::ParticipantControl {
+                app_socket,
+                evidence,
+            } => {
+                let evidence = read_control_evidence(&evidence)?
+                    .to_private_bytes()
+                    .map_err(|e| e.code())?;
+                let request = auths_gateway::app::AppParticipantControl {
+                    schema: auths_gateway::app::APP_PARTICIPANT_SCHEMA.into(),
+                    evidence_b64: Base64UrlUnpadded::encode_string(&evidence),
+                };
+                participant_exchange(&app_socket, &request).await
+            }
+            Command::EngagementAuditExport {
+                state_dir,
+                out,
+                checkpoint,
+            } => {
+                let (archive, head) = tokio::task::spawn_blocking(move || {
+                    let engine = load_engine_for(&state_dir, CredentialAccess::Operator)?;
+                    engine
+                        .export_engagement_audit()
+                        .map_err(|e| Failure::from(e.code()))
+                })
+                .await
+                .map_err(|_| "gateway.engagement.state-unavailable")??;
+                private_file(&out, archive.private_bytes())?;
+                private_file(&checkpoint, &head.to_private_bytes().map_err(|e| e.code())?)?;
+                Ok(())
+            }
+            Command::EngagementAuditVerify {
+                bundle,
+                root,
+                trusted_context,
+                checkpoint,
+            } => {
+                let archive = auths_gateway::EngagementAudit::from_private_bytes(&Zeroizing::new(
+                    read_bounded(&bundle, 384 * 1024 * 1024)?,
+                ))
+                .map_err(|e| e.code())?;
+                let root = read_engagement_root(&root)?;
+                let contexts = trusted_context
+                    .iter()
+                    .map(|path| {
+                        auths_codec::decode_verifier_context(&Zeroizing::new(read_bounded(
+                            path,
+                            auths_model::HARD_MAX_CONTEXT_BYTES,
+                        )?))
+                        .map_err(|_| "gateway.engagement.evidence-untrusted")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let head = auths_gateway::EngagementAuditCheckpoint::from_private_bytes(
+                    &Zeroizing::new(read_bounded(&checkpoint, 1024)?),
+                )
+                .map_err(|e| e.code())?;
+                let snapshot = archive
+                    .verify(&root, &contexts, &head)
+                    .map_err(|e| e.code())?;
+                println!(
+                    "{}",
+                    serde_json::json!({"kind":"historical-control-history","revision":snapshot.revision(),
+                    "participants":snapshot.tree().participant_count(),"current_eligibility":"not-established"})
+                );
                 Ok(())
             }
             Command::Install {
@@ -5245,6 +5495,164 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        #[allow(
+            clippy::too_many_lines,
+            reason = "one native authoring and shared manifest codec artifact"
+        )]
+        fn native_participant_cli_fixture_is_current() {
+            let directory = tempfile::tempdir().expect("private installation");
+            fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700))
+                .expect("private directory");
+            let corpus: serde_json::Value = serde_json::from_slice(include_bytes!(
+                "../../../../../bindings/fixtures/gateway/engagement/enrollment.json"
+            ))
+            .expect("native corpus");
+            let mut root: auths_gateway::participant_enrollment::ParentEnrollmentPins =
+                serde_json::from_value(corpus["parent_pins"].clone()).expect("root");
+            let scope = root.scopes[0].clone();
+            root.scopes = (0..16)
+                .map(|index| {
+                    let mut scope = scope.clone();
+                    scope.scope_id = format!("scope-{index:02}");
+                    scope.resource =
+                        auths_gateway::participant_enrollment::EnrollmentResourceBinding::Exact {
+                            handle: format!("record-{index:02}"),
+                        };
+                    scope
+                })
+                .collect();
+            root.enrollment_commitment =
+                auths_gateway::participant_enrollment::root_enrollment_commitment(&root)
+                    .expect("native commitment");
+            let policy = auths_gateway::effect::EffectPolicy::new(
+                "installation-policy".into(),
+                1,
+                ed25519_dalek::SigningKey::from_bytes(&[7; 32])
+                    .verifying_key()
+                    .to_bytes(),
+            )
+            .expect("policy")
+            .with_engagement(
+                auths_gateway::effect::EngagementPolicy::new(root, "gateway".into())
+                    .expect("engagement"),
+            )
+            .expect("scoped policy");
+            let mut manifest = Installation {
+                schema: MANIFEST_SCHEMA.into(),
+                recipe_digest: "ab".repeat(32),
+                profile_lock_sha256: "cd".repeat(32),
+                trusted_context_sha256: "ef".repeat(32),
+                effect_policy: policy,
+                provider: "opaque-provider".into(),
+                alias: "opaque-alias".into(),
+                deployment: Deployment::Development,
+                operator_attestation_sha256: None,
+                attempt_store: Some(directory.path().join("attempts").display().to_string()),
+                credential_store: CredentialStoreSettings {
+                    kind: "memory".into(),
+                    namespace: None,
+                    region: None,
+                    kms_key: None,
+                    identity: None,
+                },
+                qualification: QualificationSettings {
+                    policy: "optional".into(),
+                    recipe_family: None,
+                    provider_contract_id: None,
+                    trust_root_sha256: None,
+                },
+            };
+            let bytes = encode_installation(&manifest).expect("bounded native manifest");
+            assert!(
+                bytes.len() > 4096 && bytes.len() <= auths_gateway::MAX_GATEWAY_INSTALLATION_BYTES
+            );
+            private_file(&directory.path().join("installation.json"), &bytes)
+                .expect("private manifest");
+            let loaded = installation(directory.path()).expect("same codec reads scoped policy");
+            assert!(loaded.effect_policy == manifest.effect_policy);
+            assert_eq!(
+                engine_recipe_marker(directory.path()).expect("validated marker"),
+                manifest.recipe_digest
+            );
+            manifest.alias = "x".repeat(4097);
+            assert!(encode_installation(&manifest).is_err());
+            let oversized_metadata =
+                serde_json_canonicalizer::to_vec(&manifest).expect("untrusted representation");
+            fs::write(
+                directory.path().join("installation.json"),
+                oversized_metadata,
+            )
+            .expect("bad manifest");
+            assert!(installation(directory.path()).is_err());
+            assert!(engine_recipe_marker(directory.path()).is_err());
+            let invocation = |name: &str| {
+                let value = &corpus[name];
+                (
+                    hex::decode(value["proof_cbor_hex"].as_str().expect("proof")).expect("hex"),
+                    hex::decode(value["action_cbor_hex"].as_str().expect("action")).expect("hex"),
+                )
+            };
+            let (proof, action) = invocation("root_activation");
+            let (resource_proof, resource_action) = invocation("root_resource_invocation");
+            let resource = auths_gateway::participant_enrollment::EnrollmentResourceWitness {
+                scope_id: "project-a-read",
+                invocation: auths_gateway::participant_enrollment::EnrollmentInvocation {
+                    proof: &resource_proof,
+                    action: &resource_action,
+                },
+            };
+            let evidence = auths_gateway::EngagementControlEvidence::root(
+                &auths_gateway::participant_enrollment::RootEnrollmentProofs {
+                    activation: auths_gateway::participant_enrollment::EnrollmentInvocation {
+                        proof: &proof,
+                        action: &action,
+                    },
+                    resources: &[resource],
+                },
+            )
+            .expect("owned evidence");
+            let authoring = serde_json::to_vec_pretty(&evidence).expect("authoring JSON");
+            let input = directory.path().join("control.json");
+            private_file(&input, &authoring).expect("private input");
+            let canonical = read_control_evidence(&input)
+                .expect("native authoring codec")
+                .to_private_bytes()
+                .expect("canonical bytes");
+            assert_eq!(
+                canonical.as_slice(),
+                evidence
+                    .to_private_bytes()
+                    .expect("same canonical bytes")
+                    .as_slice()
+            );
+            assert!(
+                auths_gateway::EngagementControlEvidence::from_private_bytes(&authoring).is_err()
+            );
+            let request = auths_gateway::app::AppParticipantControl {
+                schema: auths_gateway::app::APP_PARTICIPANT_SCHEMA.into(),
+                evidence_b64: Base64UrlUnpadded::encode_string(&canonical),
+            };
+            assert!(matches!(
+                request.decode(),
+                Err("gateway.engagement.operator-required")
+            ));
+            let artifact = serde_json::to_vec_pretty(&serde_json::json!({
+                "schema":"auths.engagement-cli-vectors/1", "generated_by":"native_participant_cli_fixture_is_current",
+                "manifest_limit":auths_gateway::MAX_GATEWAY_INSTALLATION_BYTES,
+                "metadata_limit":4096, "sixteen_scope_manifest_exceeds_old_limit":bytes.len()>4096,
+                "same_writer_reader_codec":true, "marker_refuses_invalid_metadata":true,
+                "native_authoring_normalizes":true, "application_refuses_root":true,
+                "not_established":["installed-process-journey", "credential-containment", "cli-subprocess-execution"]
+            })).expect("artifact");
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../bindings/fixtures/gateway/engagement/control-cli.json");
+            if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+                fs::write(&path, &artifact).expect("artifact");
+            }
+            assert_eq!(fs::read(path).expect("artifact"), artifact);
+        }
 
         #[test]
         fn managed_cli_inventory_fixture_is_current() {

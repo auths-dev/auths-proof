@@ -47,3 +47,21 @@ client, its generated domain packages, and the `./profile-runtime` subpath
 were removed in one cutover when the gateway became the single provider-write
 path. Removed launch claims are inventoried in
 `bindings/security-evidence-cutover-v1.json` with their replacement evidence.
+
+## Native participant controls
+
+`GatewayClient.participantControl(evidence)` forwards canonical native
+`auths.engagement-control-evidence/1` bytes through the gateway app socket and
+returns native result bytes unchanged. Obtain canonical bytes from the native
+`participant-evidence` command. The maximum is 6,290,432 bytes, including native
+proofs; the existing socket frame limit includes base64 expansion and the envelope.
+The app cannot bootstrap a root or choose trust, time, capacity or root pins.
+
+A `recorded` revision identifies original historical evidence. Retrying those
+exact bytes after withdrawal or expiry does not reactivate an agent. A lost
+response may leave control state committed; exact evidence can locate the original
+revision. It does not authorize provider retry, disclose content, allocate new
+capacity or establish current eligibility. Native entry always checks that
+separately. Private control/audit data belongs in protected operator/participant
+storage and should not be logged or sent to a model.
+

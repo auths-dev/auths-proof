@@ -16,7 +16,10 @@ use std::sync::Arc;
 
 mod audit;
 mod blob;
-pub use audit::{EngagementAudit, EngagementAuditCheckpoint};
+pub use audit::{
+    EngagementAudit, EngagementAuditCheckpoint, EngagementControlEvidence,
+    MAX_ENGAGEMENT_CONTROL_BYTES,
+};
 
 const SCHEMA: &str = "auths.engagement-configuration/2";
 const MAX_BYTES: usize = auths_stores::MAX_GATEWAY_RECORD_BYTES;
@@ -346,13 +349,37 @@ impl EngagementConfiguration {
     /// # Errors
     /// Refuses changed installation, native evidence, unavailable time, corrupt
     /// state or failed/ambiguous durability. It never returns an entry permit.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one acknowledged evidence preparation and final native bootstrap fence"
-    )]
     pub fn bootstrap(
         &self,
         proofs: &RootEnrollmentProofs<'_>,
+    ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
+        self.bootstrap_evidence(audit::EngagementControlEvidence::root(proofs)?)
+    }
+
+    /// Applies owned original evidence through the same native control owner.
+    /// This operator handle uses only its independently installed root/context.
+    /// It grants no effect/approval authority or provider/disclosure permit.
+    /// # Errors
+    /// Refuses invalid evidence, current authority or failed/ambiguous storage.
+    pub fn apply_control(
+        &self,
+        evidence: EngagementControlEvidence,
+    ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
+        evidence.to_private_bytes()?;
+        if evidence.is_root() {
+            self.bootstrap_evidence(evidence)
+        } else {
+            self.update(evidence.is_enrollment(), evidence)
+        }
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one prepared original-evidence publication and final native root fence"
+    )]
+    fn bootstrap_evidence(
+        &self,
+        evidence: EngagementControlEvidence,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
         if let Some(bytes) = self
             .store
@@ -360,7 +387,6 @@ impl EngagementConfiguration {
         {
             return self.decode(&bytes);
         }
-        let evidence = audit::Evidence::root(proofs)?;
         let now = self.preview_time(true)?;
         let tree = evidence.apply(&self.root, &self.context, None, now)?;
         let preview = EngagementConfigurationSnapshot {
@@ -431,7 +457,7 @@ impl EngagementConfiguration {
     fn update(
         &self,
         adding_authority: bool,
-        evidence: audit::Evidence,
+        evidence: audit::EngagementControlEvidence,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
         let current = self.snapshot()?;
         let now = self.preview_time(adding_authority)?;
@@ -523,7 +549,10 @@ impl EngagementConfiguration {
         parent: [u8; 32],
         proofs: &ParticipantEnrollmentProofs<'_>,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
-        self.update(true, audit::Evidence::enroll(parent, proofs)?)
+        self.update(
+            true,
+            audit::EngagementControlEvidence::enroll(parent, proofs)?,
+        )
     }
 
     /// Irreversibly withdraws a subtree using fresh native control authority
@@ -539,6 +568,9 @@ impl EngagementConfiguration {
         &self,
         invocation: &EnrollmentInvocation<'_>,
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
-        self.update(false, audit::Evidence::revoke(*invocation)?)
+        self.update(
+            false,
+            audit::EngagementControlEvidence::revoke(*invocation)?,
+        )
     }
 }

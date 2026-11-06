@@ -23,7 +23,8 @@ pub use engine::{
 mod configuration;
 pub use configuration::{
     EngagementAudit, EngagementAuditCheckpoint, EngagementConfiguration,
-    EngagementConfigurationError, EngagementConfigurationSnapshot,
+    EngagementConfigurationError, EngagementConfigurationSnapshot, EngagementControlEvidence,
+    MAX_ENGAGEMENT_CONTROL_BYTES,
 };
 mod connection;
 mod control_namespace;
@@ -32,6 +33,11 @@ mod echo_verify;
 pub mod effect;
 mod engine;
 mod entry;
+mod participant_control;
+pub use participant_control::ParticipantControlOutcome;
+/// Bounded installation envelope: the complete native effect policy plus the
+/// existing fixed manifest metadata allowance. Readers/writers share this bound.
+pub const MAX_GATEWAY_INSTALLATION_BYTES: usize = effect::MAX_EFFECT_POLICY_BYTES + 4096;
 mod execution_witness;
 pub use execution_witness::GatewayExecutionWitness;
 #[cfg(unix)]

@@ -780,6 +780,50 @@ impl GatewayEngine {
         )
     }
 
+    /// Prepares private root authoring data against this recipe's actual current
+    /// connection. Only matching recipe scopes are filled; other recipe pins
+    /// remain explicit operator inputs. This does not install a root or grant
+    /// any authority. Native root/control proofs must authorize the final pins.
+    /// No credential is leased and no provider request is made.
+    /// # Errors
+    /// Refuses a missing connection, no matching scope or malformed root pins.
+    pub async fn prepare_engagement_root(
+        &self,
+        mut root: crate::participant_enrollment::ParentEnrollmentPins,
+    ) -> Result<
+        crate::participant_enrollment::ParentEnrollmentPins,
+        crate::EngagementConfigurationError,
+    > {
+        let connection = self
+            .connection
+            .load()
+            .await
+            .map_err(|_| crate::EngagementConfigurationError::Configuration)?
+            .ok_or(crate::EngagementConfigurationError::Configuration)?;
+        let bytes = connection
+            .record()
+            .to_canonical_cbor()
+            .map_err(|_| crate::EngagementConfigurationError::Installation)?;
+        let binding = crate::effect::commitment("auths.effect-installation/1", &bytes)
+            .map_err(|_| crate::EngagementConfigurationError::Installation)?;
+        let mut matched = false;
+        for scope in &mut root.scopes {
+            if scope.recipe_digest == self.recipe.digest_hex()
+                && scope.service == self.recipe.service()
+            {
+                scope.connection_binding = binding;
+                matched = true;
+            }
+        }
+        if !matched {
+            return Err(crate::EngagementConfigurationError::Installation);
+        }
+        root.enrollment_commitment =
+            crate::participant_enrollment::root_enrollment_commitment(&root)
+                .map_err(|_| crate::EngagementConfigurationError::Installation)?;
+        Ok(root)
+    }
+
     /// Returns the private native commitment to this candidate installation.
     /// This is review data, never permission to replace shared configuration.
     ///

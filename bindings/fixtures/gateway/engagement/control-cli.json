@@ -1,0 +1,16 @@
+{
+  "schema": "auths.engagement-cli-vectors/1",
+  "generated_by": "native_participant_cli_fixture_is_current",
+  "manifest_limit": 69632,
+  "metadata_limit": 4096,
+  "sixteen_scope_manifest_exceeds_old_limit": true,
+  "same_writer_reader_codec": true,
+  "marker_refuses_invalid_metadata": true,
+  "native_authoring_normalizes": true,
+  "application_refuses_root": true,
+  "not_established": [
+    "installed-process-journey",
+    "credential-containment",
+    "cli-subprocess-execution"
+  ]
+}

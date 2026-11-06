@@ -393,6 +393,56 @@ Use hosted CI under the repository's GitHub-first policy. Record exactly what ra
 
 The program is successful when independently identified humans, machines, and agents can delegate bounded work through one understandable authority contract, while resource owners enforce each admission, disclosure, and effect with truthful evidence and explicit limitations.
 
+## 16. Installed native control surface on AP074
+
+The installed `EffectPolicy` selects one immutable engagement root and executor.
+Root provisioning, verifier context, registered channels, capacity and gateway
+time are independent operator inputs. An application cannot replace any of them.
+`auths.gateway-participant-control/1` carries only `evidence_b64`: the unpadded
+base64url encoding of canonical `auths.engagement-control-evidence/1` bytes. That
+is the original-evidence representation already retained by the configuration
+audit owner, not another authorization format. Its native decoder checks bounded
+representation; only current native control/resource verification under the
+shared configuration writer fence can change enrollment or withdrawal state.
+
+The application route accepts enrollment and subtree withdrawal only. Root
+bootstrap is refused by both the envelope and engine entry points and is exposed
+only by the trusted operator API/CLI. No control receipt leases credentials,
+executes a provider request, consumes an effect approval or creates an entry
+permit. Python and TypeScript forward native bytes and return native result bytes;
+they do not compute enrollment commitments or infer current eligibility.
+
+`Recorded { revision }` refers to the original retained evidence revision. Exact
+evidence replay checks its immutable content reference and original bytes. A retry
+after withdrawal or expiry returns that same historical revision without changing
+state, refreshing time, allocating capacity or restoring authority. New entry
+still requires current native verification. `Unchanged { revision }` records no
+new control event. A persistence error returns `Indeterminate`; exact control
+evidence can be resubmitted to locate its original event, but no external-effect
+retry follows from that result. Changed evidence must pass native validation.
+
+Native control bytes are bounded to 6 MiB minus 1 KiB. The reserved space ensures
+base64 expansion plus the closed envelope fits the existing 8 MiB application
+frame. Installation readers and writers use one native codec with the 64 KiB
+effect-policy bound plus the original 4 KiB allowance for remaining metadata.
+No alternate installation reader may bypass that codec.
+
+The native CLI provides `engagement-root`, `participant-commitment` and
+`participant-evidence` for authoring data only; `effect-policy --engagement-root`
+pins reviewed root data; `engagement-bootstrap` is operator-only;
+`participant-control` uses the app socket. Optional `engagement-root --state-dir`
+fills only this recipe's connection bindings from actual installed native
+connection metadata without leasing a credential. These commands do not mint
+grants, child signatures or human approval. `engagement-audit-export` exports one
+snapshot and its matching private checkpoint; `engagement-audit-verify` requires
+independently trusted root, contexts and checkpoint. Successful replay establishes
+historical control decisions conditional on recorded time and trusted inputs,
+not current eligibility or authenticity of an unauthenticated exported head.
+
+The source/fixture evidence and unestablished installed-process requirements are
+tracked in the companion assessment. Shipping these surfaces does not by itself
+complete M0–M4 or F01–F16.
+
 ## References
 
 - [Nyxis handler model](https://github.com/NyxFoundation/nyxis/blob/785c11a628/Nyxis/Handler.lean), [proof boundary](https://github.com/NyxFoundation/nyxis/blob/785c11a628/ASSUMPTIONS.md), and [outbox semantics](https://github.com/NyxFoundation/nyxis/blob/785c11a628/Nyxis/Internal/Outbox.lean): design comparisons, not imported security guarantees.

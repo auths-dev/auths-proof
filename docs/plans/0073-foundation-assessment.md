@@ -820,3 +820,82 @@ human approval, managed created-resource lineage/reconciliation, cross-recipe
 process schedules, lifecycle/federation/native-resource contracts and complete
 source-linked formal/global release/exact-head hosted evidence. No push, CI
 observation, merge or deployment occurred. The full persistent goal stays active.
+
+### Native installed control path: bounded implementation batch
+
+The installed engine/application path now shares `EngagementControlEvidence`
+with the original audit codec and the existing fenced configuration owner.
+`participant_control` accepts only native enrollment/withdrawal under the policy's
+installed root. Root bootstrap remains a separate operator API; clients cannot
+choose root/context/time/capacity. Historical exact retries return the original
+retained revision, including after withdrawal or expiry. This receipt is never
+current eligibility or a provider/disclosure permit. Missing/corrupt original
+evidence fails explicitly; lost persistence replies are indeterminate.
+
+The native CLI gains bounded authoring, scoped-policy installation, app control,
+operator bootstrap and checkpoint-matched audit export/offline replay. Python and
+TypeScript carry native evidence/result bytes without alternate verification or
+canonical-identity logic. Two installation readers and two writers now share one
+codec: 64 KiB native effect policy plus 4 KiB non-policy metadata. This closes the
+previous 4 KiB whole-manifest reader mismatch. Control input reserves envelope
+space before base64 expansion rather than increasing the shared socket bound.
+
+The complete planned constructor cohort is: actual engine/file/Unix control;
+native CLI authoring/manifest; managed CLI inventory; operator-boundary catalog;
+installed managed-interface catalog; original control audit;
+configuration; information; prerequisite; effect; admission; live disclosure;
+semantic closure. Each constructor produces required repository artifacts, not a
+substitute for the hosted gate. Binding tests consume the native control corpus
+and check byte forwarding plus the same native transport cap. PostgreSQL control
+cases are authored separately and require the configured hosted environment.
+The TypeScript public API snapshot must be generated from built declarations.
+
+Coverage includes app-root rejection, actual independently consented enrollment,
+installed connection authoring, native denial of changed proof bytes, injected
+outer configuration rejection, native withdrawal, historical retries without
+reactivation, matching audit replay after expiry, reopening retained original
+receipts, commit-ACK loss and exact retry, competing identical controls, absent
+scoped installation, empty credential store, zero provider-attempt rows, canonical
+authoring and oversized metadata refusal. Fixed public fixture keys, same-process
+Unix sockets and injected store ACK loss are explicit test boundaries.
+
+No result is recorded for this cohort yet. Full installed machine→A→B/human
+journey, separate-process/key/UID isolation, process crashes, cross-recipe shared
+authority schedules, managed created-resource lineage/reconciliation, lifecycle,
+federation/native-resource conformance, source-linked formal/global release and
+final exact-head hosted verification remain required. No push or CI observation
+is authorized before the implementation/spec is complete.
+
+### Acknowledged native control and interface artifacts
+
+The first complete thirteen-constructor cohort passed twelve cases and exposed
+one invalid public-key fixture in native CLI policy authoring. The test input was
+corrected to derive an actual Ed25519 public key through the maintained signing
+library. One unused test import was removed. The native control constructor also
+now exercises the transport cap and an app disconnection after request delivery:
+the native control finishes and exact replay locates its original revision.
+
+All thirteen constructors then passed without compile warnings with
+`loopback-provider,testkit-harness`. Logs are
+`/tmp/ap073-control-final-{control,cli,inventory,admin,interface,audit,configuration,information,prerequisite,effect,admission,live,semantic-closure}.log`.
+The library target compiled 457 cases; ten filtered library constructors ran,
+alongside two binary constructors and one installed-daemon interface constructor.
+The new control corpus is 22,425 bytes and contains twelve actual file/socket
+cases. The CLI corpus is 492 bytes. Existing installed-daemon evidence now also
+exercises the new control schema against an unscoped installation, asserting no
+new credential/provider entry. Its original authenticated HTTP/disclosure flow
+still passes; it does not establish an installed enrolled hierarchy.
+
+TypeScript declarations and the public API snapshot were generated successfully
+using `npm run build` and `node tools/public-api.mjs --update`; logs are
+`/tmp/ap073-control-initial-typescript-{declarations,public-api}.log`.
+Python/TypeScript control transport tests are written against the native corpus
+but have not been run locally. No PostgreSQL, general package/formal/release or
+hosted gate is claimed. A final static review replaced one unnecessary context
+clone; its affected control and semantic-closure constructors are refreshed
+together in `/tmp/ap073-control-review-{control,semantic-closure}.log`.
+Both refreshed constructors passed without compile warnings.
+
+This closes the installed **control surface** subrequirement using the existing
+native evidence/configuration owner. The remaining full-program requirements
+listed above are unchanged; the persistent goal remains active.

@@ -1997,6 +1997,53 @@ pub(crate) struct EffectScopeFixture {
 }
 
 impl EffectScopeFixture {
+    pub(crate) fn root_evidence(&self) -> crate::EngagementControlEvidence {
+        let resources = self.control_resources(&self.root_resources);
+        crate::EngagementControlEvidence::root(&RootEnrollmentProofs {
+            activation: invocation(&self.activation),
+            resources: &resources,
+        })
+        .unwrap()
+    }
+    fn control_resources<'a>(
+        &'a self,
+        proofs: &'a [Submission],
+    ) -> Vec<EnrollmentResourceWitness<'a>> {
+        self.root
+            .scopes
+            .iter()
+            .zip(proofs)
+            .map(|(scope, proof)| EnrollmentResourceWitness {
+                scope_id: &scope.scope_id,
+                invocation: invocation(proof),
+            })
+            .collect()
+    }
+    pub(crate) fn enrollment_evidence(&self, index: usize) -> crate::EngagementControlEvidence {
+        let (parent, child, proofs) = &self.children[index];
+        let resources = self.control_resources(proofs);
+        crate::EngagementControlEvidence::enroll(
+            self.root.enrollment_commitment,
+            &ParticipantEnrollmentProofs {
+                parent: invocation(parent),
+                child: invocation(child),
+                resources: &resources,
+            },
+        )
+        .unwrap()
+    }
+    pub(crate) fn withdrawal_evidence(&self, actor: u8) -> crate::EngagementControlEvidence {
+        let principal = Signer::new(actor);
+        let target = self
+            .tree
+            .retained_principal_pins(principal.principal.as_str())
+            .unwrap()
+            .enrollment_commitment;
+        let mut fixture = Fixture::new();
+        fixture.pins = self.root.clone();
+        let withdrawal = fixture.withdraw_as_parent(target);
+        crate::EngagementControlEvidence::revoke(invocation(&withdrawal)).unwrap()
+    }
     pub(crate) fn withdraw_participant(
         &self,
         controller: &crate::EngagementConfiguration,

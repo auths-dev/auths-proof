@@ -16,7 +16,10 @@ use zeroize::{Zeroize as _, Zeroizing};
 
 const INPUT_SCHEMA: &str = "auths.engagement-control-evidence/1";
 const AUDIT_SCHEMA: &str = "auths.engagement-audit/1";
-const MAX_INPUT_BYTES: usize = 6 * 1_048_576;
+/// Maximum canonical private control evidence. Reserve 1 KiB before base64
+/// expansion so every accepted input fits the existing 8 MiB app frame with
+/// its fixed schema/envelope, without increasing the shared IPC limit.
+pub const MAX_ENGAGEMENT_CONTROL_BYTES: usize = 6 * 1_048_576 - 1_024;
 pub(super) const MAX_EVENTS: usize = MAX_PARTICIPANTS * 2;
 const MAX_TOTAL_BYTES: usize = 256 * 1_048_576;
 const MAX_EXPORT_BYTES: usize = MAX_TOTAL_BYTES * 3 / 2;
@@ -169,14 +172,26 @@ enum Control {
     },
 }
 
+/// Owned original native control inputs. This is transport/audit data, never
+/// authorization, trusted root pins, a current enrollment or an entry permit.
+/// Private CBOR proof/action bytes are retained exactly inside one native codec.
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Evidence {
+pub struct EngagementControlEvidence {
     schema: String,
     control: Control,
 }
-impl Evidence {
-    pub(super) fn root(proofs: &RootEnrollmentProofs<'_>) -> Result<Self, Error> {
+impl std::fmt::Debug for EngagementControlEvidence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("EngagementControlEvidence { private: [redacted] }")
+    }
+}
+impl EngagementControlEvidence {
+    /// Copies bounded root activation and resource witnesses without verifying
+    /// authority. Root installation remains an operator-only action.
+    /// # Errors
+    /// Refuses oversized or malformed input representations.
+    pub fn root(proofs: &RootEnrollmentProofs<'_>) -> Result<Self, Error> {
         if proofs.resources.len() > MAX_SCOPES {
             return Err(Error::EvidenceLimit);
         }
@@ -192,7 +207,11 @@ impl Evidence {
             },
         })
     }
-    pub(super) fn enroll(
+    /// Copies parent authorization, child acceptance and resource witnesses.
+    /// `parent` is proposed data; the native owner resolves its current pins.
+    /// # Errors
+    /// Refuses oversized or malformed input representations.
+    pub fn enroll(
         parent: [u8; 32],
         proofs: &ParticipantEnrollmentProofs<'_>,
     ) -> Result<Self, Error> {
@@ -215,7 +234,10 @@ impl Evidence {
             },
         })
     }
-    pub(super) fn revoke(value: EnrollmentInvocation<'_>) -> Result<Self, Error> {
+    /// Copies a signed subtree withdrawal, without withdrawing anything.
+    /// # Errors
+    /// Refuses oversized or malformed input representations.
+    pub fn revoke(value: EnrollmentInvocation<'_>) -> Result<Self, Error> {
         bounded_invocations([value]).map_err(|e| Error::Native(e.into()))?;
         Ok(Self {
             schema: INPUT_SCHEMA.into(),
@@ -224,15 +246,85 @@ impl Evidence {
             },
         })
     }
-    fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.is_empty() || bytes.len() > MAX_INPUT_BYTES {
+    /// Decodes canonical private evidence without establishing authority.
+    /// # Errors
+    /// Refuses obsolete, noncanonical, oversized or malformed representations.
+    pub fn from_private_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        if bytes.is_empty() || bytes.len() > MAX_ENGAGEMENT_CONTROL_BYTES {
             return Err(Error::EvidenceLimit);
         }
         let value: Self = serde_json::from_slice(bytes).map_err(|_| Error::Corrupt)?;
-        if value.schema != INPUT_SCHEMA || canonical(&value)?.as_slice() != bytes {
+        if value.to_private_bytes()?.as_slice() != bytes {
             return Err(Error::Corrupt);
         }
         Ok(value)
+    }
+    /// Canonicalizes bounded authoring JSON using the native evidence codec.
+    /// This creates data only; no root/context can be supplied through it.
+    /// # Errors
+    /// Refuses oversized, unknown, duplicate or malformed input fields.
+    pub fn from_json(bytes: &[u8]) -> Result<Self, Error> {
+        if bytes.is_empty() || bytes.len() > MAX_ENGAGEMENT_CONTROL_BYTES {
+            return Err(Error::EvidenceLimit);
+        }
+        let value: Self = serde_json::from_slice(bytes).map_err(|_| Error::Corrupt)?;
+        value.to_private_bytes()?;
+        Ok(value)
+    }
+    /// Encodes original input bytes with the single native canonical contract.
+    /// Decoding/encoding never verifies control signatures or grants authority.
+    /// # Errors
+    /// Refuses invalid schema, base64, counts, aggregate sizes or canonical size.
+    pub fn to_private_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
+        if self.schema != INPUT_SCHEMA {
+            return Err(Error::Corrupt);
+        }
+        match &self.control {
+            Control::Root { resources, .. } | Control::Enroll { resources, .. }
+                if resources.len() > MAX_SCOPES
+                    || resources
+                        .iter()
+                        .any(|r| !crate::participant_enrollment::identifier(&r.scope)) =>
+            {
+                return Err(Error::EvidenceLimit);
+            }
+            _ => {}
+        }
+        let inputs: Vec<_> = match &self.control {
+            Control::Root {
+                activation,
+                resources,
+            } => std::iter::once(activation)
+                .chain(resources.iter().map(|r| &r.invocation))
+                .collect(),
+            Control::Enroll {
+                authorization,
+                acceptance,
+                resources,
+                ..
+            } => [authorization, acceptance]
+                .into_iter()
+                .chain(resources.iter().map(|r| &r.invocation))
+                .collect(),
+            Control::Revoke { authorization } => vec![authorization],
+        };
+        let decoded = inputs
+            .iter()
+            .map(|v| v.decode())
+            .collect::<Result<Vec<_>, _>>()?;
+        bounded_invocations(decoded.iter().map(DecodedInvocation::borrowed))
+            .map_err(|e| Error::Native(e.into()))?;
+        let bytes = canonical(self)?;
+        if bytes.len() > MAX_ENGAGEMENT_CONTROL_BYTES {
+            return Err(Error::EvidenceLimit);
+        }
+        Ok(bytes)
+    }
+    pub(crate) fn is_root(&self) -> bool {
+        matches!(self.control, Control::Root { .. })
+    }
+    pub(super) fn is_enrollment(&self) -> bool {
+        matches!(self.control, Control::Enroll { .. })
     }
     pub(super) fn apply(
         &self,
@@ -365,7 +457,7 @@ pub(super) fn validate_history(snapshot: &EngagementConfigurationSnapshot) -> Re
             || event.before != before
             || event.accepted_at < time
             || event.accepted_at > super::MAX_INTEGER
-            || event.inputs.bytes() > MAX_INPUT_BYTES
+            || event.inputs.bytes() > MAX_ENGAGEMENT_CONTROL_BYTES
         {
             return Err(Error::Corrupt);
         }
@@ -389,14 +481,14 @@ impl Staged {
     pub(super) fn prepare(
         store: &dyn crate::GatewayAttemptStore,
         context: &TrustedContext,
-        evidence: &Evidence,
+        evidence: &EngagementControlEvidence,
         budget: impl FnOnce(&Self) -> Result<(), Error>,
     ) -> Result<Self, Error> {
         let context = Zeroizing::new(
             auths_codec::encode_verifier_context(context).map_err(|_| Error::Corrupt)?,
         );
         let inputs = canonical(evidence)?;
-        if inputs.len() > MAX_INPUT_BYTES {
+        if inputs.len() > MAX_ENGAGEMENT_CONTROL_BYTES {
             return Err(Error::EvidenceLimit);
         }
         let staged = Self {
@@ -624,7 +716,7 @@ impl EngagementAudit {
                 .iter()
                 .find(|(r, _)| r == &event.inputs)
                 .ok_or(Error::MissingEvidence)?;
-            let next = Evidence::decode(&inputs.1)?.apply(
+            let next = EngagementControlEvidence::from_private_bytes(&inputs.1)?.apply(
                 root,
                 context.1,
                 tree.as_ref(),
@@ -645,6 +737,49 @@ impl EngagementAudit {
 }
 
 impl EngagementConfiguration {
+    /// Exports one acknowledged private history together with its matching head.
+    /// The checkpoint comes from the same export, never a second concurrent read.
+    /// Authenticate/retain it independently of an untrusted future bundle.
+    /// # Errors
+    /// Refuses unavailable/corrupt state or missing original evidence.
+    pub fn export_audit_checkpointed(
+        &self,
+    ) -> Result<(EngagementAudit, EngagementAuditCheckpoint), Error> {
+        let audit = self.export_audit()?;
+        let envelope = audit.envelope()?;
+        let snapshot = Self::decode_for_root(&self.root, envelope.configuration.as_bytes())?;
+        let checkpoint = snapshot.audit_checkpoint()?;
+        Ok((audit, checkpoint))
+    }
+    /// Finds an exact previously acknowledged control, returning its original
+    /// revision rather than the current roster or eligibility. Original private
+    /// bytes must still exist and match; no native permit is reconstructed.
+    /// # Errors
+    /// Returns `None` when no configuration/matching control exists; refuses
+    /// corrupt configuration or missing/corrupt referenced original evidence.
+    pub fn recorded_control(
+        &self,
+        evidence: &EngagementControlEvidence,
+    ) -> Result<Option<u64>, Error> {
+        let bytes = evidence.to_private_bytes()?;
+        let expected = blob::Reference::new(&bytes)?;
+        let Some(retained) = self
+            .store
+            .load(crate::GatewayRecordKind::EffectConfiguration, &self.key)?
+        else {
+            return Ok(None);
+        };
+        let snapshot = self.decode(&retained)?;
+        for event in &snapshot.events {
+            if event.inputs == expected {
+                if event.inputs.load(&*self.store)?.as_slice() != bytes.as_slice() {
+                    return Err(Error::Corrupt);
+                }
+                return Ok(Some(event.revision));
+            }
+        }
+        Ok(None)
+    }
     /// Exports all original control evidence referenced by one retained
     /// acknowledged snapshot. Reads immutable blobs; concurrent later control
     /// transitions do not change this checkpoint. Missing data fails explicitly.

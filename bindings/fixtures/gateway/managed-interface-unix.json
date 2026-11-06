@@ -118,6 +118,14 @@
         "post_ready_control_frames": 0
       },
       {
+        "case": "native-participant-control-without-installed-engagement",
+        "response": {
+          "kind": "refused",
+          "code": "gateway.engagement.installation"
+        },
+        "post_ready_control_frames": 0
+      },
+      {
         "case": "admin-on-app:disable",
         "response": {
           "outcome": "indeterminate",
@@ -448,6 +456,22 @@
         "help_accessible": true
       },
       {
+        "command": "engagement-audit-export",
+        "help_accessible": true
+      },
+      {
+        "command": "engagement-audit-verify",
+        "help_accessible": true
+      },
+      {
+        "command": "engagement-bootstrap",
+        "help_accessible": true
+      },
+      {
+        "command": "engagement-root",
+        "help_accessible": true
+      },
+      {
         "command": "execution-witness",
         "help_accessible": true
       },
@@ -477,6 +501,18 @@
       },
       {
         "command": "operator-request",
+        "help_accessible": true
+      },
+      {
+        "command": "participant-commitment",
+        "help_accessible": true
+      },
+      {
+        "command": "participant-control",
+        "help_accessible": true
+      },
+      {
+        "command": "participant-evidence",
         "help_accessible": true
       },
       {

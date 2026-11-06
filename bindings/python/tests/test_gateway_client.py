@@ -241,6 +241,30 @@ async def _serve_once(
     return await asyncio.start_unix_server(handle, path=str(socket))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="gateway is Unix-only")
+def test_native_participant_control_transports_bytes_and_preserves_historical_outcome(socket_dir) -> None:
+    corpus = json.loads((Path(__file__).resolve().parents[2] / "fixtures/gateway/engagement/control.json").read_text())
+    request = corpus["file"]["enrollment_request"]
+    evidence = base64.urlsafe_b64decode(request["evidence_b64"] + "=" * (-len(request["evidence_b64"]) % 4))
+
+    async def scenario() -> None:
+        for index, case in enumerate(corpus["file"]["cases"]):
+            reply = json.dumps(case["response"], separators=(",", ":")).encode()
+            seen: list[dict[str, object]] = []
+            path = socket_dir / f"control-{index}.sock"
+            server = await _serve_once(path, reply, seen)
+            async with server:
+                result = await GatewayClient(GatewayEndpoint(path)).participant_control(evidence)
+            assert result == reply
+            assert seen == [request]
+        client = GatewayClient(GatewayEndpoint(socket_dir / "not-opened.sock"))
+        for invalid in (b"", b"x" * (corpus["max_control_bytes"] + 1), "not-bytes"):
+            with pytest.raises(ValueError):
+                await client.participant_control(invalid)  # type: ignore[arg-type]
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )

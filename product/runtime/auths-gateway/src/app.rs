@@ -15,6 +15,8 @@ use tokio::time::{Instant, sleep_until, timeout_at};
 use zeroize::{Zeroize as _, Zeroizing};
 
 mod content;
+mod participant;
+pub use participant::{APP_PARTICIPANT_SCHEMA, AppParticipantControl};
 #[cfg(test)]
 #[path = "app/content_tests.rs"]
 mod content_tests;
@@ -292,6 +294,7 @@ application_frames! {
     Disclose(AppDisclosure) => APP_DISCLOSURE_SCHEMA,
     ContentHistory(AppContentHistory) => APP_CONTENT_HISTORY_SCHEMA,
     DisclosureAck(AppDisclosureAcknowledgement) => APP_DISCLOSURE_ACK_SCHEMA,
+    Participant(AppParticipantControl) => APP_PARTICIPANT_SCHEMA,
 }
 
 /// Which closed frame `bytes` parse as, schema included: `submit`,
@@ -311,12 +314,21 @@ pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
         AppFrame::Disclose(request) => request.decode().ok().map(|_| "disclose"),
         AppFrame::ContentHistory(request) => request.validate().ok().map(|()| "content-history"),
         AppFrame::DisclosureAck(request) => request.decode().ok().map(|_| "disclosure-ack"),
+        AppFrame::Participant(request) => request.decode().ok().map(|_| "participant-control"),
     }
 }
 
 /// What serves the application socket: the gateway engine, or the test
 /// harness that follows the same dispatch against a counting provider.
 pub trait GatewayApplication {
+    /// Native control only. Default applications cannot publish participant
+    /// authority; receipts must not be treated as active enrollment/permits.
+    fn participant_control(
+        &self,
+        _evidence: crate::EngagementControlEvidence,
+    ) -> impl Future<Output = crate::ParticipantControlOutcome> {
+        async { crate::ParticipantControlOutcome::refused("gateway.engagement.installation") }
+    }
     /// Verifies and attempts one exact action.
     fn submit(
         &self,
@@ -379,6 +391,12 @@ pub trait GatewayApplication {
 }
 
 impl GatewayApplication for GatewayEngine {
+    async fn participant_control(
+        &self,
+        evidence: crate::EngagementControlEvidence,
+    ) -> crate::ParticipantControlOutcome {
+        GatewayEngine::participant_control(self, evidence).await
+    }
     async fn submit(
         &self,
         proof: &[u8],
@@ -585,6 +603,7 @@ pub async fn app_session_within(
             Ok(AppFrame::DisclosureAck(request)) => {
                 content::acknowledge(request, application).await
             }
+            Ok(AppFrame::Participant(request)) => participant::control(request, application).await,
             Ok(AppFrame::Disclose(_)) | Err(_) => {
                 serde_json::to_vec(&invalid_frame()).unwrap_or_default()
             }

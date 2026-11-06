@@ -461,6 +461,21 @@ class GatewayClient:
             raise TypeError("endpoint must be a GatewayEndpoint")
         self._endpoint = endpoint
 
+    async def participant_control(self, evidence: bytes) -> bytes:
+        """Transport native canonical enrollment/withdrawal evidence unchanged.
+
+        Rust owns canonical identity, native verification and the durable fence.
+        A recorded revision is historical data, not current eligibility or a
+        permit. A lost reply permits only exact evidence replay; no new capacity
+        or external-effect retry follows. Root bootstrap is operator-only.
+        """
+        if not isinstance(evidence, bytes) or not 1 <= len(evidence) <= 6 * 1024 * 1024 - 1024:
+            raise ValueError("evidence must be 1-6290432 native canonical bytes")
+        payload = json.dumps({"schema": "auths.gateway-participant-control/1",
+                              "evidence_b64": base64.urlsafe_b64encode(evidence).decode("ascii").rstrip("=")},
+                             separators=(",", ":")).encode("utf-8")
+        return await self._exchange(payload, "participant control persistence may be unknown")
+
     async def submit(self, *, proof: bytes, action: bytes, approval: bytes) -> GatewayResult:
         """Return proof/transport stage without implying provider effect.
 
