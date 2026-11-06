@@ -1,6 +1,8 @@
 # ADR 0020: Commissioned instance recovery without restored capacity
 
-Status: AP073 M4 implementation contract; no lifecycle acceptance result yet.
+Status: first commissioned lifecycle implemented; native/file/local installed
+construction evidence recorded in the AP073 ledger. Hosted containment, PostgreSQL,
+source-linked formal and complete M4 acceptance remain open.
 
 ## Concrete missing boundary
 
@@ -166,6 +168,14 @@ parent, inherit old descendants, extend expired authority or provide offline
 escrow. A root compromise needs an independently trusted operator/recovery
 contract and explicit accounting for unresolved old effects; none is inferred
 from a new epoch. Unsupported modes fail closed.
+
+This is coordinated product-instance withdrawal, not global cryptographic
+revocation of a raw key. Old signatures/grants may remain mathematically valid
+or usable at another resource that has not adopted this engagement's current
+scope/withdrawal contract. Every protected entry must enforce the pinned scope
+and common current state; a caller cannot select an unscoped verifier instead.
+Federated resources must accept and enforce their own explicit trust/withdrawal
+contract. No global key-revocation or external-resource recall claim is made.
 
 Key isolation, trustworthy commissioning, authenticated recovery decisions and
 external floor/checkpoint protection are deployment assumptions requiring their

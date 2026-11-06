@@ -25,6 +25,11 @@ pub(super) struct Setup {
     pub(super) qualification: Arc<crate::QualificationGate>,
 }
 
+enum ScopeFixtureKind {
+    Exact,
+    CreatedChild,
+    Recovery,
+}
 impl Setup {
     async fn new(backend: Backend) -> Self {
         Self::with_recipe(backend, recipe(&json!({}), &Value::Null), [1; 32]).await
@@ -34,7 +39,7 @@ impl Setup {
         recipe: CompiledRecipe,
         engagement: [u8; 32],
     ) -> Self {
-        Self::with_inputs(backend, recipe, engagement, None, false).await
+        Self::with_inputs(backend, recipe, engagement, None, ScopeFixtureKind::Exact).await
     }
     pub(super) async fn with_channel(
         backend: Backend,
@@ -42,27 +47,58 @@ impl Setup {
         engagement: [u8; 32],
         channel: [u8; 32],
     ) -> Self {
-        Self::with_inputs(backend, recipe, engagement, Some(channel), false).await
+        Self::with_inputs(
+            backend,
+            recipe,
+            engagement,
+            Some(channel),
+            ScopeFixtureKind::Exact,
+        )
+        .await
     }
     pub(super) async fn with_created_resource(
         backend: Backend,
         recipe: CompiledRecipe,
         engagement: [u8; 32],
     ) -> Self {
-        Self::with_inputs(backend, recipe, engagement, None, true).await
+        Self::with_inputs(
+            backend,
+            recipe,
+            engagement,
+            None,
+            ScopeFixtureKind::CreatedChild,
+        )
+        .await
+    }
+    pub(super) async fn with_instance_recovery(backend: Backend, recipe: CompiledRecipe) -> Self {
+        Self::with_inputs(
+            backend,
+            recipe,
+            [0x73; 32],
+            None,
+            ScopeFixtureKind::Recovery,
+        )
+        .await
     }
     async fn with_inputs(
         backend: Backend,
         recipe: CompiledRecipe,
         engagement: [u8; 32],
         channel: Option<[u8; 32]>,
-        created_child: bool,
+        scope_kind: ScopeFixtureKind,
     ) -> Self {
         let backend = TestAttempts::open(backend);
         let store = backend.raw();
         let connection = connection(&recipe);
         let args = json!({"operation_id":"initial", "operator_namespace":recipe.namespace().as_str(), "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
-        let native = if created_child {
+        let native = if matches!(scope_kind, ScopeFixtureKind::Recovery) {
+            crate::participant_enrollment::tests::effect_scope_recovery_fixture(
+                &recipe,
+                &connection,
+                args.as_object().unwrap(),
+                engagement,
+            )
+        } else if matches!(scope_kind, ScopeFixtureKind::CreatedChild) {
             crate::participant_enrollment::tests::effect_scope_created_child_fixture(
                 &recipe,
                 &connection,

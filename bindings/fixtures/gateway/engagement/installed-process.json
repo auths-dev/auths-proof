@@ -1,5 +1,5 @@
 {
-  "schema": "auths.installed-delegation-process-vectors/3",
+  "schema": "auths.installed-delegation-process-vectors/4",
   "cases": [
     {
       "case": "provider-response-retained",
@@ -7,7 +7,7 @@
       "installed_python_and_npm": true,
       "fresh_process_held_keys": 5,
       "private_keys_exported_to_orchestrator": 0,
-      "native_enrollment_revisions": [
+      "native_control_revisions": [
         1,
         2,
         3,
@@ -37,6 +37,7 @@
       "restart_replay_new_writes": 0,
       "old_enrollment_retry_revision": 3,
       "current_control_revision": 4,
+      "instance_recovery": null,
       "original_control_audit_replayed": true,
       "withdrawn_descendant_new_review_refused": true,
       "not_established": [
@@ -53,7 +54,7 @@
       "installed_python_and_npm": true,
       "fresh_process_held_keys": 5,
       "private_keys_exported_to_orchestrator": 0,
-      "native_enrollment_revisions": [
+      "native_control_revisions": [
         1,
         2,
         3,
@@ -83,6 +84,7 @@
       "restart_replay_new_writes": 0,
       "old_enrollment_retry_revision": 3,
       "current_control_revision": 4,
+      "instance_recovery": null,
       "original_control_audit_replayed": true,
       "withdrawn_descendant_new_review_refused": true,
       "not_established": [
@@ -99,7 +101,7 @@
       "installed_python_and_npm": true,
       "fresh_process_held_keys": 5,
       "private_keys_exported_to_orchestrator": 0,
-      "native_enrollment_revisions": [
+      "native_control_revisions": [
         1,
         2,
         3,
@@ -129,6 +131,7 @@
       "restart_replay_new_writes": 0,
       "old_enrollment_retry_revision": 3,
       "current_control_revision": 4,
+      "instance_recovery": null,
       "original_control_audit_replayed": true,
       "withdrawn_descendant_new_review_refused": true,
       "not_established": [
@@ -145,7 +148,7 @@
       "installed_python_and_npm": true,
       "fresh_process_held_keys": 5,
       "private_keys_exported_to_orchestrator": 0,
-      "native_enrollment_revisions": [
+      "native_control_revisions": [
         1,
         2,
         3,
@@ -175,6 +178,7 @@
       "restart_replay_new_writes": 0,
       "old_enrollment_retry_revision": 3,
       "current_control_revision": 4,
+      "instance_recovery": null,
       "original_control_audit_replayed": true,
       "withdrawn_descendant_new_review_refused": true,
       "not_established": [
@@ -191,7 +195,7 @@
       "installed_python_and_npm": true,
       "fresh_process_held_keys": 5,
       "private_keys_exported_to_orchestrator": 0,
-      "native_enrollment_revisions": [
+      "native_control_revisions": [
         1,
         2,
         3,
@@ -221,6 +225,7 @@
       "restart_replay_new_writes": 0,
       "old_enrollment_retry_revision": 3,
       "current_control_revision": 4,
+      "instance_recovery": null,
       "original_control_audit_replayed": true,
       "withdrawn_descendant_new_review_refused": true,
       "not_established": [
@@ -237,7 +242,7 @@
       "installed_python_and_npm": true,
       "fresh_process_held_keys": 5,
       "private_keys_exported_to_orchestrator": 0,
-      "native_enrollment_revisions": [
+      "native_control_revisions": [
         1,
         2,
         3,
@@ -267,6 +272,72 @@
       "restart_replay_new_writes": 0,
       "old_enrollment_retry_revision": 3,
       "current_control_revision": 4,
+      "instance_recovery": null,
+      "original_control_audit_replayed": true,
+      "withdrawn_descendant_new_review_refused": true,
+      "not_established": [
+        "live-provider-qualification",
+        "human-presence",
+        "process-crash-at-every-boundary",
+        "postgres-execution",
+        "full-AP073-acceptance"
+      ]
+    },
+    {
+      "case": "commissioned-instance-recovery",
+      "distinct_uids": false,
+      "installed_python_and_npm": true,
+      "fresh_process_held_keys": 6,
+      "private_keys_exported_to_orchestrator": 0,
+      "native_control_revisions": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "resource_authority_suffix": 3,
+      "scripted_independent_reviewer": true,
+      "human_presence": false,
+      "native_content_read_calls": 3,
+      "separate_native_disclosure_ack": true,
+      "native_provider_writes": 1,
+      "disclosure_crash_after_receipt": true,
+      "late_original_ack_after_restart": true,
+      "disclosure_replay_deliveries": 0,
+      "late_ack_cannot_refund_ancestor_disclosure_capacity": true,
+      "write_response_lost": true,
+      "replay_before_recovery": "unknown",
+      "independent_recovery_reads": 1,
+      "provider_linked_observation": true,
+      "creation_listing": "Unique",
+      "premature_child_review_refused": true,
+      "exact_created_child_acquired_once": true,
+      "unresolved_child_review_refused": false,
+      "recovery_replay_provider_calls": 0,
+      "wrong_reviewer_refused": true,
+      "ancestor_shared_limit_refused_second_writer": true,
+      "restart_replay_new_writes": 0,
+      "old_enrollment_retry_revision": 3,
+      "current_control_revision": 6,
+      "instance_recovery": {
+        "precommissioned_standby_key": true,
+        "active_predecessor_refused": true,
+        "withdrawal_restart_gap_fail_closed": true,
+        "successor_restart_replay_revision": 5,
+        "old_native_approval_refused": true,
+        "current_generation": 2,
+        "original_capacity_identity_retained": true,
+        "original_creation_lineage_retained": true,
+        "no_create_retry_after_instance_recovery": true,
+        "original_child_read_ceiling": 3,
+        "parent_read_ceiling": 6,
+        "successor_read_calls": 1,
+        "exhausted_original_allowance_not_restored": true,
+        "parent_positive_control_read": true,
+        "no_key_export_or_old_grant_translation": true
+      },
       "original_control_audit_replayed": true,
       "withdrawn_descendant_new_review_refused": true,
       "not_established": [

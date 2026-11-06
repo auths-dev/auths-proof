@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_TREE_BYTES: usize = 196_608;
-const SCHEMA: &str = "auths.engagement-enrollment-tree/3";
+const SCHEMA: &str = "auths.engagement-enrollment-tree/4";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -515,6 +515,7 @@ impl EnrollmentTree {
         {
             return Err(EnrollmentTreeError::Replay);
         }
+        self.validate_lifecycle(&descriptor, verified.commitment)?;
         self.children.insert(
             descriptor.enrollment_id.clone(),
             ChildRecord {
@@ -524,6 +525,78 @@ impl EnrollmentTree {
             },
         );
         Ok(verified.commitment)
+    }
+
+    /// Original capacity owner, independent of a successor's current key and
+    /// enrollment. Every link is retained; no counter or authority is created.
+    pub(crate) fn capacity_origin(
+        &self,
+        enrollment: [u8; 32],
+    ) -> Result<[u8; 32], EnrollmentTreeError> {
+        let mut current = enrollment;
+        let mut seen = Vec::with_capacity(MAX_PARTICIPANTS);
+        loop {
+            if seen.len() >= MAX_PARTICIPANTS || seen.contains(&current) {
+                return Err(EnrollmentTreeError::Binding);
+            }
+            seen.push(current);
+            if current == self.root.enrollment_commitment {
+                return Ok(current);
+            }
+            let child = self.child(&current).ok_or(EnrollmentTreeError::Binding)?;
+            match child.descriptor.lifecycle {
+                super::EnrollmentLifecycle::Fresh {} => return Ok(current),
+                super::EnrollmentLifecycle::Recover { predecessor } => current = predecessor,
+            }
+        }
+    }
+
+    fn validate_lifecycle(
+        &self,
+        descriptor: &ParticipantEnrollment,
+        own: [u8; 32],
+    ) -> Result<(), EnrollmentTreeError> {
+        let super::EnrollmentLifecycle::Recover { predecessor } = descriptor.lifecycle else {
+            return Ok(());
+        };
+        if predecessor == self.root.enrollment_commitment || predecessor == own {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        let old = self
+            .child(&predecessor)
+            .ok_or(EnrollmentTreeError::Binding)?;
+        let prior = &old.descriptor;
+        if !old.revoked
+            || descriptor.parent_enrollment != prior.parent_enrollment
+            || prior
+                .child_instance_generation
+                .checked_add(1)
+                .filter(|generation| *generation <= super::MAX_JSON_INTEGER)
+                != Some(descriptor.child_instance_generation)
+            || descriptor.ceilings != prior.ceilings
+            || descriptor.not_before < prior.not_before
+            || descriptor.expires_at > prior.expires_at
+            || descriptor.remaining_depth > prior.remaining_depth
+            || descriptor.control_grant == prior.control_grant
+            || descriptor.scopes.iter().any(|scope| {
+                prior
+                    .scopes
+                    .iter()
+                    .find(|old| old.scope_id == scope.scope_id)
+                    .is_none_or(|old| old.grant_id == scope.grant_id)
+            })
+        {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        if self.children.values().any(|child| {
+            child.commitment != own
+                && matches!(child.descriptor.lifecycle,
+            super::EnrollmentLifecycle::Recover{predecessor:other} if other==predecessor)
+        }) {
+            return Err(EnrollmentTreeError::Replay);
+        }
+        self.capacity_origin(predecessor)?;
+        Ok(())
     }
 
     /// Irreversibly revoke one node in the current partition transaction.
@@ -647,6 +720,10 @@ impl EnrollmentTree {
             {
                 return Err(EnrollmentTreeError::Corrupt);
             }
+            self.validate_lifecycle(descriptor, child.commitment)
+                .map_err(|_| EnrollmentTreeError::Corrupt)?;
+            self.capacity_origin(child.commitment)
+                .map_err(|_| EnrollmentTreeError::Corrupt)?;
             principals.push(principal);
             self.ancestry(child.commitment)
                 .map_err(|_| EnrollmentTreeError::Corrupt)?;

@@ -242,7 +242,7 @@ fn decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry() {
         effect.binding()
     );
     let value: Value = serde_json::from_slice(&bytes).unwrap();
-    for case in 0..9 {
+    for case in 0..12 {
         let mut changed = value.clone();
         match case {
             0 => {
@@ -258,7 +258,21 @@ fn decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry() {
             5 => changed["scope"]["bound"]["ancestors"][1]["expires_at"] = json!(NOW + 1000),
             6 => changed["scope"]["bound"]["authority_epoch"] = json!(0),
             7 => changed["scope"]["kind"] = json!("task"),
-            _ => changed["scope"] = json!({"kind":"unscoped"}),
+            8 => changed["scope"] = json!({"kind":"unscoped"}),
+            9 => {
+                changed["scope"]["bound"]["ancestors"][1]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("capacity_enrollment");
+            }
+            10 => {
+                changed["scope"]["bound"]["ancestors"][0]["capacity_enrollment"] =
+                    json!(vec![0; 32])
+            }
+            _ => {
+                changed["scope"]["bound"]["ancestors"][1]["capacity_enrollment"] =
+                    changed["scope"]["bound"]["ancestors"][0]["capacity_enrollment"].clone()
+            }
         }
         let encoded = serde_json_canonicalizer::to_vec(&changed).unwrap();
         assert!(
@@ -276,6 +290,7 @@ fn decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry() {
 
 #[test]
 fn native_engagement_effect_fixture_is_current() {
+    decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry();
     let (recipe, connection, root, tree, trust, action) = fixture();
     let policy = policy(root.clone(), "gateway");
     let effect = compile_mutation_effect(
@@ -470,3 +485,6 @@ async fn entry_snapshots_revalidate_current_enrollment() {
         Err("gateway.engagement.state-unavailable")
     );
 }
+
+#[path = "effect_instance_recovery_tests.rs"]
+mod instance_recovery_tests;

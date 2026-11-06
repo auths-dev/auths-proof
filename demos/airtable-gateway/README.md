@@ -323,10 +323,13 @@ authored until their exact-head hosted result is recorded in the AP074 ledger.
 
 The source-free handoff also contains `bin/auths-ap073-journey`, a compiled native
 test orchestrator. CI explicitly invokes its installed delegation constructor
-with the packaged simulation gateway, installed wheel/npm clients and five
-separate Linux UIDs. It exercises machine→A→B enrollment, exact independent
+with the packaged simulation gateway and installed wheel/npm clients. Six
+scenarios use five separate Linux UIDs; the commissioned recovery scenario uses
+a sixth independently held standby key/UID. It exercises machine→A→B enrollment, exact independent
 scripted review, scoped read/disclosure/write, shared limits, replay and original
 control audit. The normal demo launcher does not run this test executable.
 Its reviewer is simulated; it makes no human-presence or production-qualification
-claim. Process-crash coverage and full AP073 acceptance remain separate gates.
+claim. The recovery case composes lost-create reconciliation with a new holder,
+retained capacity, restart gaps and old-approval refusal. Exact-head hosted
+containment and full AP073 acceptance remain separate gates.
 

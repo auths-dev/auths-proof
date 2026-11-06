@@ -109,14 +109,14 @@ participate in this fence. Earlier grants retain AP074's conservative semantics;
 recorded state or restart cannot reconstruct a permit.
 
 The current signed root schema is `auths.engagement-root/3`, with tree schema
-`auths.engagement-enrollment-tree/3`. It pins the shared authority namespace and
+`auths.engagement-enrollment-tree/4`. It pins the shared authority namespace and
 partition, exact resource connection commitments and registered native channel
 commitments. The native configuration owner persists enrollment/withdrawal under
 the existing gateway adapter fence and installed-configuration dependency.
 These control facts never constitute operation admission. Direct mutation,
 literal-resource information/source/channel binding and typed prerequisite
-accounting now join the common journal owner in source. Bound-effect 6/compiler
-11 declares exact prerequisite indices, byte ceilings and ancestor read charges;
+accounting now join the common journal owner in source. Bound-effect 7/compiler
+12 declares exact prerequisite indices, byte ceilings and ancestor read charges;
 the typed child journal selects these instead of the parent's write charges.
 Required native file artifacts exercise bounded admission/replay/withdrawal
 histories with synthetic response facts and dropped permits. Installed scoped
@@ -598,3 +598,37 @@ unique performed the child HTTP read, and its replay did not refetch. This is
 file-store process-crash evidence with the explicit fixture assumptions above.
 Source-free UID isolation, hosted PostgreSQL, remaining lifecycle/federation/
 native-resource and formal acceptance remain unestablished.
+
+
+## First commissioned instance recovery contract (M4/F12)
+
+[ADR 0020](../adr/0020-commissioned-instance-recovery-and-budget-continuity.md)
+defines the first lifecycle profile. Participant-enrollment/2 has a mandatory,
+signed `lifecycle`: `fresh` grants new authority; `recover` names the retained
+predecessor. Recovery requires an explicitly withdrawn non-root predecessor,
+the same eligible direct parent, a distinct precommissioned principal/channel,
+exact next generation, fresh control/resource grants and new-holder acceptance.
+Scope, validity and delegation depth can narrow. Lifetime ceilings are unchanged.
+Each retained node has at most one successor. Old descendants stay withdrawn;
+old grants, approvals and historical control replay never become new authority.
+
+The tree derives one original capacity enrollment through the bounded retained
+predecessor chain. Effect scope/3 and bound-effect/7 compiler/12 bind this original
+accounting identity separately from current enrollment/principal/instance. Actor
+and recipient accounting use the same derivation and existing permanent rows.
+No counter migration, refund, second ledger or recovery execution permit exists.
+The existing native control fence publishes withdrawal and successor separately;
+a crash between them leaves neither holder eligible. Exact control replay returns
+the original revision after an ambiguous acknowledgement.
+
+This is coordinated withdrawal for resources enforcing this engagement's current
+state, not universal cryptographic revocation of a raw key. Another resource
+without that enforcement may still accept old mathematically valid signatures.
+Root recovery, arbitrary new commissioning, changed parents, inherited old
+descendants, expired-authority extension and offline escrow are unsupported.
+A deliberately authorized fresh grant is new authority, not restoration of a
+spent predecessor allowance. Whole-store rollback still requires an independent
+trusted floor/checkpoint. A generation label alone proves neither compromise nor
+fresh custody. Six-process containment, TLS PostgreSQL and source-linked formal
+closure require their own actual evidence; authored constructors do not close
+those gates. The ledger records construction results separately.

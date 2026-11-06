@@ -395,6 +395,7 @@ fn child_descriptor(
 ) -> ParticipantEnrollment {
     ParticipantEnrollment {
         schema: PARTICIPANT_ENROLLMENT_SCHEMA.to_owned(),
+        lifecycle: EnrollmentLifecycle::Fresh {},
         engagement_commitment: pins.engagement_commitment,
         partition_generation: pins.partition_generation,
         parent_enrollment: pins.enrollment_commitment,
@@ -2127,6 +2128,138 @@ impl EffectScopeFixture {
             call.arguments(),
         )
     }
+    pub(crate) fn recovery_evidence(
+        &self,
+        current: &EnrollmentTree,
+        old_actor: u8,
+        new_actor: u8,
+    ) -> crate::EngagementControlEvidence {
+        let parent = Signer::new(0x22);
+        let issuer = Signer::new(0x11);
+        let child = Signer::new(new_actor);
+        let prior = current
+            .retained_principal_pins(Signer::new(old_actor).principal.as_str())
+            .unwrap();
+        let mut fixture = Fixture::with_depth(0x44, self.root.remaining_depth);
+        fixture.pins = self.root.clone();
+        let control = grant(
+            &parent,
+            &child,
+            PARTICIPANT_SERVICE,
+            CONTROL_TOOLS,
+            Some(self.root.control_grant),
+            self.root.remaining_depth - 1,
+        );
+        let tools: Vec<_> = self
+            .root
+            .scopes
+            .iter()
+            .map(|scope| scope.tool.as_str())
+            .collect();
+        let audience = resource_audience(
+            &self.root.engagement_commitment,
+            self.root.partition_generation,
+            &self.root.scopes[0].recipe_digest,
+        )
+        .unwrap();
+        let root_resource = grant_for_audiences(
+            &issuer,
+            &parent,
+            &self.root.scopes[0].service,
+            &tools,
+            None,
+            self.root.remaining_depth,
+            vec![audience.clone()],
+        );
+        assert_eq!(
+            grant_id(root_resource.statement()).unwrap(),
+            self.root.scopes[0].parent_grant
+        );
+        let resource = grant_for_audiences(
+            &parent,
+            &child,
+            &self.root.scopes[0].service,
+            &tools,
+            Some(grant_id(root_resource.statement()).unwrap()),
+            self.root.remaining_depth - 1,
+            vec![audience],
+        );
+        let mut descriptor = child_descriptor(&child, &control, &resource, &self.root);
+        descriptor.lifecycle = EnrollmentLifecycle::Recover {
+            predecessor: prior.enrollment_commitment,
+        };
+        descriptor.enrollment_id = format!("recovery-{new_actor}");
+        descriptor.delivery_channel = format!("standby-{new_actor}");
+        descriptor.child_instance_generation = prior.instance_generation + 1;
+        descriptor.not_before = prior.not_before;
+        descriptor.expires_at = prior.expires_at;
+        descriptor.remaining_depth = prior.remaining_depth;
+        descriptor.ceilings = prior.ceilings;
+        descriptor.scopes = prior
+            .scopes
+            .iter()
+            .map(|scope| ParticipantScopeGrant {
+                scope_id: scope.scope_id.clone(),
+                grant_id: *grant_id(resource.statement()).unwrap().as_bytes(),
+            })
+            .collect();
+        let parent_proof = fixture.parent_proof(&descriptor);
+        let child_proof = chained(
+            &[&issuer, &parent, &child],
+            &[&fixture.parent_control, &control],
+            PARTICIPANT_SERVICE,
+            ACCEPT_PARTICIPANT_TOOL,
+            json!({"enrollment_commitment":descriptor.commitment().unwrap()})
+                .as_object()
+                .unwrap(),
+        );
+        let signed: Vec<_> = descriptor
+            .scopes
+            .iter()
+            .map(|scope| {
+                let scope = self
+                    .root
+                    .scopes
+                    .iter()
+                    .find(|pin| pin.scope_id == scope.scope_id)
+                    .unwrap();
+                let EnrollmentResourceBinding::Exact { handle } = &scope.resource else {
+                    panic!("literal recovery scope fixture")
+                };
+                let args = if scope.tool == crate::effect::CONTENT_READ_TOOL {
+                    json!({"resource_arguments":{(scope.resource_argument.clone()):handle}})
+                } else {
+                    json!({(scope.resource_argument.clone()):handle})
+                };
+                chained(
+                    &[&issuer, &parent, &child],
+                    &[&root_resource, &resource],
+                    &scope.service,
+                    &scope.tool,
+                    args.as_object().unwrap(),
+                )
+            })
+            .collect();
+        let resources: Vec<_> = descriptor
+            .scopes
+            .iter()
+            .zip(&signed)
+            .map(|(scope, proof)| EnrollmentResourceWitness {
+                scope_id: &scope.scope_id,
+                invocation: invocation(proof),
+            })
+            .collect();
+        crate::EngagementControlEvidence::enroll(
+            self.root.enrollment_commitment,
+            &ParticipantEnrollmentProofs {
+                parent: invocation(&parent_proof),
+                child: invocation(&child_proof),
+                resources: &resources,
+            },
+        )
+        .unwrap()
+    }
+
     pub(crate) fn persist(&self, controller: &crate::EngagementConfiguration) {
         let resources: Vec<_> = self
             .root
@@ -2232,9 +2365,27 @@ pub(crate) fn effect_scope_fixture_with_channel(
 
 #[derive(Clone, Copy)]
 enum ScopeTopology {
+    Recovery,
     Siblings,
     Hierarchy,
     CreatedChildContent,
+}
+
+pub(crate) fn effect_scope_recovery_fixture(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+    engagement: [u8; 32],
+) -> EffectScopeFixture {
+    effect_scope_fixture_with_topology(
+        recipe,
+        connection,
+        arguments,
+        0x44,
+        engagement,
+        None,
+        ScopeTopology::Recovery,
+    )
 }
 
 pub(crate) fn effect_scope_created_child_fixture(
@@ -2440,6 +2591,20 @@ fn effect_scope_fixture_with_topology(
             }
         }
     }
+    if matches!(topology, ScopeTopology::Recovery) {
+        fixture.pins.ceilings.provider_reads = 4;
+        for (seed, generation) in [(0x66u8, 2), (0x77u8, 3)] {
+            let standby = Signer::new(seed);
+            fixture.pins.permitted_channels.insert(
+                format!("standby-{seed}"),
+                EnrollmentChannelPins {
+                    channel_binding: [seed; 32],
+                    principal: standby.principal,
+                    instance_generation: generation,
+                },
+            );
+        }
+    }
     fixture.enrollment.scopes[0].grant_id = *grant_id(fixture.child_resource.statement())
         .unwrap()
         .as_bytes();
@@ -2549,6 +2714,9 @@ fn effect_scope_fixture_with_topology(
         if is_sibling {
             descriptor.enrollment_id = "sibling".to_owned();
             descriptor.delivery_channel = "sibling-channel".to_owned();
+        }
+        if matches!(topology, ScopeTopology::Recovery) && !is_sibling {
+            descriptor.ceilings.provider_reads = 3;
         }
         let parent = if hierarchy && is_sibling {
             chained(
@@ -2665,3 +2833,6 @@ pub(crate) fn effect_scope_fixture(
 ) -> EffectScopeFixture {
     effect_scope_fixture_for_actor(recipe, connection, arguments, 0x44)
 }
+
+#[path = "recovery_tests.rs"]
+mod recovery_tests;

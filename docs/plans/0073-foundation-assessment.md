@@ -1579,3 +1579,153 @@ The ADR maps the complete implementation/adversarial/adapters/installed/binding/
 formal batch before execution. No lifecycle runtime change or passing evidence
 is claimed yet; it is an implementation contract rather than M4 acceptance.
 Native resource/federation and all exact-head hosted gates remain in scope.
+
+Lifecycle implementation has begun as one unverified coding batch. The closed
+`EnrollmentLifecycle` is mandatory in participant-enrollment/2: Fresh is new
+authority; Recover explicitly names the withdrawn predecessor. Tree/4 validates
+the same-parent/next-generation/fresh-grants/narrowing/unchanged-ceilings relation,
+unique successor and finite historical origin on both insertion and decoding.
+Effect scope/3 binds current enrollment and capacity enrollment separately, and
+bound-effect/7 compiler/12 is the direct cutover. The existing ancestor-capacity
+key uses only the derived original capacity enrollment. This preserves immutable
+row ceilings rather than weakening their equality checks or inventing another
+usage store. No build, artifact constructor or gate has run for this incomplete
+batch. Finish all lifecycle cases, native adapters, installed standby actors,
+wire/fixture/inventory/spec/binding/formal changes before construction.
+
+The lifecycle batch now includes a full native pure-tree matrix (not yet run):
+withdrawal prerequisite, fourteen invalid successor proposals, a two-successor
+chain retaining one original capacity identity, fork refusal, old holder and
+descendant native proof refusal, new holder proof acceptance, retained decoding
+and tampered withdrawal refusal. No store/transport claim follows from that
+module. The installed constructor is being extended to a seventh scenario with
+a separately commissioned sixth process/key: active-predecessor refusal, real
+restart gaps around withdrawal/enrollment, historical revision replay, old
+approval refusal, current instance versus original capacity in the native review,
+one remaining child read, exhausted original child allowance with a still-live
+parent positive control, and subsequent parent withdrawal of the successor.
+The existing six installed scenarios stay in the same planned cohort.
+
+No lifecycle constructor has run. Complete file/PostgreSQL native conservation
+and fault schedules, fixture/schema/spec/compliance/binding changes and source-
+linked assurance before construction. Product-instance withdrawal does not
+globally revoke mathematically valid raw-key grants at unrelated resources;
+ADR 0020 makes the required scoped-resource/common-state boundary explicit.
+
+The seventh installed scenario deliberately composes lifecycle with the existing
+unique lost-create case: the old B creates and independently reconciles a child,
+then is withdrawn. The sixth process/key accepts successor authority and alone
+performs the one child read, retaining the original producer/read lineage and
+old capacity origin. Old approval, exhausted original read allowance and a
+second create remain refused; a separately approved parent read shows remaining
+parent capacity. This adds no scenario or runtime provider capability beyond
+the mapped seven-case batch, and tests the interaction rather than only two
+separate happy paths. The native store matrix additionally preserves a genuinely
+Unknown mutation across two successor changes and lost publication replies.
+
+
+### Lifecycle batch frozen for artifact construction (not acceptance)
+
+The mapped batch now includes fifteen invalid native successor proposals, closed
+lifecycle decoding, exact-JSON generation endpoints and a fully signed successor
+chain at the actual sixteen-retained-participant bound. Every accepted prefix
+must retain its first capacity origin and reject its predecessor's native proof;
+the next commissioned successor must fail without changing the full tree.
+The bound-effect constructor also exercises missing/substituted/duplicate capacity
+identities, alongside its existing malformed ancestry cases.
+
+File and PostgreSQL share three native histories: normal publication, lost
+withdrawal acknowledgement and lost successor acknowledgement. They preserve
+reserved old reads and an actual Unknown mutation, spend only the original
+remainder across two recoveries, include an independently successful sibling
+positive control and replay the original private control audit. The installed
+seventh case adds a sixth independently held key and composes unique lost-create
+history with successor child use, retained counters and actual daemon restarts.
+Python/npm/WASM transports remain opaque native-evidence carriers; there is no
+second lifecycle verifier in a binding. Their exact-head packaging/parity gate
+remains hosted. Existing five-key cases are retained unchanged in scope.
+
+Construction mapping: regenerate the semantic closure from shipping source,
+build the native library/CLI plus content/candidate/application recovery artifact
+constructors, enumerate compiled registries and require exactly one executed test
+for each selected constructor. Regenerate affected native effect, enrollment,
+review, information, mutation, recovery and process artifacts together. Do not run
+unrelated tests or local broad gates. A failed independent constructor is retained
+in the cohort report and repaired with the complete failure set. PostgreSQL,
+source-free UID containment, formal, global and release gates run on the eventual
+full-spec hosted cohort, not as local pre-push acceptance.
+
+Source-linked assurance boundary: `EnrollmentTree::validate_lifecycle` and
+`capacity_origin` implement the new relation. `EngagementScope::compile` (the current
+scope compiler), actor/recipient path construction and native entry revalidation
+consume the protected tree; `EngagementScope::reservations` retains the existing
+allocation owner. Existing kernel conservation/transition theorems are conditional
+on their supplied counter identities and do not prove this new product relation.
+The native boundary/chain/fault constructors exercise shipping Rust; they are not
+formal refinement. A checked source-linked non-resurrection/origin-conservation
+claim remains an explicit full-program assurance gap. No new formal theorem,
+constructor result or lifecycle acceptance is claimed by this mapping.
+
+The first lifecycle construction cohort executed 34 registered selectors exactly
+once: 32 passed, including all seven installed HTTP scenarios (49.85 seconds).
+The two new lifecycle constructors failed. The pure descendant helper inherited
+a validity interval wider than its deliberately narrowed parent. The store helper
+incorrectly treated direct insertion as the participant endpoint's historical
+replay API: native insertion correctly returned Replay. Repair the descendant
+interval and use the maintained `recorded_control` original-evidence lookup in
+the store histories. Actual participant endpoint replay remains exercised by the
+installed scenario. Do not weaken native duplicate-insertion or parent narrowing.
+The initial compile also exposed two private-value comparisons requiring Debug;
+test assertions now compare without formatting private accounting identities.
+No production refusal was relaxed. Initial build/cohort logs are retained in
+`/tmp/ap073-instance-recovery-final-build.log`,
+`/tmp/ap073-instance-recovery-results.log` and
+`/tmp/ap073-instance-recovery-final/`. No passing result is claimed for the two
+repaired constructors until the coherent rerun completes.
+
+
+The corrected 34-selector cohort passed 33 constructors, including all native
+file/fault histories and all seven installed scenarios. The remaining pure
+constructor exposed real Serde behavior: an internally tagged unit variant accepts
+extra fields despite enum-level deny_unknown_fields. Use an empty struct `Fresh
+{}` variant instead, keeping the same canonical JSON while enforcing the closed
+shape before canonical comparison. Add scalar and extra-recovery-field refusals.
+No compatibility parser is added. All source/fixture constructors affected by the
+semantic closure change remain in the next cohort; the malformed decoder result
+is not hidden by changing its expectation. The preceding cohort logs remain at
+`/tmp/ap073-instance-recovery-corrected-final/`.
+
+
+### Commissioned instance recovery construction result
+
+The closed-shape repair passed all **36** required artifact constructors, each
+resolved from the compiled registry with exactly one test passed and zero ignored.
+The cohort includes the two older native configuration/audit artifacts discovered
+to retain obsolete tree/descriptors, in addition to the prior 34 selectors. No
+obsolete current enrollment/tree/effect schemas remain in the gateway corpus.
+The pure native artifact records fifteen invalid successors, closed malformed
+lifecycle refusals, exact generation endpoints, a two-successor chain and the
+actual retained-node limit (fourteen successors after the first child).
+The three real file-backed histories preserve original read/write rows, reserved
+entry refusal, original Unknown, the original three-read ceiling and two recovery
+changes, including both publication acknowledgement-loss schedules. They use
+native historical lookup; they do not emulate the participant endpoint's replay.
+
+The installed artifact/4 records all seven successful real HTTP/process scenarios,
+including a six-key successor case that combines lost-create reconciliation,
+retained producer/read provenance, successor-only child use, old-approval refusal,
+restart gaps, original control replay and exhausted-original-capacity refusal.
+Original five-key scenarios remain successful. Local distinct_uids is false;
+packages were reused unchanged, so this is not exact-head package or Linux
+containment acceptance. Independent Python projection still agrees on all 39
+creation-selection vectors. No live provider or human presence claim is made.
+
+Successful construction logs are `/tmp/ap073-instance-recovery-closed-final/`,
+`/tmp/ap073-instance-recovery-closed-results.log` and matching build log. Prior
+failed cohorts remain recorded above. Semantic closure equality passed after
+regeneration. Canonical artifacts were written by their native constructors.
+No broad local gate, PostgreSQL, formal qualification, push or hosted CI observation
+has occurred. Full F01–F16/M0–M4 remains active, including federation/native-resource
+conformance, source-linked assurance, rollback/cross-protocol cases and exact-head
+binding/global/release gates. This commit closes the defined local commissioned
+lifecycle slice, not the full program or global raw-key revocation.

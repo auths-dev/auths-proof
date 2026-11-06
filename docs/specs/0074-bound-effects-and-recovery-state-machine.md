@@ -183,8 +183,8 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
-The concrete native encoding is `auths.bound-effect/6`, with effect compiler
-`auths.gateway-effect-compiler/11`. Reservations use a closed window alternative:
+The concrete native encoding is `auths.bound-effect/7`, with effect compiler
+`auths.gateway-effect-compiler/12`. Reservations use a closed window alternative:
 fixed epoch-aligned windows, the retained source effect's lifetime, or AP073's
 shared engagement/ancestor lifetime. AP073's complete immutable ancestry and
 planned typed charges are part of the binding and private review; decoding them
@@ -211,7 +211,7 @@ cannot stand in for read allocations, and a child does not charge that write
 again. A later prerequisite failure or abandoned parent retains earlier read
 charges. No unverified application argument can add a prerequisite.
 
-AP073's `auths.effect-engagement-scope/2` binds content resource identity from
+AP073's `auths.effect-engagement-scope/3` binds content resource identity from
 the verified nested `resource_arguments`. Recovery and disclosure instead bind
 the resource from validated protected source provenance. Their current native
 proofs still authorize the exact separate read/release action. A source flow

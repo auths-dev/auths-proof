@@ -37,7 +37,7 @@ pub const ACCEPT_PARTICIPANT_TOOL: &str = "accept_participant_v1";
 /// Native control action withdrawing one enrolled subtree.
 pub const REVOKE_PARTICIPANT_TOOL: &str = "revoke_participant_v1";
 /// Direct schema for the new enrollment contract.
-pub const PARTICIPANT_ENROLLMENT_SCHEMA: &str = "auths.participant-enrollment/1";
+pub const PARTICIPANT_ENROLLMENT_SCHEMA: &str = "auths.participant-enrollment/2";
 pub(crate) const MAX_SCOPES: usize = 16;
 // One bounded tree, including the root, with one registered channel per principal.
 pub(crate) const MAX_PARTICIPANTS: usize = 16;
@@ -84,12 +84,29 @@ pub struct ParticipantScopeGrant {
     pub grant_id: [u8; 32],
 }
 
+/// Whether this signed enrollment is new authority or recovery of a withdrawn
+/// commissioned instance. Recovery eligibility belongs to the current tree;
+/// decoding or verifying the signatures alone cannot establish it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum EnrollmentLifecycle {
+    /// New parent-authorized grant with its own child ceiling and accounting.
+    Fresh {},
+    /// New holder/key; the original immutable lifetime counter is retained.
+    Recover {
+        /// Exact retained, explicitly withdrawn direct-parent child.
+        predecessor: [u8; 32],
+    },
+}
+
 /// Unverified enrollment data. Only native verification can mint its witness.
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParticipantEnrollment {
     /// Exactly [`PARTICIPANT_ENROLLMENT_SCHEMA`].
     pub schema: String,
+    /// Exact lifecycle accepted by parent and child; never inferred from a key.
+    pub lifecycle: EnrollmentLifecycle,
     /// Exact root engagement commitment.
     pub engagement_commitment: [u8; 32],
     /// Current externally commissioned authority-partition generation.
@@ -151,7 +168,7 @@ impl ParticipantEnrollment {
         if bytes.len() > MAX_ACTION_BYTES {
             return Err(ParticipantEnrollmentError::Invalid);
         }
-        auths_codec::domain_commitment("auths.participant-enrollment.v1", &bytes)
+        auths_codec::domain_commitment("auths.participant-enrollment.v2", &bytes)
             .map(|digest| *digest.as_bytes())
             .map_err(|_| ParticipantEnrollmentError::Invalid)
     }
@@ -694,8 +711,9 @@ pub(crate) fn bounded_invocations<'a>(
 ///
 /// Trust roots, accepted methods, challenge and policy come from `context`;
 /// parent/resource/channel pins must come from authenticated operator state.
-/// This does not check current usage, unique enrollment IDs or concurrent
-/// revocation: the consuming transaction must revalidate the pinned snapshot.
+/// This does not check current usage, unique enrollment IDs, successor history
+/// or concurrent revocation: the tree transaction must validate the lifecycle
+/// and revalidate the pinned snapshot.
 ///
 /// # Errors
 /// Refuses unsupported policy, oversized evidence, widened enrollment, wrong

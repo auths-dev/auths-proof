@@ -56,6 +56,7 @@ impl EngagementPolicy {
 #[serde(deny_unknown_fields)]
 struct Ancestor {
     enrollment: [u8; 32],
+    capacity_enrollment: [u8; 32],
     principal: String,
     instance: u64,
     not_before: u64,
@@ -366,6 +367,9 @@ impl EngagementScope {
                     .ok_or(EffectBindingError::Invalid)?;
                 Ok(Ancestor {
                     enrollment: pins.enrollment_commitment,
+                    capacity_enrollment: tree
+                        .capacity_origin(pins.enrollment_commitment)
+                        .map_err(|_| EffectBindingError::Invalid)?,
                     principal: pins.principal.as_str().to_owned(),
                     instance: pins.instance_generation,
                     not_before: pins.not_before,
@@ -376,7 +380,7 @@ impl EngagementScope {
             })
             .collect::<Result<Vec<_>, EffectBindingError>>()?;
         let result = Self {
-            schema: "auths.effect-engagement-scope/2".to_owned(),
+            schema: "auths.effect-engagement-scope/3".to_owned(),
             authority_namespace: policy.root.admission_namespace.clone(),
             authority_partition: policy.root.admission_partition.clone(),
             authority_epoch: policy.root.partition_generation,
@@ -423,6 +427,9 @@ impl EngagementScope {
                                 .ok_or(EffectBindingError::Invalid)?;
                             Ok(Ancestor {
                                 enrollment: pins.enrollment_commitment,
+                                capacity_enrollment: tree
+                                    .capacity_origin(pins.enrollment_commitment)
+                                    .map_err(|_| EffectBindingError::Invalid)?,
                                 principal: pins.principal.as_str().to_owned(),
                                 instance: pins.instance_generation,
                                 not_before: pins.not_before,
@@ -448,7 +455,7 @@ impl EngagementScope {
 
     pub(super) fn validate(&self) -> Result<(), EffectBindingError> {
         use crate::participant_enrollment::{MAX_JSON_INTEGER, MAX_PARTICIPANTS, identifier};
-        if self.schema != "auths.effect-engagement-scope/2"
+        if self.schema != "auths.effect-engagement-scope/3"
             || crate::OperatorNamespace::parse(&self.authority_namespace).is_err()
             || !identifier(&self.authority_partition)
             || !super::label(&self.executor)
@@ -456,6 +463,7 @@ impl EngagementScope {
             || self.ancestors.is_empty()
             || self.ancestors.len() > MAX_PARTICIPANTS
             || self.ancestors[0].enrollment != self.root
+            || self.ancestors[0].capacity_enrollment != self.root
             || self.ancestors[0].resource_grant != *self.scope.parent_grant.as_bytes()
             || !identifier(&self.scope.scope_id)
             || !identifier(&self.scope.resource_argument)
@@ -510,6 +518,9 @@ impl EngagementScope {
                             return Err(EffectBindingError::Invalid);
                         }
                     } else {
+                        if node.capacity_enrollment == actor.capacity_enrollment {
+                            return Err(EffectBindingError::Invalid);
+                        }
                         let node = auths_model::PrincipalId::parse(&node.principal)
                             .map_err(|_| EffectBindingError::Invalid)?;
                         let actor = auths_model::PrincipalId::parse(&actor.principal)
@@ -617,7 +628,7 @@ impl EngagementScope {
                             &self.authority_partition,
                             self.authority_epoch,
                             self.engagement,
-                            ancestor.enrollment,
+                            ancestor.capacity_enrollment,
                             unit,
                         ))?,
                     )?,
@@ -633,6 +644,7 @@ impl EngagementScope {
 
 fn same_identity(a: &Ancestor, b: &Ancestor) -> bool {
     a.enrollment == b.enrollment
+        && a.capacity_enrollment == b.capacity_enrollment
         && a.principal == b.principal
         && a.instance == b.instance
         && a.not_before == b.not_before
@@ -653,6 +665,7 @@ fn validate_path(ancestors: &[Ancestor]) -> Result<(), EffectBindingError> {
             || !ancestor.ceilings.within(ancestor.ceilings)
             || ancestors[..index].iter().any(|previous| {
                 previous.enrollment == ancestor.enrollment
+                    || previous.capacity_enrollment == ancestor.capacity_enrollment
                     || previous.resource_grant == ancestor.resource_grant
                     || auths_model::PrincipalId::parse(&previous.principal)
                         .map_or(true, |p| crate::principals_overlap(&p, &principal))

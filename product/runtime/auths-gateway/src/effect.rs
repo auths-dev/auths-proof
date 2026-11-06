@@ -65,12 +65,12 @@ pub(crate) use prerequisite::{
 };
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/6";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/7";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/11";
+const COMPILER: &str = "auths.gateway-effect-compiler/12";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.

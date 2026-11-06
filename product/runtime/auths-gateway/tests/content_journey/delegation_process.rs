@@ -69,6 +69,7 @@ fn descriptor(
 ) -> ParticipantEnrollment {
     ParticipantEnrollment {
         schema: PARTICIPANT_ENROLLMENT_SCHEMA.into(),
+        lifecycle: EnrollmentLifecycle::Fresh {},
         engagement_commitment: pins.engagement_commitment,
         partition_generation: pins.partition_generation,
         parent_enrollment: parent,
@@ -259,22 +260,25 @@ fn forbidden(bytes: &[u8], secret: &[u8]) {
 
 #[derive(Clone, Copy, Debug)]
 enum InstalledCase {
+    InstanceRecovery,
     RetainedMutation,
     LostMutation,
     LostCreation(CreatedListing),
 }
 impl InstalledCase {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::RetainedMutation,
         Self::LostMutation,
         Self::LostCreation(CreatedListing::Zero),
         Self::LostCreation(CreatedListing::Multiple),
         Self::LostCreation(CreatedListing::Incomplete),
         Self::LostCreation(CreatedListing::Unique),
+        Self::InstanceRecovery,
     ];
     fn creation(self) -> Option<CreatedListing> {
         match self {
             Self::LostCreation(listing) => Some(listing),
+            Self::InstanceRecovery => Some(CreatedListing::Unique),
             _ => None,
         }
     }
@@ -283,6 +287,7 @@ impl InstalledCase {
     }
     fn label(self) -> &'static str {
         match self {
+            Self::InstanceRecovery => "commissioned-instance-recovery",
             Self::RetainedMutation => "provider-response-retained",
             Self::LostMutation => "crash-after-provider-write",
             Self::LostCreation(CreatedListing::Zero) => "lost-create-zero-match",
@@ -306,7 +311,7 @@ fn native_installed_delegation_process_fixture_is_current() {
     }
     assert!(failures.is_empty(), "installed case failures: {failures:?}");
     assert_eq!(cases.len(), InstalledCase::ALL.len());
-    let report = json!({"schema":"auths.installed-delegation-process-vectors/3",
+    let report = json!({"schema":"auths.installed-delegation-process-vectors/4",
         "cases":cases});
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");
     if let Some(output) = std::env::var_os("AUTHS_DELEGATION_EVIDENCE_OUT") {
@@ -327,6 +332,7 @@ fn native_installed_delegation_process_fixture_is_current() {
 )]
 fn run_journey(case: InstalledCase) -> Value {
     let crash_after_write = case.crash_after_write();
+    let instance_recovery = matches!(case, InstalledCase::InstanceRecovery);
     let creation = case.creation();
     let write_prefix = if creation.is_some() {
         "POST "
@@ -343,15 +349,19 @@ fn run_journey(case: InstalledCase) -> Value {
     let mut a = Actor::start(Language::Node, &consumer, uid(2));
     let mut b = Actor::start(Language::Python, &consumer, uid(3));
     let mut reviewer = Actor::start(Language::Node, &consumer, uid(4));
-    let keys = [
+    let mut standby = instance_recovery.then(|| Actor::start(Language::Python, &consumer, uid(5)));
+    let mut keys = vec![
         owner.public.key,
         machine.public.key,
         a.public.key,
         b.public.key,
         reviewer.public.key,
     ];
+    if let Some(standby) = &standby {
+        keys.push(standby.public.key);
+    }
     let unique: std::collections::BTreeSet<_> = keys.iter().collect();
-    assert_eq!(unique.len(), 5);
+    assert_eq!(unique.len(), if instance_recovery { 6 } else { 5 });
     let directory = tempfile::Builder::new()
         .prefix("ap073-process-")
         .tempdir_in("/tmp")
@@ -552,7 +562,7 @@ fn run_journey(case: InstalledCase) -> Value {
         expires_at: now + 600,
         remaining_depth: 2,
         ceilings: ParticipantCeilings {
-            provider_reads: 4,
+            provider_reads: if instance_recovery { 6 } else { 4 },
             disclosures: 2,
             disclosure_bytes: 512,
             writes: 1,
@@ -592,6 +602,16 @@ fn run_journey(case: InstalledCase) -> Value {
             })
             .collect(),
     };
+    if let Some(standby) = &standby {
+        pins.permitted_channels.insert(
+            "b-recovery".into(),
+            EnrollmentChannelPins {
+                channel_binding: [0x76; 32],
+                principal: standby.public.principal.clone(),
+                instance_generation: 2,
+            },
+        );
+    }
     let pins_file = operator.join("root.pins");
     private(&pins_file, &serde_json::to_vec(&pins).expect("pins"));
     let prepared = success(cli(
@@ -821,7 +841,7 @@ fn run_journey(case: InstalledCase) -> Value {
         &trust,
         now,
     );
-    let b_descriptor = descriptor(
+    let mut b_descriptor = descriptor(
         &pins,
         a_descriptor.commitment().expect("A"),
         &b,
@@ -830,6 +850,9 @@ fn run_journey(case: InstalledCase) -> Value {
         &b_resource,
         0,
     );
+    if instance_recovery {
+        b_descriptor.ceilings.provider_reads = 3;
+    }
     let b_proofs = resource_proofs(&mut b, &b_resources, &witnesses, &audience, &trust, now);
     let b_evidence = enrollment(
         &mut a,
@@ -871,7 +894,11 @@ fn run_journey(case: InstalledCase) -> Value {
             .is_some_and(|name| name == "credentials.cbor")),
         "probe actual custody file"
     );
-    for actor in [&mut machine, &mut a, &mut b] {
+    let mut probed = vec![&mut machine, &mut a, &mut b];
+    if let Some(standby) = standby.as_mut() {
+        probed.push(standby);
+    }
+    for actor in probed {
         if distinct {
             let probe = actor.call(json!({"operation":"probe","files":private_paths}));
             assert!(
@@ -894,13 +921,25 @@ fn run_journey(case: InstalledCase) -> Value {
             json!([true]),
             "positive control must open its own memory"
         );
-        let memory = vec![
+        let mut memory = vec![
             format!("/proc/{}/mem", daemon.0.id()),
             format!("/proc/{}/mem", owner.pid),
             format!("/proc/{}/mem", machine.pid),
             format!("/proc/{}/mem", a.pid),
             format!("/proc/{}/mem", reviewer.pid),
         ];
+        if let Some(standby) = standby.as_mut() {
+            memory.push(format!("/proc/{}/mem", standby.pid));
+            assert_eq!(
+                standby.call(json!({"operation":"probe","files":["/proc/self/mem"]}))["readable"],
+                json!([true])
+            );
+            assert_eq!(
+                standby.call(json!({"operation":"probe","files":[format!("/proc/{}/mem",b.pid)]}))
+                    ["readable"],
+                json!([false])
+            );
+        }
         assert!(
             b.call(json!({"operation":"probe","files":memory}))["readable"]
                 .as_array()
@@ -1389,7 +1428,7 @@ fn run_journey(case: InstalledCase) -> Value {
             &trust,
             now,
         );
-        if listing == CreatedListing::Unique {
+        if listing == CreatedListing::Unique && !instance_recovery {
             let child = approve_native(
                 &state,
                 child_proof,
@@ -1454,6 +1493,12 @@ fn run_journey(case: InstalledCase) -> Value {
             );
             assert_eq!(provider.calls().len(), 4);
             child_acquired = true;
+        } else if listing == CreatedListing::Unique {
+            assert_eq!(
+                provider.calls().len(),
+                3,
+                "the commissioned successor will consume the resolved child"
+            );
         } else {
             refuse_content_review(&state, child_proof, "unresolved-child", now);
             assert_eq!(
@@ -1472,7 +1517,337 @@ fn run_journey(case: InstalledCase) -> Value {
             "creation cannot repeat after recovery or child use"
         );
     }
-    let expected_provider_calls = if child_acquired { 4 } else { 3 };
+    let mut expected_provider_calls = if child_acquired { 4 } else { 3 };
+    let mut recovery_evidence = Value::Null;
+    let mut successor_after_parent = None;
+    if instance_recovery {
+        let successor = standby.as_mut().expect("commissioned fresh standby");
+        let successor_public = successor.public.clone();
+        let successor_control = grant(
+            &mut a,
+            &successor_public,
+            PARTICIPANT_SERVICE,
+            &control_tools,
+            Some(a_control.id()),
+            0,
+            control_audience(),
+            now,
+        );
+        let successor_resource = grant(
+            &mut a,
+            &successor_public,
+            recipe.review().service(),
+            &tools,
+            Some(a_resource.id()),
+            0,
+            audience.clone(),
+            now,
+        );
+        let successor_controls = [&machine_control, &a_control, &successor_control];
+        let successor_resources = [&machine_resource, &a_resource, &successor_resource];
+        let predecessor = b_descriptor.commitment().expect("old commissioned B");
+        let mut descriptor = descriptor(
+            &pins,
+            a_descriptor.commitment().expect("A"),
+            successor,
+            "b-recovery",
+            &successor_control,
+            &successor_resource,
+            0,
+        );
+        descriptor.lifecycle = EnrollmentLifecycle::Recover { predecessor };
+        descriptor.child_instance_generation = 2;
+        descriptor.ceilings = b_descriptor.ceilings;
+        let proofs = resource_proofs(
+            successor,
+            &successor_resources,
+            &witnesses,
+            &audience,
+            &trust,
+            now,
+        );
+        let evidence = enrollment(
+            &mut a,
+            successor,
+            a_descriptor.commitment().expect("A"),
+            &descriptor,
+            &a_controls,
+            &successor_controls,
+            &proofs,
+            &pins,
+            &trust,
+            now,
+        );
+        assert_eq!(
+            a.control(&socket, &evidence)["kind"],
+            "refused",
+            "an active predecessor cannot acquire a successor"
+        );
+        let recovery_resource = operator.join("created-child.resource");
+        let make_call = |operation: &str, name: &str, target_resource: &Path| {
+            let output = operator.join(format!("{name}.call"));
+            success(cli(
+                "effect-content-call",
+                &[
+                    ("--state-dir", path(&state)),
+                    ("--resource-arguments", path(target_resource)),
+                    ("--operation", operation),
+                    ("--call-out", path(&output)),
+                ],
+                &[],
+                None,
+            ));
+            output
+        };
+        let recovered_call = make_call("recovered-read", "recovered-read", &recovery_resource);
+        let old = approve_native(
+            &state,
+            author(
+                &mut b,
+                &b_resources,
+                &call_file(&recovered_call),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "old-before-recovery",
+            &mut reviewer,
+            now,
+            &[],
+            &["--content"],
+        );
+        let withdraw = author(
+            &mut a,
+            &a_controls,
+            &call(
+                PARTICIPANT_SERVICE,
+                REVOKE_PARTICIPANT_TOOL,
+                json!({"root_enrollment":pins.enrollment_commitment,"participant":predecessor}),
+            ),
+            control_audience(),
+            &trust,
+            now,
+        );
+        let withdraw = auths_gateway::EngagementControlEvidence::revoke(withdraw.borrowed())
+            .expect("native instance withdrawal");
+        assert_eq!(
+            a.control(&socket, &withdraw),
+            json!({"kind":"recorded","revision":4})
+        );
+        let logs = daemon.finish_logs();
+        forbidden(&logs, &secret);
+        forbidden(&logs, &content);
+        daemon = Daemon::start(&state, &socket, provider.port);
+        assert_eq!(
+            a.control(&socket, &withdraw),
+            json!({"kind":"recorded","revision":4}),
+            "withdrawal replay preserves its original revision"
+        );
+        assert_eq!(
+            submission(&mut b, &socket, &old, "acquire")["outcome"],
+            "refused",
+            "cached old approval cannot survive withdrawal"
+        );
+        refuse_content_review(
+            &state,
+            author(
+                successor,
+                &successor_resources,
+                &call_file(&recovered_call),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "standby-before-enrollment",
+            now,
+        );
+        assert_eq!(
+            provider.calls().len(),
+            3,
+            "the crash gap grants neither old nor standby entry"
+        );
+        assert_eq!(
+            a.control(&socket, &evidence),
+            json!({"kind":"recorded","revision":5})
+        );
+        let logs = daemon.finish_logs();
+        forbidden(&logs, &secret);
+        forbidden(&logs, &content);
+        daemon = Daemon::start(&state, &socket, provider.port);
+        assert_eq!(
+            a.control(&socket, &evidence),
+            json!({"kind":"recorded","revision":5}),
+            "successor replay cannot create another enrollment or budget"
+        );
+        assert_eq!(
+            b.control(&socket, &b_evidence),
+            json!({"kind":"recorded","revision":3}),
+            "old enrollment replay is historical only"
+        );
+        assert_eq!(
+            submission(&mut b, &socket, &old, "acquire")["outcome"],
+            "refused"
+        );
+        let read = approve_native(
+            &state,
+            author(
+                successor,
+                &successor_resources,
+                &call_file(&recovered_call),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "successor-read",
+            &mut reviewer,
+            now,
+            &[],
+            &["--content"],
+        );
+        let bound: Value = serde_json::from_slice(
+            &std::fs::read(&read.binding).expect("native successor binding"),
+        )
+        .expect("binding");
+        let leaf = bound["scope"]["bound"]["ancestors"]
+            .as_array()
+            .expect("current ancestry")
+            .last()
+            .expect("successor");
+        assert_eq!(
+            leaf["enrollment"],
+            json!(descriptor.commitment().expect("successor"))
+        );
+        assert_eq!(leaf["capacity_enrollment"], json!(predecessor));
+        assert_eq!(leaf["instance"], 2);
+        let approval = std::fs::read(&read.approval).expect("new exact approval");
+        private(
+            &read.approval,
+            &std::fs::read(&old.approval).expect("old exact approval"),
+        );
+        assert_eq!(
+            submission(successor, &socket, &read, "acquire")["outcome"],
+            "refused",
+            "old-key approval cannot authorize fresh-key authority"
+        );
+        assert_eq!(provider.calls().len(), 3);
+        private(&read.approval, &approval);
+        let acquired = submission(successor, &socket, &read, "acquire");
+        assert_eq!(
+            acquired["history"]["snapshot"]["stage"],
+            "response-recorded"
+        );
+        assert_eq!(provider.calls().len(), 4);
+        assert!(provider.calls()[3].starts_with(&format!("GET /documents/{CREATED_RESOURCE}?")));
+        child_acquired = true;
+        assert_eq!(submission(successor, &socket, &read, "acquire"), acquired);
+        assert_eq!(provider.calls().len(), 4);
+        let public = serde_json::to_vec(&acquired).expect("redacted recovery read");
+        forbidden(&public, &secret);
+        forbidden(&public, &content);
+        let exhausted_call = make_call(
+            "recovery-exhausted",
+            "recovery-exhausted",
+            &recovery_resource,
+        );
+        let exhausted = approve_native(
+            &state,
+            author(
+                successor,
+                &successor_resources,
+                &call_file(&exhausted_call),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "recovery-exhausted",
+            &mut reviewer,
+            now,
+            &[],
+            &["--content"],
+        );
+        assert_eq!(
+            submission(successor, &socket, &exhausted, "acquire")["outcome"],
+            "refused",
+            "fresh holder cannot reset the spent original three-read counter"
+        );
+        assert_eq!(provider.calls().len(), 4);
+        let parent_call = make_call(
+            "parent-still-has-capacity",
+            "parent-still-has-capacity",
+            &resource,
+        );
+        let parent_read = approve_native(
+            &state,
+            author(
+                &mut a,
+                &a_resources,
+                &call_file(&parent_call),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "parent-still-has-capacity",
+            &mut reviewer,
+            now,
+            &[],
+            &["--content"],
+        );
+        assert_eq!(
+            submission(&mut a, &socket, &parent_read, "acquire")["history"]["snapshot"]["stage"],
+            "response-recorded"
+        );
+        assert_eq!(
+            provider.calls().len(),
+            5,
+            "parent allowance remains; successor refusal was the original child ceiling"
+        );
+        let forbidden_write = approve_native(
+            &state,
+            author(
+                successor,
+                &successor_resources,
+                &mutation("recovery-cannot-repeat-create"),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "recovery-cannot-repeat-create",
+            &mut reviewer,
+            now,
+            &[],
+            &[],
+        );
+        assert_ne!(
+            submission(successor, &socket, &forbidden_write, "submit")["outcome"],
+            "response-recorded"
+        );
+        assert_eq!(
+            provider.calls().len(),
+            5,
+            "key recovery cannot repeat the prior create"
+        );
+        let after_parent = make_call(
+            "successor-after-parent-withdrawal",
+            "successor-after-parent-withdrawal",
+            &recovery_resource,
+        );
+        successor_after_parent = Some(author(
+            successor,
+            &successor_resources,
+            &call_file(&after_parent),
+            audience.clone(),
+            &trust,
+            now,
+        ));
+        expected_provider_calls = 5;
+        recovery_evidence = json!({"precommissioned_standby_key":true,"active_predecessor_refused":true,
+            "withdrawal_restart_gap_fail_closed":true,"successor_restart_replay_revision":5,
+            "old_native_approval_refused":true,"current_generation":2,"original_capacity_identity_retained":true,"original_creation_lineage_retained":true,"no_create_retry_after_instance_recovery":true,
+            "original_child_read_ceiling":3,"parent_read_ceiling":6,"successor_read_calls":1,
+            "exhausted_original_allowance_not_restored":true,"parent_positive_control_read":true,
+            "no_key_export_or_old_grant_translation":true});
+    }
+    let withdrawal_revision = if instance_recovery { 6 } else { 4 };
     let revoke = author(
         &mut machine,
         &machine_controls,
@@ -1489,7 +1864,7 @@ fn run_journey(case: InstalledCase) -> Value {
         .expect("native withdrawal");
     assert_eq!(
         machine.control(&socket, &revoke),
-        json!({"kind":"recorded","revision":4})
+        json!({"kind":"recorded","revision":withdrawal_revision})
     );
     assert_eq!(
         b.control(&socket, &b_evidence),
@@ -1550,6 +1925,10 @@ fn run_journey(case: InstalledCase) -> Value {
         !no_request.exists() && !no_binding.exists(),
         "historical enrollment receipt cannot restore approval eligibility"
     );
+    if let Some(proof) = successor_after_parent {
+        refuse_content_review(&state, proof, "withdrawn-recovered-instance", now);
+        assert_eq!(provider.calls().len(), expected_provider_calls);
+    }
     let archive = operator.join("engagement.audit");
     let checkpoint = operator.join("engagement.head");
     success(cli(
@@ -1574,16 +1953,16 @@ fn run_journey(case: InstalledCase) -> Value {
         None,
     )))
     .expect("independent native audit");
-    assert_eq!(audit["revision"], 4);
-    assert_eq!(audit["participants"], 3);
+    assert_eq!(audit["revision"], withdrawal_revision);
+    assert_eq!(audit["participants"], if instance_recovery { 4 } else { 3 });
     assert_eq!(audit["current_eligibility"], "not-established");
     let logs = daemon.finish_logs();
     forbidden(&logs, &secret);
     forbidden(&logs, &content);
     let report = json!({"case":case.label(),"distinct_uids":distinct,
-        "installed_python_and_npm":true,"fresh_process_held_keys":5,"private_keys_exported_to_orchestrator":0,
-        "native_enrollment_revisions":[1,2,3,4],"resource_authority_suffix":3,"scripted_independent_reviewer":true,"human_presence":false,
-        "native_content_read_calls":if child_acquired{2}else{1},"separate_native_disclosure_ack":true,"native_provider_writes":1,
+        "installed_python_and_npm":true,"fresh_process_held_keys":if instance_recovery{6}else{5},"private_keys_exported_to_orchestrator":0,
+        "native_control_revisions":if instance_recovery{vec![1,2,3,4,5,6]}else{vec![1,2,3,4]},"resource_authority_suffix":3,"scripted_independent_reviewer":true,"human_presence":false,
+        "native_content_read_calls":if instance_recovery{3}else if child_acquired{2}else{1},"separate_native_disclosure_ack":true,"native_provider_writes":1,
         "disclosure_crash_after_receipt":true,"late_original_ack_after_restart":true,"disclosure_replay_deliveries":0,
         "late_ack_cannot_refund_ancestor_disclosure_capacity":true,
         "write_response_lost":crash_after_write,"replay_before_recovery":written["outcome"],
@@ -1591,7 +1970,7 @@ fn run_journey(case: InstalledCase) -> Value {
         "creation_listing":creation.map(|listing|format!("{listing:?}")),"premature_child_review_refused":creation.is_some(),
         "exact_created_child_acquired_once":child_acquired,"unresolved_child_review_refused":creation.is_some() && !recovery_linked,"recovery_replay_provider_calls":0,
         "wrong_reviewer_refused":true,"ancestor_shared_limit_refused_second_writer":true,"restart_replay_new_writes":0,
-        "old_enrollment_retry_revision":3,"current_control_revision":4,"original_control_audit_replayed":true,
+        "old_enrollment_retry_revision":3,"current_control_revision":withdrawal_revision,"instance_recovery":recovery_evidence,"original_control_audit_replayed":true,
         "withdrawn_descendant_new_review_refused":true,
         "not_established":["live-provider-qualification","human-presence","process-crash-at-every-boundary","postgres-execution","full-AP073-acceptance"]});
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");

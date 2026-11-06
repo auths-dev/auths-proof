@@ -1,0 +1,90 @@
+{
+  "schema": "auths.instance-recovery-store-vectors/1",
+  "cases": [
+    {
+      "case": "None",
+      "backend": "file",
+      "control_revisions": [
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "withdrawal_ack_loss": false,
+      "successor_ack_loss": false,
+      "original_control_history_lookup_no_new_revision": true,
+      "old_reserved_entry_refused": true,
+      "current_key_original_capacity_distinct": true,
+      "old_reads_retained": 2,
+      "successor_reads": 1,
+      "original_child_read_ceiling": 3,
+      "parent_read_ceiling": 4,
+      "sibling_positive_control": true,
+      "second_recovery_no_new_capacity": true,
+      "unknown_source_and_original_rows_unchanged": true,
+      "independent_control_audit_revision": 7,
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Withdrawal",
+      "backend": "file",
+      "control_revisions": [
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "withdrawal_ack_loss": true,
+      "successor_ack_loss": false,
+      "original_control_history_lookup_no_new_revision": true,
+      "old_reserved_entry_refused": true,
+      "current_key_original_capacity_distinct": true,
+      "old_reads_retained": 2,
+      "successor_reads": 1,
+      "original_child_read_ceiling": 3,
+      "parent_read_ceiling": 4,
+      "sibling_positive_control": true,
+      "second_recovery_no_new_capacity": true,
+      "unknown_source_and_original_rows_unchanged": true,
+      "independent_control_audit_revision": 7,
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Successor",
+      "backend": "file",
+      "control_revisions": [
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "withdrawal_ack_loss": false,
+      "successor_ack_loss": true,
+      "original_control_history_lookup_no_new_revision": true,
+      "old_reserved_entry_refused": true,
+      "current_key_original_capacity_distinct": true,
+      "old_reads_retained": 2,
+      "successor_reads": 1,
+      "original_child_read_ceiling": 3,
+      "parent_read_ceiling": 4,
+      "sibling_positive_control": true,
+      "second_recovery_no_new_capacity": true,
+      "unknown_source_and_original_rows_unchanged": true,
+      "independent_control_audit_revision": 7,
+      "provider_calls": 0,
+      "responses_are_injected": true
+    }
+  ],
+  "not_established": [
+    "actual-provider-effect",
+    "installed-key-containment",
+    "TLS-postgres",
+    "source-linked-formal",
+    "full-F12"
+  ]
+}
