@@ -1729,3 +1729,85 @@ has occurred. Full F01–F16/M0–M4 remains active, including federation/native
 conformance, source-linked assurance, rollback/cross-protocol cases and exact-head
 binding/global/release gates. This commit closes the defined local commissioned
 lifecycle slice, not the full program or global raw-key revocation.
+
+
+### Coordinated federation batch mapped before construction
+
+ADR0021 separates independent resource-owner consent from transport/organizational
+trust and from the still-required native-records qualification boundary. Reuse
+the existing cross-recipe native fixture and real process schedules; add an
+explicit test-only federated topology with three distinct issuer keys, including
+one genuine did:key owner. Test authoring uses maintained adapters/evidence and
+native signatures, not injected verifier results. The original one-issuer corpus
+remains in the same cohort. No shipping provider branch, SDK lifecycle verifier,
+new package, credential port or state owner is introduced.
+
+Write seven federated cases: independent mixed-method trust/refusal corpus, real
+final shared-unit race, independent-engagement positive control, and four root
+withdrawal/crash orderings before/after entry. The negative corpus removes each
+owner separately, substitutes resource paths, corrupts native signatures, removes
+control evidence, withholds control-root trust, disallows the did:key owner's
+method and substitutes installed root pins. Genuine current trust/proof must
+compile and execute one real HTTP effect; negative cases must produce zero
+provider calls and zero ancestor allocations. Raw/did key equivalence is checked
+as identity overlap, not claimed as a new native alias-enrollment proof.
+
+File and ignored asserted-configured PostgreSQL share these histories, wired to
+the existing checked-selector hosted step. Construct the canonical federation
+artifact plus the prior 36 affected native artifacts after all changes are written;
+regenerate semantic closure first, use compiled registries and assert exactly one
+executed test per constructor. This is repository artifact construction only.
+No local broad/PG/formal/package gate or hosted observation is authorized before
+full spec implementation. Formal models do not establish topology honesty,
+operator consent, external rollback floors or native-records qualification.
+No new result is claimed yet. Native resource implementation, source-linked formal
+closure, remaining cross-protocol/floor cases and final exact-head gates stay open.
+
+Pre-construction review adds one essential control to the same federation batch:
+owner A signs a genuine, independently valid native proof for the exact B command.
+The ordinary native verifier must accept it under the explicit multi-owner trust,
+while B's enrolled compiler must refuse its substituted pinned grant suffix.
+This distinguishes scope/path enforcement from a trivial wrong-service rejection.
+No behavioral constructor has run for this batch yet; the initial artifact build
+compiled successfully before this source-review addition. Regenerate the closure
+and rebuild once for the complete cohort.
+
+The first 37-selector federation construction cohort passed 36 constructors.
+Within the federation constructor, six complete process histories passed; the
+trust-boundary case passed its native refusal assertions (including accepted
+foreign-owner substitution) but its final positive replay attempted to load an
+approval file the helper had not saved. Save the normal exact native approvals
+before that positive/replay control. Preserve every negative assertion and all
+six schedules; no production authorization or persistence behavior changes.
+Logs remain under `/tmp/ap073-federation-complete-final/` and the matching results
+log. No passing canonical federation artifact is claimed for that failed cohort.
+
+
+### Coordinated federation construction result
+
+All **37** exact-counted artifact constructors passed in the repaired cohort.
+`engagement/federation.json` records seven genuine native histories with three
+distinct issuer keys (control, raw-key resource A, did:key resource B). The native
+positive control performed one real private HTTP write; missing/wrong trust,
+method, signatures, evidence, root and resource path cases produced no provider
+I/O or ancestor allocation. An accepted owner A's native-valid proof for the exact
+B action was refused by B's pinned enrolled suffix. The other six histories
+exercise real independent gateway processes: one shared final-capacity winner,
+an explicit independent-engagement control, and withdrawal before/after entry
+with resume/SIGKILL/restart. Shared charges and Unknown remain conservative.
+
+The original one-issuer corpus, commissioned recovery, created-child use and all
+seven installed SDK scenarios also passed in this cohort. Independent Python
+still agrees on all 39 created-resource projection cases. Semantic closure was
+regenerated and its equality constructor passed. Logs are
+`/tmp/ap073-federation-repaired-final/`,
+`/tmp/ap073-federation-repaired-results.log` and the matching build log. These are
+required repository-artifact constructors, not broad local acceptance checks.
+The preceding failed cohort remains recorded above.
+
+This establishes the selected coordinated federation slice under explicit
+operator/topology assumptions; it does not prove independent human consent,
+separate-UID confinement, TLS PostgreSQL, disconnected escrow, global revocation,
+whole-store rollback detection, native-records qualification or source-linked
+formal closure. Those scoped gates/implementation gaps remain required for full
+AP073 acceptance. No push, hosted CI observation, merge or deployment occurred.

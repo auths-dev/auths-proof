@@ -6,7 +6,9 @@ use crate::native_crash_tests::{CrashProtocol, PausedStore, Peer, Point, pause_a
 use crate::native_process_tests::{
     EngineControls, NOW, Setup, load_controlled_engine, private, runtime,
 };
-use crate::participant_enrollment::tests::{EffectScopeFixture, cross_recipe_fixture};
+use crate::participant_enrollment::tests::{
+    EffectScopeFixture, cross_recipe_fixture, federated_recipe_fixture,
+};
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::{
     CompiledRecipe, GatewayAttemptKey, GatewayAttempts, GatewayEngine, GatewayRecordKind,
@@ -40,6 +42,7 @@ const RECORD: &str = "recTEST0000000001";
 struct Input {
     installation: Setup,
     engagement: [u8; 32],
+    federated: bool,
     index: usize,
     point: Option<Point>,
     ready_barrier: bool,
@@ -125,7 +128,12 @@ fn native(
         .unwrap()
     });
     let arguments: [_; 2] = std::array::from_fn(|index| arguments(&recipes[index], index));
-    let (native, actions) = cross_recipe_fixture(
+    let author = if input.federated {
+        federated_recipe_fixture
+    } else {
+        cross_recipe_fixture
+    };
+    let (native, actions) = author(
         [&recipes[0], &recipes[1]],
         [&records[0], &records[1]],
         [&arguments[0], &arguments[1]],
@@ -350,7 +358,7 @@ struct Case {
     native: EffectScopeFixture,
 }
 impl Case {
-    fn new(backend: Backend) -> Self {
+    fn new(backend: Backend, federated: bool) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(directory.path()).unwrap();
         std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -367,6 +375,7 @@ impl Case {
                 barrier_port: listener.local_addr().unwrap().port(),
             },
             engagement: [0x31; 32],
+            federated,
             index: 0,
             point: None,
             ready_barrier: false,
@@ -560,8 +569,8 @@ impl Case {
     }
 }
 
-fn race(backend: Backend) -> Value {
-    let case = Case::new(backend);
+fn race(backend: Backend, federated: bool) -> Value {
+    let case = Case::new(backend, federated);
     case.save_approvals();
     let wrong = case.action(0);
     let approved = approval(&case.engines[0], &wrong);
@@ -639,8 +648,8 @@ fn race(backend: Backend) -> Value {
         "wrong_recipe_submission_provider_calls":0,"provider_writes":1,"allocated_ancestor_rows":2,"reopened_replay_new_writes":0})
 }
 
-fn ordered(backend: Backend, after_entry: bool, kill: bool) -> Value {
-    let case = Case::new(backend);
+fn ordered(backend: Backend, after_entry: bool, kill: bool, federated: bool) -> Value {
+    let case = Case::new(backend, federated);
     case.save_approvals();
     let point = if after_entry {
         Point::AfterEntryCommit
@@ -680,8 +689,8 @@ fn ordered(backend: Backend, after_entry: bool, kill: bool) -> Value {
         "withdrawal_published_by_other_recipe":true,"provider_writes":expected,"ancestor_rows_retained":2,"replay_new_writes":0})
 }
 
-fn independent_engagement(backend: Backend) -> Value {
-    let case = Case::new(backend);
+fn independent_engagement(backend: Backend, federated: bool) -> Value {
+    let case = Case::new(backend, federated);
     case.save_approvals();
     let first = case.replay(0);
     assert!(matches!(
@@ -730,9 +739,9 @@ fn corpus(backend: Backend) -> Value {
     let mut failures = Vec::new();
     for index in 0..6 {
         let result = std::panic::catch_unwind(|| match index {
-            0 => race(backend),
-            1 => independent_engagement(backend),
-            _ => ordered(backend, index >= 4, index % 2 == 1),
+            0 => race(backend, false),
+            1 => independent_engagement(backend, false),
+            _ => ordered(backend, index >= 4, index % 2 == 1, false),
         });
         match result {
             Ok(value) => cases.push(value),
@@ -764,3 +773,6 @@ fn postgres_native_cross_recipe_process_matrix() {
     assert!(postgres_configured());
     corpus(Backend::Postgres);
 }
+
+#[path = "native_federation_tests.rs"]
+mod federation_tests;

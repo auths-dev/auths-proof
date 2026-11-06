@@ -632,3 +632,24 @@ trusted floor/checkpoint. A generation label alone proves neither compromise nor
 fresh custody. Six-process containment, TLS PostgreSQL and source-linked formal
 closure require their own actual evidence; authored constructors do not close
 those gates. The ledger records construction results separately.
+
+
+## Coordinated federation and native resource qualification (M4)
+
+[ADR0021](../adr/0021-coordinated-federation-and-native-resource-boundaries.md)
+selects a first coordinated federation profile: independent resource issuers
+explicitly grant the pinned scopes, each installation accepts its exact root and
+trust/configuration, and both use one authoritative admission partition/store.
+Resource trust does not activate participant-control authority. An issuer valid
+for one resource cannot replace another scope's pinned grant. Raw-key and did:key
+must go through maintained native adapters; key aliases are not disjoint capacity
+owners. File support is one coordinated host; multi-host support requires the
+shared TLS PostgreSQL owner. No disconnected escrow, automatic trust rollover,
+cloned independent store or transport-derived authority is supported.
+
+The maintained records vertical is the native-resource comparison owner. It is
+not automatically an AP073 enforcement implementation. Its existing native
+verification/lifecycle cannot substitute for enrolled participant scope and shared
+ancestor accounting. Native resource qualification and the isolated native
+journey remain required until an explicit adapter/refinement contract is
+implemented; the federated gateway corpus alone cannot close them.

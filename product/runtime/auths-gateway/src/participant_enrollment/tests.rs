@@ -21,7 +21,7 @@ mod audit_tests;
 #[path = "cross_recipe_fixture.rs"]
 mod cross_recipe_fixture;
 #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
-pub(crate) use cross_recipe_fixture::cross_recipe_fixture;
+pub(crate) use cross_recipe_fixture::{cross_recipe_fixture, federated_recipe_fixture};
 
 const NOW: u64 = 1_790_000_000;
 const RESOURCE_SERVICE: &str = "engagement-records";
@@ -2007,6 +2007,22 @@ pub(crate) struct EffectScopeFixture {
 }
 
 impl EffectScopeFixture {
+    pub(crate) fn bootstrap_with_context(
+        &self,
+        context: &TrustedContext,
+    ) -> Result<EnrollmentTree, EnrollmentTreeError> {
+        let resources = self.control_resources(&self.root_resources);
+        EnrollmentTree::bootstrap(
+            context,
+            &self.root,
+            NOW,
+            &RootEnrollmentProofs {
+                activation: invocation(&self.activation),
+                resources: &resources,
+            },
+        )
+    }
+
     pub(crate) fn root_evidence(&self) -> crate::EngagementControlEvidence {
         let resources = self.control_resources(&self.root_resources);
         crate::EngagementControlEvidence::root(&RootEnrollmentProofs {

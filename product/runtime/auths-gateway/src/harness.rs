@@ -80,6 +80,8 @@ pub(crate) struct Signer {
     pub(crate) key: SigningKey,
     pub(crate) raw: RawKeyDescriptor,
     pub(crate) principal: PrincipalId,
+    #[cfg(test)]
+    did_key: Option<auths_did_key::DidKeyEvidence>,
 }
 
 // INVARIANT: every value below is derived from a fixed 32-byte seed and
@@ -99,10 +101,35 @@ impl Signer {
             key,
             raw,
             principal,
+            #[cfg(test)]
+            did_key: None,
         }
     }
 
+    /// Test authoring only: the maintained adapter must verify this evidence.
+    #[cfg(test)]
+    pub(crate) fn did_key(seed: u8) -> Self {
+        let mut signer = Self::new(seed);
+        let multikey = auths_multikey::Multikey::from_public_key(
+            auths_multikey::MultikeyType::Ed25519,
+            signer.key.verifying_key().to_bytes().to_vec(),
+        )
+        .expect("fixed public fixture key");
+        let evidence = auths_did_key::DidKeyEvidence::new(multikey);
+        signer.principal = evidence.principal().expect("fixture did:key");
+        signer.did_key = Some(evidence);
+        signer
+    }
+
     pub(crate) fn descriptor(&self) -> SignatureDescriptor {
+        #[cfg(test)]
+        if let Some(evidence) = &self.did_key {
+            return SignatureDescriptor::new(
+                PrincipalMethodId::parse(auths_did_key::DID_KEY_V1).expect("did:key method"),
+                evidence.verification_method().expect("fixture method"),
+                SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("Ed25519 suite"),
+            );
+        }
         SignatureDescriptor::new(
             PrincipalMethodId::parse(RAW_KEY_V1).expect("raw-key method identifier"),
             VerificationMethod::parse(self.principal.as_str())
@@ -112,6 +139,21 @@ impl Signer {
     }
 
     pub(crate) fn evidence(&self) -> EvidenceObject {
+        #[cfg(test)]
+        if let Some(evidence) = &self.did_key {
+            let object = |id| {
+                EvidenceObject::new(
+                    id,
+                    EvidenceTypeId::parse(auths_did_key::DID_KEY_V1).expect("did:key evidence"),
+                    MediaType::parse(auths_did_key::DID_KEY_MEDIA_TYPE).expect("did:key media"),
+                    evidence.encode().expect("fixture evidence"),
+                )
+                .expect("fixture evidence object")
+            };
+            return object(
+                evidence_id(&object(EvidenceId::new([0; 32]))).expect("fixture evidence ID"),
+            );
+        }
         let object = |id| {
             EvidenceObject::new(
                 id,
@@ -1503,7 +1545,7 @@ pub(crate) fn context_for_profiles_and_audiences(
             TrustAnchor::new(
                 fixture(TrustAnchorId::parse(&id), "anchor ID")?,
                 root.principal.clone(),
-                vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
+                vec![root.descriptor().principal_method().clone()],
                 vec![fixture(first.profile_ref(), "profile")?],
                 fixture(PermissionSet::new(permissions.clone()), "permissions")?,
                 namespaces.clone(),

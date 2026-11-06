@@ -12,9 +12,41 @@ pub(crate) fn cross_recipe_fixture(
     arguments: [&Map<String, Value>; 2],
     engagement: [u8; 32],
 ) -> (EffectScopeFixture, [Submission; 2]) {
+    cross_recipe_with_owners(recipes, connections, arguments, engagement, None)
+}
+
+pub(crate) fn federated_recipe_fixture(
+    recipes: [&crate::CompiledRecipe; 2],
+    connections: [&auths_connections::ConnectionRecord; 2],
+    arguments: [&Map<String, Value>; 2],
+    engagement: [u8; 32],
+) -> (EffectScopeFixture, [Submission; 2]) {
+    cross_recipe_with_owners(
+        recipes,
+        connections,
+        arguments,
+        engagement,
+        Some([Signer::new(0x12), Signer::did_key(0x13)]),
+    )
+}
+
+// Test authoring shares only mechanics. The normal corpus still has its
+// original one-issuer topology; federation supplies independently signed owners.
+fn cross_recipe_with_owners(
+    recipes: [&crate::CompiledRecipe; 2],
+    connections: [&auths_connections::ConnectionRecord; 2],
+    arguments: [&Map<String, Value>; 2],
+    engagement: [u8; 32],
+    owners: Option<[Signer; 2]>,
+) -> (EffectScopeFixture, [Submission; 2]) {
     let mut fixture = Fixture::with_depth(0x44, 1);
     fixture.pins.engagement_commitment = engagement;
     let sibling = Signer::new(0x55);
+    let control_owner = Signer::new(0x11);
+    let resource_owners = match &owners {
+        Some(owners) => [&owners[0], &owners[1]],
+        None => [&control_owner, &control_owner],
+    };
     let tools = recipes.map(|recipe| recipe.review().tool().to_owned());
     let audiences = recipes.map(|recipe| {
         resource_audience(
@@ -29,7 +61,7 @@ pub(crate) fn cross_recipe_fixture(
         .enumerate()
         .map(|(index, recipe)| {
             let parent = grant_for_audiences(
-                &fixture.root,
+                resource_owners[index],
                 &fixture.parent,
                 recipe.service(),
                 &[&tools[index]],
@@ -72,13 +104,20 @@ pub(crate) fn cross_recipe_fixture(
     );
     let observer = GatewayObserver::from_test_seed(0x33);
     fixture.context = harness::context_for_profiles_and_audiences(
-        &[&fixture.root],
+        &match &owners {
+            Some(owners) => vec![&fixture.root, &owners[0], &owners[1]],
+            None => vec![&fixture.root],
+        },
         observer.principal(),
         None,
         NOW,
         2,
         CompositionRequirement::new(None, 1, 1, 1).unwrap(),
-        &[auths_raw_key::RAW_KEY_V1],
+        if owners.is_some() {
+            &[auths_raw_key::RAW_KEY_V1, auths_did_key::DID_KEY_V1]
+        } else {
+            &[auths_raw_key::RAW_KEY_V1]
+        },
         &profiles,
         &audiences,
     )
@@ -119,7 +158,7 @@ pub(crate) fn cross_recipe_fixture(
         let (parent, children) = &resource_grants[recipe_index];
         match child_index {
             None => chained(
-                &[&fixture.root, &fixture.parent],
+                &[resource_owners[recipe_index], &fixture.parent],
                 &[parent],
                 recipes[recipe_index].service(),
                 &tools[recipe_index],
@@ -127,7 +166,7 @@ pub(crate) fn cross_recipe_fixture(
             ),
             Some(index) => chained(
                 &[
-                    &fixture.root,
+                    resource_owners[recipe_index],
                     &fixture.parent,
                     [&fixture.child, &sibling][index],
                 ],

@@ -1,0 +1,110 @@
+{
+  "schema": "auths.coordinated-federation-vectors/1",
+  "adapter": "file",
+  "cases": [
+    {
+      "case": "independently-pinned-mixed-method-owners",
+      "issuer_keys": 3,
+      "methods": [
+        "raw-key-v1",
+        "did-key-v1"
+      ],
+      "native_refusals": [
+        "accepted-foreign-owner-cannot-replace-pinned-resource-path",
+        "missing-resource-owner-0",
+        "foreign-resource-0",
+        "invalid-native-signature-0",
+        "missing-control-evidence-0",
+        "missing-resource-owner-1",
+        "foreign-resource-1",
+        "invalid-native-signature-1",
+        "missing-control-evidence-1",
+        "resource-trust-does-not-activate-control-root",
+        "owner-method-not-accepted",
+        "unapproved-root-installation"
+      ],
+      "negative_cases_provider_calls": 0,
+      "negative_cases_allocations": 0,
+      "native_positive_provider_writes": 1,
+      "native_positive_allocated_ancestor_rows": 2,
+      "replay_new_writes": 0,
+      "raw_did_aliases_overlap": true,
+      "not_established": [
+        "independent-human-administration",
+        "global-key-revocation",
+        "offline-escrow"
+      ]
+    },
+    {
+      "case": "two-recipes-final-shared-unit",
+      "gateway_processes": 2,
+      "recipe_count": 2,
+      "configuration_partitions": 2,
+      "connection_count": 2,
+      "wrong_recipe_submission_provider_calls": 0,
+      "provider_writes": 1,
+      "allocated_ancestor_rows": 2,
+      "reopened_replay_new_writes": 0
+    },
+    {
+      "case": "explicit-independent-engagement",
+      "shared_store_and_connections": true,
+      "independent_root_capacity": true,
+      "old_engagement_proof_refused": true,
+      "provider_writes": 2,
+      "spent_first_root_stays_exhausted": true
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": false,
+      "worker_sigkill": false,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 0,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": false,
+      "worker_sigkill": true,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 0,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": true,
+      "worker_sigkill": false,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 1,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": true,
+      "worker_sigkill": true,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 0,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    }
+  ],
+  "scope": "three distinct fixed-fixture issuer keys, maintained raw-key/did:key adapters, native proof and exact approval, two resource installations, shared adapter fences and real HTTP effects across independent processes",
+  "unsupported": [
+    "disconnected-escrow",
+    "independent-cloned-admission-stores",
+    "automatic-trust-rollover"
+  ],
+  "not_established": [
+    "source-free-key-containment",
+    "live-provider-qualification",
+    "human-presence",
+    "independent-operator-consent",
+    "power-loss-durability",
+    "native-records-qualification",
+    "whole-store-rollback-detection",
+    "full-AP073-acceptance"
+  ]
+}

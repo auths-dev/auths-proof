@@ -124,6 +124,8 @@ jobs:
               failures=$((failures + 1))
             fi
           done <<'SELECTORS'
+          native_cross_recipe_tests::federation_tests::native_file_coordinated_federation_fixture_is_current
+          native_cross_recipe_tests::federation_tests::postgres_native_coordinated_federation_matrix
           participant_enrollment::tests::recovery_tests::native_instance_recovery_fixture_is_current
           observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::native_instance_recovery_store_fixture_is_current
           observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::postgres_native_instance_recovery_store_matrix
