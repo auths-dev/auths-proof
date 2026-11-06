@@ -54,6 +54,8 @@ jobs:
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_cross_recipe_tests::native_file_cross_recipe_process_fixture_is_current || failures=$((failures + 1))
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_cross_recipe_tests::postgres_native_cross_recipe_process_matrix || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_crash_tests::native_file_process_crash_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_crash_tests::postgres_native_process_crash_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current || failures=$((failures + 1))

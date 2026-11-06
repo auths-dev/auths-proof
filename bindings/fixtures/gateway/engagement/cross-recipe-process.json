@@ -1,0 +1,70 @@
+{
+  "schema": "auths.engagement-cross-recipe-process-vectors/1",
+  "adapter": "file",
+  "cases": [
+    {
+      "case": "two-recipes-final-shared-unit",
+      "gateway_processes": 2,
+      "recipe_count": 2,
+      "configuration_partitions": 2,
+      "connection_count": 2,
+      "wrong_recipe_submission_provider_calls": 0,
+      "provider_writes": 1,
+      "allocated_ancestor_rows": 2,
+      "reopened_replay_new_writes": 0
+    },
+    {
+      "case": "explicit-independent-engagement",
+      "shared_store_and_connections": true,
+      "independent_root_capacity": true,
+      "old_engagement_proof_refused": true,
+      "provider_writes": 2,
+      "spent_first_root_stays_exhausted": true
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": false,
+      "worker_sigkill": false,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 0,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": false,
+      "worker_sigkill": true,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 0,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": true,
+      "worker_sigkill": false,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 1,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    },
+    {
+      "case": "cross-recipe-root-withdrawal",
+      "entry_committed_before_withdrawal": true,
+      "worker_sigkill": true,
+      "withdrawal_published_by_other_recipe": true,
+      "provider_writes": 0,
+      "ancestor_rows_retained": 2,
+      "replay_new_writes": 0
+    }
+  ],
+  "scope": "native verification, exact independent fixed-fixture-key approval, real adapter writer fences and HTTP across independent gateway processes; controlled deployment clock",
+  "not_established": [
+    "installed-key-containment",
+    "live-provider-qualification",
+    "human-presence",
+    "power-loss-durability",
+    "disconnected-escrow",
+    "full-AP073-acceptance"
+  ]
+}

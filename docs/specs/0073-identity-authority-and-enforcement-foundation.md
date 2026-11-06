@@ -504,3 +504,17 @@ another write. A distinct native read with independent exact approval supplies
 declared provider linkage; historical replay performs no provider I/O. This is
 bounded local process-failure evidence, not live provider qualification, human
 presence, power-loss evidence or complete F01–F16 acceptance.
+
+The cross-recipe process corpus uses one native root, two independently compiled
+recipe/service/tool contracts, two connection records and two configuration
+partitions on one maintained store. It exercises a two-gateway race for the final
+root write, exact replay after reopen, wrong-recipe proof/approval refusal,
+independent-engagement capacity and proof isolation, and native withdrawal
+published by the other recipe after reservation or entry commit, with ordinary
+release and actual SIGKILL. The file artifact records checked native/HTTP facts;
+TLS PostgreSQL runs the same matrix only when explicitly invoked with its real
+fixture. Public fixed test keys establish neither installed containment nor
+human presence. Earlier durable entries retain their documented ordering;
+crashed entries cannot reconstruct transport permission, and withdrawal never
+refunds ancestor capacity. Whole-store rollback and power-loss claims require
+separate evidence under the declared recovery assumptions.

@@ -17,6 +17,12 @@ mod configuration_tests;
 #[path = "audit_tests.rs"]
 mod audit_tests;
 
+#[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+#[path = "cross_recipe_fixture.rs"]
+mod cross_recipe_fixture;
+#[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
+pub(crate) use cross_recipe_fixture::cross_recipe_fixture;
+
 const NOW: u64 = 1_790_000_000;
 const RESOURCE_SERVICE: &str = "engagement-records";
 const RESOURCE_TOOL: &str = "read_record";

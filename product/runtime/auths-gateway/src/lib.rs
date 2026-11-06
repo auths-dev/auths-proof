@@ -172,6 +172,9 @@ pub use transport::MAX_TRANSPORT_DURATION;
 mod native_process_tests;
 
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_cross_recipe_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_crash_tests;
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_disclosure_crash_tests;

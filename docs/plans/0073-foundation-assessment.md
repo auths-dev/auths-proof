@@ -1175,3 +1175,86 @@ and stale-floor cases, lifecycle/compromise/recovery and additional-domain/nativ
 resource conformance, complete binding/fixture parity and source-linked formal
 assurance. Exact-head hosted gates remain last, after implementation is complete.
 The full AP073 goal remains active and incomplete.
+
+### Cross-recipe native process batch: planned contract and checks
+
+Source inspection confirms that the shared enrollment row and typed ancestor
+allocation identities exclude recipe identity, while each installation retains
+its own exact recipe, connection and configuration partition. Add actual native
+engine processes over both maintained adapters to exercise that composition,
+rather than inferring it from key equality or same-recipe sibling tests.
+
+The complete planned batch includes two independently compiled recipe/service/tool
+contracts, two actual connection records, two configuration partitions and one
+native root with separate control, child acceptance and per-recipe resource
+suffixes. Both siblings share one root write. A simultaneous two-process request
+race must create exactly one provider write and the winner's two ancestor rows;
+reopen/exact replay must not add either. Wrong-recipe proof/approval substitution
+must fail before provider transport. A separate explicitly authenticated engagement
+on the same store/connections gets its own capacity, while the spent first root
+remains exhausted and its proof cannot cross that boundary.
+
+Four ordered cross-recipe schedules use the maintained transparent PausedStore
+around actual adapter transactions: after reservation commit and after entry
+commit, each with ordinary release or actual SIGKILL. Another recipe publishes
+the native root withdrawal before release/reopen. Unentered descendants cannot
+enter; committed entries retain the documented earlier-grant ordering, and a
+crashed entry remains Unknown without resend. Original approval bytes and every
+ancestor allocation remain retained. Hooks never replace or rerun native fence
+decisions. These are full engine/HTTP processes with public fixed fixture keys,
+not installed hostile-UID containment or power-loss claims.
+
+The helper in native_process_tests gains only an optional explicit connection
+fixture; all prior defaults remain unchanged. The native enrollment test author
+signs the complete two-recipe relation with the same maintained codec/verifier.
+No task ledger, provider branch or alternate approval/entry authority is added.
+The TLS PostgreSQL workflow explicitly invokes the new ignored process matrix;
+its result remains pending until actual execution, and is not a committed file
+adapter artifact relabeled as PostgreSQL.
+
+Required local construction cohort after all code/test/docs/CI changes: new file
+process artifact and current semantic closure, prior native process-capacity and
+engagement enrollment/admission/hierarchy artifacts affected by shared fixtures,
+and installed/content/interface/installation/candidate process artifacts. Run only
+these required constructors to construct committed evidence; defer broad local
+and hosted gates until the complete program is implemented. Initial results are
+not yet established. Full F01–F16/M0–M4 remains required.
+
+The initial whole construction cohort passed all eleven prior artifact
+constructors. The new six-case matrix first encountered three fixture setup
+guards: missing owner-private directory mode, an invented non-canonical base64url
+connection ID, and reusing the already provisioned custody file for a second
+fixture engine. The inputs now use explicit 0700 mode, native canonical encoding
+of bounded public fixture ID bytes, and a separate private custody copy per
+independent fixture engine. The shared authorization store remains unchanged.
+The matrix then exposed an accepted test socket inheriting nonblocking mode on
+macOS. Explicit blocking accepted sockets and a bounded 15-second header deadline
+support the deliberately paused post-entry schedule. No production guard or
+native decision was weakened. All six cases passed at
+`/tmp/ap073-cross-recipe-socket-repair.log` (7.40 s), creating the 2,220-byte file
+artifact. Final current semantic-closure/artifact-cohort results follow below.
+
+### Acknowledged cross-recipe process artifacts
+
+All thirteen final required constructor/check executions passed from the rebuilt
+current source: six-case cross-recipe file process corpus; prior native process
+capacity, enrollment, ancestor admission, hierarchical control, content, read-only,
+content capacity, managed interface, installation, candidate and installed
+multi-agent process artifacts; and the semantic-closure equality check with
+update disabled. Final logs are `/tmp/ap073-cross-recipe-final/*.log`; the
+required native build log contains no compiler diagnostics. Rust formatting
+passed. Existing canonical artifacts retained their bytes. The new 2,220-byte
+file corpus excludes private fixture identities, random custody filenames,
+worker IDs and execution-witness nonces. The gateway semantic manifest/digest
+includes the new source and changed test helper.
+
+The matrix directly establishes the six declared file-adapter engine/process
+histories and the associated provider/custody/transport/allocation assertions.
+It does not establish TLS PostgreSQL execution, installed UID containment,
+human presence, live provider qualification, power-loss durability, disconnected
+escrow, whole-store rollback protection or full AP073 acceptance. The identical
+PostgreSQL process matrix is explicitly wired but remains unrun. No broad local
+gate, push or hosted CI observation occurred. Managed-created-child lineage /
+response-less creation reconciliation, lifecycle/federation/native-resource
+conformance, the remaining stale-floor/cross-protocol/crash cases, binding parity,
+source-linked formal evidence and final exact-head hosted gates remain required.

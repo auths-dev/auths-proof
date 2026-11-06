@@ -289,6 +289,7 @@ fn run_worker(race: &Race, store: &TestAttempts) {
         recipe: None,
         trust: None,
         credential: None,
+        connection: None,
     };
     let runtime = runtime();
     let (engine, _) = runtime.block_on(load_controlled_engine(

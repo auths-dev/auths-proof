@@ -236,3 +236,18 @@ restorable attempt record. Original native mutation inputs and actual allocation
 rows are included; provider execution and original-control-proof audit completeness
 are explicitly not claimed. Authored TLS PostgreSQL, fault and concurrency cases
 require their own exact-revision execution evidence.
+
+## Cross-recipe process composition evidence
+
+`native_cross_recipe_tests` binds two separately compiled recipe contracts,
+connections and configuration partitions to one root and its typed ancestor
+allocations. It runs full native gateway processes and counting HTTP, with the
+existing transparent adapter pause proxy at acknowledged reservation/entry
+commits. A root withdrawal through one recipe is visible to the other recipe's
+entry fence. A committed earlier entry may complete once; SIGKILL after that
+commit yields retained Unknown and no replay send. The shared final-unit race
+records one write, one custody lease, one transport entry and two ancestor rows.
+A separately authenticated engagement has distinct capacity; the first root
+remains spent. No recipe-specific production branch or second journal is added.
+The file artifact is `engagement/cross-recipe-process.json`. The same explicitly
+gated TLS PostgreSQL matrix needs actual execution; file results do not prove it.
