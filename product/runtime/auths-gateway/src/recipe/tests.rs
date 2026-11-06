@@ -1699,3 +1699,28 @@ fn native_read_only_recipe_fixture_is_current() {
         assert_eq!(std::fs::read(directory.join(name)).expect("fixture"), bytes);
     }
 }
+
+#[test]
+fn provider_recipes_cannot_alias_native_participant_control_namespaces() {
+    for name in ["airtable", "todoist", "github"] {
+        let (source, lock) = fixture(name);
+        assert!(CompiledRecipe::compile(source, lock).is_ok());
+        for service in [
+            crate::control_namespace::PARTICIPANT_SERVICE,
+            crate::control_namespace::TASK_SERVICE,
+        ] {
+            let mut source: Value = serde_json::from_slice(source).unwrap();
+            let mut lock: Value = serde_json::from_slice(lock).unwrap();
+            source["service"] = json!(service);
+            lock["service"] = json!(service);
+            assert_eq!(
+                CompiledRecipe::compile(
+                    &serde_json::to_vec(&source).unwrap(),
+                    &serde_json::to_vec(&lock).unwrap()
+                )
+                .unwrap_err(),
+                GatewayRecipeError::InvalidSource
+            );
+        }
+    }
+}

@@ -22,6 +22,7 @@ pub use engine::{
 };
 mod configuration;
 mod connection;
+mod control_namespace;
 mod credential_journal;
 mod echo_verify;
 pub mod effect;
@@ -39,6 +40,7 @@ pub mod listener;
 mod observer;
 mod onboarding;
 mod operator;
+pub mod participant_enrollment;
 mod pre_entry;
 mod qualification;
 mod readiness;

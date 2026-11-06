@@ -1443,3 +1443,122 @@ mod process {
         Ok((setup, running))
     }
 }
+
+/// Explicit mixed-service and audience trust for native enrollment fixtures.
+#[cfg(test)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust names profile and explicit anchor audiences"
+)]
+pub(crate) fn context_for_profiles_and_audiences(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+    methods: &[&str],
+    profiles: &[(&str, &str)],
+    engagement_audiences: &[Audience],
+) -> Result<TrustedContext, HarnessError> {
+    let configuration = match configuration {
+        Some(value) => auths_model::VerifierConfigurationId::new(value),
+        None => fixture(gateway_verifier_configuration(), "configuration")?,
+    };
+    let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
+    let calls = profiles
+        .iter()
+        .map(|(service, tool)| fixture(McpToolCall::new(*service, *tool, Map::new()), "call"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let first = calls.first().ok_or(HarnessError::Fixture("call"))?;
+    let services = profiles
+        .iter()
+        .map(|(service, _)| *service)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut audiences = services
+        .iter()
+        .map(|service| fixture(Audience::parse(&format!("mcp://{service}")), "audience"))
+        .collect::<Result<Vec<_>, _>>()?;
+    audiences.extend_from_slice(engagement_audiences);
+    let audience = fixture(
+        Audience::parse(&format!("mcp://{}", profiles[0].0)),
+        "audience",
+    )?;
+    let namespaces = services
+        .iter()
+        .map(|service| fixture(ResourceId::parse(&format!("mcp://{service}/")), "namespace"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let permissions = calls
+        .iter()
+        .map(|call| fixture(call.permission(), "permission"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut anchors = Vec::with_capacity(roots.len());
+    for (index, root) in roots.iter().enumerate() {
+        let id = if roots.len() == 1 {
+            "root".to_owned()
+        } else {
+            format!("root-{index}")
+        };
+        anchors.push(fixture(
+            TrustAnchor::new(
+                fixture(TrustAnchorId::parse(&id), "anchor ID")?,
+                root.principal.clone(),
+                vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
+                vec![fixture(first.profile_ref(), "profile")?],
+                fixture(PermissionSet::new(permissions.clone()), "permissions")?,
+                namespaces.clone(),
+                fixture(AudienceSet::new(audiences.clone()), "audiences")?,
+                window(now - 86_400, now + 86_400)?,
+                None,
+                depth,
+                assurance.clone(),
+                StatusPolicy::ExpiryOnly,
+            ),
+            "trust anchor",
+        )?);
+    }
+    let context = fixture(
+        TrustedContext::new(
+            configuration,
+            composition,
+            anchors,
+            accepted_registries_for(methods)?,
+            audience,
+            Challenge::new([0; 32]),
+            Timestamp::new(now),
+            fixture(
+                AssurancePolicy::new(assurance, Vec::new()),
+                "assurance policy",
+            )?,
+            fixture(
+                PrincipalStatusSnapshot::new(
+                    StatusSnapshotId::new([0x63; 32]),
+                    Timestamp::new(now - 86_400),
+                    Timestamp::new(now + 86_400),
+                    Vec::new(),
+                    Vec::new(),
+                ),
+                "principal status",
+            )?,
+            fixture(
+                GrantStatusSnapshot::new(
+                    StatusSnapshotId::new([0x64; 32]),
+                    Timestamp::new(now - 86_400),
+                    Timestamp::new(now + 86_400),
+                    Vec::new(),
+                    Vec::new(),
+                ),
+                "grant status",
+            )?,
+            fixture(ResourceMatcherId::parse("uri-namespace-v1"), "matcher")?,
+            fixture(ProfilePolicyId::parse(MCP_ARGUMENTS_V1), "policy")?,
+            fixture(ChannelBindingId::parse("none-v1"), "channel")?,
+            VerifierLimits::default(),
+        ),
+        "context",
+    )?;
+    fixture(
+        context.with_observer_anchors(vec![observer_anchor_for(observer, now, methods)?]),
+        "observer anchors",
+    )
+}

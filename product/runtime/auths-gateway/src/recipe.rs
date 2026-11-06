@@ -549,7 +549,10 @@ impl CompiledRecipe {
             ),
             None => source.tool == crate::effect::CONTENT_READ_TOOL,
         };
-        if source.schema != RECIPE_SOURCE_SCHEMA || !valid_tool {
+        if source.schema != RECIPE_SOURCE_SCHEMA
+            || crate::control_namespace::is_control_service(&source.service)
+            || !valid_tool
+        {
             return Err(GatewayRecipeError::InvalidSource);
         }
         validate_lock(&lock)?;
