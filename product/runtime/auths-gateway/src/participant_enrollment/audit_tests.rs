@@ -89,6 +89,7 @@ fn lifecycle(backend: Backend) -> Value {
     let (control, _) = controller(&fixture, db.raw(), Arc::clone(&clock));
     let initial = fixture.bootstrap_configuration(&control).unwrap();
     let old_checkpoint = initial.audit_checkpoint().unwrap();
+    let retained_prefix = control.export_audit().unwrap();
     fixture.enroll_configuration(&control).unwrap();
     clock.set(NOW + 1);
     let child = fixture.enrollment.commitment().unwrap();
@@ -103,6 +104,11 @@ fn lifecycle(backend: Backend) -> Value {
     let trusted = snapshot.audit_checkpoint().unwrap();
     let archive = control.export_audit().unwrap();
     let contexts = [fixture.context.clone()];
+    assert_eq!(
+        retained_prefix.verify(&fixture.pins, &contexts, &trusted),
+        Err(Error::UntrustedEvidence),
+        "a restored coherent prefix cannot satisfy an independently retained newer head"
+    );
     assert_eq!(
         archive.verify(&fixture.pins, &contexts, &trusted).unwrap(),
         snapshot
@@ -246,7 +252,7 @@ fn lifecycle(backend: Backend) -> Value {
         "fixture_trusted_context_cbor_b64":Base64::encode_string(&auths_codec::encode_verifier_context(&fixture.context).unwrap()),
         "fixture_trusted_checkpoint":serde_json::from_slice::<Value>(&trusted_bytes).unwrap(),
         "verified_revision":snapshot.revision(),"participants":snapshot.tree().participant_count(),
-        "cases":["full-native-replay","original-context-required","checkpoint-floor","wrong-root",
+        "cases":["full-native-replay","original-context-required","checkpoint-floor","restored-prefix-vs-current-checkpoint","wrong-root",
             "missing-blob","duplicate-blob","corrupt-blob","blob-length","blob-order",
             "forged-child-signature-even-with-trusted-metadata","native-validity-at-recorded-time",
             "historical-expiry-is-not-current-authority","reopen-original-bytes","corrupt-retained-chunk-export-refused"],

@@ -52,8 +52,8 @@ authority namespace/partition, exact connection commitments for resource scopes,
 and native transport-policy commitments for registered channels. Recipe-local
 replay partitions remain distinct from shared engagement accounting. Changing
 these pins requires a fresh signed root; identifiers alone cannot substitute for
-the approved account/credential or channel. The tree is version 3, with no
-version 2 reader.
+the approved account/credential or channel. The tree is version 4, with no obsolete-schema reader (ADR0020 adds the
+mandatory successor lifecycle and immutable capacity origin).
 
 `configuration::EngagementConfiguration` stores only enrollment/withdrawal data
 as an `EffectConfiguration` row under `auths.engagement-configuration-key/1`.
@@ -251,3 +251,18 @@ A separately authenticated engagement has distinct capacity; the first root
 remains spent. No recipe-specific production branch or second journal is added.
 The file artifact is `engagement/cross-recipe-process.json`. The same explicitly
 gated TLS PostgreSQL matrix needs actual execution; file results do not prove it.
+
+
+## Exact-source arithmetic assurance closure
+
+Ancestor allocation uses the same existing
+`auths_bounded_policy::kernel::chain_sums_admit` guard as ordinary gateway sums,
+with a one-counter slice, then the existing checked-add primitive for the stored
+cumulative value. The contract is identical: overflow and exceeding the ceiling
+refuse; equality and a zero-byte increment preserve the existing behavior. This
+is reuse of an already admitted arithmetic leaf, not extraction of participant,
+provider or allocation semantics. Prefix integrity, fixed ceilings, origin identity
+and atomic row persistence remain in the existing gateway owners. The source-linked
+sum/add refinement claims apply to this guard; they do not prove those additional
+product/storage relations. See the AP073 assurance map for their evidence and
+trusted assumptions.

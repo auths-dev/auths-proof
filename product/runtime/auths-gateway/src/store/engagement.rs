@@ -130,10 +130,18 @@ impl Candidate {
             })
             .transpose()?
             .unwrap_or(0);
-        let cumulative = previous
-            .checked_add(reservation.amount)
-            .filter(|total| *total <= reservation.ceiling)
-            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        // The same translated sum guard already enforces ordinary gateway
+        // budgets. Zero-byte reservations retain their existing exact meaning.
+        if !auths_bounded_policy::kernel::chain_sums_admit(
+            &[previous],
+            reservation.amount,
+            &[reservation.ceiling],
+        ) {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let cumulative =
+            auths_bounded_policy::kernel::checked_add_u64(previous, reservation.amount)
+                .ok_or(GatewayAttemptError::InvalidTransition)?;
         let row = Allocation {
             schema: ALLOCATION_SCHEMA.to_owned(),
             claim: *key.as_bytes(),

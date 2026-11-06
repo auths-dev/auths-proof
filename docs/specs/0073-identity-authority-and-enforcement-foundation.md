@@ -1,6 +1,6 @@
 # AP-SPEC-073: Identity, delegated authority, and enforcement foundation
 
-- **Status:** Implementation program in progress on merged AP074; no AP073 acceptance criterion is closed.
+- **Status:** Implementation and required local artifact construction written on merged AP074. Exact-head hosted acceptance remains pending; no AP073 acceptance criterion is closed.
 - **Date:** 26 October 2026.
 - **Updated:** 6 November 2026. The preserved AP073 checkpoint is `97163513`. The continuation baseline is merged AP074, `68987975`. Earlier task-ledger implementation claims do not apply to this branch. Full M0–M4 and F01–F16 remain required.
 - **Mission:** Build an authorization and identity layer for human–agent, machine–agent, and agent–agent work.
@@ -650,9 +650,9 @@ cloned independent store or transport-derived authority is supported.
 The maintained records vertical is the native-resource comparison owner. It is
 not automatically an AP073 enforcement implementation. Its existing native
 verification/lifecycle cannot substitute for enrolled participant scope and shared
-ancestor accounting. Native resource qualification and the isolated native
-journey remain required until an explicit adapter/refinement contract is
-implemented; the federated gateway corpus alone cannot close them.
+ancestor accounting. ADR0022 below supplies the explicit adapter contract and installed native
+records journey. Its hosted isolation and acceptance evidence remain required;
+the federated gateway corpus alone cannot close them.
 
 
 ## Native records conformance topology

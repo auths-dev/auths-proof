@@ -1948,3 +1948,59 @@ its exact-source ancestor arithmetic link and reverse stale-prefix checkpoint
 case, followed by source/evidence freeze and final exact-head hosted gates.
 The map explicitly distinguishes native product tests from actual translated
 proofs and from independently authenticated deployment floors.
+
+
+### Final bounded assurance linkage batch, before construction
+
+The owner audit found that ancestor accumulation used equivalent local checked
+addition/filtering while ordinary gateway sums already called the translated
+`auths_bounded_policy::kernel::chain_sums_admit` leaf. Reuse that exact existing
+guard on the one retained counter and use the existing checked-add leaf for the
+stored cumulative total. This preserves zero-byte/zero-ceiling arithmetic,
+immutable row policy, slot limits and common transaction ownership; it adds no
+new model, provider dispatch or state machine. The existing sum/add refinement
+statements now directly cover the arithmetic callsite, conditional on faithful
+origin/prefix/store inputs. No theorem is claimed for the entire product glue.
+
+Capture an actual retained root-only audit prefix, then assert that it is refused
+against the later independently retained withdrawal checkpoint. Keep the existing
+new-archive/old-head refusal, original proof replay, missing evidence and trust
+substitution cases. The restore protocol still requires an external trusted head;
+a whole coherent store cannot certify its own freshness.
+
+Construction mapping: the changed audit constructor; native ancestor admission,
+hierarchy, read/disclosure/prerequisite, lifecycle-recovery and created-child
+allocation artifacts; real cross-recipe and federated file histories; existing
+semantic-closure identity. PostgreSQL counterparts and zero-byte allocation unit
+boundaries stay in the authoritative hosted cohort. Regenerate only required
+identities and affected canonical artifacts; do not run a broad local test gate.
+All source and assertions for this two-change batch are now written. No passing
+result is claimed yet. Once construction finishes, source/evidence freeze and
+exact-head hosted acceptance are the remaining work; no new framework is planned.
+
+
+### Bounded assurance construction completed; source freeze and publication
+
+All twelve affected registered artifact constructors passed with exactly one
+executed test and zero ignored per selector. This includes the audit prefix/head
+negative, ancestor admission/hierarchy/information/prerequisite/live delivery,
+instance and created-child recovery, cross-recipe and federated file histories,
+semantic equality, and the installed test containing all eight scenarios. The
+batch results and per-selector logs are `/tmp/ap073-assurance-closure/` and
+`/tmp/ap073-assurance-closure-results.log`; the required constructor build log is
+`/tmp/ap073-assurance-closure-build.log`. The installed scenario collection uses
+the unchanged local installed SDK consumer; separate-UID and rebuilt exact-head
+packages are not established by this local run.
+
+The source now directly invokes the already refined sum/add leaves. The audit
+artifact retains both directions of stale checkpoint mismatch. No full-product
+formal theorem, automated whole-store rollback detector, gateway provider
+interpreter, or extra execution owner was introduced. The supported contracts
+and F01–F16 evidence owners are in the assurance map and ADRs0018–0022.
+
+Constructed semantic source closure, assurance source citations and release
+freeze identities are metadata, not proof acceptance. Required local artifact
+construction is complete. Remaining acceptance is the exact-head hosted CI,
+formal, PostgreSQL, bindings, packaging, source-free isolation and release gates.
+No broad local gate was substituted for GitHub. The complete implementation is
+ready for publication to its own draft PR; no merge or deployment is authorized.

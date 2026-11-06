@@ -10,7 +10,7 @@ trusted deployment assumptions. It does not assert end-to-end formal verificatio
 | --- | --- | --- |
 | Native grant attenuation and composition | `core/crates/auths-authority/src/lib.rs` and `core/crates/auths-model/src/lib.rs`; `formal/Auths/Refinement/Production.lean::translated_delegation_refines_rich_spec` | `participant_enrollment.rs::native_invocation_for_audience` calls the maintained native verifier. Parent authorization, child acceptance, resource suffix and exact root checks are additional product checks, exercised by signed native enrollment/federation/installed corpora. The core theorem does not prove that product glue. |
 | Exact closed request construction | `CompiledRecipe::closed_request` calls `auths_gateway_kernel::construct::construct_write`; `formal/Auths/Product/Refinement/Gateway.lean::translated_construct_write_refines_model` | Native compiled effect and approval bind verified command, recipe/connection/configuration, scope and planned charges. Native substitution/review corpora plus real HTTP histories check the composition. The compiler/profile-to-plan mapping and provider interpretation remain explicit premises. |
-| No counter overflow or ceiling bypass | Existing ordinary gateway capacity calls `auths_bounded_policy::kernel::chain_sums_admit`; `formal/Auths/Product/Refinement.lean::translated_chain_sums_admit_refines_model` and `translated_checked_add_refines_nat` | Ancestor reservation row arithmetic currently uses equivalent local checked addition/filtering. A narrow direct reuse of the existing proven primitive is the remaining source-link closure item; do not claim the lifecycle additive theorem covers this independent allocator. Prefix integrity, immutable ceilings, faithful counter identity and atomic insertion remain store/product premises. |
+| No counter overflow or ceiling bypass | Existing ordinary gateway capacity calls `auths_bounded_policy::kernel::chain_sums_admit`; `formal/Auths/Product/Refinement.lean::translated_chain_sums_admit_refines_model` and `translated_checked_add_refines_nat` | Ancestor reservation row arithmetic now directly calls the same sum guard and checked-add primitive with the retained prefix total, exact amount and immutable ceiling. The lifecycle additive theorem is not cited as if it covered this allocator. Prefix integrity, immutable ceilings, faithful counter identity and atomic insertion remain store/product premises. |
 | Credential/provider order | `submit.rs` drives `auths_gateway_kernel::order::start/next_step`; translated start/next-step refinement theorems in the gateway refinement module | Current authority/approval/configuration and engagement checks feed the existing final entry fence. File/PostgreSQL and installed revocation/crash histories establish operational ordering under adapter assumptions. A theorem about step enums alone is not proof of filesystem, SQL or provider behavior. |
 | Replay and conservative Unknown | `store.rs::valid_transition` calls `auths_gateway_kernel::transition::valid_transition`; `translated_valid_transition_refines_model` | Native mutation/acquisition/disclosure records, permanent allocations and acknowledgement-before-permit checks remain the execution owner. Source-specific recovery is a separate currently authorized acquisition. Installed response/ACK loss, crash, late acknowledgement and no-reentry cases exercise real entry paths. |
 | Truthful record claims | Existing gateway-kernel outcome/transition Kani harnesses, inventoried by `xtask/src/formal.rs` | Public history/private audit distinguish signed intent, admission, possible entry, provider response, observed linkage and unknown. Signatures do not establish human presence, provider truth, timestamp truth or current eligibility. |
@@ -84,16 +84,17 @@ own trusted head or prove the operator followed the deployment protocol. A
 missing/untrusted head is an explicit inability to establish safe restoration.
 Do not describe audit rejection as a cryptographic whole-store rollback detector.
 
-## Remaining bounded closure work
+## Engineering closure and remaining acceptance
 
 1. Native-records artifact construction is complete for the local boundary: all
    eight installed scenarios passed. Exact-head source-free Linux evidence remains
    a hosted gate.
-2. Reuse the existing checked sum primitive at the ancestor allocator and add the
-   reverse stale-prefix/current-checkpoint audit case. Preserve zero-byte behavior,
-   all immutable row checks and common transaction ownership.
-3. Construct only changed identities/inventories/fixtures, freeze source-linked
-   formal evidence, then publish the complete implementation once. Run and inspect
+2. The exact-source sum-guard reuse and reverse stale-prefix/current-checkpoint
+   case passed their twelve affected artifact constructors, including all eight
+   installed scenarios. Zero-byte arithmetic semantics and existing store/fence
+   checks are preserved; configured PostgreSQL and broader acceptance remain hosted.
+3. Required changed identities/inventories/fixtures and source-linked formal
+   metadata are constructed. Publish the complete implementation, then run and inspect
    the authoritative exact-head hosted CI, formal, PG, binding, source-free package
    and release checks. Repair actual failures in a bounded collected cohort.
 
