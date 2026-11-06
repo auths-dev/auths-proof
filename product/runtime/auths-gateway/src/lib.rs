@@ -21,6 +21,9 @@ pub use engine::{
     GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
 };
 mod configuration;
+pub use configuration::{
+    EngagementConfiguration, EngagementConfigurationError, EngagementConfigurationSnapshot,
+};
 mod connection;
 mod control_namespace;
 mod credential_journal;

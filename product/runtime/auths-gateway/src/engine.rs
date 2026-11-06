@@ -750,6 +750,30 @@ impl GatewayEngine {
         self.shared_configuration()?.initialize(&self.qualification)
     }
 
+    /// Builds a trusted control-plane handle for independently installed root
+    /// pins. Applications cannot select root pins through an effect submission.
+    /// Root publication still needs native control/resource proofs under the
+    /// existing store fence and current installed configuration.
+    ///
+    /// This performs no I/O, enrollment, reservation or provider action. A
+    /// handle is configuration, not permission to execute a scoped effect.
+    ///
+    /// # Errors
+    /// Refuses invalid root commitments, missing configuration or invalid pins.
+    pub fn engagement_configuration(
+        &self,
+        root: crate::participant_enrollment::ParentEnrollmentPins,
+    ) -> Result<crate::EngagementConfiguration, crate::EngagementConfigurationError> {
+        crate::configuration::EngagementConfiguration::new(
+            self.attempts.store(),
+            root,
+            self.trusted_context.clone(),
+            self.shared_configuration()
+                .map_err(|_| crate::EngagementConfigurationError::Configuration)?,
+            Arc::clone(&self.qualification),
+        )
+    }
+
     /// Returns the private native commitment to this candidate installation.
     /// This is review data, never permission to replace shared configuration.
     ///

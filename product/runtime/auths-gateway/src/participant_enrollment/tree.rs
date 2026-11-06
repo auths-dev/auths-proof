@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_TREE_BYTES: usize = 196_608;
-const SCHEMA: &str = "auths.engagement-enrollment-tree/2";
+const SCHEMA: &str = "auths.engagement-enrollment-tree/3";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -87,6 +87,71 @@ impl EnrollmentTree {
         principal: &str,
     ) -> Result<ParentEnrollmentPins, EnrollmentTreeError> {
         self.pins_for(self.principal_commitment(principal)?)
+    }
+
+    pub(crate) fn active_principal_path(
+        &self,
+        principal: &str,
+        now: u64,
+    ) -> Result<Vec<ParentEnrollmentPins>, EnrollmentTreeError> {
+        self.active_path(self.principal_commitment(principal)?, now)?
+            .into_iter()
+            .map(|id| self.pins_for(id))
+            .collect()
+    }
+
+    /// Verify a current enrolled controller's exact withdrawal action. It may
+    /// revoke itself or a descendant, never a sibling, ancestor or another root.
+    /// This mutates only data; the configuration owner must hold the common
+    /// adapter writer fence and acknowledge persistence before publishing it.
+    ///
+    /// # Errors
+    /// Refuses stale or invalid native authority, inactive callers, a substituted
+    /// root, a different control-grant suffix or a target outside the subtree.
+    pub fn revoke_authorized(
+        &mut self,
+        context: &TrustedContext,
+        now: u64,
+        invocation: &super::EnrollmentInvocation<'_>,
+    ) -> Result<(), EnrollmentTreeError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Withdrawal {
+            root_enrollment: [u8; 32],
+            participant: [u8; 32],
+        }
+        super::bounded_invocations(std::iter::once(*invocation))?;
+        let (command, branch) = super::native_invocation(
+            context,
+            now,
+            *invocation,
+            super::PARTICIPANT_SERVICE,
+            super::REVOKE_PARTICIPANT_TOOL,
+        )?;
+        let withdrawal: Withdrawal =
+            serde_json::from_value(serde_json::Value::Object(command.arguments().clone()))
+                .map_err(|_| EnrollmentTreeError::Binding)?;
+        if withdrawal.root_enrollment != self.root.enrollment_commitment {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        let caller = self.active_principal_path(branch.actor.as_str(), now)?;
+        let expected: Vec<_> = caller.iter().map(|pins| pins.control_grant).collect();
+        let actual = branch
+            .chain
+            .iter()
+            .map(super::grant_identifier)
+            .collect::<Result<Vec<_>, _>>()?;
+        let caller_id = caller
+            .last()
+            .ok_or(EnrollmentTreeError::Binding)?
+            .enrollment_commitment;
+        if expected.is_empty()
+            || !actual.ends_with(&expected)
+            || !self.ancestry(withdrawal.participant)?.contains(&caller_id)
+        {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        self.revoke(withdrawal.participant)
     }
 
     /// Verify the exact current native resource branch against the complete
@@ -338,12 +403,15 @@ impl EnrollmentTree {
         verified: VerifiedParticipantEnrollment,
     ) -> Result<[u8; 32], EnrollmentTreeError> {
         let descriptor = verified.enrollment;
+        let principal = PrincipalId::parse(&descriptor.child_principal)
+            .map_err(|_| EnrollmentTreeError::Binding)?;
         if self.children.contains_key(&descriptor.enrollment_id)
-            || descriptor.child_principal == self.root.principal.as_str()
+            || crate::principals_overlap(&principal, &self.root.principal)
             || verified.commitment == self.root.enrollment_commitment
             || self.children.values().any(|child| {
-                child.descriptor.child_principal == descriptor.child_principal
-                    || child.commitment == verified.commitment
+                PrincipalId::parse(&child.descriptor.child_principal).map_or(true, |existing| {
+                    crate::principals_overlap(&existing, &principal)
+                }) || child.commitment == verified.commitment
             })
         {
             return Err(EnrollmentTreeError::Replay);
@@ -462,12 +530,16 @@ impl EnrollmentTree {
     }
 
     fn validate_records(&self) -> Result<(), EnrollmentTreeError> {
-        let mut principals = BTreeSet::from([self.root.principal.as_str()]);
+        let mut principals = vec![self.root.principal.clone()];
         let mut commitments = BTreeSet::from([self.root.enrollment_commitment]);
         for (id, child) in &self.children {
             let descriptor = &child.descriptor;
+            let principal = PrincipalId::parse(&descriptor.child_principal)
+                .map_err(|_| EnrollmentTreeError::Corrupt)?;
             if id != &descriptor.enrollment_id
-                || !principals.insert(&descriptor.child_principal)
+                || principals
+                    .iter()
+                    .any(|existing| crate::principals_overlap(existing, &principal))
                 || !commitments.insert(child.commitment)
                 || descriptor
                     .commitment()
@@ -476,6 +548,7 @@ impl EnrollmentTree {
             {
                 return Err(EnrollmentTreeError::Corrupt);
             }
+            principals.push(principal);
             self.ancestry(child.commitment)
                 .map_err(|_| EnrollmentTreeError::Corrupt)?;
             let mut parent = self

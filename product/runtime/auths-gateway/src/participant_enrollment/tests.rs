@@ -11,6 +11,9 @@ use auths_model::{
 use auths_profile_mcp::McpToolCall;
 use serde_json::{Map, json};
 
+#[path = "configuration_tests.rs"]
+mod configuration_tests;
+
 const NOW: u64 = 1_790_000_000;
 const RESOURCE_SERVICE: &str = "engagement-records";
 const RESOURCE_TOOL: &str = "read_record";
@@ -18,6 +21,7 @@ const CONTROL_TOOLS: &[&str] = &[
     ACTIVATE_ROOT_TOOL,
     ENROLL_PARTICIPANT_TOOL,
     ACCEPT_PARTICIPANT_TOOL,
+    REVOKE_PARTICIPANT_TOOL,
 ];
 
 pub(crate) fn grant(
@@ -210,6 +214,7 @@ impl Fixture {
                 (PARTICIPANT_SERVICE, ACTIVATE_ROOT_TOOL),
                 (PARTICIPANT_SERVICE, ENROLL_PARTICIPANT_TOOL),
                 (PARTICIPANT_SERVICE, ACCEPT_PARTICIPANT_TOOL),
+                (PARTICIPANT_SERVICE, REVOKE_PARTICIPANT_TOOL),
                 (RESOURCE_SERVICE, RESOURCE_TOOL),
             ],
             &[resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
@@ -337,6 +342,8 @@ fn parent_pins(
         writes: 1,
     };
     ParentEnrollmentPins {
+        admission_namespace: "engagement-authority".into(),
+        admission_partition: "shared-partition".into(),
         active: true,
         engagement_commitment: [1; 32],
         partition_generation: 2,
@@ -351,11 +358,13 @@ fn parent_pins(
         permitted_channels: BTreeMap::from([(
             "agent-b-channel".to_owned(),
             EnrollmentChannelPins {
+                channel_binding: [0x76; 32],
                 principal: child.principal.clone(),
                 instance_generation: 1,
             },
         )]),
         scopes: vec![EnrollmentScopePins {
+            connection_binding: [0x75; 32],
             scope_id: "project-a-read".to_owned(),
             recipe_digest: "ab".repeat(32),
             parent_grant: grant_id(parent_resource.statement()).unwrap(),
@@ -781,6 +790,7 @@ fn enrollment_tree_bounds_include_root_and_revoked_records() {
         pins.permitted_channels.insert(
             format!("channel-{index}"),
             EnrollmentChannelPins {
+                channel_binding: [0x76; 32],
                 principal: Signer::new(0x50 + index).principal,
                 instance_generation: 1,
             },
@@ -861,6 +871,7 @@ fn enrollment_tree_restores_revocations_and_rejects_changed_installation() {
                 installed.permitted_channels.insert(
                     "another-channel".into(),
                     EnrollmentChannelPins {
+                        channel_binding: [0x76; 32],
                         principal: fixture.child.principal.clone(),
                         instance_generation: 1,
                     },
@@ -945,6 +956,7 @@ fn enrollment_tree_native_grandchild_keeps_full_scope_path_and_parent_revocation
     fixture.pins.permitted_channels.insert(
         "grandchild-channel".into(),
         EnrollmentChannelPins {
+            channel_binding: [0x76; 32],
             principal: Signer::new(0x55).principal,
             instance_generation: 1,
         },
@@ -1069,6 +1081,74 @@ impl Fixture {
         pins
     }
 
+    fn commit_root(&mut self) {
+        self.pins = self.committed_root();
+        self.enrollment.parent_enrollment = self.pins.enrollment_commitment;
+    }
+
+    fn withdraw_as_parent(&self, participant: [u8; 32]) -> Submission {
+        chained(
+            &[&self.root, &self.parent],
+            &[&self.parent_control],
+            PARTICIPANT_SERVICE,
+            REVOKE_PARTICIPANT_TOOL,
+            json!({"root_enrollment": self.pins.enrollment_commitment,
+                "participant": participant})
+            .as_object()
+            .unwrap(),
+        )
+    }
+
+    fn withdraw_as_child(&self, participant: [u8; 32]) -> Submission {
+        chained(
+            &[&self.root, &self.parent, &self.child],
+            &[&self.parent_control, &self.child_control],
+            PARTICIPANT_SERVICE,
+            REVOKE_PARTICIPANT_TOOL,
+            json!({"root_enrollment": self.pins.enrollment_commitment,
+                "participant": participant})
+            .as_object()
+            .unwrap(),
+        )
+    }
+
+    fn bootstrap_configuration(
+        &self,
+        controller: &crate::EngagementConfiguration,
+    ) -> Result<crate::EngagementConfigurationSnapshot, crate::EngagementConfigurationError> {
+        let activation = self.root_activation(&self.pins);
+        let resource = self.root_resource("record-a", &self.parent_resource);
+        let resources = [EnrollmentResourceWitness {
+            scope_id: "project-a-read",
+            invocation: invocation(&resource),
+        }];
+        controller.bootstrap(&RootEnrollmentProofs {
+            activation: invocation(&activation),
+            resources: &resources,
+        })
+    }
+
+    fn enroll_configuration(
+        &self,
+        controller: &crate::EngagementConfiguration,
+    ) -> Result<crate::EngagementConfigurationSnapshot, crate::EngagementConfigurationError> {
+        let parent = self.parent_proof(&self.enrollment);
+        let child = self.child_proof(&self.enrollment);
+        let resource = self.resource_proof("record-a");
+        let resources = [EnrollmentResourceWitness {
+            scope_id: "project-a-read",
+            invocation: invocation(&resource),
+        }];
+        controller.enroll(
+            self.pins.enrollment_commitment,
+            &ParticipantEnrollmentProofs {
+                parent: invocation(&parent),
+                child: invocation(&child),
+                resources: &resources,
+            },
+        )
+    }
+
     fn root_activation(&self, pins: &ParentEnrollmentPins) -> Submission {
         chained(
             &[&self.root, &self.parent],
@@ -1146,7 +1226,7 @@ fn root_bootstrap_commitment_covers_every_immutable_installation_dimension() {
     let pins = fixture.committed_root();
     let activation = fixture.root_activation(&pins);
     let resource = fixture.root_resource("record-a", &fixture.parent_resource);
-    for mutation in 0..21 {
+    for mutation in 0..25 {
         let mut changed = pins.clone();
         match mutation {
             0 => changed.engagement_commitment[0] ^= 1,
@@ -1184,6 +1264,16 @@ fn root_bootstrap_commitment_covers_every_immutable_installation_dimension() {
                     .get_mut("agent-b-channel")
                     .unwrap()
                     .principal = fixture.parent.principal.clone();
+            }
+            21 => changed.admission_namespace = "another-authority".into(),
+            22 => changed.admission_partition = "another-partition".into(),
+            23 => changed.scopes[0].connection_binding[0] ^= 1,
+            24 => {
+                changed
+                    .permitted_channels
+                    .get_mut("agent-b-channel")
+                    .unwrap()
+                    .channel_binding[0] ^= 1
             }
             _ => {
                 let channel = changed
@@ -1807,14 +1897,19 @@ proptest::proptest! {
 /// A valid enrollment is still a proposal, never a provider/delivery permit.
 #[test]
 fn native_participant_enrollment_fixture_is_current() {
-    let fixture = Fixture::new();
+    let mut fixture = Fixture::new();
+    fixture.commit_root();
     let parent = fixture.parent_proof(&fixture.enrollment);
     let child = fixture.child_proof(&fixture.enrollment);
     let resource = fixture.resource_proof("record-a");
     let verified = fixture
         .verify(&fixture.enrollment, &fixture.enrollment, &resource)
         .unwrap();
-    let mut tree = EnrollmentTree::new(fixture.pins.clone()).unwrap();
+    let activation = fixture.root_activation(&fixture.pins);
+    let root_resource = fixture.root_resource("record-a", &fixture.parent_resource);
+    let mut tree = fixture
+        .bootstrap_with(&fixture.pins, &activation, &root_resource, NOW)
+        .unwrap();
     fixture.enroll_tree(&mut tree).unwrap();
     let native_inputs = |signed: &Submission| {
         json!({"proof_cbor_hex": hex::encode(&signed.proof),
@@ -1846,13 +1941,15 @@ fn native_participant_enrollment_fixture_is_current() {
         )
         .unwrap();
     let value = json!({
-        "schema": "auths.participant-enrollment-vectors/1",
-        "claim_boundary": "native enrollment and scope verification only; no durable admission or entry",
+        "schema": "auths.participant-enrollment-vectors/2",
+        "claim_boundary": "native root, enrollment and scope verification only; no durable admission or entry",
         "evaluation_time": NOW,
         "context_cbor_hex": hex::encode(auths_codec::encode_verifier_context(&fixture.context).unwrap()),
         "parent_pins": fixture.pins,
         "enrollment": fixture.enrollment,
         "commitment_hex": hex::encode(verified.commitment()),
+        "root_activation": native_inputs(&activation),
+        "root_resource_invocation": native_inputs(&root_resource),
         "parent_invocation": native_inputs(&parent),
         "child_invocation": native_inputs(&child),
         "resource_invocation": native_inputs(&resource),

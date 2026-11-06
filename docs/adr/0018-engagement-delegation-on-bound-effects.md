@@ -47,6 +47,40 @@ flowchart LR
 
 ## Exact relations
 
+The root contract is `auths.engagement-root/3`. It includes the shared admission
+authority namespace/partition, exact connection commitments for resource scopes,
+and native transport-policy commitments for registered channels. Recipe-local
+replay partitions remain distinct from shared engagement accounting. Changing
+these pins requires a fresh signed root; identifiers alone cannot substitute for
+the approved account/credential or channel. The tree is version 3, with no
+version 2 reader.
+
+`configuration::EngagementConfiguration` stores only enrollment/withdrawal data
+as an `EffectConfiguration` row under `auths.engagement-configuration-key/1`.
+This is an additional authorization-configuration format in the existing opaque
+record kind, not a new store or task/operation ledger. All insert/replacement
+decisions use the same file/PostgreSQL writer fence, an installed-configuration
+dependency and the existing deployment clock. One record can be referenced by
+multiple recipe workers. It owns no usage count, operation result or capability.
+Operation admission and entry still require integration with that dependency
+and with typed ancestor allocations before executable delegation is supported.
+
+Native subtree withdrawal requires a currently active enrolled controller and
+the exact selected control-grant suffix. A controller may withdraw itself or a
+descendant, not an ancestor or sibling. The signed action binds the root and
+target commitments. Repeated withdrawal by a still-authorized controller is
+idempotent. History retains IDs, ancestry and revocations after restart. A
+qualification eligibility failure is not an additional narrowing-only withdrawal
+gate; current installed configuration, qualification memory and trusted-time
+policy still apply. Independent operator emergency stop remains available when
+those inputs cannot establish current authority.
+
+Configuration acknowledges only after native persistence succeeds. A lost
+commit reply reports uncertainty/error even if later inspection finds the new
+child. It does not publish a provider permit or silently retry enrollment.
+Restoring the complete protected store remains outside rollback detection in the
+absence of an independent monotonic floor.
+
 Initiation, control, resource authority and human approval are independent roles.
 Operator installation pins the engagement, partition/epoch, resource scopes,
 channels and root authority. A root must prove native holder control and each
@@ -60,7 +94,10 @@ One participant principal identifies one commissioned instance in a tree.
 This requires distinct protected instance keys: a generation label or native
 signature alone does not prove process uniqueness or isolation after key theft.
 The installed boundary and identity lifecycle evidence must establish those
-assumptions separately. Revocation and expiry retain ancestry and IDs. Recovery rotates into a distinct
+assumptions separately. Recognized raw-key/`did:key` aliases use the existing shared key-identity
+comparison and cannot create independent participants. Other identity methods
+retain their declared comparison limits. Revocation and expiry retain ancestry
+and IDs. Recovery rotates into a distinct
 instance/epoch with fresh authority; it never makes old grants or descendants
 eligible again. Federation requires explicit resource-side trust and acceptance;
 an authenticated foreign identity conveys no resource permission.

@@ -34,6 +34,8 @@ pub use crate::control_namespace::PARTICIPANT_SERVICE;
 pub const ENROLL_PARTICIPANT_TOOL: &str = "enroll_participant_v1";
 /// Child-authorized acceptance of the enrollment commitment.
 pub const ACCEPT_PARTICIPANT_TOOL: &str = "accept_participant_v1";
+/// Native control action withdrawing one enrolled subtree.
+pub const REVOKE_PARTICIPANT_TOOL: &str = "revoke_participant_v1";
 /// Direct schema for the new enrollment contract.
 pub const PARTICIPANT_ENROLLMENT_SCHEMA: &str = "auths.participant-enrollment/1";
 pub(crate) const MAX_SCOPES: usize = 16;
@@ -165,7 +167,8 @@ impl ParticipantEnrollment {
             || !identifier(&self.delivery_channel)
             || self.child_instance_generation == 0
             || PrincipalId::parse(&self.child_principal).is_err()
-            || self.child_principal == parent.principal.as_str()
+            || PrincipalId::parse(&self.child_principal)
+                .is_ok_and(|principal| crate::principals_overlap(&principal, &parent.principal))
             || self.scopes.is_empty()
             || self.scopes.len() > MAX_SCOPES
             || self.scopes.iter().any(|scope| !identifier(&scope.scope_id))
@@ -298,6 +301,9 @@ fn require_resource_witness(
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnrollmentScopePins {
+    /// Exact native commitment to the approved connection record. This pins
+    /// account, credential generation and installation independently of a name.
+    pub connection_binding: [u8; 32],
     /// Immutable root scope identifier.
     pub scope_id: String,
     /// Exact compiled recipe identity; it separates this native resource audience.
@@ -320,6 +326,8 @@ pub struct EnrollmentScopePins {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnrollmentChannelPins {
+    /// Registered native transport-policy commitment, never a caller URL.
+    pub channel_binding: [u8; 32],
     /// Native recipient identity authenticated by the channel.
     #[serde(with = "principal_encoding")]
     pub principal: PrincipalId,
@@ -333,6 +341,10 @@ pub struct EnrollmentChannelPins {
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParentEnrollmentPins {
+    /// Shared admission authority namespace, independent of a recipe namespace.
+    pub admission_namespace: String,
+    /// Shared authority partition used across this engagement's recipes.
+    pub admission_partition: String,
     /// Parent is live in the authenticated snapshot.
     pub active: bool,
     /// Immutable root engagement commitment.
@@ -541,7 +553,9 @@ fn child_link(
 }
 
 fn bounded_parent(parent: &ParentEnrollmentPins) -> Result<(), ParticipantEnrollmentError> {
-    if parent.scopes.is_empty()
+    if crate::OperatorNamespace::parse(&parent.admission_namespace).is_err()
+        || !identifier(&parent.admission_partition)
+        || parent.scopes.is_empty()
         || parent.scopes.len() > MAX_SCOPES
         || parent.permitted_channels.len() > MAX_PARTICIPANTS
         || parent.partition_generation == 0

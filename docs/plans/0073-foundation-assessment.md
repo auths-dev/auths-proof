@@ -171,3 +171,81 @@ artifact constructor executions do not establish the rest of the written native
 cases, generated properties, installed bindings, concurrency, formal or hosted
 acceptance. No CI push/observation, merge, deployment or provider operation was
 performed. Full M0–M4/F01–F16 remains active.
+
+
+## Shared engagement configuration batch
+
+The previous turn made source and artifact progress in `606f9747`; it was not
+AP073 closure. This batch adds native enrollment configuration to the same
+adapter store and writer fence. No operation/usage ledger, execution permit or
+approval authority is added. The root contract directly cuts over to version 3
+with a shared authority namespace/partition, exact connection commitments and
+registered native channel commitments. The tree cuts over to version 3; old
+prelaunch root/tree forms are refused.
+
+The complete planned source/test batch covers: root commitment substitution in
+all new dimensions; native controller/sibling/ancestor withdrawal restrictions;
+file and TLS PostgreSQL bootstrap, concurrent enrollment, reopen, retained
+revocation, configuration withdrawal and clock rollback; an actual committed
+write with a lost acknowledgement; and clock advancement inside the adapter's
+native decision callback. Private snapshots must retain history without granting
+new eligibility. All cases are written before the required corpus/semantic
+artifact constructors run. Broader hosted gates remain deferred until the full
+implementation is ready, as requested.
+
+The operation effect compiler, atomic ancestor reservations and final-entry
+participant dependency read set still need integration. Adding protected
+configuration alone does not close F04/F09/F11 or permit a scoped provider call.
+
+
+### Additional reviewed boundaries in this batch
+
+Known raw-key/`did:key` aliases now use the existing central
+`principals_overlap` relation at descriptor validation, retained-ID publication
+and stored-tree validation. Distinct identifiers for the same recognized key
+cannot create independent participants. Other identity methods retain their
+explicit existing comparison limits; process uniqueness still needs protected
+instance keys and deployment evidence. Two native/serialized adversarial cases
+are included in the batch, bringing its new configuration/control cases to 14.
+
+The root corpus cuts over to `auths.participant-enrollment-vectors/2` and now
+contains a natively verified version 3 root activation and resource witness,
+not an arbitrary synthetic root commitment. Broader adapter and fault cases
+remain source-authored until their required hosted execution.
+
+**F16 audit gap:** the protected enrollment configuration currently retains
+immutable descriptors, ancestry and withdrawal state, but not the full original
+control proofs or a per-transition native-input/time receipt. It is historical
+configuration data, not independent cryptographic evidence of each past consent
+or revocation decision. The complete audit/export work must bind the original
+native inputs, trusted context and decision time (and truthfully report missing
+inputs) before making an independent enrollment-audit claim. Do not infer that
+claim from successful decoding or a signed operation receipt.
+
+
+The batch also includes the required private configuration-record corpus
+constructor, `native_engagement_configuration_fixture_is_current`. It builds
+actual file-adapter records through native root bootstrap, child enrollment and
+withdrawal; reopens the adapter and checks that replay/expiry sweeping do not
+reactivate or delete that history. The corpus labels its missing original-proof
+retention and its lack of operation/permit claims. This is the third required
+artifact constructor, alongside the revised root/enrollment corpus and semantic
+closure. It does not execute the remaining concurrent/TLS/fault cases or qualify
+independent enrollment audit.
+
+
+### Confirmed configuration artifacts, 6 November 2026
+
+After the full planned source/test batch was written, all three required local
+artifact constructors passed: `native_participant_enrollment_fixture_is_current`,
+`native_engagement_configuration_fixture_is_current`, and
+`semantic_closure_is_current`, each through `AUTHS_UPDATE_FIXTURES=1
+CARGO_BUILD_JOBS=4 cargo test -p auths-gateway --lib <filter>`. The native default
+library target compiled with 336 cases; only the three named constructors ran.
+The retained logs are `/tmp/ap073-configuration-batch-{root-enrollment,configuration,semantic-closure}.log`.
+The orchestration process is terminal. No broader concurrency, PostgreSQL,
+binding, formal or hosted gate is claimed. No push or CI observation occurred.
+
+The pause/resume changed goal scheduling only. On resumption the native goal
+service reports `active`; the current source and constructor logs were reread.
+Full M0–M4/F01–F16 remains open.

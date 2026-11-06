@@ -108,6 +108,14 @@ retained charges and time before acknowledging a new grant. Revocation writers
 participate in this fence. Earlier grants retain AP074's conservative semantics;
 recorded state or restart cannot reconstruct a permit.
 
+The current signed root schema is `auths.engagement-root/3`, with tree schema
+`auths.engagement-enrollment-tree/3`. It pins the shared authority namespace and
+partition, exact resource connection commitments and registered native channel
+commitments. The native configuration owner persists enrollment/withdrawal under
+the existing gateway adapter fence and installed-configuration dependency.
+These control facts do not yet constitute operation admission: complete effect
+scope, ancestor reservations and final-entry dependencies remain required.
+
 ### 4.3 Evidence and implementation boundaries
 
 The preserved checkpoint contains candidate native enrollment and attenuation

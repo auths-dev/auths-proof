@@ -14,6 +14,11 @@ use auths_recipe_qualification::{
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, sync::Arc};
 
+mod engagement;
+pub use engagement::{
+    EngagementConfiguration, EngagementConfigurationError, EngagementConfigurationSnapshot,
+};
+
 const SCHEMA: &str = "auths.effect-configuration/2";
 const MAX_BYTES: usize = 131_072;
 const MAX_INTEGER: u64 = (1 << 53) - 1;

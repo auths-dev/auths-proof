@@ -29,6 +29,8 @@ pub struct RootEnrollmentProofs<'a> {
 // the immutable parent ID used by every descendant.
 #[derive(Serialize)]
 struct RootCommitment<'a> {
+    admission_namespace: &'a str,
+    admission_partition: &'a str,
     schema: &'static str,
     engagement_commitment: &'a [u8; 32],
     partition_generation: u64,
@@ -58,7 +60,9 @@ pub fn root_enrollment_commitment(
 ) -> Result<[u8; 32], ParticipantEnrollmentError> {
     bounded_parent(pins)?;
     let body = RootCommitment {
-        schema: "auths.engagement-root/2",
+        schema: "auths.engagement-root/3",
+        admission_namespace: &pins.admission_namespace,
+        admission_partition: &pins.admission_partition,
         engagement_commitment: &pins.engagement_commitment,
         partition_generation: pins.partition_generation,
         principal: pins.principal.as_str(),
@@ -76,7 +80,7 @@ pub fn root_enrollment_commitment(
     if bytes.len() > MAX_ACTION_BYTES {
         return Err(ParticipantEnrollmentError::Invalid);
     }
-    auths_codec::domain_commitment("auths.engagement-root.v2", &bytes)
+    auths_codec::domain_commitment("auths.engagement-root.v3", &bytes)
         .map(|digest| *digest.as_bytes())
         .map_err(|_| ParticipantEnrollmentError::Invalid)
 }
