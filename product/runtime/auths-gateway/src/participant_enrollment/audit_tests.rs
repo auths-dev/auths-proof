@@ -336,11 +336,11 @@ fn native_engagement_audit_fixture_is_current() {
 }
 
 #[test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 fn postgres_native_original_control_audit_and_acknowledgement_history() {
-    if postgres_configured() {
-        lifecycle(Backend::Postgres);
-        acknowledgements(Backend::Postgres);
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    lifecycle(Backend::Postgres);
+    acknowledgements(Backend::Postgres);
 }
 
 proptest::proptest! {

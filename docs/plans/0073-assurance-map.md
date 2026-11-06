@@ -64,6 +64,15 @@ reimplementing an already covered owner is not remaining work.
 | F15 | Configuration/generation dependencies, epoch separation, retained replay, independent-checkpoint audit and native malformed histories | Explicit restore protocol and stale-prefix check; external authenticated floor remains a deployment premise |
 | F16 | Complete native private review, redacted public timeline, truthful Unknown/reconciliation and original control audit | Exact-head private/public conformance and packaged interface evidence |
 
+The configured TLS batch runs every registered PostgreSQL case with
+`--include-ignored postgres` and both native testkit features, rejects a zero-test
+or ignored-only result, and retains the selected-batch log. Twenty AP073 cases
+previously returned successfully when the fixture was absent and were omitted by
+the old `--ignored`-only selection. They now declare their fixture requirement,
+are ignored in ordinary workspace runs, and fail if explicitly invoked without
+that fixture. Earlier green backend jobs did not establish those twenty cases;
+acceptance requires the corrected batch on the current head.
+
 The native records composition exercises the existing records service and sealed
 store behind the protected dispatch credential. Domain proof/presentation and
 AP073 participant authority remain distinct required facts. Native records policy

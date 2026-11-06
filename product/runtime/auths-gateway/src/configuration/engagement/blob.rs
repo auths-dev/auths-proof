@@ -209,9 +209,9 @@ mod tests {
         multiple_batches(Backend::File);
     }
     #[test]
+    #[ignore = "requires the TLS PostgreSQL fixture"]
     fn postgres_private_blob_spans_atomic_groups_without_creating_authority() {
-        if postgres_configured() {
-            multiple_batches(Backend::Postgres);
-        }
+        assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+        multiple_batches(Backend::Postgres);
     }
 }

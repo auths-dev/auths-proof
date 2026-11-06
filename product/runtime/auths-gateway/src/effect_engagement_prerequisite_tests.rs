@@ -368,10 +368,10 @@ async fn native_engagement_prerequisite_fixture_is_current() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_prerequisite_read_charges_and_acknowledgements() {
-    if postgres_configured() {
-        Box::pin(lifecycle(Backend::Postgres)).await;
-        Box::pin(acknowledgement_loss(Backend::Postgres)).await;
-        Box::pin(withdrawn_actor(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(lifecycle(Backend::Postgres)).await;
+    Box::pin(acknowledgement_loss(Backend::Postgres)).await;
+    Box::pin(withdrawn_actor(Backend::Postgres)).await;
 }

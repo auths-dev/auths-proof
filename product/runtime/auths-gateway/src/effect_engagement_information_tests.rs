@@ -434,10 +434,10 @@ async fn native_engagement_information_fixture_is_current() {
 }
 
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_information_scope_and_ancestor_accounting() {
-    if postgres_configured() {
-        Box::pin(information_lifecycle(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(information_lifecycle(Backend::Postgres)).await;
 }
 
 async fn recipient_withdrawal_before_reservation(backend: Backend) {
@@ -483,10 +483,10 @@ async fn recipient_withdrawal_before_reservation(backend: Backend) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_current_recipient_withdrawal_prevents_information_reservation() {
-    if postgres_configured() {
-        Box::pin(recipient_withdrawal_before_reservation(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(recipient_withdrawal_before_reservation(Backend::Postgres)).await;
 }
 
 async fn zero_content(backend: Backend) {
@@ -531,10 +531,10 @@ async fn file_empty_native_content_still_reserves_disclosure_count() {
     Box::pin(zero_content(Backend::File)).await;
 }
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_empty_native_content_still_reserves_disclosure_count() {
-    if postgres_configured() {
-        Box::pin(zero_content(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(zero_content(Backend::Postgres)).await;
 }
 
 async fn recovery_after_writer_withdrawal(backend: Backend) {
@@ -625,8 +625,8 @@ async fn file_native_recovery_uses_current_reader_after_writer_withdrawal() {
     Box::pin(recovery_after_writer_withdrawal(Backend::File)).await;
 }
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_recovery_uses_current_reader_after_writer_withdrawal() {
-    if postgres_configured() {
-        Box::pin(recovery_after_writer_withdrawal(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(recovery_after_writer_withdrawal(Backend::Postgres)).await;
 }

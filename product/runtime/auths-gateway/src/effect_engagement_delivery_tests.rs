@@ -710,8 +710,8 @@ async fn native_engagement_live_delivery_fixture_is_current() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_scoped_live_delivery_and_recovery() {
-    if postgres_configured() {
-        corpus(Backend::Postgres).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    corpus(Backend::Postgres).await;
 }

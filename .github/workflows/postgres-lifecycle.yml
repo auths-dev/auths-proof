@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup-rust-cache
         with:
@@ -52,7 +53,15 @@ jobs:
           mkdir -p target
           {
           failures=0
-          cargo test -p auths-gateway --lib -- --ignored postgres || failures=$((failures + 1))
+          # Run every registered PostgreSQL case, including tests whose ignore
+          # annotation changes. Without the fixture, cases must be ignored or
+          # fail explicitly; a successful early return is not backend evidence.
+          if ! cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --include-ignored postgres 2>&1 | tee target/ap073-postgresql-all.log; then
+            failures=$((failures + 1))
+          elif ! grep -Eq 'test result: ok\. [1-9][0-9]* passed; 0 failed; 0 ignored;' target/ap073-postgresql-all.log; then
+            echo "The configured PostgreSQL batch did not execute its selected tests"
+            failures=$((failures + 1))
+          fi
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current || failures=$((failures + 1))
@@ -212,6 +221,7 @@ jobs:
         with:
           name: ap074-information-differential-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            target/ap073-postgresql-all.log
             target/ap074-native-adapter-evidence.log
             target/ap074-independent-information-differential.json
           if-no-files-found: error

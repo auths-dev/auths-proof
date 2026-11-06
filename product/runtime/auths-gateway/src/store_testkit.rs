@@ -313,6 +313,12 @@ fn admin_client() -> Client {
 
 /// Runs blocking `PostgreSQL` client work on a plain thread; the sync client
 /// may not run on an async executor thread.
-fn off_runtime<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    std::thread::spawn(work).join().expect("off-runtime work")
+/// Executes synchronous fixture I/O outside the caller's Tokio runtime.
+/// Scoped borrowing keeps store inspection on this same boundary without
+/// cloning or moving the fixture's ownership and cleanup responsibilities.
+///
+/// # Panics
+/// Propagates a panic from the test operation.
+pub(crate) fn off_runtime<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    std::thread::scope(|scope| scope.spawn(work).join().expect("off-runtime work"))
 }

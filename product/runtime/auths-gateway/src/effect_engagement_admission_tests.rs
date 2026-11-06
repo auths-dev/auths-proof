@@ -479,10 +479,10 @@ async fn file_native_ancestor_admission_survives_replay_and_reopen() {
     Box::pin(lifecycle(Backend::File)).await;
 }
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_ancestor_admission_survives_replay_and_reopen() {
-    if postgres_configured() {
-        Box::pin(lifecycle(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(lifecycle(Backend::Postgres)).await;
 }
 
 async fn concurrent_siblings(backend: Backend) {
@@ -525,10 +525,10 @@ async fn file_independent_adapters_cannot_double_spend_the_last_root_unit() {
     Box::pin(concurrent_siblings(Backend::File)).await;
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_independent_adapters_cannot_double_spend_the_last_root_unit() {
-    if postgres_configured() {
-        Box::pin(concurrent_siblings(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(concurrent_siblings(Backend::Postgres)).await;
 }
 
 async fn acknowledgement_loss(backend: Backend, grant: bool) {
@@ -590,11 +590,11 @@ async fn file_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remin
     Box::pin(acknowledgement_loss(Backend::File, true)).await;
 }
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint() {
-    if postgres_configured() {
-        Box::pin(acknowledgement_loss(Backend::Postgres, false)).await;
-        Box::pin(acknowledgement_loss(Backend::Postgres, true)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(acknowledgement_loss(Backend::Postgres, false)).await;
+    Box::pin(acknowledgement_loss(Backend::Postgres, true)).await;
 }
 
 async fn missing_allocation(backend: Backend) {
@@ -630,10 +630,10 @@ async fn file_incomplete_allocation_snapshot_cannot_grant_entry() {
     Box::pin(missing_allocation(Backend::File)).await;
 }
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_incomplete_allocation_snapshot_cannot_grant_entry() {
-    if postgres_configured() {
-        Box::pin(missing_allocation(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(missing_allocation(Backend::Postgres)).await;
 }
 
 async fn revocation(backend: Backend, after_claim: bool) {
@@ -699,11 +699,11 @@ async fn file_native_root_revocation_orders_before_claim_or_entry() {
     Box::pin(revocation(Backend::File, true)).await;
 }
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_root_revocation_orders_before_claim_or_entry() {
-    if postgres_configured() {
-        Box::pin(revocation(Backend::Postgres, false)).await;
-        Box::pin(revocation(Backend::Postgres, true)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(revocation(Backend::Postgres, false)).await;
+    Box::pin(revocation(Backend::Postgres, true)).await;
 }
 
 #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
@@ -743,10 +743,9 @@ async fn file_partial_ancestor_batch_io_failures_reopen_without_partial_admissio
 }
 #[cfg(all(unix, feature = "loopback-provider", feature = "testkit-harness"))]
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_server_rejection_rolls_back_operation_and_all_ancestor_rows() {
-    if !postgres_configured() {
-        return;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
     for fail_at in 1..=3 {
         let setup = Setup::new(Backend::Postgres).await;
         setup.backend.reject_postgres_batch_insert(fail_at);
@@ -820,8 +819,8 @@ async fn file_winner_after_history_lookup_reopens_without_a_second_charge() {
     Box::pin(winner_after_lookup(Backend::File)).await;
 }
 #[tokio::test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_winner_after_history_lookup_reopens_without_a_second_charge() {
-    if postgres_configured() {
-        Box::pin(winner_after_lookup(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(winner_after_lookup(Backend::Postgres)).await;
 }

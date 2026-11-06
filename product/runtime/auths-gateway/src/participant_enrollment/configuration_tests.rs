@@ -203,10 +203,10 @@ fn file_native_engagement_configuration_retains_ordered_revocation_after_reopen(
 }
 
 #[test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 fn postgres_native_engagement_configuration_retains_ordered_revocation_after_reopen() {
-    if postgres_configured() {
-        configuration_journey(Backend::Postgres);
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    configuration_journey(Backend::Postgres);
 }
 
 fn concurrent_enrollment(backend: Backend) {
@@ -258,10 +258,10 @@ fn file_independent_controllers_cannot_publish_the_same_child_twice() {
 }
 
 #[test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 fn postgres_independent_controllers_cannot_publish_the_same_child_twice() {
-    if postgres_configured() {
-        concurrent_enrollment(Backend::Postgres);
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    concurrent_enrollment(Backend::Postgres);
 }
 
 fn configuration_withdrawal(backend: Backend) {
@@ -289,10 +289,10 @@ fn file_configuration_change_orders_before_new_native_enrollment() {
 }
 
 #[test]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 fn postgres_configuration_change_orders_before_new_native_enrollment() {
-    if postgres_configured() {
-        configuration_withdrawal(Backend::Postgres);
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    configuration_withdrawal(Backend::Postgres);
 }
 
 /// Forward real native decisions and unchanged snapshots. A reply can be lost

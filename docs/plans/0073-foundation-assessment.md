@@ -2304,3 +2304,85 @@ configured hosted gates remain required on the eventual pushed head. Full log:
 `/tmp/ap073-third-ci-workspace-final.log`. No further local suite repetition is
 needed without another change or concrete failure. Authoritative hosted Lean is
 still running; do not cancel it by publishing before its result is collected.
+
+
+### Final evidence audit: close twenty omitted PostgreSQL cases
+
+The exact-head `0de9c00f` package artifacts establish all eight installed UID
+scenarios, zero private-key exports/replay effects, native-records conformance
+and successor capacity continuity. The configured TLS job passed its selected
+cross-recipe, federation, creation and successor matrices. Inspecting the full
+workflow and executed log, rather than inferring coverage from that green job,
+found a concrete remaining evidence gap: twenty additional AP073 PostgreSQL
+tests returned early when configuration was absent and were unignored. The
+fixture job selected only ignored tests, so neither ordinary workspace success
+nor that fixture result established their backend behavior. The earlier 1,676
+local passes included these twenty no-ops; that count is not PostgreSQL evidence.
+
+Map the complete repair before execution: configuration (3), original audit (1),
+ancestor admission/acknowledgement/concurrency/rollback (7), information scope and
+recipient accounting (4), live disclosure (1), prerequisite accounting (1), engine
+control/hierarchy (2), and private blob storage (1). Mark these fixture-dependent
+cases ignored and replace successful early returns with the existing mandatory
+fixture assertion. Keep the original backend bodies and assertions intact. Use
+the existing TLS workflow as the central owner: explicitly check out the candidate
+head, enable the same native testkit features, run every PostgreSQL name with
+`--include-ignored`, require a nonzero successful result with zero ignored, and
+retain that selected-batch log. Future ignore-tag changes cannot silently remove
+a PostgreSQL-named case from the configured selection. No runtime or protocol
+semantics change is intended.
+
+After the complete source batch, regenerate semantic closure and compile the
+gateway registry to verify all twenty required names are registered as ignored.
+Do not claim PostgreSQL execution from registration alone. Publish after collecting
+any remaining independent failures from the running cohort, then require the
+corrected hosted TLS batch and all applicable exact-head gates. The old public
+fixture claims remain scoped; no missing backend execution is retroactively
+asserted. This closes a required F04/F08/F09/F11/F15 evidence gap, not a new epic.
+
+The compiled registry confirms all twenty required names are ignored; total
+registration remains 473 and explicit ignored cases increase from 67 to 87.
+The required semantic constructor passed and freeze construction refreshed zero
+formal citations with no freeze drift. Docker is available, so reproduce the
+twenty-case coverage gap as one real TLS batch before publication: copy the
+existing fixture into a fresh private temporary directory, use its unchanged
+certificate/server configuration under a unique Compose project and an
+automatically assigned loopback port, and run each registered selector exactly
+once with the required environment. Collect all independent failures together,
+then remove only this fixture's containers/volume. This local evidence does not
+replace the corrected hosted TLS batch or final exact-head gates.
+
+The first real TLS batch executes all twenty selected cases: eighteen pass and
+two control/hierarchy cases abort. A collected backtrace reproduction identifies
+the first failure at the shared test `Control::snapshot`, called by `eligible`,
+which invokes the documented synchronous operator store API inside Tokio. Native
+engine bootstrap already succeeds before that inspection. Map every synchronous
+fixture operation now: snapshots, private audit export, attempt/allocation reads
+and reopened control lookup. Reuse the existing testkit `off_runtime` boundary
+for all of them; allow scoped borrowing there so fixture ownership/drop behavior
+remains centralized. Do not alter production APIs, suppress panics, raise stack
+limits or skip the PostgreSQL assertions. After the whole correction, rerun all
+twenty real TLS selectors and the two file control/hierarchy corpus equality
+checks together, since the shared testkit is used by both adapters.
+
+Final collected local results for this evidence repair: all twenty registered
+AP073 cases pass against the isolated TLS PostgreSQL server; the two unchanged
+file control/hierarchy corpus equality tests and semantic closure also pass,
+exactly one passed and zero ignored per selector (23/23). The complete compiled
+PostgreSQL family selected by the new CI command also passes: 89 passed, zero
+failed, zero ignored in 177.95 seconds. This exercises the newly required cases
+plus existing backend histories under the same loopback/testkit feature profile.
+Gateway/all-target/all-feature Clippy passes with warnings denied. The semantic
+freeze constructor reports zero refreshed formal citations and no inventory
+drift. No further local suite repetition is needed without a new failure/change.
+Logs: `/tmp/ap073-fourth-ci-pg-final-results/`,
+`/tmp/ap073-fourth-ci-pg-family.log`,
+`/tmp/ap073-fourth-ci-gateway-clippy.log`. Removed only this audit's unique Compose
+containers, data volume and temporary certificates after all tests completed.
+
+The preceding `0de9c00f` cohort finishes with 83 successful checks and five
+expected manual production-qualification skips, with no failures/pending jobs.
+That is a genuine result for its selected coverage, not retrospective proof of
+the omitted twenty cases. Publish this complete correction and require the
+corrected configured TLS job and all applicable checks/artifacts on its exact
+head. No merge, deployment or production-qualification claim is authorized.

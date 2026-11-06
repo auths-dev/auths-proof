@@ -8,7 +8,7 @@ use crate::app::{
 use crate::participant_enrollment::tests::{
     EffectScopeFixture, effect_scope_fixture, effect_scope_hierarchy_fixture,
 };
-use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
+use crate::store_testkit::{Backend, TestAttempts, off_runtime, postgres_configured};
 use crate::{
     EngagementControlEvidence, GatewayAttemptStore, GatewayEngine, ParticipantControlOutcome,
 };
@@ -117,11 +117,13 @@ impl Control {
         serde_json::from_value(exchange(Arc::clone(&self.engine), &bytes).await).unwrap()
     }
     fn snapshot(&self) -> crate::EngagementConfigurationSnapshot {
-        self.engine
-            .engagement_configuration(self.native.root.clone())
-            .unwrap()
-            .snapshot()
-            .unwrap()
+        off_runtime(|| {
+            self.engine
+                .engagement_configuration(self.native.root.clone())
+                .unwrap()
+                .snapshot()
+                .unwrap()
+        })
     }
     fn eligible(&self) -> bool {
         let snapshot = self.snapshot();
@@ -304,7 +306,7 @@ async fn cases(backend: Backend) -> Value {
         recorded(2),
         4,
     ));
-    let (archive, head) = setup.engine.export_engagement_audit().unwrap();
+    let (archive, head) = off_runtime(|| setup.engine.export_engagement_audit()).unwrap();
     assert_eq!(
         archive
             .verify(
@@ -316,7 +318,11 @@ async fn cases(backend: Backend) -> Value {
             .revision(),
         4
     );
-    assert!(setup.store.attempt_keys(100).unwrap().is_empty());
+    assert!(
+        off_runtime(|| setup.store.attempt_keys(100))
+            .unwrap()
+            .is_empty()
+    );
     let reopened = setup.backend.reopen();
     let control = crate::EngagementConfiguration::new(
         reopened.store(),
@@ -327,9 +333,7 @@ async fn cases(backend: Backend) -> Value {
     )
     .unwrap();
     assert_eq!(
-        control
-            .recorded_control(&setup.native.enrollment_evidence(0))
-            .unwrap(),
+        off_runtime(|| control.recorded_control(&setup.native.enrollment_evidence(0))).unwrap(),
         Some(2)
     );
 
@@ -434,10 +438,10 @@ async fn native_engagement_control_fixture_is_current() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_engine_controls_retain_original_revision_after_withdrawal_and_lost_ack() {
-    if postgres_configured() {
-        Box::pin(cases(Backend::Postgres)).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    Box::pin(cases(Backend::Postgres)).await;
 }
 
 /// A real machine-root/A/B chain uses the same control and effect owners. The
@@ -531,11 +535,13 @@ async fn hierarchy(backend: Backend) -> Value {
     let mut rows = Vec::new();
     for reservation in approved.effect().binding().engagement_reservations() {
         let key = crate::store::fixture_engagement_allocation_key(&reservation.key, 0);
-        let row = setup
-            .store
-            .load(crate::GatewayRecordKind::EffectAllocation, &key)
-            .unwrap()
-            .unwrap();
+        let row = off_runtime(|| {
+            setup
+                .store
+                .load(crate::GatewayRecordKind::EffectAllocation, &key)
+        })
+        .unwrap()
+        .unwrap();
         rows.push((key, row));
     }
     assert_eq!(
@@ -581,15 +587,15 @@ async fn hierarchy(backend: Backend) -> Value {
     );
     for (key, row) in &rows {
         assert_eq!(
-            setup
+            off_runtime(|| setup
                 .store
-                .load(crate::GatewayRecordKind::EffectAllocation, key)
-                .unwrap()
-                .as_ref(),
+                .load(crate::GatewayRecordKind::EffectAllocation, key))
+            .unwrap()
+            .as_ref(),
             Some(row)
         );
     }
-    let (audit, head) = setup.engine.export_engagement_audit().unwrap();
+    let (audit, head) = off_runtime(|| setup.engine.export_engagement_audit()).unwrap();
     assert_eq!(
         audit
             .verify(
@@ -627,10 +633,10 @@ async fn native_engagement_hierarchy_fixture_is_current() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "requires the TLS PostgreSQL fixture"]
 async fn postgres_native_hierarchy_parent_withdrawal_denies_reserved_grandchild_entry() {
-    if postgres_configured() {
-        hierarchy(Backend::Postgres).await;
-    }
+    assert!(postgres_configured(), "TLS PostgreSQL fixture is required");
+    hierarchy(Backend::Postgres).await;
 }
 
 #[test]
