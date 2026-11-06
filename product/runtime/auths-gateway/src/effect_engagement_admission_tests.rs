@@ -200,7 +200,7 @@ fn claimed(claim: crate::store::BoundedClaim) -> crate::ClaimedGatewayAttempt {
 
 /// Faults alter only acknowledgement delivery or a final snapshot. All preceding
 /// writes, decisions, transactions and reopen behavior use maintained adapters.
-struct FaultStore {
+pub(super) struct FaultStore {
     inner: Arc<dyn GatewayAttemptStore>,
     lose_claim_reply: AtomicBool,
     lose_grant_reply: AtomicBool,
@@ -210,7 +210,7 @@ struct FaultStore {
     wait_once: AtomicBool,
 }
 impl FaultStore {
-    fn new(inner: Arc<dyn GatewayAttemptStore>) -> Self {
+    pub(super) fn new(inner: Arc<dyn GatewayAttemptStore>) -> Self {
         Self {
             inner,
             lose_claim_reply: AtomicBool::new(false),
@@ -220,6 +220,12 @@ impl FaultStore {
             candidate_barrier: None,
             wait_once: AtomicBool::new(true),
         }
+    }
+    pub(super) fn lose_next_claim_reply(&self) {
+        self.lose_claim_reply.store(true, Ordering::SeqCst);
+    }
+    pub(super) fn lose_next_grant_reply(&self) {
+        self.lose_grant_reply.store(true, Ordering::SeqCst);
     }
 }
 impl GatewayAttemptStore for FaultStore {

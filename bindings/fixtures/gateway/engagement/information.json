@@ -83,7 +83,7 @@
         ],
         "kind": "exact"
       },
-      "compiler": "auths.gateway-effect-compiler/10",
+      "compiler": "auths.gateway-effect-compiler/11",
       "configuration": [
         12,
         12,
@@ -191,6 +191,7 @@
       ],
       "operation": "native-info-read",
       "partition": "recipe-partition",
+      "prerequisite_budgets": [],
       "protocol": {
         "kind": "acquisition",
         "maximum_response_bytes": 1024,
@@ -468,7 +469,7 @@
           }
         }
       ],
-      "schema": "auths.bound-effect/5",
+      "schema": "auths.bound-effect/6",
       "scope": {
         "bound": {
           "ancestors": [
@@ -1440,6 +1441,90 @@
         },
         {
           "amount": 26,
+          "ceiling": 416,
+          "key": [
+            97,
+            182,
+            237,
+            108,
+            204,
+            27,
+            183,
+            216,
+            44,
+            65,
+            215,
+            9,
+            133,
+            51,
+            112,
+            2,
+            136,
+            143,
+            81,
+            133,
+            43,
+            20,
+            118,
+            37,
+            133,
+            96,
+            82,
+            222,
+            212,
+            36,
+            83,
+            140
+          ],
+          "unit": "disclosure-bytes",
+          "window": {
+            "kind": "source-lifetime"
+          }
+        },
+        {
+          "amount": 1,
+          "ceiling": 16,
+          "key": [
+            99,
+            28,
+            143,
+            32,
+            181,
+            202,
+            20,
+            4,
+            196,
+            39,
+            15,
+            216,
+            9,
+            96,
+            155,
+            226,
+            114,
+            251,
+            154,
+            222,
+            102,
+            216,
+            209,
+            250,
+            216,
+            134,
+            85,
+            15,
+            161,
+            204,
+            252,
+            237
+          ],
+          "unit": "disclosure-count",
+          "window": {
+            "kind": "source-lifetime"
+          }
+        },
+        {
+          "amount": 26,
           "ceiling": 512,
           "key": [
             141,
@@ -1562,90 +1647,6 @@
           "unit": "disclosure-count",
           "window": {
             "kind": "engagement-lifetime"
-          }
-        },
-        {
-          "amount": 1,
-          "ceiling": 16,
-          "key": [
-            228,
-            79,
-            255,
-            211,
-            207,
-            121,
-            158,
-            189,
-            84,
-            145,
-            247,
-            194,
-            40,
-            161,
-            224,
-            202,
-            100,
-            179,
-            184,
-            57,
-            201,
-            106,
-            228,
-            149,
-            67,
-            146,
-            217,
-            161,
-            92,
-            154,
-            247,
-            183
-          ],
-          "unit": "disclosure-count",
-          "window": {
-            "kind": "source-lifetime"
-          }
-        },
-        {
-          "amount": 26,
-          "ceiling": 416,
-          "key": [
-            232,
-            203,
-            182,
-            231,
-            221,
-            161,
-            45,
-            74,
-            198,
-            185,
-            57,
-            117,
-            153,
-            135,
-            149,
-            227,
-            229,
-            151,
-            62,
-            145,
-            217,
-            142,
-            242,
-            132,
-            154,
-            41,
-            143,
-            92,
-            210,
-            23,
-            202,
-            146
-          ],
-          "unit": "disclosure-bytes",
-          "window": {
-            "kind": "source-lifetime"
           }
         }
       ],

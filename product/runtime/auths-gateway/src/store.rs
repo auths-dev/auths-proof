@@ -857,6 +857,11 @@ trait JournalProtocol: Clone + Sized {
     fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError>;
     fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError>;
     fn validate(record: &Record<Self>) -> Result<(), GatewayAttemptError>;
+    fn engagement_reservations(
+        record: &Record<Self>,
+    ) -> Result<Vec<crate::effect::EngagementReservation>, GatewayAttemptError> {
+        Ok(record.validate_header()?.engagement_reservations())
+    }
 }
 
 impl JournalProtocol for MutationState {

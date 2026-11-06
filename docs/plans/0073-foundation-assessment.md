@@ -567,3 +567,60 @@ native data plus named diagnostic projection, with its unestablished claims list
 Broader authored tests and PostgreSQL did not run locally. Full native binding,
 corpus/freeze/qualification, installed multi-hop and source-linked formal work
 remain required. No push or CI observation occurred; full AP073 remains active.
+
+## Native prerequisite lineage batch
+
+The confirmed prerequisite gap is addressed in the existing effect and journal
+owners, without an independent task ledger or a second grant authority. The
+direct bound-effect 6/compiler 11 cutover adds ordered typed prerequisite budgets
+to the same exact approved parent description. The native compiler binds each
+closed read index, response-byte ceiling and complete ancestor read declaration.
+Existing request membership witnesses independently compare the index and full
+closed request commitment. Each prerequisite's distinct child journal record
+atomically reserves read units against the shared ancestor read keys, alongside
+its source allowance. The parent mutation's write allocations are neither reused
+as reads nor charged again. The typed state owner chooses the exact declaration
+set and checks retained rows at entry under the same native configuration fence.
+Unknown and failed prerequisites retain capacity; they never authorize blind
+retry or release. Decoding remains historical data, not native authorization.
+
+The full planned batch includes file and TLS PostgreSQL parent/child admission,
+exact replay, durable child grant loss/reopen, actual committed claim/grant with
+lost reply delivery, current root withdrawal before child grant, malformed typed
+budgets, substituted write allocations and out-of-range prerequisite membership.
+The native fixture constructs real grants but drops every permit; it does not
+establish HTTP behavior, provider predicates or completion of a guarded mutation.
+The acknowledgement fault adapter wraps maintained store commits and changes
+only reply delivery. It is not an actual process-crash experiment.
+
+After all source/tests are written, the required constructor cohort is the new
+native engagement prerequisite artifact, refreshed native engagement information,
+mutation effect and admission artifacts, native unscoped prerequisite compilation,
+and gateway semantic closure. Other affected AP074 corpora, global inventories,
+qualification, bindings, formal and hosted gates remain pending final full-program
+regeneration/verification. No new execution pass is claimed at this point.
+
+### Acknowledged prerequisite artifacts
+
+All six required constructors passed in the initial combined cohort with
+`loopback-provider,testkit-harness`: native engagement prerequisite, information,
+mutation effect and admission; native prerequisite compilation; semantic closure.
+The feature-complete library target compiled 447 cases; only these six filtered
+constructors ran. Logs are
+`/tmp/ap073-prerequisite-initial-{prerequisite,information,effect,admission,native-prerequisite,semantic-closure}.log`.
+The new engagement prerequisite artifact contains the exact parent binding,
+typed planned read budgets, actual ancestor read allocation rows and conservative
+child Unknown snapshot. Its lifecycle, lost claim/grant replies and current
+withdrawal cases all executed on maintained file stores. They compare retained
+rows across replay/reopen and confirm the parent write bytes remain unchanged.
+Substituting parent write references or another child index fails native journal
+decoding. Every issued permit is dropped; no provider request or predicate result
+is asserted. The existing unscoped prerequisite compilation/entry artifacts were
+also regenerated through their native constructor.
+
+No new PostgreSQL, actual process-crash, broad local gate, binding/formal gate,
+push or CI observation occurred. Full AP073 remains active, with original
+control-evidence audit history, managed created-resource/reconciliation,
+live scoped delivery and cross-process/cross-recipe schedules, installed
+machine→A→B journey, lifecycle/federation/resource contracts, final whole-program
+artifact/release inventories and exact-head assurance still required.

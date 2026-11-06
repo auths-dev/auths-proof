@@ -240,6 +240,7 @@ pub(super) fn build_binding(
             approver: installed.approver,
         },
         reservations,
+        prerequisite_budgets: Vec::new(),
         protocol,
     })
     .map_err(|_| invalid())
@@ -637,7 +638,7 @@ pub(super) fn compile_verified_acquisition(
                 "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure."}),
         ),
     };
-    let binding = super::bind_information_scope(binding, scope)?;
+    let binding = super::bind_information_scope(binding, scope, &prerequisites)?;
     let effect = BoundEffect {
         authority,
         review,

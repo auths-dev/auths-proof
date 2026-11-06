@@ -172,15 +172,20 @@ pub(super) fn validate_partial(
     binding: &EffectBinding,
     references: &[AllocationRef],
 ) -> Result<(), GatewayAttemptError> {
-    let declarations = binding.engagement_reservations();
     if references.is_empty() {
         return Ok(());
     }
-    if references.len() != declarations.len() {
+    let actual: Vec<_> = references
+        .iter()
+        .map(|reference| reference.reservation.clone())
+        .collect();
+    // A common header can belong to its primary operation or an exact declared
+    // prerequisite. The typed state owner below selects which one is legal.
+    if !binding.matches_engagement_declarations(&actual) {
         return Err(GatewayAttemptError::Corrupt);
     }
-    for (reference, declaration) in references.iter().zip(declarations) {
-        if reference.reservation != declaration || reference.slot >= slots(&declaration)? {
+    for reference in references {
+        if reference.slot >= slots(&reference.reservation)? {
             return Err(GatewayAttemptError::Corrupt);
         }
     }
@@ -192,18 +197,13 @@ pub(super) fn validate_record<S: JournalProtocol>(
 ) -> Result<(), GatewayAttemptError> {
     let binding = record.validate_header()?;
     validate_partial(&binding, &record.engagement_allocations)?;
-    // AP074 prerequisite children retain their parent's mutation binding.
-    // Its write declaration cannot stand in for participant read charges.
-    // Refuse this composition until typed prerequisite lineage is integrated.
-    if !binding.engagement_reservations().is_empty()
-        && binding.is_mutation()
-        && S::view(record)?.protocol == transition::Protocol::Acquisition
-    {
-        return Err(GatewayAttemptError::InvalidTransition);
-    }
-    if record.engagement_allocations.is_empty()
-        && !binding.engagement_reservations().is_empty()
-        && S::view(record)?.stage != Stage::NotEntered
+    let declarations = S::engagement_reservations(record)?;
+    let actual: Vec<_> = record
+        .engagement_allocations
+        .iter()
+        .map(|reference| reference.reservation.clone())
+        .collect();
+    if actual != declarations && !(actual.is_empty() && S::view(record)?.stage == Stage::NotEntered)
     {
         return Err(GatewayAttemptError::Corrupt);
     }
@@ -269,16 +269,10 @@ pub(super) fn insert<S: JournalProtocol>(
         return Err(GatewayAttemptError::InvalidTransition);
     }
     let binding = record.validate_header()?;
-    if !binding.engagement_reservations().is_empty()
-        && binding.is_mutation()
-        && S::view(record)?.protocol == transition::Protocol::Acquisition
-    {
-        return Err(GatewayAttemptError::InvalidTransition);
-    }
     let declarations = if S::view(record)?.stage == Stage::NotEntered {
         Vec::new()
     } else {
-        binding.engagement_reservations()
+        S::engagement_reservations(record)?
     };
     for _ in 0..MAX_CLAIM_ROUNDS {
         let candidates = declarations

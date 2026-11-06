@@ -183,21 +183,33 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
-The concrete native encoding is `auths.bound-effect/5`, with effect compiler
-`auths.gateway-effect-compiler/10`. Reservations use a closed window alternative:
+The concrete native encoding is `auths.bound-effect/6`, with effect compiler
+`auths.gateway-effect-compiler/11`. Reservations use a closed window alternative:
 fixed epoch-aligned windows, the retained source effect's lifetime, or AP073's
 shared engagement/ancestor lifetime. AP073's complete immutable ancestry and
 planned typed charges are part of the binding and private review; decoding them
 is data validation. The common journal atomically persists all corresponding ancestor allocation
 references with direct mutation, content/recovery acquisition and disclosure
-claims and verifies the retained rows at entry. Scoped prerequisite composition
-still requires its typed lineage/accounting integration before transport is
-supported. Mutation
+claims and verifies the retained rows at entry. Prerequisite children retain the
+same approved parent effect and closed request membership witness, but charge
+their own declared ancestor read units. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
 source-lifetime bound must survive operation-ID changes, replay and restart.
 An encoded bound declares an obligation; only the journal's atomic admission
 and entry transitions can discharge it. Decoding never grants authority.
+
+The bound effect also declares an ordered `prerequisite_budgets` vector: each
+closed prerequisite index, full response-byte ceiling and typed ancestor read
+charges. The native compiler derives both this vector and the closed prerequisite
+request set. Each child validates membership in the parent's exact request,
+matches its byte ceiling and derives its distinct permanent replay key from the
+parent operation and index. Its read count and source/response allowance are
+reserved atomically with its own record under the current native fence. The typed
+acquisition state selects the prerequisite charges; a parent's write allocations
+cannot stand in for read allocations, and a child does not charge that write
+again. A later prerequisite failure or abandoned parent retains earlier read
+charges. No unverified application argument can add a prerequisite.
 
 AP073's `auths.effect-engagement-scope/2` binds content resource identity from
 the verified nested `resource_arguments`. Recovery and disclosure instead bind

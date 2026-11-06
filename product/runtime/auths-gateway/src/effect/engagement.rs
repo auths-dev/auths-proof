@@ -96,6 +96,28 @@ impl ScopePurpose<'_> {
 }
 
 impl Scope {
+    pub(super) fn prerequisite_reservations(
+        &self,
+    ) -> Result<Vec<super::EngagementReservation>, EffectBindingError> {
+        let reservations = match self {
+            Self::Unscoped => Vec::new(),
+            Self::Engagement { bound } if bound.recipient.is_none() => {
+                bound.reservations(Unit::AcquisitionCount, 1)?
+            }
+            Self::Engagement { .. } => return Err(EffectBindingError::Invalid),
+        };
+        let mut reservations: Vec<_> = reservations
+            .into_iter()
+            .map(|reservation| super::EngagementReservation {
+                key: reservation.key,
+                unit: reservation.unit,
+                amount: reservation.amount,
+                ceiling: reservation.ceiling,
+            })
+            .collect();
+        reservations.sort_by_key(|r| (r.key, r.unit));
+        Ok(reservations)
+    }
     pub(super) fn compile(
         installed: &EffectInstallation<'_>,
         now: u64,

@@ -9,6 +9,9 @@ mod admission_tests;
 #[path = "effect_engagement_information_tests.rs"]
 mod information_tests;
 
+#[path = "effect_engagement_prerequisite_tests.rs"]
+mod prerequisite_tests;
+
 fn approve(effect: crate::effect::BoundEffect) -> crate::effect::ApprovedEffect {
     let key = SigningKey::from_bytes(&[29; 32]);
     let request = effect.approval_request(NOW, NOW + 60).unwrap();

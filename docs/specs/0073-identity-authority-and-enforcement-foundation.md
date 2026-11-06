@@ -113,10 +113,15 @@ The current signed root schema is `auths.engagement-root/3`, with tree schema
 partition, exact resource connection commitments and registered native channel
 commitments. The native configuration owner persists enrollment/withdrawal under
 the existing gateway adapter fence and installed-configuration dependency.
-These control facts never constitute operation admission. Direct mutation scope,
-ancestor allocation references and final-entry dependencies now join the common
-journal owner in source. Information/source/channel and prerequisite accounting,
-installed containment and complete exact-revision assurance remain required.
+These control facts never constitute operation admission. Direct mutation,
+literal-resource information/source/channel binding and typed prerequisite
+accounting now join the common journal owner in source. Bound-effect 6/compiler
+11 declares exact prerequisite indices, byte ceilings and ancestor read charges;
+the typed child journal selects these instead of the parent's write charges.
+Required native file artifacts exercise bounded admission/replay/withdrawal
+histories with synthetic response facts and dropped permits. Live scoped
+transport/containment, cross-recipe process schedules, original control-evidence
+audit history and complete exact-revision assurance remain required.
 
 ### 4.3 Evidence and implementation boundaries
 

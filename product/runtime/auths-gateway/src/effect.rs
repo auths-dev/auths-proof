@@ -63,12 +63,12 @@ pub(crate) use prerequisite::{
 };
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/5";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/6";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/10";
+const COMPILER: &str = "auths.gateway-effect-compiler/11";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -393,6 +393,7 @@ pub(crate) fn store_binding_fixture(
             approver: policy.approver,
         },
         reservations: Vec::new(),
+        prerequisite_budgets: Vec::new(),
         protocol: Protocol::Mutation {
             request: request_commitment(request, &Prerequisites::oracle_empty())?,
         },
@@ -488,6 +489,17 @@ struct Reservation {
     window: ReservationWindow,
 }
 
+/// One compiler-owned read in the approved parent request. Every actual child
+/// reserves these typed ancestor read units once under its own journal key;
+/// they never substitute for or repeat the parent's mutation/read charge.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PrerequisiteBudget {
+    index: u8,
+    maximum_response_bytes: u64,
+    reservations: Vec<EngagementReservation>,
+}
+
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum ReservationWindow {
@@ -543,6 +555,7 @@ struct BindingWire {
     configuration: [u8; 32],
     approval_policy: ApprovalPolicy,
     reservations: Vec<Reservation>,
+    prerequisite_budgets: Vec<PrerequisiteBudget>,
     protocol: Protocol,
 }
 
@@ -645,6 +658,31 @@ impl EffectBinding {
                 ceiling: entry.ceiling,
             })
             .collect()
+    }
+
+    pub(crate) fn prerequisite_engagement_reservations(
+        &self,
+        index: u8,
+        maximum_response_bytes: u64,
+    ) -> Result<Vec<EngagementReservation>, EffectBindingError> {
+        let budget = self
+            .wire
+            .prerequisite_budgets
+            .get(usize::from(index))
+            .filter(|budget| {
+                budget.index == index && budget.maximum_response_bytes == maximum_response_bytes
+            })
+            .ok_or(EffectBindingError::Invalid)?;
+        Ok(budget.reservations.clone())
+    }
+
+    pub(crate) fn matches_engagement_declarations(&self, actual: &[EngagementReservation]) -> bool {
+        self.engagement_reservations() == actual
+            || self
+                .wire
+                .prerequisite_budgets
+                .iter()
+                .any(|budget| budget.reservations == actual)
     }
 
     pub(crate) fn is_mutation(&self) -> bool {
@@ -779,6 +817,23 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
             let mut expected = expected;
             expected.sort_by_key(|entry| (entry.key, entry.unit));
             if actual != expected {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+    }
+    if wire.prerequisite_budgets.len() > prerequisite::MAX_PREREQUISITES
+        || (matches!(wire.protocol, Protocol::Disclosure { .. })
+            && !wire.prerequisite_budgets.is_empty())
+    {
+        return Err(EffectBindingError::Invalid);
+    }
+    if !wire.prerequisite_budgets.is_empty() {
+        let expected = wire.scope.prerequisite_reservations()?;
+        for (index, budget) in wire.prerequisite_budgets.iter().enumerate() {
+            if usize::from(budget.index) != index
+                || !(1..=65_536).contains(&budget.maximum_response_bytes)
+                || budget.reservations != expected
+            {
                 return Err(EffectBindingError::Invalid);
             }
         }
@@ -1544,6 +1599,7 @@ pub fn compile_mutation_effect(
 fn bind_information_scope(
     mut binding: EffectBinding,
     scope: Scope,
+    prerequisites: &Prerequisites,
 ) -> Result<EffectBinding, GatewaySubmitResult> {
     binding.wire.reservations.extend(
         scope
@@ -1554,6 +1610,9 @@ fn bind_information_scope(
         .wire
         .reservations
         .sort_by_key(|entry| (entry.key, entry.unit));
+    binding.wire.prerequisite_budgets = prerequisites
+        .budgets(&scope)
+        .map_err(|_| not_entered("gateway.engagement.binding"))?;
     binding.wire.scope = scope;
     EffectBinding::new(binding.wire).map_err(|_| not_entered("gateway.engagement.binding"))
 }
@@ -1627,6 +1686,7 @@ fn bind_mutation(
     )?;
     reservations.extend(scope.reservations(&Protocol::Mutation { request: [0; 32] })?);
     reservations.sort_by_key(|entry| (entry.key, entry.unit));
+    let prerequisite_budgets = prerequisites.budgets(&scope)?;
     let binding = EffectBinding::new(BindingWire {
         schema: EFFECT_BINDING_SCHEMA.to_owned(),
         namespace: request.namespace().as_str().to_owned(),
@@ -1646,6 +1706,7 @@ fn bind_mutation(
             approver: installed.approver,
         },
         reservations,
+        prerequisite_budgets,
         protocol: Protocol::Mutation {
             request: request_commitment(request, &prerequisites)?,
         },
@@ -1799,6 +1860,7 @@ mod tests {
                     seconds: 60,
                 },
             }],
+            prerequisite_budgets: Vec::new(),
             protocol: Protocol::Mutation { request: [6; 32] },
         }
     }

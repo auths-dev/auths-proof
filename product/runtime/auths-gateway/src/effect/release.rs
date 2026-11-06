@@ -270,7 +270,7 @@ pub fn compile_disclosure(
         },
     )
     .map_err(|_| invalid())?;
-    let binding = super::bind_information_scope(binding, scope)?;
+    let binding = super::bind_information_scope(binding, scope, &Prerequisites::disclosure())?;
     let effect = BoundEffect {
         authority,
         review: json!({"contract": CONTRACT, "disclosure": target.contract(),

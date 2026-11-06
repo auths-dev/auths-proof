@@ -117,6 +117,17 @@ impl AcquisitionPhase {
 }
 
 impl JournalProtocol for AcquisitionState {
+    fn engagement_reservations(
+        record: &Record<Self>,
+    ) -> Result<Vec<crate::effect::EngagementReservation>, GatewayAttemptError> {
+        let binding = record.validate_header()?;
+        match &record.state.plan {
+            AcquisitionPlan::Prerequisite(plan) => plan
+                .engagement_reservations(&binding)
+                .map_err(|_| GatewayAttemptError::Corrupt),
+            _ => Ok(binding.engagement_reservations()),
+        }
+    }
     fn wrap(self) -> ProtocolState {
         ProtocolState::Acquisition(Box::new(self))
     }
