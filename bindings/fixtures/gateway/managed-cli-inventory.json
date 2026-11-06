@@ -675,6 +675,11 @@
       "command": "effect-configuration-activate",
       "arguments": [
         {
+          "name": "effect_policy",
+          "long": "effect-policy",
+          "required": false
+        },
+        {
           "name": "expected_candidate",
           "long": "expected-candidate",
           "required": true
@@ -699,6 +704,11 @@
     {
       "command": "effect-configuration-review",
       "arguments": [
+        {
+          "name": "effect_policy",
+          "long": "effect-policy",
+          "required": false
+        },
         {
           "name": "help",
           "long": "help",

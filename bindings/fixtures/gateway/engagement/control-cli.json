@@ -8,6 +8,7 @@
   "marker_refuses_invalid_metadata": true,
   "native_authoring_normalizes": true,
   "application_refuses_root": true,
+  "manifest_lock_refuses_shared_hardlinked_symlinked_or_directory_inode": true,
   "not_established": [
     "installed-process-journey",
     "credential-containment",

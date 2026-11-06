@@ -439,6 +439,30 @@ independently trusted root, contexts and checkpoint. Successful replay establish
 historical control decisions conditional on recorded time and trusted inputs,
 not current eligibility or authenticity of an unauthenticated exported head.
 
+Root scopes pin the actual native connection commitment. Provisioning therefore
+creates the connection in operator-private staging first, prepares root pins
+against that connection, then reviews the complete scoped policy with
+`effect-configuration-review --effect-policy`. Review changes neither policy nor
+shared configuration. `effect-configuration-activate --effect-policy` requires
+the exact candidate digest and previous shared revision. It uses the existing
+native configuration CAS and preserves permanent qualification/revocation memory.
+Changing admission partition through this update is refused. This is an operator
+workflow; no application frame accepts a policy or installation path.
+
+The shared configuration acknowledgement precedes local manifest publication.
+A process crash or publication error between them leaves the old local candidate
+ineligible; it must not silently restore the previous configuration. Recovery is
+a fresh explicit review and activation of the intended policy. Local manifest
+writers serialize through an owner-only lock; the existing qualification-state
+writer uses the same checked lock-opening mechanism. Those lock files hold no
+authority, budget or replay decisions. Kernels release their locks on process
+exit. Independent host settings remain subject to the common shared fence.
+
+Initial staging exposes no app socket and distributes no agent authority. Start
+the app-facing daemon only after the scoped policy and native root activation
+are complete. Candidate policy acceptance does not establish the validity of its
+root/resource proofs; bootstrap and every later effect entry still verify them.
+
 The source/fixture evidence and unestablished installed-process requirements are
 tracked in the companion assessment. Shipping these surfaces does not by itself
 complete M0–M4 or F01–F16.

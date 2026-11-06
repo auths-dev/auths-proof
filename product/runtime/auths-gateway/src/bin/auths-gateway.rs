@@ -228,6 +228,9 @@ mod unix {
         EffectConfigurationReview {
             #[arg(long)]
             state_dir: PathBuf,
+            /// Private canonical candidate policy; review does not install it.
+            #[arg(long)]
+            effect_policy: Option<PathBuf>,
         },
         /// Activate the reviewed candidate using the exact previous revision.
         /// This operator-only command preserves permanent revocation memory.
@@ -238,6 +241,9 @@ mod unix {
             expected_revision: String,
             #[arg(long)]
             expected_candidate: String,
+            /// Exact canonical policy reviewed with the candidate commitment.
+            #[arg(long)]
+            effect_policy: Option<PathBuf>,
         },
         /// Private native review of the installed exact effect, with a bounded
         /// signing request. Does not lease credentials or enter provider transport.
@@ -1606,6 +1612,11 @@ mod unix {
             return Err("gateway.install.credential-guard".into());
         }
         private_root(&state_dir)?;
+        let _installation_lock = private_state_lock(
+            &state_dir,
+            "installation.lock",
+            "gateway.configuration.unavailable",
+        )?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed".into());
         }
@@ -1862,29 +1873,11 @@ mod unix {
     fn write_verifier_state(state_dir: &Path, state: &VerifierState) -> Result<(), &'static str> {
         // Concurrent imports must never erase a revocation remembered by an
         // earlier authenticated operator command in this same installation.
-        let lock = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .custom_flags(i32::from_ne_bytes(
-                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
-            ))
-            .open(state_dir.join("qualification-state.lock"))
-            .map_err(|_| "gateway.qualification.unavailable")?;
-        let metadata = lock
-            .metadata()
-            .map_err(|_| "gateway.qualification.unavailable")?;
-        if !metadata.is_file()
-            || metadata.permissions().mode() & 0o077 != 0
-            || metadata.uid() != rustix::process::geteuid().as_raw()
-            || metadata.nlink() != 1
-        {
-            return Err("gateway.qualification.unavailable");
-        }
-        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
-            .map_err(|_| "gateway.qualification.unavailable")?;
+        let _lock = private_state_lock(
+            state_dir,
+            "qualification-state.lock",
+            "gateway.qualification.unavailable",
+        )?;
         let mut merged = read_verifier_state(state_dir)?;
         merged.accepted_revocation_sequence = merged
             .accepted_revocation_sequence
@@ -2314,6 +2307,14 @@ mod unix {
     ) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         let manifest = installation(state_dir)?;
+        load_engine_from_manifest(state_dir, access, &manifest)
+    }
+
+    fn load_engine_from_manifest(
+        state_dir: &Path,
+        access: CredentialAccess,
+        manifest: &Installation,
+    ) -> Result<GatewayEngine, Failure> {
         let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
         let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536)?;
         let trust = read_bounded(&state_dir.join("trusted.context.cbor"), 4 * 1024 * 1024)?;
@@ -2391,7 +2392,7 @@ mod unix {
             None => engine,
         };
         let engine = engine
-            .with_qualification(Arc::new(qualification_gate(state_dir, &manifest)?))
+            .with_qualification(Arc::new(qualification_gate(state_dir, manifest)?))
             .with_generation_floor(auths_gateway::GenerationFloor::new(state_dir.to_path_buf()))
             .with_credential_journal(auths_gateway::CredentialJournal::new(
                 state_dir.to_path_buf(),
@@ -4205,6 +4206,106 @@ mod unix {
         Ok(())
     }
 
+    /// An owner-only lock inode is never renamed/deleted. Kernel lock release
+    /// handles process loss; it is coordination, never authorization state.
+    fn private_state_lock(
+        state_dir: &Path,
+        name: &str,
+        code: &'static str,
+    ) -> Result<File, &'static str> {
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
+            .open(state_dir.join(name))
+            .map_err(|_| code)?;
+        let metadata = lock.metadata().map_err(|_| code)?;
+        if !metadata.is_file()
+            || metadata.permissions().mode() & 0o077 != 0
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+        {
+            return Err(code);
+        }
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive).map_err(|_| code)?;
+        Ok(lock)
+    }
+
+    fn candidate_installation(
+        state_dir: &Path,
+        policy: Option<&Path>,
+    ) -> Result<Installation, Failure> {
+        let mut manifest = installation(state_dir)?;
+        if let Some(path) = policy {
+            let policy = auths_gateway::effect::EffectPolicy::from_private_bytes(&Zeroizing::new(
+                read_bounded(path, auths_gateway::effect::MAX_EFFECT_POLICY_BYTES)?,
+            ))
+            .map_err(|_| "gateway.install.invalid-effect-policy")?;
+            if !manifest.effect_policy.same_admission_partition(&policy) {
+                return Err("gateway.configuration.changed".into());
+            }
+            manifest.effect_policy = policy;
+            encode_installation(&manifest)?;
+        }
+        Ok(manifest)
+    }
+
+    fn effect_configuration_review(
+        state_dir: &Path,
+        policy: Option<&Path>,
+    ) -> Result<serde_json::Value, Failure> {
+        private_root(state_dir)?;
+        let manifest = candidate_installation(state_dir, policy)?;
+        let engine = load_engine_from_manifest(state_dir, CredentialAccess::Operator, &manifest)?;
+        Ok(
+            serde_json::json!({"schema":"auths.effect-configuration-review/1",
+            "previous_revision_hex":hex::encode(engine.effect_configuration_revision()?),
+            "candidate_hex":hex::encode(engine.effect_configuration_candidate()?), "installation":manifest}),
+        )
+    }
+
+    /// The shared fenced configuration is authoritative. Publish local settings
+    /// only after its acknowledgement. A crash/write failure between these steps
+    /// leaves the old daemon refused, never silently activates an unreviewed
+    /// policy; recovery requires a fresh explicit review/activation.
+    fn effect_configuration_activate(
+        state_dir: &Path,
+        policy: Option<&Path>,
+        revision: &str,
+        candidate: &str,
+    ) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        let _lock = private_state_lock(
+            state_dir,
+            "installation.lock",
+            "gateway.configuration.unavailable",
+        )?;
+        let parse = |text: &str| -> Result<[u8; 32], Failure> {
+            let mut bytes = [0; 32];
+            hex::decode_to_slice(text, &mut bytes)
+                .map_err(|_| "gateway.configuration.invalid-review")?;
+            Ok(bytes)
+        };
+        let manifest = candidate_installation(state_dir, policy)?;
+        let bytes = encode_installation(&manifest)?;
+        let revision = parse(revision)?;
+        let candidate = parse(candidate)?;
+        let engine = load_engine_from_manifest(state_dir, CredentialAccess::Operator, &manifest)?;
+        if engine.effect_configuration_candidate()? != candidate {
+            return Err("gateway.configuration.changed".into());
+        }
+        engine.activate_effect_configuration(revision)?;
+        if policy.is_some() {
+            replace_private_file(&state_dir.join("installation.json"), &bytes)?;
+        }
+        Ok(())
+    }
+
     /// Atomically replaces an owner-only state file.
     fn replace_private_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
         let parent = path.parent().ok_or("gateway.state.invalid-path")?;
@@ -4234,6 +4335,11 @@ mod unix {
         attestation: &Path,
     ) -> Result<(), Failure> {
         private_root(state_dir)?;
+        let _lock = private_state_lock(
+            state_dir,
+            "installation.lock",
+            "gateway.configuration.unavailable",
+        )?;
         if std::os::unix::net::UnixStream::connect(admin_socket).is_ok() {
             return Err("gateway.operator.gateway-running".into());
         }
@@ -4483,43 +4589,36 @@ mod unix {
     )]
     pub async fn run() -> Result<(), Failure> {
         match Cli::parse().command {
-            Command::EffectConfigurationReview { state_dir } => {
-                private_root(&state_dir)?;
+            Command::EffectConfigurationReview {
+                state_dir,
+                effect_policy,
+            } => {
                 tokio::task::spawn_blocking(move || -> Result<(), Failure> {
-                    let engine = load_engine(&state_dir)?;
-                    let review = serde_json::json!({
-                        "schema": "auths.effect-configuration-review/1",
-                        "previous_revision_hex": hex::encode(engine.effect_configuration_revision()?),
-                        "candidate_hex": hex::encode(engine.effect_configuration_candidate()?),
-                        "installation": installation(&state_dir)?,
-                    });
-                    let bytes = serde_json_canonicalizer::to_vec(&review).map_err(|_| "gateway.configuration.unavailable")?;
-                    std::io::stdout().write_all(&bytes).map_err(|_| "gateway.configuration.unavailable")?;
+                    let review = effect_configuration_review(&state_dir, effect_policy.as_deref())?;
+                    let bytes = serde_json_canonicalizer::to_vec(&review)
+                        .map_err(|_| "gateway.configuration.unavailable")?;
+                    std::io::stdout()
+                        .write_all(&bytes)
+                        .map_err(|_| "gateway.configuration.unavailable")?;
                     Ok(())
-                }).await.map_err(|_| "gateway.configuration.unavailable")??;
+                })
+                .await
+                .map_err(|_| "gateway.configuration.unavailable")??;
                 Ok(())
             }
             Command::EffectConfigurationActivate {
                 state_dir,
                 expected_revision,
                 expected_candidate,
+                effect_policy,
             } => {
-                private_root(&state_dir)?;
-                tokio::task::spawn_blocking(move || -> Result<(), Failure> {
-                    let parse = |text: &str| -> Result<[u8; 32], Failure> {
-                        let mut value = [0; 32];
-                        hex::decode_to_slice(text, &mut value)
-                            .map_err(|_| "gateway.configuration.invalid-review")?;
-                        Ok(value)
-                    };
-                    let revision = parse(&expected_revision)?;
-                    let candidate = parse(&expected_candidate)?;
-                    let engine = load_engine(&state_dir)?;
-                    if engine.effect_configuration_candidate()? != candidate {
-                        return Err("gateway.configuration.changed".into());
-                    }
-                    engine.activate_effect_configuration(revision)?;
-                    Ok(())
+                tokio::task::spawn_blocking(move || {
+                    effect_configuration_activate(
+                        &state_dir,
+                        effect_policy.as_deref(),
+                        &expected_revision,
+                        &expected_candidate,
+                    )
                 })
                 .await
                 .map_err(|_| "gateway.configuration.unavailable")??;
@@ -5638,12 +5737,74 @@ mod unix {
                 request.decode(),
                 Err("gateway.engagement.operator-required")
             ));
+            let lock_path = directory.path().join("installation.lock");
+            fs::write(&lock_path, b"").expect("lock inode");
+            fs::set_permissions(&lock_path, fs::Permissions::from_mode(0o644))
+                .expect("shared lock");
+            assert!(
+                private_state_lock(
+                    directory.path(),
+                    "installation.lock",
+                    "gateway.configuration.unavailable"
+                )
+                .is_err()
+            );
+            fs::set_permissions(&lock_path, fs::Permissions::from_mode(0o600))
+                .expect("private lock");
+            let alias = directory.path().join("lock-alias");
+            fs::hard_link(&lock_path, &alias).expect("hard link");
+            assert!(
+                private_state_lock(
+                    directory.path(),
+                    "installation.lock",
+                    "gateway.configuration.unavailable"
+                )
+                .is_err()
+            );
+            fs::remove_file(&alias).expect("unlink alias");
+            drop(
+                private_state_lock(
+                    directory.path(),
+                    "installation.lock",
+                    "gateway.configuration.unavailable",
+                )
+                .expect("private lock"),
+            );
+            drop(
+                private_state_lock(
+                    directory.path(),
+                    "installation.lock",
+                    "gateway.configuration.unavailable",
+                )
+                .expect("released lock reopens"),
+            );
+            fs::remove_file(&lock_path).expect("remove test inode");
+            std::os::unix::fs::symlink(&input, &lock_path).expect("symbolic link");
+            assert!(
+                private_state_lock(
+                    directory.path(),
+                    "installation.lock",
+                    "gateway.configuration.unavailable"
+                )
+                .is_err()
+            );
+            fs::remove_file(&lock_path).expect("remove test symlink");
+            fs::create_dir(&lock_path).expect("directory inode");
+            assert!(
+                private_state_lock(
+                    directory.path(),
+                    "installation.lock",
+                    "gateway.configuration.unavailable"
+                )
+                .is_err()
+            );
             let artifact = serde_json::to_vec_pretty(&serde_json::json!({
                 "schema":"auths.engagement-cli-vectors/1", "generated_by":"native_participant_cli_fixture_is_current",
                 "manifest_limit":auths_gateway::MAX_GATEWAY_INSTALLATION_BYTES,
                 "metadata_limit":4096, "sixteen_scope_manifest_exceeds_old_limit":bytes.len()>4096,
                 "same_writer_reader_codec":true, "marker_refuses_invalid_metadata":true,
                 "native_authoring_normalizes":true, "application_refuses_root":true,
+                "manifest_lock_refuses_shared_hardlinked_symlinked_or_directory_inode":true,
                 "not_established":["installed-process-journey", "credential-containment", "cli-subprocess-execution"]
             })).expect("artifact");
             let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

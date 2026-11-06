@@ -6,6 +6,38 @@ with operator workload identity for credential mutations; the serving process
 keeps its read-only runtime identity. Root is required only for doctor's
 privilege-drop test. Application processes receive neither identity nor state.
 
+## Review and activate an effect policy
+
+Run this as the state owner. Keep the candidate policy, review and root pins
+private. The policy must be canonical native `auths.effect-policy/2` bytes in the
+existing admission partition. For engagement provisioning, install the connection
+in private staging, derive root connection pins with `engagement-root --state-dir`,
+then author the scoped policy with `effect-policy --engagement-root`. Do not expose
+an application listener or distribute agent authority during initial staging.
+
+`effect-configuration-review --state-dir STATE --effect-policy CANDIDATE` prints
+the complete candidate installation, `candidate_hex` and `previous_revision_hex`.
+Review those actual values. It does not publish the policy. To activate, pass the
+same policy file to `effect-configuration-activate`, together with the reviewed
+`--expected-candidate` and `--expected-revision`. Changed input or a competing
+activation invalidates the review. A different admission partition is refused.
+Native root activation and ordinary current effect verification are still required.
+
+Activation acknowledges the shared configuration before atomically replacing the
+local manifest. Old workers then fail their shared configuration check. Restart
+workers against the reviewed installation. If activation fails, do not assume the
+old policy is still active: a lost acknowledgement or interrupted manifest write
+may leave the shared candidate committed. Obtain a fresh review of the intended
+policy and explicitly activate it with that fresh token. Never restore an older
+store or edit a configuration record to make the old daemon run.
+
+The owner-only `installation.lock` coordinates local policy and operator
+attestation writers; the kernel releases a held lock when its process exits. Do
+not delete or replace its inode while writers run. This is local publication
+coordination, not a second authorization store; file/PostgreSQL entry fences still
+order the security decision. Omit `--effect-policy` to review/activate the existing
+installed candidate under the same native revision protocol.
+
 ## Diagnose and stop
 
 For a loadable installation whose isolation probes complete,

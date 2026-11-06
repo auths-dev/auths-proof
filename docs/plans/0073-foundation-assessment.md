@@ -962,3 +962,71 @@ does not establish private agent keys, distinct processes/UIDs, installed bindin
 authoring, provider effects, actual process crashes, PostgreSQL execution or the
 full installed representative journey. Those and the other full-program gates
 remain required. No push, hosted CI observation, merge or deployment occurred.
+
+### Installed connection-to-policy provisioning gap
+
+Tracing the installed multi-agent journey exposed a concrete prerequisite:
+root scopes bind the actual native connection record, while the initial
+installation fixes its effect policy before creating that connection. There was
+no native way to review a scoped replacement policy without editing the private
+manifest. Extend the existing configuration review/activation commands with
+`--effect-policy` instead of adding an engagement-specific configuration owner.
+Review loads the complete candidate without publishing it. Activation binds the
+candidate digest, existing admission partition and current shared revision,
+uses the existing native CAS, then publishes the canonical local manifest only
+after the shared acknowledgement. Operator loading uses the existing separated
+operator custody access; no credential lease/provider call is needed.
+
+Interruption between acknowledgement and local publication leaves old settings
+ineligible and requires a fresh explicit review/activation. A local manifest lock
+serializes policy and operator-attestation publication. Its owner/file/link/mode
+checks are extracted from the existing qualification-state lock mechanism, which
+now uses the same leaf helper. No second admission, usage or revocation owner is
+introduced. The private lock is coordination, not an authorization record.
+
+The full planned batch is written before constructor execution: actual CLI
+installation/connection-root authoring; read-only candidate review; changed
+candidate, stale revision and partition-reset refusal; native acknowledgement
+without manifest publication followed by fresh reviewed recovery; two real
+operator processes racing one revision; private lock unsafe inode cases; updated
+managed CLI and installed interface inventories; existing candidate journey and
+content process journey to cover the shared engine loader; semantic closure.
+The installation fixture deliberately does not bootstrap/enroll its root or
+claim agent/provider/UID/language behavior. Its fixed public proof metadata is
+authoring data only. This prerequisite unblocks the still-required installed
+fresh-key machine→A→B/independent-reviewer/binding/provider journey; it does not
+replace that acceptance requirement. No constructor result is claimed yet.
+
+### Acknowledged native policy-cutover artifacts
+
+All nine required constructors have successful results with
+`loopback-provider,testkit-harness`: native policy installation; CLI bounds/locks
+and inventory; managed installed interface; credential-candidate process journey;
+content process, read-only process and capacity process journeys; semantic closure.
+Only these filtered artifact constructors ran, not the complete suites. Logs are
+`/tmp/ap073-policy-initial-{cli,inventory,candidate}.log`,
+`/tmp/ap073-policy-final-{interface,content,readonly,capacity}.log`, and
+`/tmp/ap073-policy-review-{installation,semantic-closure}.log`.
+The initial cohort exposed a test use of a crate-private recipe accessor; the
+public review accessor replaced it. The next cohort reached the interruption
+checkpoint and exposed that the test's independently constructed engine omitted
+the build-pinned qualification root. Supplying the same root made the exact
+native candidate digest match; the equality assertion remains intact.
+
+Final review strengthened connection evidence to compare prepared pins with the
+native canonical connection loaded from the actual installed store, and checks
+0600 mode after both ordinary and winning concurrent manifest publication. The
+affected installation/semantic-closure constructors passed again without warnings.
+The 831-byte `engagement/installation.json` excludes random installation values
+and explicitly disclaims provider, enrollment, language, UID, process-kill and
+power-loss evidence. The 572-byte CLI corpus now includes actual unsafe lock
+inode refusals. Existing provider/read/disclosure/capacity corpus bytes remain
+unchanged. No Python/TypeScript package, PostgreSQL, formal, release or hosted
+result follows from this batch. No push or CI observation occurred.
+
+The real provisioning gap is closed by the existing configuration owner. Next,
+complete the installed workflow with fresh per-process resource-owner, machine,
+A/B and reviewer keys, installed Python/npm transports, native enrollment and
+exact approval, provider effects and the required hostile/recovery schedules.
+That work is still required alongside the remaining M4/formal/global gates; the
+full AP073 goal remains active.

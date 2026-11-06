@@ -134,6 +134,14 @@ impl EffectPolicy {
         self.epoch
     }
 
+    /// Whether two policies use the same admission partition. A policy update
+    /// must retain this namespace so review/activation cannot switch to a fresh
+    /// configuration row and forget permanent admission or revocation history.
+    #[must_use]
+    pub fn same_admission_partition(&self, other: &Self) -> bool {
+        self.partition == other.partition
+    }
+
     pub(crate) fn contains(&self, binding: &EffectBinding) -> bool {
         self.partition == binding.wire.partition && self.epoch == binding.wire.epoch
     }

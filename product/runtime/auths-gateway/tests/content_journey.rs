@@ -37,6 +37,9 @@ const RECORD: &str = "recTEST0000000001";
 #[path = "content_journey/interface_tests.rs"]
 mod interface_tests;
 
+#[path = "content_journey/engagement_installation.rs"]
+mod engagement_installation;
+
 fn private(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).expect("write");
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).expect("mode");
