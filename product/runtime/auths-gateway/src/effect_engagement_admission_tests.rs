@@ -34,16 +34,33 @@ impl Setup {
         recipe: CompiledRecipe,
         engagement: [u8; 32],
     ) -> Self {
+        Self::with_inputs(backend, recipe, engagement, None).await
+    }
+    pub(super) async fn with_channel(
+        backend: Backend,
+        recipe: CompiledRecipe,
+        engagement: [u8; 32],
+        channel: [u8; 32],
+    ) -> Self {
+        Self::with_inputs(backend, recipe, engagement, Some(channel)).await
+    }
+    async fn with_inputs(
+        backend: Backend,
+        recipe: CompiledRecipe,
+        engagement: [u8; 32],
+        channel: Option<[u8; 32]>,
+    ) -> Self {
         let backend = TestAttempts::open(backend);
         let store = backend.raw();
         let connection = connection(&recipe);
         let args = json!({"operation_id":"initial", "operator_namespace":NAMESPACE, "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
-        let native = crate::participant_enrollment::tests::effect_scope_fixture_in_engagement(
+        let native = crate::participant_enrollment::tests::effect_scope_fixture_with_channel(
             &recipe,
             &connection,
             args.as_object().unwrap(),
             0x44,
             engagement,
+            channel,
         );
         let policy = policy(native.root.clone(), "gateway");
         let configuration = crate::configuration::SharedConfiguration::new(

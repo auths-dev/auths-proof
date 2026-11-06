@@ -729,3 +729,94 @@ live scoped delivery/ACK loss and cross-process/cross-recipe schedules, installe
 machine→A→B with independent human exact approval and binding parity, lifecycle /
 federation/native-resource contracts, complete corpus/global release identities
 and source-linked formal/exact-head hosted evidence.
+
+## Scoped live disclosure and ACK batch
+
+The next bounded batch connects the already-integrated native scope/ancestor
+owners to actual local recipient authentication, one-use disclosure transport
+and historical acknowledgement. The portable scope fixture's synthetic UID
+policy is not a live transport authority. Test setup now authors complete native
+root activation, child consent and resource proofs against an explicitly supplied
+channel commitment. Live cases use the actual gateway/recipient effective UID
+and registered recipient key. The original portable fixture remains unchanged.
+This is test setup, not a production override or alternate verifier.
+
+The full source/test batch uses maintained file and TLS PostgreSQL adapters,
+full native current entry and separate exact approval, actual Unix native client
+handshakes and opaque wire capture. Source content is retained through an actual
+native acquisition grant followed by injected synthetic complete response facts;
+its permit is dropped and no HTTP/custody claim is made. Cases cover successful
+ACK; received content with lost ACK and a late exact ACK; dropped delivery permit;
+actual committed grant with lost reply; native sender/recipient withdrawal after
+authentication and before grant; recipient withdrawal after an acknowledged grant;
+competing live authenticated channels for one reservation; wrong recipient key;
+wrong OS peer UID; and claim acknowledgement loss followed by fresh native entry.
+The earlier-grant case deliberately preserves AP074 semantics: subsequent
+withdrawal cannot retroactively cancel a committed one-use capability.
+
+Every case compares actual retained rows and source/ancestor charges. Wire capture
+checks all bytes after the challenge, including partial frame prefixes: refusal,
+replay and grant-ack loss must send zero content-frame bytes. A retained unknown
+or a newly authenticated socket cannot reconstruct a permit. A late genuine ACK
+may refine history without sending content, renewing authority or refunding any
+source/ancestor reservation. Invalid ACKs and exact ACK repeats leave retained
+bytes unchanged. A public snapshot contains neither the planted content nor
+private principal identities.
+
+The planned portable live-information artifact is explicitly a named private
+projection of actual snapshot/wire facts. It excludes host-dependent UID/channel
+identities, effect/source IDs, content MACs, random nonces and signatures; it is
+not edited/restorable journal bytes. Same-process UID checks establish neither
+independent instance/key isolation nor a separate-process deployment. The actual
+installed machine→A→B/human/binding journey, process crash schedules, PostgreSQL
+execution, full refinement and hosted gates remain required.
+
+After the complete batch is written, required local artifact construction is the
+new native live-delivery constructor and the existing native information, scope
+mutation/admission and semantic-closure constructors. No current execution result,
+full F08/F11 closure or CI claim is established by this source-authored plan.
+
+### Initial live disclosure artifacts
+
+All five required constructors passed with `loopback-provider,testkit-harness`:
+new native live delivery, existing information, mutation scope effect/admission
+and semantic closure. The feature-complete target compiled 454 library cases;
+only these five filtered constructors ran. Logs are
+`/tmp/ap073-live-initial-{live,information,effect,admission,semantic-closure}.log`.
+The native live constructor actually executed all eleven independent file-backed
+cases. Its opaque capture checks zero post-challenge content-frame bytes for
+before-grant withdrawal, key/UID refusal, replay and dropped/unacknowledged grant.
+Actual delivery precedes exact ACK or unknown/late ACK refinement. The competing
+channels case records exactly one content frame. Every case retains six distinct
+sender/recipient ancestor allocation rows, with common root counted once.
+The compile reported one redundant trait import in the new test module; remove
+it and refresh the same required artifact cohort before committing. No broader
+PostgreSQL, process, binding, formal or hosted result follows from these cases.
+
+### Final acknowledged scoped live artifacts
+
+After removing the redundant import, all five required constructors passed
+without compile warnings in the same cohort with
+`loopback-provider,testkit-harness`. Logs are
+`/tmp/ap073-live-final-{live,information,effect,admission,semantic-closure}.log`.
+The feature-complete target compiled 454 library cases; only the five filtered
+constructors ran. The 9,596-byte native live-information corpus contains all eleven
+actual file/socket histories, using genuine full current native validation and
+registered channel/key binding. Successful/late-ACK histories show one durable
+grant and one content frame. Lost grant replies and dropped permits show a retained
+private EntryGranted fact, public Unknown and zero content frames. Before-grant
+actor/recipient withdrawal and wrong key/UID show zero grants/content frames while
+retaining the original six ancestor rows. Competing channels deliver one frame;
+late ACK refinement and exact ACK replay preserve charges and never redeliver.
+The corpus explicitly omits host UIDs, private IDs and randomized material rather
+than editing restorable journal data. No provider credential was leased or HTTPS
+request sent; retained source-response facts are synthetic.
+
+This supplies scoped native live-channel evidence for parts of F08/F11 under the
+same-process fixture boundary. It does not establish separate-process containment,
+actual process crashes, PostgreSQL execution, installed binding behavior or full
+AP073 acceptance. Those remain required together with multi-hop machine→A→B /
+human approval, managed created-resource lineage/reconciliation, cross-recipe
+process schedules, lifecycle/federation/native-resource contracts and complete
+source-linked formal/global release/exact-head hosted evidence. No push, CI
+observation, merge or deployment occurred. The full persistent goal stays active.

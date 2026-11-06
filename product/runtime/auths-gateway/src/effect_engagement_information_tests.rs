@@ -10,7 +10,7 @@ use crate::effect::{
 };
 use crate::store_testkit::{Backend, postgres_configured};
 
-fn content_recipe_fixture() -> CompiledRecipe {
+pub(super) fn content_recipe_fixture() -> CompiledRecipe {
     content_recipe(declaration(&json!({"kind":"utf8"}))).unwrap()
 }
 
@@ -27,11 +27,11 @@ fn installation(setup: &Setup) -> EffectInstallation<'_> {
         .with_enrollment(Some(&setup.native.tree))
 }
 
-fn private(binding: &EffectBinding) -> Value {
+pub(super) fn private(binding: &EffectBinding) -> Value {
     serde_json::from_slice(&binding.to_private_bytes().unwrap()).unwrap()
 }
 
-fn content_effect(
+pub(super) fn content_effect(
     setup: &Setup,
     operation: &str,
     actor: u8,
@@ -63,7 +63,7 @@ fn content_effect(
     Ok(effect)
 }
 
-async fn record(setup: &Setup, operation: &str) -> Option<Value> {
+pub(super) async fn record(setup: &Setup, operation: &str) -> Option<Value> {
     let key = crate::GatewayAttemptKey::for_operation(
         &setup.policy,
         setup.recipe.namespace(),
@@ -81,7 +81,7 @@ async fn record(setup: &Setup, operation: &str) -> Option<Value> {
     .unwrap()
 }
 
-async fn allocation_rows(
+pub(super) async fn allocation_rows(
     setup: &Setup,
     approved: &ApprovedEffect,
     slot: u64,
@@ -104,7 +104,7 @@ async fn allocation_rows(
     rows
 }
 
-async fn acquire(
+pub(super) async fn acquire(
     setup: &Setup,
     approved: &Arc<ApprovedEffect>,
     body: &[u8],
@@ -167,7 +167,7 @@ async fn acquire(
         .unwrap()
 }
 
-fn disclosure_effect(
+pub(super) fn disclosure_effect(
     setup: &Setup,
     retained: crate::RetainedContent,
     operation: &str,
@@ -194,7 +194,7 @@ fn disclosure_effect(
     )
 }
 
-fn channel(setup: &Setup) -> [u8; 32] {
+pub(super) fn channel(setup: &Setup) -> [u8; 32] {
     setup.native.root.permitted_channels["sibling-channel"].channel_binding
 }
 

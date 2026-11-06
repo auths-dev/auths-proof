@@ -119,9 +119,20 @@ accounting now join the common journal owner in source. Bound-effect 6/compiler
 11 declares exact prerequisite indices, byte ceilings and ancestor read charges;
 the typed child journal selects these instead of the parent's write charges.
 Required native file artifacts exercise bounded admission/replay/withdrawal
-histories with synthetic response facts and dropped permits. Live scoped
+histories with synthetic response facts and dropped permits. Installed scoped
 transport/containment, cross-recipe process schedules and complete exact-revision
 assurance remain required.
+
+The separate native `engagement/live-information.json` corpus additionally
+exercises actual local Unix UID/key authentication, native fenced scoped grants,
+captured content frames and exact ACKs. Its retained source response is synthetic;
+UIDs belong to the same test process. It covers reply/ACK loss, late historical
+ACK refinement, competing live channels, and sender/recipient withdrawal ordering,
+with permanent ancestor/source charges and no content on replay or refusal.
+The portable artifact is a named projection of actual facts and excludes host
+UIDs, private identities and randomized authentication material. It does not
+establish provider HTTPS, separate-process isolation, process crashes or the
+installed multi-hop/binding journey.
 
 Enrollment configuration uses `auths.engagement-configuration/2`. Every changed
 revision binds its original native control/resource inputs, exact canonical

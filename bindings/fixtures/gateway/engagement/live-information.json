@@ -1,0 +1,334 @@
+{
+  "schema": "auths.engagement-live-information-vectors/1",
+  "generated_by": "native_engagement_live_delivery_fixture_is_current",
+  "scope": "native enrolled scope and independent exact approval; actual file admission/grant, Unix UID/key authentication, captured wire bytes and ACK; synthetic source-response facts",
+  "not_established": [
+    "provider-HTTPS",
+    "independent-process-isolation",
+    "process-crash",
+    "postgres-execution",
+    "installed-binding-journey",
+    "externally-anchored-time"
+  ],
+  "projection": "private identities, host UID, effect/source IDs, content MAC, random authentication nonces and signatures omitted; not restorable journal bytes",
+  "cases": [
+    {
+      "case": "acknowledged",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 3,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "acknowledged",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 30,
+            "content_frames": 1,
+            "content_bytes": 26
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "lost-ack-and-late-ack",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 4,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "acknowledged",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 30,
+            "content_frames": 1,
+            "content_bytes": 26
+          },
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true,
+        "before_late_ack": {
+          "revision": 3,
+          "stage": "unknown",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        }
+      }
+    },
+    {
+      "case": "dropped-grant",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 2,
+          "stage": "unknown",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "entry-granted",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          },
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "lost-grant-reply",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 2,
+          "stage": "unknown",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "entry-granted",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          },
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "recipient-withdrawal-before-grant",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 1,
+          "stage": "reserved",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "reserved",
+        "durable_grants": 0,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "actor-withdrawal-before-grant",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 1,
+          "stage": "reserved",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "reserved",
+        "durable_grants": 0,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "recipient-withdrawal-after-grant",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 3,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "acknowledged",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 30,
+            "content_frames": 1,
+            "content_bytes": 26
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "competing-live-channels",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 3,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "acknowledged",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          },
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 30,
+            "content_frames": 1,
+            "content_bytes": 26
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "wrong-recipient-key",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 1,
+          "stage": "reserved",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "reserved",
+        "durable_grants": 0,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "wrong-peer-uid",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 1,
+          "stage": "reserved",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "reserved",
+        "durable_grants": 0,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": false,
+            "following_wire_bytes": 0,
+            "content_frames": 0,
+            "content_bytes": 0
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    },
+    {
+      "case": "lost-claim-reply-fresh-grant",
+      "facts": {
+        "schema": "auths.engagement-live-private-projection/1",
+        "snapshot": {
+          "revision": 3,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 26,
+          "policy_count_counters": 0,
+          "policy_byte_counters": 0
+        },
+        "private_phase": "acknowledged",
+        "durable_grants": 1,
+        "ancestor_allocations": 6,
+        "wire": [
+          {
+            "challenge_complete": true,
+            "following_wire_bytes": 30,
+            "content_frames": 1,
+            "content_bytes": 26
+          }
+        ],
+        "uid_and_private_identities_omitted": true
+      }
+    }
+  ]
+}

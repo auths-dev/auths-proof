@@ -2114,16 +2114,27 @@ pub(crate) fn effect_scope_fixture_for_actor(
     effect_scope_fixture_in_engagement(recipe, connection, arguments, actor_seed, [1; 32])
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "native root and all resource/consent inputs are authored as one fixture"
-)]
 pub(crate) fn effect_scope_fixture_in_engagement(
     recipe: &crate::CompiledRecipe,
     connection: &auths_connections::ConnectionRecord,
     arguments: &Map<String, Value>,
     actor_seed: u8,
     engagement: [u8; 32],
+) -> EffectScopeFixture {
+    effect_scope_fixture_with_channel(recipe, connection, arguments, actor_seed, engagement, None)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "native root and all resource/consent inputs are authored as one fixture"
+)]
+pub(crate) fn effect_scope_fixture_with_channel(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+    actor_seed: u8,
+    engagement: [u8; 32],
+    sibling_channel: Option<[u8; 32]>,
 ) -> EffectScopeFixture {
     assert!([0x44, 0x55].contains(&actor_seed));
     let mut fixture = Fixture::new();
@@ -2247,9 +2258,11 @@ pub(crate) fn effect_scope_fixture_in_engagement(
             .permitted_channels
             .get_mut("sibling-channel")
             .unwrap()
-            .channel_binding = crate::effect::UnixDisclosurePolicy::new(1000, 1001, [0x78; 32])
-            .commitment()
-            .unwrap();
+            .channel_binding = sibling_channel.unwrap_or_else(|| {
+            crate::effect::UnixDisclosurePolicy::new(1000, 1001, [0x78; 32])
+                .commitment()
+                .unwrap()
+        });
     }
     fixture.enrollment.scopes[0].grant_id = *grant_id(fixture.child_resource.statement())
         .unwrap()
