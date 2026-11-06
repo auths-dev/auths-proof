@@ -518,3 +518,33 @@ human presence. Earlier durable entries retain their documented ordering;
 crashed entries cannot reconstruct transport permission, and withdrawal never
 refunds ancestor capacity. Whole-store rollback and power-loss claims require
 separate evidence under the declared recovery assumptions.
+
+## Created-resource reconciliation evidence and remaining F10 boundary
+
+[ADR 0019](../adr/0019-created-resource-lineage-and-reconciliation.md)
+defines the bounded data-only selection contract. A complete listing may select
+exactly one opaque child identity by the original action marker and verified
+parent. A separate current native recovery read, exact approval, account and
+connection bindings, permanent read charges and the existing source/read fence
+remain required. Zero/multiple/incomplete/malformed/stale/version-mismatched
+evidence retains Unknown; no result permits a blind create retry or refund.
+
+The private source journal retains the selected identity with its original
+recovery link and provider evidence. Decoding independently reprojects those
+bytes and rejects a canonical but inconsistent identity. Public results expose
+neither the selected identity, marker nor a raw private-content hash. Original
+writer withdrawal does not prevent an independently authorized current reader
+from refining the historical source.
+
+The native constructor produced nine file cases and seven recipe-compiler
+refusals. The projection constructor produced 39 cases, all agreed with the
+independent test-only Python oracle. These establish bounded projection and
+native journal composition under synthetic evidence, not provider completeness,
+marker integrity, exclusive causation or a live create. PostgreSQL and property
+tests are authored for hosted execution and have not been run locally.
+
+`CreatedChild` execution remains refused. F10 still requires actual response-loss
+HTTP creation, a dependent operation whose native bound scope derives from the
+original producer and acquisition, their revalidation under the final fence,
+adversarial lineage substitutions and installed-process evidence. A selected ID
+is not authority. Full AP073 acceptance remains open.

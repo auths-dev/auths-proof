@@ -316,8 +316,12 @@ fn refinement(
         return Ok(Err(RecoveryDisposition::ResponseUnusable));
     };
     let mut next = source.clone();
+    let created_resource = match &reading {
+        ReadBack::CreatedResource(candidate) => Some(candidate.handle().to_owned()),
+        _ => None,
+    };
     match reading {
-        ReadBack::EchoMatched => {
+        ReadBack::EchoMatched | ReadBack::CreatedResource(_) => {
             // A response-derived locator cannot resolve an unknown send. The
             // shared reducer checks this link condition again before commit.
             if source.state.response_status.is_none()
@@ -326,6 +330,7 @@ fn refinement(
                 return Ok(Err(RecoveryDisposition::Inconclusive));
             }
             next.state.stage = GatewayAttemptStage::ObservedByProvider;
+            next.state.created_resource = created_resource;
             next.state.provider_evidence = Some(EvidenceWire {
                 channel: GatewayEvidenceChannel::ReadBack,
                 locator: request.url().to_owned(),

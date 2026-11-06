@@ -910,6 +910,20 @@ struct MutationState {
     pre_entry: Option<PreEntryWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    created_resource: Option<String>,
+}
+
+/// Emits canonical-but-inconsistent bytes for the native corruption test. No
+/// shipping caller may replace a selected identity independently of evidence.
+#[cfg(test)]
+pub(crate) fn fixture_created_resource_substitution(
+    bytes: &[u8],
+    handle: &str,
+) -> Result<Vec<u8>, GatewayAttemptError> {
+    let mut record: Record = decode(bytes)?;
+    record.state.created_resource = Some(handle.into());
+    canonical(&record)
 }
 
 /// Private immutable evidence of the unique acknowledged grant. It does not
@@ -1149,6 +1163,42 @@ impl Record {
         }
     }
 
+    fn created_resource_valid(&self) -> bool {
+        let declared = self
+            .state
+            .observation_plan
+            .as_ref()
+            .is_some_and(|plan| plan.created_resource.is_some());
+        match &self.state.created_resource {
+            None => !declared || self.state.stage != GatewayAttemptStage::ObservedByProvider,
+            Some(handle) => {
+                if !declared
+                    || !crate::resource_identity::valid_handle(handle)
+                    || self.state.stage != GatewayAttemptStage::ObservedByProvider
+                    || self.state.recovery_evidence.is_none()
+                {
+                    return false;
+                }
+                let Some(evidence) = &self.state.provider_evidence else {
+                    return false;
+                };
+                if evidence.evidence_b64.len() > (MAX_EVIDENCE_BYTES / 3 + 1) * 4 {
+                    return false;
+                }
+                let Some(request) = self.observation_request() else {
+                    return false;
+                };
+                let Ok(body) = Base64::decode_vec(&evidence.evidence_b64) else {
+                    return false;
+                };
+                let Ok(token) = self.echo_token() else {
+                    return false;
+                };
+                matches!(request.read_back(Some(&token),&body),Some(crate::recipe::ReadBack::CreatedResource(candidate)) if candidate.handle()==handle)
+            }
+        }
+    }
+
     fn snapshot(&self, recovered: bool) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         if !self.validate_header()?.is_mutation() {
             return Err(GatewayAttemptError::Corrupt);
@@ -1166,6 +1216,7 @@ impl Record {
                 .as_ref()
                 .is_none_or(ObservationTemplate::valid)
             || !self.locator_valid()
+            || !self.created_resource_valid()
             || !transition::consistent(&self.view()?)
         {
             return Err(GatewayAttemptError::Corrupt);
@@ -2522,6 +2573,7 @@ fn claim_record(
             observation_fact: None,
             provider_evidence: None,
             recovery_evidence: None,
+            created_resource: None,
             pre_entry: None,
         },
     );

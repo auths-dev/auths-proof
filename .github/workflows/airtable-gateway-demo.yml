@@ -151,6 +151,7 @@ jobs:
           docker run --rm --init -v "$PWD/evidence:/evidence" auths-airtable-gateway-demo --selftest
       - name: Exercise installed native machine-to-agent-to-agent delegation
         run: |
+          set -o pipefail
           cp package/airtable-gateway-demo/manifest.json evidence/ap073-package-manifest.json
           docker run --rm --init -v "$PWD/evidence:/evidence" \
             --entrypoint /opt/demo/bin/auths-ap073-journey \
@@ -161,7 +162,9 @@ jobs:
             -e AUTHS_GATEWAY_OPERATOR_TEST_BINARY=/opt/demo/bin/auths-gateway-simulation \
             -e AUTHS_DELEGATION_EVIDENCE_OUT=/evidence/ap073-installed-delegation.json \
             auths-airtable-gateway-demo --ignored --exact \
-            delegation_process::native_installed_delegation_process_fixture_is_current --nocapture
+            delegation_process::native_installed_delegation_process_fixture_is_current --nocapture \
+            | tee evidence/ap073-installed-delegation.log
+          grep -Fq 'test result: ok. 1 passed; 0 failed; 0 ignored;' evidence/ap073-installed-delegation.log
       - name: Inspect the actual browser workbench and evidence
         run: |
           docker run -d --init --name airtable-workbench -p 127.0.0.1:8081:8081 auths-airtable-gateway-demo

@@ -100,9 +100,16 @@ def main():
                        AUTHS_UPDATE_FIXTURES="1")
     environment.pop("AUTHS_DELEGATION_DISTINCT_UIDS", None)
     environment.pop("AUTHS_DELEGATION_EVIDENCE_OUT", None)
-    raise SystemExit(run("installed-journey", [str(artifacts / "auths-ap073-journey"),
-                     "--ignored", "--exact", "delegation_process::native_installed_delegation_process_fixture_is_current",
-                     "--nocapture"], consumer, environment))
+    selector = "delegation_process::native_installed_delegation_process_fixture_is_current"
+    binary = str(artifacts / "auths-ap073-journey")
+    registry = subprocess.check_output([binary, "--list"], text=True, timeout=30)
+    if selector + ": test" not in registry.splitlines():
+        raise ValueError("constructor.required-selector-missing")
+    result = run("installed-journey", [binary, "--ignored", "--exact", selector,
+                 "--nocapture"], consumer, environment)
+    if result == 0 and "test result: ok. 1 passed; 0 failed; 0 ignored;" not in (output / "installed-journey.log").read_text():
+        raise ValueError("constructor.required-selector-did-not-run-once")
+    raise SystemExit(result)
 
 
 if __name__ == "__main__":

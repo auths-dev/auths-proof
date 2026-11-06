@@ -518,6 +518,7 @@ async fn reobserve_operator<P: ProviderPort>(
     let reading = observation.read_back(attempt.echo_token().as_deref(), bytes)?;
     let status = attempt.snapshot().ok()?.response_status();
     match reading {
+        ReadBack::CreatedResource(_) => None, // requires the independently admitted native recovery path
         ReadBack::EchoMatched => {
             let snapshot = attempt
                 .record_provider_evidence(bytes, io.clock()?)

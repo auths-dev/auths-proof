@@ -237,7 +237,7 @@ pub enum EnrollmentResourceBinding {
 impl EnrollmentResourceBinding {
     pub(crate) fn valid(&self) -> bool {
         match self {
-            Self::Exact { handle } => bounded_resource(handle),
+            Self::Exact { handle } => crate::resource_identity::valid_handle(handle),
             Self::CreatedChild {
                 create_operation_id,
                 create_recipe_digest,
@@ -256,7 +256,7 @@ impl EnrollmentResourceBinding {
         match self {
             Self::Exact { handle } => value == handle,
             Self::CreatedChild { .. } => {
-                bounded_resource(value)
+                crate::resource_identity::valid_handle(value)
                     && branch.chain.iter().all(|grant| {
                         matches!(
                             grant.statement().action_constraint(),
@@ -266,10 +266,6 @@ impl EnrollmentResourceBinding {
             }
         }
     }
-}
-
-fn bounded_resource(value: &str) -> bool {
-    !value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
 }
 
 fn canonical_digest(value: &str) -> bool {

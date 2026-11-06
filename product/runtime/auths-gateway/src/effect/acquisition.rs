@@ -73,7 +73,7 @@ impl RecoveryReadTarget {
     }
 
     fn contract(&self) -> Value {
-        json!({
+        let mut contract = json!({
             "schema": "auths.gateway-recovery-read/1",
             "source_effect": hex::encode(self.source.id().as_bytes()),
             "source_operation": self.source.wire.operation,
@@ -86,7 +86,11 @@ impl RecoveryReadTarget {
             "maximum_transport_seconds": crate::transport::MAX_TRANSPORT_DURATION.as_secs(),
             "maximum_evidence_age_seconds": MAX_RECOVERY_EVIDENCE_AGE_SECONDS,
             "disclosure": "none",
-        })
+        });
+        if let Some(selection) = self.request.created_resource_selection() {
+            contract["created_resource_selection"] = json!(selection);
+        }
+        contract
     }
 
     pub(crate) fn closed_request(&self) -> &crate::ClosedObservationRequest {

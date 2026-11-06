@@ -55,6 +55,7 @@ mod pre_entry;
 mod qualification;
 mod readiness;
 pub mod recipe;
+mod resource_identity;
 mod semantic_closure;
 mod separation;
 mod store;

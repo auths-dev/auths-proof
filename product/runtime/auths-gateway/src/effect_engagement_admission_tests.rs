@@ -53,7 +53,7 @@ impl Setup {
         let backend = TestAttempts::open(backend);
         let store = backend.raw();
         let connection = connection(&recipe);
-        let args = json!({"operation_id":"initial", "operator_namespace":NAMESPACE, "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
+        let args = json!({"operation_id":"initial", "operator_namespace":recipe.namespace().as_str(), "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
         let native = crate::participant_enrollment::tests::effect_scope_fixture_with_channel(
             &recipe,
             &connection,
@@ -194,7 +194,7 @@ fn native(
     operation: &str,
     actor: u8,
 ) -> EffectScopeFixture {
-    let args = json!({"operation_id":operation, "operator_namespace":NAMESPACE,
+    let args = json!({"operation_id":operation, "operator_namespace":recipe.namespace().as_str(),
         "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
     effect_scope_fixture_for_actor(recipe, connection, args.as_object().unwrap(), actor)
 }

@@ -1236,10 +1236,13 @@ artifact. Final current semantic-closure/artifact-cohort results follow below.
 
 ### Acknowledged cross-recipe process artifacts
 
-All thirteen final required constructor/check executions passed from the rebuilt
-current source: six-case cross-recipe file process corpus; prior native process
-capacity, enrollment, ancestor admission, hierarchical control, content, read-only,
-content capacity, managed interface, installation, candidate and installed
+Retrospective execution-count correction: thirteen commands returned success,
+but two native admission/hierarchy filters selected zero tests. That cohort
+therefore established eleven actual constructor/check executions, not thirteen.
+The six-case cross-recipe corpus did run and pass. Its actual companions were
+prior native process
+capacity, enrollment, content, read-only, content capacity, managed interface,
+installation, candidate and installed
 multi-agent process artifacts; and the semantic-closure equality check with
 update disabled. Final logs are `/tmp/ap073-cross-recipe-final/*.log`; the
 required native build log contains no compiler diagnostics. Rust formatting
@@ -1258,3 +1261,113 @@ gate, push or hosted CI observation occurred. Managed-created-child lineage /
 response-less creation reconciliation, lifecycle/federation/native-resource
 conformance, the remaining stale-floor/cross-protocol/crash cases, binding parity,
 source-linked formal evidence and final exact-head hosted gates remain required.
+
+### Native created-resource selection/recovery batch
+
+F10 remains open: prior generic recovery compares one object at a known locator;
+response-less creation requires a bounded complete-list uniqueness relation.
+ADR 0019 and abstraction case 0010 define the smaller parsing/cardinality
+promotion and explicitly retain provider completeness, marker integrity and
+identifier lifetime assumptions. Historical Google task owners remain independent
+comparison evidence, not managed credentials, state or permits.
+
+The entire planned source/test/CI batch adds a closed optional observation
+selection: strict bounded pointers, 1–64 items, exact marker and verified-parent
+matching, scalar/sole-parent-array shape and one/two declared completeness checks.
+Absent-member completeness requires an existing immediate parent object. Missing
+or malformed relevant fields, duplicate matches, incomplete listings, invalid
+escapes, ambiguous JSON and bounds violations select nothing. The native parser
+and an independent Python oracle cover records/data/files response shapes without
+claiming live provider equivalence.
+
+The selection definition joins native observation plans and exact recovery
+contracts. Actual native source/read/allocation refinement persists the selected
+identity privately only with the original recovery evidence. Decoding rechecks
+that identity against the retained provider projection. Public results expose no
+identity, marker or raw response hash. A genuine current reader may refine a
+withdrawn writer's historical source; staleness and unusable evidence preserve
+Unknown and all capacity. Native source/read/admission owners are unchanged.
+
+Planned evidence includes a malformed/boundary/property projection corpus;
+recipe-compiler refusal matrix; nine file/TLS PostgreSQL native source/read cases
+(unique, zero, multiple, incomplete, wrong parent, malformed JSON, version
+mismatch, stale evidence and withdrawn writer), exact replay and privacy checks;
+independent Python comparison; native semantic closure; and affected prior
+recovery/content/process artifacts. Complete this batch before running its
+constructors; no result is claimed here. Only required artifact construction
+runs locally, with hosted/general gates deferred as requested.
+
+This batch does not remove CreatedChild execution refusal. Dependency-complete
+lineage compilation/final fencing, actual response-less HTTP create and downstream
+scope use, adversarial installed journeys, lifecycle/federation/native-resource
+conformance, remaining rollback assumptions, bindings/formal/global gates are
+still required. Selection or a serialized candidate is not authority. Full
+AP073 acceptance remains active and incomplete.
+
+#### Execution-count correction and shared validation review
+
+Initial creation commands exposed an assurance error: Rust's `--exact` returns
+success for an absent selector. The incorrectly shortened native paths omitted
+`observed_tests::effect_native_tests::engagement_tests`. Creation recovery and
+prior information filters selected zero tests. The prior cross-recipe cohort's
+admission/hierarchy commands did the same (the six-case cross-recipe test and
+installed process tests did execute). Those native claims remain pending until
+correctly selected execution; a zero-test exit is not evidence.
+
+The actual compiled registry now supplies exact names, and local constructor
+results must contain exactly one passing, unignored test before being counted.
+CI's existing checked-selector loop now owns the cross-recipe and new creation
+matrix selectors. Installed package CI and its local builder similarly reject
+zero-test results. This reuses the maintained checking path, not a parallel gate.
+
+Review also centralizes the identical 1–256-byte/no-control opaque handle
+predicate for enrollment, selection and retained identity in resource_identity.
+All response-pointer consumers use the existing native validator, strengthened
+to strict RFC 6901 escapes and no control characters; creation does not carry a
+second pointer parser. These are shared bounded validation contracts, not new
+provider semantics. The independent Python oracle intentionally remains separate.
+
+#### Correctly selected constructor results before final regeneration
+
+The registry/count-checked cohort actually executed 16 existing and projection
+constructors once each. Native admission, hierarchy and information evidence now
+have real executions, superseding the earlier zero-test commands. The new
+recovery constructor initially exposed an omitted required `query` member and a
+shared fixture-authoring bug: the synthetic action used the default namespace
+instead of the compiled recipe namespace. Both fixture owners are repaired
+centrally; native namespace verification remains mandatory.
+
+The correctly selected new native constructor then passed all nine source/read
+cases and seven recipe refusals, including canonical-but-inconsistent selected-ID
+substitution being rejected as corrupt. The independent Python oracle agreed on
+all 38 initial projection cases. Final corpus review replaces weak duplicate
+empty arrays with two valid-candidate first/last-wins counterexamples (39 cases),
+and strengthens the native malformed-response case similarly. Final regeneration
+will count every execution; these preliminary results do not establish the
+subsequently edited source, PostgreSQL, property tests or hosted gates.
+
+#### Final creation projection/recovery artifact construction
+
+After the complete repair batch, semantic closure regeneration executed one
+actual constructor, then the required executable build succeeded. The final
+registry/count-checked cohort ran 18 constructors: selection; native creation
+recovery; admission; hierarchy; information; prior recovery acquisition; mutation
+differential; review contract; enrollment; cross-recipe process; content capacity;
+content process; installation; managed interface; read-only process; candidate
+process; installed multi-agent process; and update-disabled semantic equality.
+Every command executed exactly one passing test. The native creation constructor
+asserts all nine cases and seven compiler refusals. The independently executed
+Python oracle agrees on all 39 final projection cases.
+
+Logs are `/tmp/ap073-creation-final/` and
+`/tmp/ap073-creation-final-results.log`; build and semantic logs have the matching
+`/tmp/ap073-creation-final-` prefix. Installed actors reused the existing unchanged
+SDK packages with the new native executable; this is not exact-head package
+acceptance. Semantic closure changes intentionally alter bound effect IDs, so
+recovery-compilation and independent-mutation fixtures were regenerated by their
+maintained constructors. No public SDK shape changed.
+
+These are artifact-construction results only. No broad local suite, PostgreSQL,
+property/formal gate, hosted qualification or CI has been run for this batch.
+No push has occurred. Dependent child scope/final-fence execution and the remaining
+M0–M4/F01–F16 work remain required; this batch cannot close the full goal.

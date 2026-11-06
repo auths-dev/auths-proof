@@ -12,6 +12,9 @@ mod information_tests;
 #[path = "effect_engagement_prerequisite_tests.rs"]
 mod prerequisite_tests;
 
+#[path = "effect_created_resource_tests.rs"]
+mod created_resource_tests;
+
 #[cfg(unix)]
 #[path = "effect_engagement_delivery_tests.rs"]
 mod delivery_tests;
