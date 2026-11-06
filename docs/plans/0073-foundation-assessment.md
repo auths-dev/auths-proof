@@ -2004,3 +2004,69 @@ construction is complete. Remaining acceptance is the exact-head hosted CI,
 formal, PostgreSQL, bindings, packaging, source-free isolation and release gates.
 No broad local gate was substituted for GitHub. The complete implementation is
 ready for publication to its own draft PR; no merge or deployment is authorized.
+
+
+### First hosted cohort: bounded repair mapping
+
+Published implementation `fb576449` in draft PR215. Hosted generated-artifact
+preflight and distinct-UID gateway isolation passed. The first failures were:
+
+- Python source-contract job: the AP074 independent mutation report retained the
+  previous native corpus digest. Regenerate with its unchanged independent Python
+  oracle; do not change expected decisions or relax report equality.
+- Disposable provider simulations: the test-only `approve_driver_with_plan`
+  assembled real prerequisite declarations but left their binding budgets empty.
+  Current admission correctly refuses these incomplete synthetic bindings, so the
+  Stripe oracle never enters and the race waiter never reaches its read barrier.
+  Populate the central fixture helper using `Prerequisites::budgets` as the native
+  compiler already does. Keep shipping admission strict and preserve both exact
+  write-count and pending-read race assertions.
+
+Repair verification batch: exact registered Stripe simulation and file race,
+artifact report regeneration/equality and its focused independent tests, required
+semantic-closure construction/equality, then final hosted acceptance. Collect any
+additional independent failures from this same cohort before publishing repairs.
+The baseline hosted results are evidence at `fb576449`, not final-head acceptance.
+
+
+The same cohort's repository preflight exposed a third root cause: compliance
+recognized only literal unparameterized `#[tokio::test]`, so actual compiled
+multi-thread tests were rejected. Extend that central source-inventory check to
+recognize configured Tokio attributes and preserve its existing helper/macro
+anchor convention. The inventory is source linkage, not proof of compiled test
+execution; owning gates still establish actual registered tests and results.
+Add a regression for each maintained attribute form and existing helper anchors,
+then rerun the complete inventory path without changing compliance anchors.
+
+
+The packaged Stripe demo also exposed its stale self-test reader: the expected
+private binding schema was still `/3`, whereas this source directly emits `/7`.
+Update both maintained gateway demo self-test oracles to the single current `/7`
+schema; retain exact namespace/operation/action-byte checks and reject obsolete
+schemas. Do not add a legacy reader or derive the expected schema from the
+untrusted binding. Both installed demo workflows must rerun on the repair head.
+
+
+Hosted PostgreSQL completed with three failures: the synthetic prerequisite race
+and aggregate-bounds first-entry case share the incomplete test binding fixed
+above; the attempt-scenario corpus still declared `/16` while both reader and
+current journal require `/17`. Update that declarative corpus metadata to `/17`;
+keep the same 27 scenarios and expected outcomes. Native successor recovery,
+created-resource recovery and existing native authority/observation tests passed
+in the configured PostgreSQL cohort. The original full gate remains failed until
+the repaired exact head reruns it.
+
+
+Focused local repair evidence passed: exactly one registered Stripe simulation,
+file pending-prerequisite race, 30-case aggregate-bounds suite, 27-case attempt
+suite, semantic equality, configured-attribute inventory regression and complete
+registered compliance inventory per selector. The independent Python comparator
+regenerated only corpus/source digest metadata (all 28 request and 26 response
+comparisons unchanged), and its hostile-mutation test passed. Logs are
+`/tmp/ap073-first-ci-repair-*.log`; the two required scoped build logs are
+`/tmp/ap073-first-ci-repair-build.log` and
+`/tmp/ap073-compliance-repair-build.log`. No PostgreSQL or Docker demo was rerun
+locally. Hosted reruns are required for all repaired consumers and final heads.
+These reproductions do not close authoritative/formal/package gates skipped by
+the failed repository preflight. Update only changed source/freeze metadata and
+publish the collected repair batch; preserve the complete acceptance matrix.

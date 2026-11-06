@@ -17,7 +17,7 @@ def private_action_echo(label, action):
     from operate import PRIVATE
     binding = decode(read(PRIVATE / ('effect-' + label) / 'binding'))
     commitment = binding['action']
-    require(binding['schema'] == 'auths.bound-effect/3'
+    require(binding['schema'] == 'auths.bound-effect/7'
             and binding['namespace'] == action['operator_namespace']
             and binding['operation'] == action['operation_id']
             and type(commitment) is list and len(commitment) == 32

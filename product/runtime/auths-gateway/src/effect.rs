@@ -328,6 +328,9 @@ fn approve_driver_with_plan(
     binding.wire.protocol = Protocol::Mutation {
         request: request_commitment(&command.request, &prerequisites).map_err(|_| invalid())?,
     };
+    binding.wire.prerequisite_budgets = prerequisites
+        .budgets(&binding.wire.scope)
+        .map_err(|_| invalid())?;
     binding = EffectBinding::new(binding.wire).map_err(|_| invalid())?;
     let effect = BoundEffect {
         authority: command.native_authority.clone(),
