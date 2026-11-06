@@ -3,6 +3,9 @@ use super::*;
 use crate::effect::{EffectBindingError, EngagementPolicy};
 use std::sync::Arc;
 
+#[path = "effect_engagement_admission_tests.rs"]
+mod admission_tests;
+
 fn approve(effect: crate::effect::BoundEffect) -> crate::effect::ApprovedEffect {
     let key = SigningKey::from_bytes(&[29; 32]);
     let request = effect.approval_request(NOW, NOW + 60).unwrap();
@@ -28,12 +31,19 @@ fn fixture() -> (
     let connection = connection(&recipe);
     let args = json!({"operation_id": "engagement-mutation", "operator_namespace": NAMESPACE,
         "recipe_digest": recipe.digest_hex(), "record_id": RECORD, "replacement": "Approved"});
-    let (root, tree, trust, action) = crate::participant_enrollment::tests::effect_scope_fixture(
+    let native = crate::participant_enrollment::tests::effect_scope_fixture(
         &recipe,
         &connection,
         args.as_object().unwrap(),
     );
-    (recipe, connection, root, tree, trust, action)
+    (
+        recipe,
+        connection,
+        native.root,
+        native.tree,
+        native.context,
+        native.action,
+    )
 }
 
 fn policy(
@@ -328,7 +338,7 @@ fn acting_child_cannot_supply_its_own_exact_human_approval() {
     clippy::too_many_lines,
     reason = "one installed snapshot composition case retains all independent inputs"
 )]
-async fn entry_snapshots_require_current_enrollment_and_refuse_unimplemented_allocations() {
+async fn entry_snapshots_revalidate_current_enrollment() {
     let (recipe, connection, root, tree, trust, action) = fixture();
     let policy = policy(root.clone(), "gateway");
     let effect = compile_mutation_effect(
@@ -424,10 +434,7 @@ async fn entry_snapshots_require_current_enrollment_and_refuse_unimplemented_all
         Some(configuration_bytes),
         Some(record(&tree, NOW)),
     ];
-    assert_eq!(
-        validation.validate(&approved, &snapshots, NOW),
-        Err("gateway.engagement.allocations-unavailable")
-    );
+    assert_eq!(validation.validate(&approved, &snapshots, NOW), Ok(NOW));
     let mut revoked = tree.clone();
     revoked.revoke(root.enrollment_commitment).unwrap();
     snapshots[2] = Some(record(&revoked, NOW));

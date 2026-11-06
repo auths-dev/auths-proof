@@ -148,6 +148,7 @@ impl JournalProtocol for AcquisitionState {
                 &record.state.plan,
                 record.state.allocation,
                 &record.state.counters,
+                &record.engagement_allocations,
             ))?,
             entry: record
                 .entry
@@ -955,6 +956,7 @@ struct AcquisitionEntryDependencies {
     native_indices: Vec<usize>,
     native_end: usize,
     counter_end: usize,
+    prerequisite_end: usize,
     prerequisites: Vec<crate::effect::PrerequisitePlan>,
 }
 
@@ -1003,12 +1005,17 @@ fn acquisition_entry_dependencies(
         AcquisitionPlan::Prerequisite(_) => Vec::new(),
     };
     keys.extend(prerequisite_dependencies(attempt.key, &prerequisites)?);
+    let prerequisite_end = keys.len();
+    keys.extend(engagement::dependencies(
+        &attempt.record.engagement_allocations,
+    ));
     Ok(AcquisitionEntryDependencies {
         keys,
         slot,
         native_indices,
         native_end,
         counter_end,
+        prerequisite_end,
         prerequisites,
     })
 }
@@ -1037,6 +1044,7 @@ impl ReservedAcquisition {
                 native_indices,
                 native_end,
                 counter_end,
+                prerequisite_end,
                 prerequisites,
             } = acquisition_entry_dependencies(
                 &attempt,
@@ -1082,9 +1090,10 @@ impl ReservedAcquisition {
                     attempt.key,
                     approved.effect().binding(),
                     &prerequisites,
-                    &snapshots[counter_end..],
+                    &snapshots[counter_end..prerequisite_end],
                     now,
                 )?;
+                engagement::validate_entry(&current, attempt.key, &snapshots[prerequisite_end..])?;
                 if matches!(
                     plan,
                     AcquisitionPlan::Recovery(_)
@@ -1348,24 +1357,30 @@ fn insert_acquisition(
     if let Some(candidate) = candidate {
         dependencies.extend(candidate.dependencies());
     }
-    store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
-        if snapshots.len() != dependencies.len() || snapshots.is_empty() {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        let (eligible, source_at) =
-            eligible_source(&record.state.plan, snapshots[0].as_deref(), source_key, key)?;
-        if !eligible {
-            return Err(GatewayAttemptError::InvalidTransition);
-        }
-        admission.stamp(record, &select_snapshots(snapshots, native_indices)?)?;
-        if let Some(candidate) = candidate {
-            candidate.validate_predecessors(&snapshots[native_end..])?;
-        }
-        if record.evaluated_at < source_at {
-            return Err(GatewayAttemptError::InvalidTransition);
-        }
-        encode(record)
-    })
+    engagement::insert(
+        store,
+        record,
+        entries,
+        &dependencies,
+        &mut |record, snapshots| {
+            if snapshots.len() != dependencies.len() || snapshots.is_empty() {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+            let (eligible, source_at) =
+                eligible_source(&record.state.plan, snapshots[0].as_deref(), source_key, key)?;
+            if !eligible {
+                return Err(GatewayAttemptError::InvalidTransition);
+            }
+            admission.stamp(record, &select_snapshots(snapshots, native_indices)?)?;
+            if let Some(candidate) = candidate {
+                candidate.validate_predecessors(&snapshots[native_end..])?;
+            }
+            if record.evaluated_at < source_at {
+                return Err(GatewayAttemptError::InvalidTransition);
+            }
+            Ok(())
+        },
+    )
 }
 
 /// A source connection can also be a native dependency. Read it once under the

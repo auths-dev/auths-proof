@@ -1981,23 +1981,68 @@ fn native_participant_enrollment_fixture_is_current() {
     }
 }
 
-/// Real native root/child enrollment and a signed recipe action for the effect
-/// compiler tests. This grants no admission and performs no provider operation.
+/// Owned native enrollment inputs shared by scope and durable accounting tests.
+pub(crate) struct EffectScopeFixture {
+    pub(crate) root: ParentEnrollmentPins,
+    pub(crate) tree: EnrollmentTree,
+    pub(crate) context: TrustedContext,
+    pub(crate) action: Submission,
+    activation: Submission,
+    root_resource: Submission,
+    children: Vec<(Submission, Submission, Submission)>,
+    withdrawal: Submission,
+}
+
+impl EffectScopeFixture {
+    pub(crate) fn withdraw_root(&self, controller: &crate::EngagementConfiguration) {
+        controller.revoke(&invocation(&self.withdrawal)).unwrap();
+    }
+    pub(crate) fn persist(&self, controller: &crate::EngagementConfiguration) {
+        let resources = [EnrollmentResourceWitness {
+            scope_id: "project-a-read",
+            invocation: invocation(&self.root_resource),
+        }];
+        controller
+            .bootstrap(&RootEnrollmentProofs {
+                activation: invocation(&self.activation),
+                resources: &resources,
+            })
+            .unwrap();
+        for (parent, child, resource) in &self.children {
+            let resources = [EnrollmentResourceWitness {
+                scope_id: "project-a-read",
+                invocation: invocation(resource),
+            }];
+            controller
+                .enroll(
+                    self.root.enrollment_commitment,
+                    &ParticipantEnrollmentProofs {
+                        parent: invocation(parent),
+                        child: invocation(child),
+                        resources: &resources,
+                    },
+                )
+                .unwrap();
+        }
+        assert!(controller.snapshot().unwrap().tree() == &self.tree);
+    }
+}
+
+/// Real native root and two separately accepted siblings, with one shared root
+/// ceiling. These are proof inputs only; persistence uses the maintained owner.
 #[allow(
     clippy::too_many_lines,
-    reason = "one complete native root/child/resource fixture is signed together"
+    reason = "one complete native root/sibling/resource fixture is signed together"
 )]
-pub(crate) fn effect_scope_fixture(
+pub(crate) fn effect_scope_fixture_for_actor(
     recipe: &crate::CompiledRecipe,
     connection: &auths_connections::ConnectionRecord,
     arguments: &Map<String, Value>,
-) -> (
-    ParentEnrollmentPins,
-    EnrollmentTree,
-    TrustedContext,
-    Submission,
-) {
+    actor_seed: u8,
+) -> EffectScopeFixture {
+    assert!([0x44, 0x55].contains(&actor_seed));
     let mut fixture = Fixture::new();
+    let sibling = Signer::new(0x55);
     let audience = resource_audience(
         &fixture.pins.engagement_commitment,
         fixture.pins.partition_generation,
@@ -2019,6 +2064,23 @@ pub(crate) fn effect_scope_fixture(
     fixture.child_resource = grant_for_audiences(
         &fixture.parent,
         &fixture.child,
+        service,
+        &[tool],
+        Some(grant_id(fixture.parent_resource.statement()).unwrap()),
+        0,
+        vec![audience.clone()],
+    );
+    let sibling_control = grant(
+        &fixture.parent,
+        &sibling,
+        PARTICIPANT_SERVICE,
+        CONTROL_TOOLS,
+        Some(grant_id(fixture.parent_control.statement()).unwrap()),
+        0,
+    );
+    let sibling_resource = grant_for_audiences(
+        &fixture.parent,
+        &sibling,
         service,
         &[tool],
         Some(grant_id(fixture.parent_resource.statement()).unwrap()),
@@ -2056,6 +2118,14 @@ pub(crate) fn effect_scope_fixture(
     fixture.pins.scopes[0].resource = EnrollmentResourceBinding::Exact {
         handle: arguments["record_id"].as_str().unwrap().to_owned(),
     };
+    fixture.pins.permitted_channels.insert(
+        "sibling-channel".to_owned(),
+        EnrollmentChannelPins {
+            channel_binding: [0x77; 32],
+            principal: sibling.principal.clone(),
+            instance_generation: 1,
+        },
+    );
     fixture.enrollment.scopes[0].grant_id = *grant_id(fixture.child_resource.statement())
         .unwrap()
         .as_bytes();
@@ -2082,29 +2152,94 @@ pub(crate) fn effect_scope_fixture(
         },
     )
     .unwrap();
-    let parent = fixture.parent_proof(&fixture.enrollment);
-    let child = fixture.child_proof(&fixture.enrollment);
+    let mut children = Vec::new();
+    for (child_signer, control, resource, is_sibling) in [
+        (
+            &fixture.child,
+            &fixture.child_control,
+            &fixture.child_resource,
+            false,
+        ),
+        (&sibling, &sibling_control, &sibling_resource, true),
+    ] {
+        let mut descriptor = child_descriptor(child_signer, control, resource, &fixture.pins);
+        if is_sibling {
+            descriptor.enrollment_id = "sibling".to_owned();
+            descriptor.delivery_channel = "sibling-channel".to_owned();
+        }
+        let parent = fixture.parent_proof(&descriptor);
+        let child = chained(
+            &[&fixture.root, &fixture.parent, child_signer],
+            &[&fixture.parent_control, control],
+            PARTICIPANT_SERVICE,
+            ACCEPT_PARTICIPANT_TOOL,
+            serde_json::json!({"enrollment_commitment":descriptor.commitment().unwrap()})
+                .as_object()
+                .unwrap(),
+        );
+        let resource = chained(
+            &[&fixture.root, &fixture.parent, child_signer],
+            &[&fixture.parent_resource, resource],
+            service,
+            tool,
+            arguments,
+        );
+        let resources = [EnrollmentResourceWitness {
+            scope_id: "project-a-read",
+            invocation: invocation(&resource),
+        }];
+        tree.enroll(
+            &fixture.context,
+            fixture.pins.enrollment_commitment,
+            NOW,
+            &ParticipantEnrollmentProofs {
+                parent: invocation(&parent),
+                child: invocation(&child),
+                resources: &resources,
+            },
+        )
+        .unwrap();
+        children.push((parent, child, resource));
+    }
     let action = chained(
-        &[&fixture.root, &fixture.parent, &fixture.child],
-        &[&fixture.parent_resource, &fixture.child_resource],
+        &[
+            &fixture.root,
+            &fixture.parent,
+            if actor_seed == 0x44 {
+                &fixture.child
+            } else {
+                &sibling
+            },
+        ],
+        &[
+            &fixture.parent_resource,
+            if actor_seed == 0x44 {
+                &fixture.child_resource
+            } else {
+                &sibling_resource
+            },
+        ],
         service,
         tool,
         arguments,
     );
-    let resources = [EnrollmentResourceWitness {
-        scope_id: "project-a-read",
-        invocation: invocation(&action),
-    }];
-    tree.enroll(
-        &fixture.context,
-        fixture.pins.enrollment_commitment,
-        NOW,
-        &ParticipantEnrollmentProofs {
-            parent: invocation(&parent),
-            child: invocation(&child),
-            resources: &resources,
-        },
-    )
-    .unwrap();
-    (fixture.pins, tree, fixture.context, action)
+    let withdrawal = fixture.withdraw_as_parent(fixture.pins.enrollment_commitment);
+    EffectScopeFixture {
+        root: fixture.pins,
+        tree,
+        context: fixture.context,
+        action,
+        activation,
+        root_resource,
+        children,
+        withdrawal,
+    }
+}
+
+pub(crate) fn effect_scope_fixture(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+) -> EffectScopeFixture {
+    effect_scope_fixture_for_actor(recipe, connection, arguments, 0x44)
 }

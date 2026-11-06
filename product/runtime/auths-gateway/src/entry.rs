@@ -263,11 +263,6 @@ impl EntryValidation {
                         now,
                     )
                     .map_err(|_| "gateway.effect.authority-unavailable")?;
-                // Keep scoped effects non-executable until the journal's atomic
-                // ancestor allocation owner supplies and checks every charge.
-                if entry.engagement.is_some() {
-                    return Err("gateway.engagement.allocations-unavailable");
-                }
                 Ok(now)
             }
             #[cfg(any(test, feature = "testkit-harness"))]

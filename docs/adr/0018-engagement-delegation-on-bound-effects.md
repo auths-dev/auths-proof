@@ -192,3 +192,47 @@ ancestor allocation. Information compilers also explicitly refuse an installed
 engagement until their native scope/source/channel relations join this owner.
 These are implementation gaps to close in this goal, not product modes or a
 reduced completion definition. No scoped transport is qualified by this batch.
+
+
+## Atomic ancestor journal cutover
+
+The common generic `Record<S>` cuts over to `auths.gateway-attempt/17`, with
+immutable typed ancestor allocation references and byte commitments in its
+header. They join fixed fields for all three protocols. Existing replay,
+configuration, source allowances, fixed counters and consumed permit ownership
+remain unchanged. No second usage ledger or adapter decorator is introduced.
+
+`store::engagement::insert` extends the existing all-or-none native admission
+transaction with one permanent `EffectAllocation` row per declared ancestor/unit.
+It retains original protocol entry indices, checks canonical immutable
+predecessors under the same writer fence, and rejects unsupported combined
+64-record sets through the maintained adapter bound. Only explicit vacancy
+collisions may retry; a storage error or ambiguous acknowledgement returns
+immediately. All permanent counters retain the existing trusted-store occupied
+prefix assumption and are never swept. Restored/tampered whole-store rollback
+still needs an independent floor and is not detected by this algorithm.
+
+Count and byte units remain separate. Cumulative arithmetic uses checked
+addition against the exact native declaration; zero bytes still consumes an
+allocation slot and does not erase the separately declared disclosure count.
+Slot frontiers are bounded to the enrolled ceilings (32 writes, 64 reads/releases)
+and byte totals to 16 MiB. Every grant reloads and checks the exact own allocation
+bytes, claim, effect, unit, amount, ceiling and immutable reference under the
+same native final fence. Missing or substituted rows cannot grant entry.
+An acknowledgement must still succeed before a non-cloneable permit is returned.
+Unknown retains all capacity and cannot replay a grant.
+
+This removes the unconditional scoped-entry refusal for the integrated direct
+mutation path. Scope/source/channel compilation for information protocols is
+still unsupported. Prerequisite acquisitions currently retain their parent's
+mutation binding; its write charges cannot substitute for participant read
+charges. That scoped composition is explicitly refused at the common journal
+boundary until exact prerequisite read charges and lineage are integrated.
+This is required remaining work, not a supported fallback or exemption.
+
+The canonical admission corpus contains a specifically named private projection
+of real file-journal facts, with the private random nonce omitted. It is not a
+restorable attempt record. Original native mutation inputs and actual allocation
+rows are included; provider execution and original-control-proof audit completeness
+are explicitly not claimed. Authored TLS PostgreSQL, fault and concurrency cases
+require their own exact-revision execution evidence.

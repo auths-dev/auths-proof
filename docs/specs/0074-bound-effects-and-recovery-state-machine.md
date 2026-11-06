@@ -188,8 +188,10 @@ The concrete native encoding is `auths.bound-effect/4`, with effect compiler
 fixed epoch-aligned windows, the retained source effect's lifetime, or AP073's
 shared engagement/ancestor lifetime. AP073's complete immutable ancestry and
 planned typed charges are part of the binding and private review; decoding them
-is data validation. Scoped execution remains refused until the common journal
-atomically persists and verifies all corresponding ancestor allocations. Mutation
+is data validation. The common journal atomically persists all corresponding ancestor allocation
+references with direct mutation claims and verifies the retained rows at entry.
+Scoped information and prerequisite composition still require their full typed
+compilation/accounting integration before transport is supported. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
 source-lifetime bound must survive operation-ID changes, replay and restart.
@@ -389,7 +391,7 @@ read proof/approval. Custody is checked for the exact staged reference before
 publication; independently stored custody and connection state are not claimed
 to be one atomic transaction.
 
-The concrete journal encoding is `auths.gateway-attempt/16`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/17`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded

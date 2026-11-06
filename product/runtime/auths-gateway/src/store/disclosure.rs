@@ -100,6 +100,7 @@ impl JournalProtocol for DisclosureState {
                 &record.state.plan,
                 record.state.allocation,
                 &record.state.counters,
+                &record.engagement_allocations,
             ))?,
             entry: record
                 .entry
@@ -410,20 +411,27 @@ impl GatewayAttempts {
                 if let Some(candidate) = fenced_candidate {
                     fenced.extend(candidate.dependencies());
                 }
-                let outcome = store.fenced_insert_all(&entries, &fenced, &mut |snapshots| {
-                    if snapshots.len() != fenced.len() {
-                        return Err(GatewayAttemptError::Corrupt);
-                    }
-                    let received_at = source_matches(&record.state.plan, snapshots[0].as_deref())?;
-                    admission.stamp(&mut record, &select_snapshots(snapshots, &native_indices)?)?;
-                    if record.evaluated_at < received_at {
-                        return Err(GatewayAttemptError::InvalidTransition);
-                    }
-                    if let Some(candidate) = fenced_candidate {
-                        candidate.validate_predecessors(&snapshots[native_end..])?;
-                    }
-                    encode(&record)
-                })?;
+                let outcome = engagement::insert(
+                    &*store,
+                    &mut record,
+                    &entries,
+                    &fenced,
+                    &mut |record, snapshots| {
+                        if snapshots.len() != fenced.len() {
+                            return Err(GatewayAttemptError::Corrupt);
+                        }
+                        let received_at =
+                            source_matches(&record.state.plan, snapshots[0].as_deref())?;
+                        admission.stamp(record, &select_snapshots(snapshots, &native_indices)?)?;
+                        if record.evaluated_at < received_at {
+                            return Err(GatewayAttemptError::InvalidTransition);
+                        }
+                        if let Some(candidate) = fenced_candidate {
+                            candidate.validate_predecessors(&snapshots[native_end..])?;
+                        }
+                        Ok(())
+                    },
+                )?;
                 match outcome {
                     GatewayInsert::Inserted => return record.disclosure_snapshot(),
                     GatewayInsert::Exists { index: 0 } => {
@@ -684,6 +692,8 @@ impl GatewayAttempts {
             let native_indices = append_dependencies(&mut keys, &validation.dependencies());
             let native_end = keys.len();
             keys.extend(capacity::dependencies(&record.state.counters)?);
+            let counter_end = keys.len();
+            keys.extend(engagement::dependencies(&record.engagement_allocations));
             let mut committed = None;
             store.fenced_replace(&keys, &mut |snapshots| {
                 if snapshots.len() != keys.len()
@@ -724,9 +734,10 @@ impl GatewayAttempts {
                     &current.state.counters,
                     key,
                     approved.disclosure_bound(),
-                    &snapshots[native_end..],
+                    &snapshots[native_end..counter_end],
                     now,
                 )?;
+                engagement::validate_entry(&current, key, &snapshots[counter_end..])?;
                 channel
                     .validate(
                         approved.effect().binding(),

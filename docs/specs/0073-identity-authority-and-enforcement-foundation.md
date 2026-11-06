@@ -113,8 +113,10 @@ The current signed root schema is `auths.engagement-root/3`, with tree schema
 partition, exact resource connection commitments and registered native channel
 commitments. The native configuration owner persists enrollment/withdrawal under
 the existing gateway adapter fence and installed-configuration dependency.
-These control facts do not yet constitute operation admission: complete effect
-scope, ancestor reservations and final-entry dependencies remain required.
+These control facts never constitute operation admission. Direct mutation scope,
+ancestor allocation references and final-entry dependencies now join the common
+journal owner in source. Information/source/channel and prerequisite accounting,
+installed containment and complete exact-revision assurance remain required.
 
 ### 4.3 Evidence and implementation boundaries
 

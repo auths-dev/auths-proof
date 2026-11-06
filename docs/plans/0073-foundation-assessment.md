@@ -386,3 +386,96 @@ unsupported combined sets. Remove the current scoped-entry refusal only after
 this owner and its file/PostgreSQL, replay, concurrency, lost-ACK and crash cases
 are implemented and mapped. Information scope/source/recipient compilation must
 then join the same contract, preserving all AP074 evidence distinctions.
+
+
+## Atomic ancestor journal batch
+
+The preceding turn made source/artifact progress in `dceaad4c`; the goal remains
+active and all M0–M4/F01–F16 criteria remain in scope. The current worktree began
+clean. This batch extends the common generic journal header, not a separate
+mutable task ledger. Attempt schema 17 carries immutable references to permanent
+ancestor/unit allocations. Mutation, acquisition and disclosure admission use
+one fenced insert helper, and all three grant owners verify those exact rows in
+their existing final fences. Configuration/time/native/approval checks remain
+in `EntryValidation`; durable adapter acknowledgement still precedes a permit.
+
+The complete planned source/test batch includes:
+
+- actual native root activation and two independent child consents persisted
+  through `EngagementConfiguration`, sharing one root write unit;
+- file and TLS PostgreSQL claim, replay, acknowledged grant, dropped-handle
+  restart projection, sibling exhaustion and no partial sibling charge;
+- concurrent independently opened adapters, with both selecting vacant slots
+  before their real fences, for one winner at the root's last unit;
+- real committed claim/grant with lost acknowledgement delivery, conservative
+  history, no duplicate charges and no reconstructed permit;
+- missing allocation snapshots; native root withdrawal before claim or entry;
+- feature-gated real file I/O failures at all three operation/ancestor target
+  installs, and TLS PostgreSQL server rejection at every insertion position;
+- pure allocation-prefix arithmetic/representation cases including zero bytes,
+  byte exhaustion, changed ceilings and substituted units; this primitive test
+  does not claim scoped information authority;
+- an actual file admission/grant corpus with original native mutation inputs,
+  allocation rows and explicitly named private record projections. Random nonces
+  are omitted from projections, never replaced in restorable journal bytes.
+
+The first scoped mutation prototype exposed another confirmed integration gap:
+AP074 prerequisite acquisition records retain the parent mutation binding. Write
+charges cannot stand in for participant read charges. The common journal refuses
+that scoped composition until typed prerequisite charges and lineage are
+implemented. Information scope/source/recipient compilation remains refused.
+No unsupported path may silently emit unscoped effects or spend the wrong unit.
+
+After all source/tests are written, local execution is limited to required
+artifact construction: `native_engagement_admission_fixture_is_current`, revised
+`native_engagement_effect_fixture_is_current`, and `semantic_closure_is_current`.
+The remaining new tests, PostgreSQL, actual process schedules, installed bindings,
+formal source/refinement and hosted acceptance remain pending their final full
+batch. Other AP074 artifacts affected by schema 17 require native regeneration
+in the complete final fixture batch. No predecessor result closes these claims.
+
+
+### Initial ancestor constructor results and replay-race review
+
+The first complete constructor cohort exposed three compile errors confined to
+new test support: the existing store-kit constructor is `open`, and both fault
+adapter callbacks must use the existing lifetime-aware `GatewayFenceDecision`
+alias. These were repaired together with a redundant import. The second cohort
+passed all three required constructors with `loopback-provider,testkit-harness`:
+real file native admission/grant/reopen, revised scoped effect corpus, and
+semantic closure. The feature-complete library target compiled 436 cases;
+only the three constructors ran. Logs are
+`/tmp/ap073-ancestor-repair-{admission,effect,semantic-closure}.log`.
+
+Source review then identified a lookup/capacity race: an identical winner may
+consume the final ancestor unit between the initial history read and slot scan.
+The common owner now delegates an already-present operation to exact-binding
+replay instead of reporting its reservation as exhausted. Two additional
+file/PostgreSQL cases model the earlier lookup absence while every subsequent
+read observes the maintained committed store. They are explicit boundary
+schedules, not actual process-concurrency evidence. Refresh the affected
+constructor cohort after this source repair. Broad behavior and PostgreSQL
+remain unexecuted locally; no CI push/observation has occurred.
+
+
+### Final acknowledged ancestor artifacts
+
+After the replay-race repair, all three required constructors passed as one
+cohort with `loopback-provider,testkit-harness`. The feature-complete library
+target compiled 438 cases; only `native_engagement_admission_fixture_is_current`,
+`native_engagement_effect_fixture_is_current` and `semantic_closure_is_current`
+ran. Logs are `/tmp/ap073-ancestor-final-{admission,effect,semantic-closure}.log`.
+Inspection confirms two actual ancestor allocation rows, real schema-17 grant
+facts and a correctly named projection omitting the random nonce. The case
+checks the public reopen projection is Unknown, retains the underlying private
+EntryGranted fact, refuses replay and exhausts a sibling without partial charge.
+No permit was sent, credential leased or provider contacted.
+
+Remaining acceptance is still substantial: execute the authored file/PG
+races/faults and real process schedules; integrate scoped information, source,
+recipient/channel and prerequisite charge lineage; complete managed recovery,
+binding/installed journey, lifecycle/federation/native-resource contracts and
+source-linked formal evidence; regenerate the complete affected corpus and
+release inventories; then publish and inspect exact-head hosted CI as requested.
+No broad local gate, PostgreSQL execution, push, CI observation, merge or
+deployment occurred in this batch. All F01–F16 remain open for their full scope.

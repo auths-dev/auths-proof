@@ -458,13 +458,24 @@ enum Scope {
 
 #[derive(Clone, Copy, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Unit {
+pub(crate) enum Unit {
     MutationCount,
     MutationSum,
     AcquisitionCount,
     ResponseBytes,
     DisclosureCount,
     DisclosureBytes,
+}
+
+/// Immutable typed declaration used by the common journal allocation owner.
+/// It is derived from a validated binding, never an independent policy input.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct EngagementReservation {
+    pub(crate) key: [u8; 32],
+    pub(crate) unit: Unit,
+    pub(crate) amount: u64,
+    pub(crate) ceiling: u64,
 }
 
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
@@ -620,6 +631,20 @@ impl EffectBinding {
 
     pub(crate) fn disclosure_channel_matches(&self, channel: &[u8; 32]) -> bool {
         matches!(&self.wire.protocol, Protocol::Disclosure { channel: expected, .. } if expected == channel)
+    }
+
+    pub(crate) fn engagement_reservations(&self) -> Vec<EngagementReservation> {
+        self.wire
+            .reservations
+            .iter()
+            .filter(|entry| entry.window == ReservationWindow::EngagementLifetime)
+            .map(|entry| EngagementReservation {
+                key: entry.key,
+                unit: entry.unit,
+                amount: entry.amount,
+                ceiling: entry.ceiling,
+            })
+            .collect()
     }
 
     pub(crate) fn is_mutation(&self) -> bool {

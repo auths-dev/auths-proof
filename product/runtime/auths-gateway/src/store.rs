@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/16`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/17`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -37,7 +37,7 @@ use zeroize::Zeroizing;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/16";
+const SCHEMA: &str = "auths.gateway-attempt/17";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -629,6 +629,7 @@ struct Record<S = MutationState> {
     nonce: String,
     evaluated_at: u64,
     entry: Option<EntryAudit>,
+    engagement_allocations: Vec<engagement::AllocationRef>,
     state: S,
 }
 
@@ -667,6 +668,7 @@ impl<S> Record<S> {
             nonce: hex::encode(nonce),
             evaluated_at,
             entry: None,
+            engagement_allocations: Vec::new(),
             state,
         })
     }
@@ -747,6 +749,7 @@ impl<S> Record<S> {
         {
             return Err(GatewayAttemptError::Corrupt);
         }
+        engagement::validate_partial(&binding, &self.engagement_allocations)?;
         Ok(binding)
     }
 
@@ -757,7 +760,11 @@ impl<S> Record<S> {
         now: u64,
         pre_entry: Option<PreEntryWire>,
         dependencies: &[Option<Vec<u8>>],
-    ) -> Result<(), GatewayAttemptError> {
+    ) -> Result<(), GatewayAttemptError>
+    where
+        S: JournalProtocol,
+    {
+        engagement::validate_record(self)?;
         if self.entry.is_some() || authorization_started_at < self.evaluated_at {
             return Err(GatewayAttemptError::InvalidTransition);
         }
@@ -811,6 +818,7 @@ impl<S> Record<S> {
             nonce: self.nonce,
             evaluated_at: self.evaluated_at,
             entry: self.entry,
+            engagement_allocations: self.engagement_allocations,
             state: map(self.state)?,
         })
     }
@@ -832,6 +840,7 @@ enum ProtocolState {
 mod acquisition;
 mod capacity;
 mod disclosure;
+mod engagement;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
     ContentProjectionStatus, GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition,
@@ -928,6 +937,7 @@ struct FixedFields<'a> {
     nonce: &'a str,
     evaluated_at: u64,
     counters: &'a [CounterWire],
+    engagement_allocations: &'a [engagement::AllocationRef],
     observation_plan: Option<&'a ObservationTemplate>,
 }
 
@@ -1064,6 +1074,7 @@ impl Record {
                 nonce: &self.nonce,
                 evaluated_at: self.evaluated_at,
                 counters: &self.state.counters,
+                engagement_allocations: &self.engagement_allocations,
                 observation_plan: self.state.observation_plan.as_ref(),
             })?,
             stage: self.state.stage.kernel(),
@@ -1441,6 +1452,14 @@ impl GatewayRecordEntry {
 #[cfg(test)]
 pub(crate) fn fixture_prerequisite_key(parent: GatewayAttemptKey, index: u8) -> GatewayAttemptKey {
     acquisition::prerequisite_key(parent, index)
+}
+
+#[cfg(test)]
+pub(crate) fn fixture_engagement_allocation_key(
+    counter: &[u8; 32],
+    slot: u64,
+) -> GatewayAttemptKey {
+    GatewayAttemptKey(engagement::slot_key(counter, slot))
 }
 
 fn validate_batch(entries: &[GatewayRecordEntry]) -> Result<(), GatewayAttemptError> {
@@ -2905,6 +2924,10 @@ impl ClaimedGatewayAttempt {
                 attempt.key,
                 &prerequisites,
             )?);
+            let prerequisite_end = keys.len();
+            keys.extend(engagement::dependencies(
+                &attempt.record.engagement_allocations,
+            ));
             let mut committed = None;
             attempt.store.fenced_replace(&keys, &mut |snapshots| {
                 if snapshots.len() != keys.len()
@@ -2952,9 +2975,10 @@ impl ClaimedGatewayAttempt {
                     &validation,
                     pre_entry.as_ref(),
                     &prerequisites,
-                    &snapshots[counter_end..],
+                    &snapshots[counter_end..prerequisite_end],
                     now,
                 )?;
+                engagement::validate_entry(&current, attempt.key, &snapshots[prerequisite_end..])?;
                 let mut next = current.clone();
                 next.record_grant(
                     &approved,
@@ -3270,16 +3294,19 @@ fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttempt
             let typed = record
                 .clone()
                 .map_state(disclosure::DisclosureState::extract)?;
+            engagement::validate_record(&typed)?;
             disclosure::DisclosureState::validate(&typed)?;
         }
         ProtocolState::Mutation(_) => {
             let typed = record.clone().map_state(MutationState::extract)?;
+            engagement::validate_record(&typed)?;
             MutationState::validate(&typed)?;
         }
         ProtocolState::Acquisition(_) => {
             let typed = record
                 .clone()
                 .map_state(acquisition::AcquisitionState::extract)?;
+            engagement::validate_record(&typed)?;
             acquisition::AcquisitionState::validate(&typed)?;
         }
     }
@@ -3427,7 +3454,9 @@ fn valid_transition<S: JournalProtocol>(
     old: &Record<S>,
     new: &Record<S>,
 ) -> Result<bool, GatewayAttemptError> {
-    Ok(transition::valid_transition(&S::view(old)?, &S::view(new)?) && S::validate(new).is_ok())
+    Ok(transition::valid_transition(&S::view(old)?, &S::view(new)?)
+        && engagement::validate_record(new).is_ok()
+        && S::validate(new).is_ok())
 }
 
 fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
@@ -3654,16 +3683,22 @@ fn insert_claim(
     if let Some(candidate) = candidate {
         dependencies.extend(candidate.dependencies());
     }
-    store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
-        if snapshots.len() != dependencies.len() {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        admission.stamp(record, &snapshots[..native_end])?;
-        if let Some(candidate) = candidate {
-            candidate.validate_predecessors(&snapshots[native_end..])?;
-        }
-        encode(record)
-    })
+    engagement::insert(
+        store,
+        record,
+        entries,
+        &dependencies,
+        &mut |record, snapshots| {
+            if snapshots.len() != dependencies.len() {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+            admission.stamp(record, &snapshots[..native_end])?;
+            if let Some(candidate) = candidate {
+                candidate.validate_predecessors(&snapshots[native_end..])?;
+            }
+            Ok(())
+        },
+    )
 }
 
 impl GatewayAttempts {

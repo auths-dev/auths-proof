@@ -68,7 +68,7 @@ compilation, current exact approval and atomic writer fence. Failure to acquire
 current authority leaves its retained reservation visible; it does not rewrite
 history as a new non-entry fact. This history path returns only typed snapshots,
 never `BoundEffect`, `ApprovedEffect`, an authenticated channel or a permit.
-The journal cuts over directly to `auths.gateway-attempt/16`; obsolete disposable
+The journal cuts over directly to `auths.gateway-attempt/17`; obsolete disposable
 records are rejected. There is no legacy reader or second authority cache.
 
 Retain lifecycle identity/commitment helpers only where their exact contract
