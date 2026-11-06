@@ -473,3 +473,21 @@ complete M0–M4 or F01–F16.
 - [SPIFFE concepts](https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/): workload identity, trust domains, and identity evidence.
 - [RFC 9396](https://www.rfc-editor.org/rfc/rfc9396.html): structured OAuth authorization details.
 - [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html): sender-constrained OAuth tokens and replay considerations; not a complete exact-effect authorization protocol.
+
+## Installed multi-hop process evidence on the native owner
+
+`content_journey/delegation_process.rs` constructs the installed Python/npm
+machine → A → B workflow with five fresh process-held keys, native control and
+resource proofs, independent scripted exact-effect signing, a real local daemon,
+a counting credential-checking provider double and native disclosure transport.
+The canonical `engagement/installed-process.json` records a successful local
+artifact construction, including historical control replay and no second write
+on restart. Pre-activation resource witness construction is data-only; genuine
+signed witnesses cannot obtain managed approval until the root is active.
+
+The source-free package workflow runs the embedded constructor with separate
+Linux UIDs and retains the exact-source package manifest with its result.
+That hosted isolation result remains pending. The local artifact does not
+establish human presence, live provider qualification, every crash boundary,
+PostgreSQL, lifecycle/federation/native-resource conformance, formal refinement,
+or complete M0–M4/F01–F16 acceptance. The full program remains required.

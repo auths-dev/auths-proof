@@ -1,0 +1,33 @@
+{
+  "schema": "auths.installed-delegation-process-vectors/1",
+  "distinct_uids": false,
+  "installed_python_and_npm": true,
+  "fresh_process_held_keys": 5,
+  "private_keys_exported": 0,
+  "native_enrollment_revisions": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "resource_authority_suffix": 3,
+  "scripted_independent_reviewer": true,
+  "human_presence": false,
+  "native_read_calls": 1,
+  "separate_native_disclosure_ack": true,
+  "native_provider_writes": 1,
+  "wrong_reviewer_refused": true,
+  "ancestor_shared_limit_refused_second_writer": true,
+  "restart_replay_new_writes": 0,
+  "old_enrollment_retry_revision": 3,
+  "current_control_revision": 4,
+  "original_control_audit_replayed": true,
+  "withdrawn_descendant_new_review_refused": true,
+  "not_established": [
+    "live-provider-qualification",
+    "human-presence",
+    "process-crash-at-every-boundary",
+    "postgres-execution",
+    "full-AP073-acceptance"
+  ]
+}

@@ -1030,3 +1030,76 @@ A/B and reviewer keys, installed Python/npm transports, native enrollment and
 exact approval, provider effects and the required hostile/recovery schedules.
 That work is still required alongside the remaining M4/formal/global gates; the
 full AP073 goal remains active.
+
+### Installed fresh-key process journey: construction batch
+
+The next whole batch authors the native installed journey rather than adapting
+the public fixed-seed native fixtures into a containment claim. Resource owner,
+machine, A, B and reviewer keys are generated inside five separate installed
+Python/npm processes. Only public keys and signatures enter the orchestrator.
+Public native authoring APIs own grant IDs, preimages, canonical actions, proof
+assembly and control evidence. The daemon remains the only credential/execution
+owner. Scripted human-role signing is explicitly not human-presence evidence.
+
+The actual path uses the new connection-to-policy provisioning flow, native root
+bootstrap, parent control plus child acceptance/resource proofs, scoped content
+acquisition, native authenticated disclosure/ACK to A, exact independent mutation
+approval and one counting-provider write. It authors premature-B and app-root
+refusals, wrong-reviewer refusal, shared-root second-writer refusal, restart replay,
+subtree withdrawal, historical enrollment retry, new-review refusal after
+withdrawal, and native original-control audit export/replay. Fresh credential and
+content canaries are absent from public metadata, logs and recipient inputs before
+release. Acquisition metadata never substitutes for a disclosure permit.
+
+The existing package job builds and copies the compiled orchestrator into its
+checksum-verified source-free handoff. Its receiving job explicitly runs the
+ignored constructor with installed wheel/npm inputs and distinct Linux UIDs,
+empty capability bounds and no-new-privileges. State and cross-role memory probes
+are strict in that mode. Local artifact construction builds/installs the same
+packages but establishes no UID isolation. The package build OS is pinned to the
+Ubuntu 24.04 runtime's glibc baseline. The existing counting provider now accepts
+fresh content without changing prior fixture defaults; daemon readiness waits for
+an actual connectable listener so restart cannot mistake a stale inode for ready.
+
+The complete planned construction cohort is: independently collect native
+executable/wheel/full npm-WASM construction failures; installed process artifact;
+existing content, read-only, capacity, managed-interface and candidate process
+artifacts; current semantic closure. Native/profile/binding wire schemas are
+unchanged. New evidence schema is `auths.installed-delegation-process-vectors/1`.
+No result is claimed yet. Do not infer hosted, PostgreSQL, broad formal/release or
+full M0–M4/F01–F16 completion from this construction batch.
+
+The first complete constructor cohort built the installed wheel and full npm/WASM
+package and regenerated all five existing content/interface/installation artifacts.
+It exposed a bootstrap cycle: data-only content-call construction loaded current
+enrollment even though root activation needs that call as a resource witness.
+The repair shares the same configuration/connection/time loader between data-only
+construction and compilation, with enrollment loading retained exclusively on
+compilation. The journey now asserts both pre-activation witness construction and
+refusal of a genuine signed witness's managed review before root activation,
+with no approval files or provider I/O. This is a construction-boundary repair,
+not an exception to enrollment or final-entry authority. Both daemon lifetimes'
+logs are checked for the fresh credential/content canaries. The source-free job
+also checks the handoff's exact source commit and retains its payload manifest
+beside the generated evidence. Final repaired construction results follow below.
+
+### Repaired installed constructor result
+
+The local artifact construction succeeded using the built/installed wheel and
+full npm/WASM package. Rust formatting succeeded. The final required cohort
+passed the installed journey, content, read-only, capacity, managed-interface,
+installation and candidate process artifact constructors; semantic closure was
+regenerated before the final native executable build. Logs are retained in
+`/tmp/ap073-installed-consumer-initial/` (`installed-repaired.log`,
+`repaired-*.log`, `candidate-repaired.log`), with the semantic constructor at
+`/tmp/ap073-installed-semantic-closure.log`. Initial native module-path/API and
+borrow errors were repaired as collected build failures. Existing canonical
+process outputs remained unchanged. The new canonical installed-process artifact
+is 920 bytes and excludes randomized keys, identities, times and private data.
+
+This run executed the complete installed scenario with fresh process-held keys
+and public SDK transport. It used the same local UID; it establishes no Linux
+DAC or sibling-memory isolation. The separately wired source-free hosted mode,
+PostgreSQL, exhaustive crash schedules, human presence, live qualification,
+M4, global binding/formal/release checks and full acceptance remain unestablished.
+No broad gate, push or CI observation ran. The full goal remains active.

@@ -318,3 +318,15 @@ owner review, exact write and independent observation. It also exercises actual
 response loss and retained unknown without reentry. Assertions check that
 private sentinel content stays out of public HTTP/history. New scenarios remain
 authored until their exact-head hosted result is recorded in the AP074 ledger.
+
+## AP073 installed delegation evidence in the package
+
+The source-free handoff also contains `bin/auths-ap073-journey`, a compiled native
+test orchestrator. CI explicitly invokes its installed delegation constructor
+with the packaged simulation gateway, installed wheel/npm clients and five
+separate Linux UIDs. It exercises machine→A→B enrollment, exact independent
+scripted review, scoped read/disclosure/write, shared limits, replay and original
+control audit. The normal demo launcher does not run this test executable.
+Its reviewer is simulated; it makes no human-presence or production-qualification
+claim. Process-crash coverage and full AP073 acceptance remain separate gates.
+

@@ -40,6 +40,9 @@ mod interface_tests;
 #[path = "content_journey/engagement_installation.rs"]
 mod engagement_installation;
 
+#[path = "content_journey/delegation_process.rs"]
+mod delegation_process;
+
 fn private(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).expect("write");
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).expect("mode");
@@ -48,7 +51,7 @@ fn path(path: &Path) -> &str {
     path.to_str().expect("path")
 }
 fn command(name: &str, args: &[(&str, &str)], flags: &[&str]) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_auths-gateway"));
+    let mut command = Command::new(gateway_binary());
     command.arg(name);
     for (key, value) in args {
         command.arg(key).arg(value);
@@ -59,6 +62,12 @@ fn command(name: &str, args: &[(&str, &str)], flags: &[&str]) -> Command {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     command
+}
+fn gateway_binary() -> PathBuf {
+    std::env::var_os("AUTHS_GATEWAY_OPERATOR_TEST_BINARY").map_or_else(
+        || PathBuf::from(env!("CARGO_BIN_EXE_auths-gateway")),
+        PathBuf::from,
+    )
 }
 fn cli(name: &str, args: &[(&str, &str)], flags: &[&str], input: Option<&[u8]>) -> Output {
     let mut child = command(name, args, flags).spawn().expect("CLI");
@@ -115,7 +124,11 @@ impl Provider {
         Self::configured(SECRET.to_vec(), false)
     }
     fn configured(secret: Vec<u8>, refuse_unauthorized: bool) -> Self {
+        Self::with_content(secret, refuse_unauthorized, CONTENT.to_vec())
+    }
+    fn with_content(secret: Vec<u8>, refuse_unauthorized: bool, content: Vec<u8>) -> Self {
         let secret = zeroize::Zeroizing::new(secret);
+        let content = zeroize::Zeroizing::new(content);
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
         let port = listener.local_addr().expect("address").port();
         listener.set_nonblocking(true).expect("nonblocking");
@@ -179,7 +192,7 @@ impl Provider {
                 let (media, response) = if line
                     == format!("GET /documents/{RECORD}?format=text%2Fplain HTTP/1.1")
                 {
-                    ("text/plain", CONTENT.to_vec())
+                    ("text/plain", content.to_vec())
                 } else if line
                     == format!("PATCH /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1")
                 {
@@ -257,7 +270,7 @@ impl Daemon {
         .expect("daemon");
         let mut daemon = Self(child);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !socket.exists() {
+        while std::os::unix::net::UnixStream::connect(socket).is_err() {
             assert!(
                 daemon.0.try_wait().expect("daemon status").is_none(),
                 "daemon exited"

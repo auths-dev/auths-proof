@@ -69,7 +69,7 @@ fn envelope(input: &Approved) -> Value {
 fn case(name: &str, value: &Value) -> Value {
     json!({"case":name,"frame":serde_json::to_string(value).expect("frame")})
 }
-fn private_paths(root: &Path) -> Vec<PathBuf> {
+pub(super) fn private_paths(root: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for entry in std::fs::read_dir(root).expect("owned fixture directory") {
         let entry = entry.expect("entry");

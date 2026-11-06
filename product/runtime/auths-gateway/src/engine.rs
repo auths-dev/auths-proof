@@ -1608,6 +1608,8 @@ impl GatewayEngine {
     /// # Errors
     /// Refuses JSON over 65,536 bytes, duplicate members, nonobjects, unsupported
     /// resource fields, invalid operation IDs and unavailable installation state.
+    /// Root enrollment is not required to construct this data-only witness;
+    /// compiling, approving and executing it still require current enrollment.
     pub async fn content_authorization_call(
         &self,
         resource_arguments: &[u8],
@@ -1618,7 +1620,7 @@ impl GatewayEngine {
             .and_then(|value| value.as_object().cloned())
             .ok_or_else(invalid)?;
         let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
-        let (loaded, _, _) = self.effect_compilation_inputs().await?;
+        let (loaded, _) = self.effect_connection_inputs().await?;
         crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
             .and_then(|target| target.authorization_call(&self.recipe, &operation))
             .map_err(|_| invalid())
@@ -2405,6 +2407,32 @@ impl GatewayEngine {
         ),
         GatewaySubmitResult,
     > {
+        let (loaded, now) = self.effect_connection_inputs().await?;
+        let enrollment = match self.installed_engagement().map_err(not_entered)? {
+            None => None,
+            Some(controller) => Some(
+                tokio::task::spawn_blocking(move || controller.snapshot())
+                    .await
+                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?
+                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?,
+            ),
+        };
+        if enrollment
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.accepted_at() > now)
+        {
+            return Err(not_entered("gateway.engagement.clock-rollback"));
+        }
+        Ok((loaded, now, enrollment))
+    }
+
+    // Both data-only call construction and native compilation use the same
+    // installed configuration, connection eligibility and time checks. Only
+    // compilation consumes enrollment authority: construction must also work
+    // when authoring the independent resource witnesses that activate a root.
+    async fn effect_connection_inputs(
+        &self,
+    ) -> Result<(LoadedConnection, u64), GatewaySubmitResult> {
         self.check_effect_configuration()
             .await
             .map_err(not_entered)?;
@@ -2422,22 +2450,7 @@ impl GatewayEngine {
             .qualification
             .effect_time()
             .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        let enrollment = match self.installed_engagement().map_err(not_entered)? {
-            None => None,
-            Some(controller) => Some(
-                tokio::task::spawn_blocking(move || controller.snapshot())
-                    .await
-                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?
-                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?,
-            ),
-        };
-        if enrollment
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.accepted_at() > now)
-        {
-            return Err(not_entered("gateway.engagement.clock-rollback"));
-        }
-        Ok((loaded, now, enrollment))
+        Ok((loaded, now))
     }
 
     /// Verifies and attempts one exactly approved action. Proof, action and
