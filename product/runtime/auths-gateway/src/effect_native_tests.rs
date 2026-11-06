@@ -36,6 +36,9 @@ mod recovery_prerequisite_tests;
 #[path = "effect_review_approval_tests.rs"]
 mod review_approval_tests;
 
+#[path = "effect_engagement_tests.rs"]
+mod engagement_tests;
+
 /// Native read authority is independent of an expired source writer. File
 /// provenance is real; the source entry is a test grant with no provider send.
 #[tokio::test]

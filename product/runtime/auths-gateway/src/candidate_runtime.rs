@@ -357,6 +357,7 @@ impl GatewayEngine {
                 observer: None,
                 policy: self.effect_policy.clone(),
                 configuration: self.shared_configuration()?,
+                engagement: self.installed_engagement()?,
                 connection: crate::entry::EntryConnection::Candidate(Box::new(target.clone())),
                 connection_key: crate::connection_key(
                     self.connection.provider(),

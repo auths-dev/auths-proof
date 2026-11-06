@@ -18,6 +18,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroizing;
 
+mod engagement;
+pub use engagement::EngagementPolicy;
+use engagement::EngagementScope;
 mod authority;
 pub(crate) use authority::NativeAuthority;
 mod acquisition;
@@ -60,12 +63,12 @@ pub(crate) use prerequisite::{
 };
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/4";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/8";
+const COMPILER: &str = "auths.gateway-effect-compiler/9";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -78,7 +81,7 @@ pub const MAX_PRIVATE_EFFECT_REVIEW_BYTES: usize = 131_072;
 /// Native full-value, non-markup private review renderer.
 pub const LITERAL_REVIEW_RENDERER: &str = "auths.literal-complete-review/1";
 /// Maximum canonical operator effect policy, checked before decoding.
-pub const MAX_EFFECT_POLICY_BYTES: usize = 4_096;
+pub const MAX_EFFECT_POLICY_BYTES: usize = 65_536;
 
 /// Operator-installed replay partition and human approval authority. This is
 /// configuration, never authority supplied by an application submission.
@@ -89,6 +92,7 @@ pub struct EffectPolicy {
     partition: String,
     epoch: u64,
     approver: [u8; 32],
+    engagement: Option<EngagementPolicy>,
 }
 
 impl fmt::Debug for EffectPolicy {
@@ -147,17 +151,18 @@ impl EffectPolicy {
         approver: [u8; 32],
     ) -> Result<Self, EffectBindingError> {
         let policy = Self {
-            schema: "auths.effect-policy/1".to_owned(),
+            schema: "auths.effect-policy/2".to_owned(),
             partition,
             epoch,
             approver,
+            engagement: None,
         };
         policy.validate()?;
         Ok(policy)
     }
 
     pub(crate) fn validate(&self) -> Result<(), EffectBindingError> {
-        if self.schema != "auths.effect-policy/1" {
+        if self.schema != "auths.effect-policy/2" {
             return Err(EffectBindingError::Unsupported);
         }
         if !label(&self.partition)
@@ -166,10 +171,34 @@ impl EffectPolicy {
         {
             return Err(EffectBindingError::Invalid);
         }
+        if let Some(policy) = &self.engagement {
+            policy.validate()?;
+        }
         Ok(())
     }
 
-    /// Reads a canonical operator policy, with a 4 KiB limit before decoding.
+    /// Binds this policy to one independently commissioned engagement and
+    /// executor. Applications cannot select or remove this installation input.
+    ///
+    /// # Errors
+    /// Refuses invalid root pins, workload, or policy representation bounds.
+    pub fn with_engagement(
+        mut self,
+        engagement: EngagementPolicy,
+    ) -> Result<Self, EffectBindingError> {
+        engagement.validate()?;
+        self.engagement = Some(engagement);
+        if self.to_private_bytes()?.len() > MAX_EFFECT_POLICY_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(self)
+    }
+
+    pub(crate) fn engagement(&self) -> Option<&EngagementPolicy> {
+        self.engagement.as_ref()
+    }
+
+    /// Reads a canonical operator policy, with a 64 KiB limit before decoding.
     ///
     /// # Errors
     /// Refuses obsolete, malformed, noncanonical or oversized policy files.
@@ -212,6 +241,8 @@ impl EffectPolicy {
             qualification,
             configuration,
             approver: self.approver,
+            engagement: self.engagement.as_ref(),
+            enrollment: None,
         }
     }
 }
@@ -306,6 +337,7 @@ fn approve_driver_with_plan(
         connection,
         proof: Zeroizing::new(Vec::new()),
         action: Zeroizing::new(Vec::new()),
+        enrollment: None,
     };
     if let Some(approval) = approval {
         return effect
@@ -421,7 +453,7 @@ pub enum EffectBindingError {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum Scope {
     Unscoped,
-    Task { commitment: [u8; 32] },
+    Engagement { bound: Box<EngagementScope> },
 }
 
 #[derive(Clone, Copy, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -450,6 +482,7 @@ struct Reservation {
 enum ReservationWindow {
     Fixed { index: u64, seconds: u64 },
     SourceLifetime,
+    EngagementLifetime,
 }
 
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
@@ -695,6 +728,41 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     if VerifyingKey::from_bytes(&approver).map_or(true, |key| key.is_weak()) {
         return Err(EffectBindingError::Invalid);
     }
+    match &wire.scope {
+        Scope::Unscoped => {
+            if wire
+                .reservations
+                .iter()
+                .any(|r| r.window == ReservationWindow::EngagementLifetime)
+            {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+        Scope::Engagement { bound } => {
+            bound.validate()?;
+            bound.independent_approver(&approver)?;
+            if !bound.matches_installation(&wire.recipe, &wire.connection) {
+                return Err(EffectBindingError::Invalid);
+            }
+            let expected = match wire.protocol {
+                Protocol::Mutation { .. } => bound.reservations(Unit::MutationCount, 1)?,
+                // Information-flow compilation joins this same contract in its
+                // own complete source batch; it may never fall back unscoped.
+                _ => return Err(EffectBindingError::Unsupported),
+            };
+            let actual: Vec<_> = wire
+                .reservations
+                .iter()
+                .filter(|r| r.window == ReservationWindow::EngagementLifetime)
+                .cloned()
+                .collect();
+            let mut expected = expected;
+            expected.sort_by_key(|entry| (entry.key, entry.unit));
+            if actual != expected {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+    }
     let mut previous = None;
     for reservation in &wire.reservations {
         let key = (reservation.key, reservation.unit);
@@ -708,6 +776,9 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
                 }
                 ReservationWindow::SourceLifetime => {
                     matches!(wire.protocol, Protocol::Mutation { .. })
+                }
+                ReservationWindow::EngagementLifetime => {
+                    !matches!(wire.scope, Scope::Engagement { .. })
                 }
             }
         {
@@ -783,6 +854,7 @@ pub struct BoundEffect {
     connection: ConnectionRecord,
     proof: Zeroizing<Vec<u8>>,
     action: Zeroizing<Vec<u8>>,
+    enrollment: Option<crate::participant_enrollment::EnrollmentTree>,
 }
 
 /// Human review produced entirely by native code from the sealed effect.
@@ -1288,6 +1360,10 @@ impl ApprovedEffect {
     pub(crate) fn connection(&self) -> &ConnectionRecord {
         &self.effect.connection
     }
+    pub(crate) fn enrollment(&self) -> Option<&crate::participant_enrollment::EnrollmentTree> {
+        self.effect.enrollment.as_ref()
+    }
+
     /// Immutable effect reviewed by the approver.
     #[must_use]
     pub const fn effect(&self) -> &BoundEffect {
@@ -1386,6 +1462,40 @@ pub struct EffectInstallation<'a> {
     pub configuration: [u8; 32],
     /// Exact human approver key pinned independently by installation policy.
     pub approver: [u8; 32],
+    /// Independently installed scope requirement; never supplied by an app.
+    pub engagement: Option<&'a EngagementPolicy>,
+    /// Protected enrollment data, reloaded again under the final entry fence.
+    pub enrollment: Option<&'a crate::participant_enrollment::EnrollmentTree>,
+}
+
+impl<'a> EffectInstallation<'a> {
+    pub(crate) fn with_enrollment(
+        mut self,
+        tree: Option<&'a crate::participant_enrollment::EnrollmentTree>,
+    ) -> Self {
+        self.enrollment = tree;
+        self
+    }
+    pub(crate) fn native_context(&self) -> Result<TrustedContext, GatewaySubmitResult> {
+        match self.engagement {
+            None => Ok(self.context.clone()),
+            Some(policy) => {
+                let audience = crate::participant_enrollment::resource_audience(
+                    &policy.root().engagement_commitment,
+                    policy.root().partition_generation,
+                    &self.recipe.digest_hex(),
+                )
+                .map_err(|_| not_entered("gateway.engagement.installation"))?;
+                self.context
+                    .for_request(
+                        audience,
+                        self.context.expected_challenge(),
+                        self.context.evaluation_time(),
+                    )
+                    .map_err(|_| not_entered("gateway.engagement.installation"))
+            }
+        }
+    }
 }
 
 /// Verifies natively and compiles one mutation into an immutable bound effect.
@@ -1402,8 +1512,9 @@ pub fn compile_mutation_effect(
 ) -> Result<BoundEffect, GatewaySubmitResult> {
     GatewayConnectionDescriptor::from_record(installed.connection, installed.recipe)
         .map_err(|_| not_entered("gateway.effect.installation"))?;
-    let command = verify_detailed(installed.recipe, installed.context, now, proof, action)?;
-    bind_mutation(installed, command, proof, action)
+    let context = installed.native_context()?;
+    let command = verify_detailed(installed.recipe, &context, now, proof, action)?;
+    bind_mutation(installed, command, now, proof, action)
         .map_err(|_| not_entered("gateway.effect.invalid-binding"))
 }
 
@@ -1446,6 +1557,7 @@ fn managed_reservations(
 fn bind_mutation(
     installed: &EffectInstallation<'_>,
     command: VerifiedCommand,
+    now: u64,
     proof: &[u8],
     action: &[u8],
 ) -> Result<BoundEffect, EffectBindingError> {
@@ -1455,7 +1567,7 @@ fn bind_mutation(
         &command,
         *installed.connection.account_commitment(),
     )?;
-    let reservations = managed_reservations(
+    let mut reservations = managed_reservations(
         command.bound.as_ref(),
         Unit::MutationCount,
         Unit::MutationSum,
@@ -1466,6 +1578,27 @@ fn bind_mutation(
             .to_canonical_cbor()
             .map_err(|_| EffectBindingError::Invalid)?,
     );
+    let connection_binding = commitment("auths.effect-installation/1", &connection)?;
+    let scope = match installed.engagement {
+        None => Scope::Unscoped,
+        Some(policy) => {
+            let tree = installed.enrollment.ok_or(EffectBindingError::Invalid)?;
+            let bound = EngagementScope::compile(
+                policy,
+                tree,
+                installed.context,
+                *installed.recipe.digest(),
+                connection_binding,
+                now,
+                crate::participant_enrollment::EnrollmentInvocation { proof, action },
+            )?;
+            reservations.extend(bound.reservations(Unit::MutationCount, 1)?);
+            reservations.sort_by_key(|entry| (entry.key, entry.unit));
+            Scope::Engagement {
+                bound: Box::new(bound),
+            }
+        }
+    };
     let binding = EffectBinding::new(BindingWire {
         schema: EFFECT_BINDING_SCHEMA.to_owned(),
         namespace: request.namespace().as_str().to_owned(),
@@ -1474,10 +1607,10 @@ fn bind_mutation(
         operation: request.operation_id().as_str().to_owned(),
         action: *request.action_commitment(),
         native_authority: command.native_authority.commitment(),
-        scope: Scope::Unscoped,
+        scope,
         recipe: *installed.recipe.digest(),
         compiler: COMPILER.to_owned(),
-        connection: commitment("auths.effect-installation/1", &connection)?,
+        connection: connection_binding,
         credential_generation: installed.connection.credential_generation().get(),
         qualification_policy: installed.qualification.as_str().to_owned(),
         configuration: installed.configuration,
@@ -1505,6 +1638,7 @@ fn bind_mutation(
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
+        enrollment: installed.enrollment.cloned(),
     };
     #[cfg(unix)]
     effect
@@ -1697,9 +1831,7 @@ mod tests {
                 0 => changed.action[0] ^= 1,
                 1 => changed.native_authority[0] ^= 1,
                 2 => {
-                    changed.scope = Scope::Task {
-                        commitment: [7; 32],
-                    }
+                    changed.configuration[0] ^= 1;
                 }
                 3 => changed.recipe[0] ^= 1,
                 4 => changed.connection[0] ^= 1,

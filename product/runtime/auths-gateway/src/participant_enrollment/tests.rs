@@ -1980,3 +1980,131 @@ fn native_participant_enrollment_fixture_is_current() {
         );
     }
 }
+
+/// Real native root/child enrollment and a signed recipe action for the effect
+/// compiler tests. This grants no admission and performs no provider operation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one complete native root/child/resource fixture is signed together"
+)]
+pub(crate) fn effect_scope_fixture(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+) -> (
+    ParentEnrollmentPins,
+    EnrollmentTree,
+    TrustedContext,
+    Submission,
+) {
+    let mut fixture = Fixture::new();
+    let audience = resource_audience(
+        &fixture.pins.engagement_commitment,
+        fixture.pins.partition_generation,
+        &recipe.digest_hex(),
+    )
+    .unwrap();
+    let service = recipe.service();
+    let review = recipe.review();
+    let tool = review.tool();
+    fixture.parent_resource = grant_for_audiences(
+        &fixture.root,
+        &fixture.parent,
+        service,
+        &[tool],
+        None,
+        1,
+        vec![audience.clone()],
+    );
+    fixture.child_resource = grant_for_audiences(
+        &fixture.parent,
+        &fixture.child,
+        service,
+        &[tool],
+        Some(grant_id(fixture.parent_resource.statement()).unwrap()),
+        0,
+        vec![audience.clone()],
+    );
+    let observer = GatewayObserver::from_test_seed(0x33);
+    fixture.context = harness::context_for_profiles_and_audiences(
+        &[&fixture.root],
+        observer.principal(),
+        None,
+        NOW,
+        2,
+        CompositionRequirement::new(None, 1, 1, 1).unwrap(),
+        &[auths_raw_key::RAW_KEY_V1],
+        &[
+            (PARTICIPANT_SERVICE, ACTIVATE_ROOT_TOOL),
+            (PARTICIPANT_SERVICE, ENROLL_PARTICIPANT_TOOL),
+            (PARTICIPANT_SERVICE, ACCEPT_PARTICIPANT_TOOL),
+            (PARTICIPANT_SERVICE, REVOKE_PARTICIPANT_TOOL),
+            (service, tool),
+        ],
+        &[audience],
+    )
+    .unwrap();
+    fixture.pins.scopes[0].recipe_digest = recipe.digest_hex();
+    fixture.pins.scopes[0].service = service.to_owned();
+    fixture.pins.scopes[0].tool = tool.to_owned();
+    fixture.pins.scopes[0].connection_binding = crate::effect::commitment(
+        "auths.effect-installation/1",
+        &connection.to_canonical_cbor().unwrap(),
+    )
+    .unwrap();
+    fixture.pins.scopes[0].parent_grant = grant_id(fixture.parent_resource.statement()).unwrap();
+    fixture.pins.scopes[0].resource = EnrollmentResourceBinding::Exact {
+        handle: arguments["record_id"].as_str().unwrap().to_owned(),
+    };
+    fixture.enrollment.scopes[0].grant_id = *grant_id(fixture.child_resource.statement())
+        .unwrap()
+        .as_bytes();
+    fixture.commit_root();
+    let activation = fixture.root_activation(&fixture.pins);
+    let root_resource = chained(
+        &[&fixture.root, &fixture.parent],
+        &[&fixture.parent_resource],
+        service,
+        tool,
+        arguments,
+    );
+    let root_resources = [EnrollmentResourceWitness {
+        scope_id: "project-a-read",
+        invocation: invocation(&root_resource),
+    }];
+    let mut tree = EnrollmentTree::bootstrap(
+        &fixture.context,
+        &fixture.pins,
+        NOW,
+        &RootEnrollmentProofs {
+            activation: invocation(&activation),
+            resources: &root_resources,
+        },
+    )
+    .unwrap();
+    let parent = fixture.parent_proof(&fixture.enrollment);
+    let child = fixture.child_proof(&fixture.enrollment);
+    let action = chained(
+        &[&fixture.root, &fixture.parent, &fixture.child],
+        &[&fixture.parent_resource, &fixture.child_resource],
+        service,
+        tool,
+        arguments,
+    );
+    let resources = [EnrollmentResourceWitness {
+        scope_id: "project-a-read",
+        invocation: invocation(&action),
+    }];
+    tree.enroll(
+        &fixture.context,
+        fixture.pins.enrollment_commitment,
+        NOW,
+        &ParticipantEnrollmentProofs {
+            parent: invocation(&parent),
+            child: invocation(&child),
+            resources: &resources,
+        },
+    )
+    .unwrap();
+    (fixture.pins, tree, fixture.context, action)
+}

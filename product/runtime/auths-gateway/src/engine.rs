@@ -662,6 +662,12 @@ impl GatewayEngine {
         if attempts.policy() != &effect_policy {
             return Err(GatewayEngineConfigurationError::InvalidEffectPolicy);
         }
+        if effect_policy
+            .engagement()
+            .is_some_and(|policy| policy.executor() != workload_id)
+        {
+            return Err(GatewayEngineConfigurationError::InvalidEffectPolicy);
+        }
         if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
@@ -1513,15 +1519,18 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
         crate::effect::compile_mutation_effect(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
             now,
             proof,
             action,
@@ -1565,7 +1574,7 @@ impl GatewayEngine {
             .and_then(|value| value.as_object().cloned())
             .ok_or_else(invalid)?;
         let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
-        let (loaded, _) = self.effect_compilation_inputs().await?;
+        let (loaded, _, _) = self.effect_compilation_inputs().await?;
         crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
             .and_then(|target| target.authorization_call(&self.recipe, &operation))
             .map_err(|_| invalid())
@@ -1628,15 +1637,18 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
         crate::effect::compile_disclosure(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
             target,
             now,
             proof,
@@ -1885,15 +1897,18 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
         crate::effect::compile_content_action(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
             now,
             proof,
             action,
@@ -1982,18 +1997,21 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
         let target =
             crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
                 .map_err(|_| not_entered("gateway.acquisition.binding"))?;
         crate::effect::compile_content_acquisition(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
             &target,
             now,
             proof,
@@ -2058,15 +2076,18 @@ impl GatewayEngine {
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
         let target = self.recovery_compilation_target(source_operation).await?;
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
         crate::effect::compile_recovery_acquisition(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
             &target,
             now,
             proof,
@@ -2318,9 +2339,28 @@ impl GatewayEngine {
             .map_err(|_| unavailable())
     }
 
+    pub(crate) fn installed_engagement(
+        &self,
+    ) -> Result<Option<crate::EngagementConfiguration>, &'static str> {
+        self.effect_policy
+            .engagement()
+            .map(|policy| {
+                self.engagement_configuration(policy.root().clone())
+                    .map_err(|_| "gateway.engagement.installation")
+            })
+            .transpose()
+    }
+
     async fn effect_compilation_inputs(
         &self,
-    ) -> Result<(LoadedConnection, u64), GatewaySubmitResult> {
+    ) -> Result<
+        (
+            LoadedConnection,
+            u64,
+            Option<crate::EngagementConfigurationSnapshot>,
+        ),
+        GatewaySubmitResult,
+    > {
         self.check_effect_configuration()
             .await
             .map_err(not_entered)?;
@@ -2338,7 +2378,22 @@ impl GatewayEngine {
             .qualification
             .effect_time()
             .ok_or_else(|| not_entered("gateway.verify.clock-unavailable"))?;
-        Ok((loaded, now))
+        let enrollment = match self.installed_engagement().map_err(not_entered)? {
+            None => None,
+            Some(controller) => Some(
+                tokio::task::spawn_blocking(move || controller.snapshot())
+                    .await
+                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?
+                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?,
+            ),
+        };
+        if enrollment
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.accepted_at() > now)
+        {
+            return Err(not_entered("gateway.engagement.clock-rollback"));
+        }
+        Ok((loaded, now, enrollment))
     }
 
     /// Verifies and attempts one exactly approved action. Proof, action and
@@ -2758,6 +2813,7 @@ impl SubmitIo for EngineIo<'_> {
                     .map(|observer| observer.principal().clone()),
                 policy: self.engine.effect_policy.clone(),
                 configuration: self.engine.shared_configuration()?,
+                engagement: self.engine.installed_engagement()?,
                 connection: crate::entry::EntryConnection::Installed(Box::new(
                     prepared.loaded.clone(),
                 )),
@@ -2791,15 +2847,19 @@ impl SubmitIo for EngineIo<'_> {
             .take()
             .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
         approved.validate_for_entry(
-            &self.engine.effect_policy.installation(
-                &self.engine.recipe,
-                &self.engine.trusted_context,
-                approved.connection(),
-                self.engine.qualification.policy(),
-                self.engine
-                    .effect_configuration_candidate()
-                    .map_err(not_entered)?,
-            ),
+            &self
+                .engine
+                .effect_policy
+                .installation(
+                    &self.engine.recipe,
+                    &self.engine.trusted_context,
+                    approved.connection(),
+                    self.engine.qualification.policy(),
+                    self.engine
+                        .effect_configuration_candidate()
+                        .map_err(not_entered)?,
+                )
+                .with_enrollment(approved.enrollment()),
             now,
         )?;
         #[cfg(unix)]
@@ -2824,15 +2884,19 @@ impl SubmitIo for EngineIo<'_> {
             .get()
             .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
         approved.validate_for_entry(
-            &self.engine.effect_policy.installation(
-                &self.engine.recipe,
-                &self.engine.trusted_context,
-                prepared.loaded.record(),
-                self.engine.qualification.policy(),
-                self.engine
-                    .effect_configuration_candidate()
-                    .map_err(not_entered)?,
-            ),
+            &self
+                .engine
+                .effect_policy
+                .installation(
+                    &self.engine.recipe,
+                    &self.engine.trusted_context,
+                    prepared.loaded.record(),
+                    self.engine.qualification.policy(),
+                    self.engine
+                        .effect_configuration_candidate()
+                        .map_err(not_entered)?,
+                )
+                .with_enrollment(approved.enrollment()),
             now,
         )
     }

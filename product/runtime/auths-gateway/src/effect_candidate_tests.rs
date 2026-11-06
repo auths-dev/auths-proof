@@ -661,6 +661,7 @@ async fn candidate_journal(
                 observer: None,
                 policy: policy.clone(),
                 configuration: configuration.clone(),
+                engagement: None,
                 connection: crate::entry::EntryConnection::Candidate(Box::new(target.clone())),
                 connection_key: crate::connection_key(
                     target.record().provider_kind(),

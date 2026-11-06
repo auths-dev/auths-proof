@@ -215,6 +215,11 @@ pub(super) fn build_binding(
     reservations: Vec<Reservation>,
 ) -> Result<EffectBinding, GatewaySubmitResult> {
     let invalid = || not_entered("gateway.acquisition.binding");
+    if installed.engagement.is_some() {
+        return Err(not_entered(
+            "gateway.engagement.information-scope-unavailable",
+        ));
+    }
     let connection = Zeroizing::new(
         installed
             .connection
@@ -637,6 +642,7 @@ pub(super) fn compile_verified_acquisition(
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
+        enrollment: installed.enrollment.cloned(),
     };
     #[cfg(unix)]
     effect

@@ -183,9 +183,13 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
-The concrete native encoding is `auths.bound-effect/3`, with effect compiler
-`auths.gateway-effect-compiler/8`. Reservations use a closed window alternative:
-fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
+The concrete native encoding is `auths.bound-effect/4`, with effect compiler
+`auths.gateway-effect-compiler/9`. Reservations use a closed window alternative:
+fixed epoch-aligned windows, the retained source effect's lifetime, or AP073's
+shared engagement/ancestor lifetime. AP073's complete immutable ancestry and
+planned typed charges are part of the binding and private review; decoding them
+is data validation. Scoped execution remains refused until the common journal
+atomically persists and verifies all corresponding ancestor allocations. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
 source-lifetime bound must survive operation-ID changes, replay and restart.

@@ -63,6 +63,7 @@ pub(crate) struct InstalledEntry {
     pub(crate) observer: Option<PrincipalId>,
     pub(crate) policy: EffectPolicy,
     pub(crate) configuration: SharedConfiguration,
+    pub(crate) engagement: Option<crate::EngagementConfiguration>,
     pub(crate) connection: EntryConnection,
     pub(crate) connection_key: GatewayAttemptKey,
     pub(crate) qualification: Arc<crate::QualificationGate>,
@@ -159,6 +160,12 @@ impl EntryValidation {
                         entry.configuration.key(),
                     ),
                 ];
+                if let Some(engagement) = &entry.engagement {
+                    keys.push((
+                        GatewayRecordKind::EffectConfiguration,
+                        engagement.dependency_key(),
+                    ));
+                }
                 #[cfg(unix)]
                 if let Some(authority) = &entry.commissioning {
                     keys.push((GatewayRecordKind::CommissioningBudget, authority.budget_key));
@@ -210,7 +217,7 @@ impl EntryValidation {
                     Some(authority) => authority.check(
                         &qualification,
                         snapshots
-                            .get(2)
+                            .get(2 + usize::from(entry.engagement.is_some()))
                             .and_then(Option::as_deref)
                             .ok_or("gateway.commissioning.registration-missing")?,
                     ),
@@ -218,18 +225,49 @@ impl EntryValidation {
                 }?;
                 #[cfg(not(unix))]
                 qualification.check()?;
+                let enrollment = match (entry.policy.engagement(), &entry.engagement) {
+                    (None, None) => None,
+                    (Some(policy), Some(controller)) => {
+                        if crate::EngagementConfiguration::key_for_root(policy.root())
+                            .map_err(|_| "gateway.engagement.installation")?
+                            != controller.dependency_key()
+                        {
+                            return Err("gateway.engagement.installation");
+                        }
+                        let snapshot = crate::EngagementConfiguration::decode_for_root(
+                            policy.root(),
+                            snapshots[2]
+                                .as_deref()
+                                .ok_or("gateway.engagement.state-unavailable")?,
+                        )
+                        .map_err(|_| "gateway.engagement.state-unavailable")?;
+                        if snapshot.accepted_at() > now {
+                            return Err("gateway.engagement.clock-rollback");
+                        }
+                        Some(snapshot)
+                    }
+                    _ => return Err("gateway.engagement.installation"),
+                };
                 approved
                     .validate_for_entry(
-                        &entry.policy.installation(
-                            &entry.recipe,
-                            &entry.trust,
-                            entry.connection.record(),
-                            entry.qualification.policy(),
-                            entry.configuration.candidate(),
-                        ),
+                        &entry
+                            .policy
+                            .installation(
+                                &entry.recipe,
+                                &entry.trust,
+                                entry.connection.record(),
+                                entry.qualification.policy(),
+                                entry.configuration.candidate(),
+                            )
+                            .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
                         now,
                     )
                     .map_err(|_| "gateway.effect.authority-unavailable")?;
+                // Keep scoped effects non-executable until the journal's atomic
+                // ancestor allocation owner supplies and checks every charge.
+                if entry.engagement.is_some() {
+                    return Err("gateway.engagement.allocations-unavailable");
+                }
                 Ok(now)
             }
             #[cfg(any(test, feature = "testkit-harness"))]

@@ -604,6 +604,7 @@ async fn native_content_journal_fixture_is_current() {
             observer: None,
             policy: policy.clone(),
             configuration: configuration.clone(),
+            engagement: None,
             connection: crate::entry::EntryConnection::Installed(Box::new(loaded.clone())),
             connection_key: crate::connection_key(record.provider_kind(), record.alias()),
             qualification: Arc::clone(&qualification),

@@ -157,3 +157,38 @@ crash/ACK uncertainty, independently authorized recovery, public/private audit
 separation, installed Rust/Python/TypeScript parity, isolated machine/A/B/human
 journey and exact-revision hosted gates. Preserve every AP074 acceptance test.
 No AP073 acceptance closes merely by restoring candidate source or this ADR.
+
+
+## Effect scope cutover
+
+The effect schema cuts over directly to `auths.bound-effect/4`, compiler version
+9, and operator policy `auths.effect-policy/2`. The policy binds the complete
+independently installed root and exact executor workload; the gateway constructor
+refuses another workload. Policy input is bounded to 64 KiB to accommodate the
+bounded root, rather than introducing a second mutable scope-policy store.
+Root and tree schemas remain version 3. Old effect/policy shapes are rejected.
+
+Mutation compilation derives the engagement/epoch/recipe audience from installed
+pins, runs full native verification, and compares the exact selected enrolled
+resource suffix and literal handle. Scope choice uses bounded action lookup
+hints followed by that native relation; the application cannot select an
+unscoped fallback. Private review and exact approval bind all immutable root to
+actor identities, instances, validity, resource grants, executor and ceilings.
+The acting child's recognized key cannot also be its exact human approver; a
+resource-owning ancestor may still approve a distinct child. Unrelated sibling
+revisions are absent from effect identity.
+
+Planned charge keys bind the shared authority namespace/partition/epoch,
+engagement, ancestor and typed unit, excluding recipe and worker names. The
+binding decoder requires the complete typed ancestor declaration; declarations
+are not persisted reservations. The common entry dependency list now includes
+the enrollment configuration row. After the writer fence, its native decoder,
+current time and full mutation compilation recheck the installed root, active
+ancestry, authority and approval, without nested store I/O.
+
+This source batch intentionally retains a refusal for scoped admission/entry
+until the existing journal can atomically persist and verify every declared
+ancestor allocation. Information compilers also explicitly refuse an installed
+engagement until their native scope/source/channel relations join this owner.
+These are implementation gaps to close in this goal, not product modes or a
+reduced completion definition. No scoped transport is qualified by this batch.

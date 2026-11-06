@@ -277,6 +277,7 @@ pub fn compile_disclosure(
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
+        enrollment: installed.enrollment.cloned(),
     };
     #[cfg(unix)]
     effect

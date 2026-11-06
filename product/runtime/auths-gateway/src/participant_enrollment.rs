@@ -235,7 +235,7 @@ pub enum EnrollmentResourceBinding {
 }
 
 impl EnrollmentResourceBinding {
-    fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         match self {
             Self::Exact { handle } => bounded_resource(handle),
             Self::CreatedChild {

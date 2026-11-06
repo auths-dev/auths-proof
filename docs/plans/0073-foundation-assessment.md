@@ -298,3 +298,91 @@ The independent Go/TypeScript executables, installed bindings, full conformance,
 participant timing/fence tests, formal and hosted gates have not run. F07 remains
 open for those wider obligations. No push, CI observation, provider operation,
 merge or deployment occurred.
+
+
+## Integrated effect-scope source batch
+
+Extend the existing effect policy/compiler and entry owner rather than adding a
+second task permit. This batch writes the operator-bound complete root/executor,
+native audience, selected mutation grant path and literal resource, immutable
+ancestry, typed planned charge keys, complete review, actor/approver separation,
+and fenced configuration dependency before executing its required constructors.
+It directly versions effect/policy shapes (4/2), preserving root/tree version 3.
+
+The planned new cases are six native tests in `effect_engagement_tests.rs`:
+installed root/tree/connection/expiry refusals; executor/approval substitution
+with shared charge keys; nine malformed ancestry/charge variants and obsolete
+schema refusal; a canonical native effect corpus; actor self-approval refusal;
+and entry snapshot composition across current, revoked, missing and future-time
+enrollment. Snapshot composition is not evidence of cross-process scheduling.
+The fixture helper uses actual signed root activation, child consent, resource
+grants and the maintained native verifier. It performs no provider operation.
+
+Local execution is restricted to required artifact construction after this full
+source/test batch: the new `native_engagement_effect_fixture_is_current`, the
+existing `native_compilation_approval_and_reverification_keep_exact_request`
+(base effect/policy/approval artifacts), and `semantic_closure_is_current`.
+Other AP074 artifacts affected by final schema/semantic identities, the global
+freeze/source qualification, installed bindings and broad hosted behavior remain
+part of the final whole-program constructor and verification batch. No old
+fixture is evidence for the changed source.
+
+**Open required integration:** common journal admission/entry must persist and
+validate each lifetime ancestor allocation atomically with the operation. The
+installed entry owner refuses scoped transport until that exists. Information
+compilers refuse a required engagement rather than emitting `Unscoped`.
+Their resource/source/recipient relations, bounded extension witnesses, actual
+file/PostgreSQL races and crash schedules remain required. All F01–F16 stay open;
+this is a source increment toward the full goal, not a completion claim.
+
+
+### Scope constructor result and source review
+
+The initial complete constructor cohort exposed two compile errors: a missing
+configuration dependency field on the candidate runtime owner and a borrowed
+review temporary in the native fixture helper. Both were repaired together.
+The second cohort passed all three required constructors: the new native
+engagement effect, the existing base mutation effect/policy/approval, and gateway
+semantic closure. The default-feature library target compiled 342 tests; only
+the three constructors ran. Logs are `/tmp/ap073-effect-scope-repair-{scope,base-effect,semantic-closure}.log`.
+The canonical new effect contains two real enrolled ancestors and their typed
+planned write charges. It explicitly excludes provider-entry/accounting claims.
+
+Source review additionally made scope lookup compare the installed literal
+resource before rejecting ambiguous matches, so distinct installed resources
+sharing a service/tool need not conflict at the lookup stage. The full native
+scope verifier still repeats the exact handle/grant comparison. Narrow fixture
+length lint annotations document two complete native setup cases. Refresh the
+semantic manifest after these final source edits; do not cite the previous
+digest for them. No hosted CI, broad behavioral tests, bindings, provider I/O,
+merge or deployment has occurred, and AP073 remains incomplete.
+
+
+### Final artifact acknowledgement for the scope batch
+
+After the final source review edits, the same three required constructors passed
+again as one affected batch. Logs are
+`/tmp/ap073-effect-scope-final-{scope,base-effect,semantic-closure}.log`.
+The native engagement corpus, base effect/policy/approval corpus and semantic
+manifest now match this source. The other five new cases were compiled but not
+executed. No broad local or hosted verification is implied.
+
+### Next journal integration boundary
+
+The next source batch must put typed immutable ancestor allocation references
+in the existing generic `Record<S>` header (with a direct attempt-schema cutover),
+and append bounded permanent allocation slots using the existing
+`EffectAllocation` kind. A shared fenced admission helper must publish the
+operation, selected ancestor slots and existing protocol counters together,
+then each grant must verify those exact retained references under its own native
+entry fence. Count, disclosed-byte and protocol units remain distinct; zero
+bytes still charges a disclosure count. Counter keys exclude recipe/workload;
+allocation references cannot be reconstructed as permits. Unknown and revoked
+history retains all slots. Collision retries may choose only unoccupied bounded
+slots and must never retry an ambiguous persistence acknowledgement.
+No independent task journal, mutable usage ledger or store decorator should be
+introduced. The 34-reservation/64-record limits and deadline still apply; refuse
+unsupported combined sets. Remove the current scoped-entry refusal only after
+this owner and its file/PostgreSQL, replay, concurrency, lost-ACK and crash cases
+are implemented and mapped. Information scope/source/recipient compilation must
+then join the same contract, preserving all AP074 evidence distinctions.

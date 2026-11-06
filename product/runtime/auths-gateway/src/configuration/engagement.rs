@@ -155,15 +155,7 @@ impl EngagementConfiguration {
         }
         // Recipe namespaces, worker identity and mutable revisions are absent:
         // independently configured recipe workers must name one authority row.
-        let key = super::digest(
-            "auths.engagement-configuration-key/1",
-            &(
-                &root.admission_namespace,
-                &root.admission_partition,
-                root.engagement_commitment,
-            ),
-        )
-        .map_err(|_| EngagementConfigurationError::Installation)?;
+        let key = *Self::key_for_root(&root)?.as_bytes();
         if key == *configuration.key().as_bytes() {
             return Err(EngagementConfigurationError::Installation);
         }
@@ -177,6 +169,21 @@ impl EngagementConfiguration {
         })
     }
 
+    pub(crate) fn key_for_root(
+        root: &ParentEnrollmentPins,
+    ) -> Result<GatewayAttemptKey, EngagementConfigurationError> {
+        let key = super::digest(
+            "auths.engagement-configuration-key/1",
+            &(
+                &root.admission_namespace,
+                &root.admission_partition,
+                root.engagement_commitment,
+            ),
+        )
+        .map_err(|_| EngagementConfigurationError::Installation)?;
+        Ok(GatewayAttemptKey::from_bytes(key))
+    }
+
     /// Shared dependency key to be included in the operation's own final fence.
     /// The key is data, never a bearer credential or an admission decision.
     #[must_use]
@@ -188,20 +195,27 @@ impl EngagementConfiguration {
         &self,
         bytes: &[u8],
     ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
+        Self::decode_for_root(&self.root, bytes)
+    }
+
+    pub(crate) fn decode_for_root(
+        root: &ParentEnrollmentPins,
+        bytes: &[u8],
+    ) -> Result<EngagementConfigurationSnapshot, EngagementConfigurationError> {
         if bytes.is_empty() || bytes.len() > MAX_BYTES {
             return Err(EngagementConfigurationError::Corrupt);
         }
         let record: Record =
             serde_json::from_slice(bytes).map_err(|_| EngagementConfigurationError::Corrupt)?;
         if record.schema != SCHEMA
-            || record.root != self.root.enrollment_commitment
+            || record.root != root.enrollment_commitment
             || !(1..=MAX_INTEGER).contains(&record.revision)
             || record.accepted_at > MAX_INTEGER
             || encode(&record)? != bytes
         {
             return Err(EngagementConfigurationError::Corrupt);
         }
-        let tree = EnrollmentTree::decode(record.tree.as_bytes(), &self.root)
+        let tree = EnrollmentTree::decode(record.tree.as_bytes(), root)
             .map_err(|_| EngagementConfigurationError::Corrupt)?;
         Ok(EngagementConfigurationSnapshot {
             revision: record.revision,
