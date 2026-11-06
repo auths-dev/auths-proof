@@ -225,3 +225,18 @@ pub(super) fn control_audience() -> Audience {
 pub(super) fn call(service: &str, tool: &str, args: Value) -> McpToolCall {
     McpToolCall::new(service, tool, args.as_object().expect("object").clone()).expect("native call")
 }
+
+impl auths_records_api::testkit::FixtureSigner for Actor {
+    fn principal(&self) -> &PrincipalId {
+        &self.public.principal
+    }
+    fn descriptor(&self) -> SignatureDescriptor {
+        self.public.descriptor.clone()
+    }
+    fn evidence(&self) -> EvidenceObject {
+        self.public.evidence.clone()
+    }
+    fn sign(&mut self, preimage: &[u8]) -> SignatureBytes {
+        Actor::sign(self, preimage)
+    }
+}

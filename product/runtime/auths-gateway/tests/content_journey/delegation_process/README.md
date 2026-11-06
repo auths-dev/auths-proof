@@ -64,3 +64,17 @@ content/ACK files; public npm late-ACK transport records the original fact,
 including after subtree withdrawal, without releasing accounting or redelivery.
 These are process-crash schedules, not filesystem/power-loss proofs or evidence
 for every admission boundary.
+
+
+The native-records scenario adds real native records verification and protected
+store effects behind the existing credential boundary (ADR0022). Owner/A/B sign
+native authoring preimages through their existing installed process pipes; no
+private keys are exported. The recipe carries the full native canonical action
+and exact commitment to a separately exchanged proof/presentation envelope. The
+resource re-verifies retained original evidence at its fresh server time. Its
+records ledger is provider state, not another AP073 task journal. Six native
+preflight refusals check proof, presentation, action, audience, time and executed
+configuration; these are service-boundary checks, not arbitrary HTTP fuzzing.
+The operator creates baseline parent state independently. B's child create is
+one actual native effect, followed by gateway crash/Unknown, independent native
+read, child use, replay and withdrawal. Existing seven scenarios remain required.

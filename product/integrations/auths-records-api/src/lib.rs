@@ -23,6 +23,9 @@ pub mod profile;
 pub mod receipts;
 pub mod service;
 
+#[cfg(feature = "testkit")]
+pub mod testkit;
+
 pub use action::*;
 pub use decision::*;
 pub use envelope::*;

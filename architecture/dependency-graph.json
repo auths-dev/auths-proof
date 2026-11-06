@@ -3661,6 +3661,20 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-records-api",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "testkit"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-registries",
       "target_layer": "core",
       "scope": "internal",
@@ -11477,12 +11491,36 @@
     {
       "source": "auths-records-api",
       "source_layer": "product",
+      "target": "auths-author",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
       "target": "auths-bounded-policy",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
       "default_features": false,
       "features": []
     },
@@ -11513,12 +11551,60 @@
     {
       "source": "auths-records-api",
       "source_layer": "product",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
       "target": "auths-profile-api",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-registries",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
       "default_features": true,
       "features": []
     },
@@ -11532,6 +11618,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": false,
       "features": []
     },
     {
@@ -11555,6 +11653,18 @@
       "kind": "dev",
       "target_condition": null,
       "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
       "default_features": true,
       "features": []
     },
@@ -11841,7 +11951,9 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
-      "features": []
+      "features": [
+        "testkit"
+      ]
     },
     {
       "source": "auths-records-demo",

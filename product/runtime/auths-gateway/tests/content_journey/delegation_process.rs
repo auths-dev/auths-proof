@@ -10,10 +10,13 @@ use zeroize::Zeroizing;
 mod actor;
 #[path = "delegation_process/author.rs"]
 mod author;
+#[path = "delegation_process/native_records.rs"]
+mod native_records;
 #[path = "delegation_process/recipient.rs"]
 mod recipient;
 use actor::{Actor, Language};
 use author::{Grant, Invocation, PublicIdentity, author, call, context, control_audience, grant};
+use native_records::{InstalledProvider, NativeFixture};
 
 fn control_evidence(
     parent: [u8; 32],
@@ -260,13 +263,14 @@ fn forbidden(bytes: &[u8], secret: &[u8]) {
 
 #[derive(Clone, Copy, Debug)]
 enum InstalledCase {
+    NativeRecords,
     InstanceRecovery,
     RetainedMutation,
     LostMutation,
     LostCreation(CreatedListing),
 }
 impl InstalledCase {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 8] = [
         Self::RetainedMutation,
         Self::LostMutation,
         Self::LostCreation(CreatedListing::Zero),
@@ -274,11 +278,12 @@ impl InstalledCase {
         Self::LostCreation(CreatedListing::Incomplete),
         Self::LostCreation(CreatedListing::Unique),
         Self::InstanceRecovery,
+        Self::NativeRecords,
     ];
     fn creation(self) -> Option<CreatedListing> {
         match self {
             Self::LostCreation(listing) => Some(listing),
-            Self::InstanceRecovery => Some(CreatedListing::Unique),
+            Self::InstanceRecovery | Self::NativeRecords => Some(CreatedListing::Unique),
             _ => None,
         }
     }
@@ -288,6 +293,7 @@ impl InstalledCase {
     fn label(self) -> &'static str {
         match self {
             Self::InstanceRecovery => "commissioned-instance-recovery",
+            Self::NativeRecords => "gateway-protected-native-records",
             Self::RetainedMutation => "provider-response-retained",
             Self::LostMutation => "crash-after-provider-write",
             Self::LostCreation(CreatedListing::Zero) => "lost-create-zero-match",
@@ -311,7 +317,7 @@ fn native_installed_delegation_process_fixture_is_current() {
     }
     assert!(failures.is_empty(), "installed case failures: {failures:?}");
     assert_eq!(cases.len(), InstalledCase::ALL.len());
-    let report = json!({"schema":"auths.installed-delegation-process-vectors/4",
+    let report = json!({"schema":"auths.installed-delegation-process-vectors/5",
         "cases":cases});
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");
     if let Some(output) = std::env::var_os("AUTHS_DELEGATION_EVIDENCE_OUT") {
@@ -333,6 +339,7 @@ fn native_installed_delegation_process_fixture_is_current() {
 fn run_journey(case: InstalledCase) -> Value {
     let crash_after_write = case.crash_after_write();
     let instance_recovery = matches!(case, InstalledCase::InstanceRecovery);
+    let native_records = matches!(case, InstalledCase::NativeRecords);
     let creation = case.creation();
     let write_prefix = if creation.is_some() {
         "POST "
@@ -396,6 +403,25 @@ fn run_journey(case: InstalledCase) -> Value {
             "created_resource":{"schema":"auths.created-resource-selection/1","resource_pointer":"/id","parent_pointer":"/parent_id","parent_kind":"scalar",
                 "maximum_items":8,"complete":[{"kind":"absent","pointer":"/offset"}]}});
         source["echo"]["observe"] = json!("/auths_echo");
+    }
+    if native_records {
+        source["origin"] = json!("https://native-records.example.invalid");
+        source["service"] = json!("native-records-gateway");
+        lock["service"] = source["service"].clone();
+        lock["profile"] = json!("native-records-child-create");
+        for (name, maximum) in [("native_action", 4096), ("native_proof_commitment", 64)] {
+            lock["command_schema"]["fields"][name] =
+                json!({"kind":"string","minimum":1,"maximum":maximum});
+            source["write"]["body"]["value"]["fields"]["fields"]["fields"][name] =
+                json!({"kind":"field","name":name});
+            source["review"]["fields"][name] = json!({"kind":"text","label":if name=="native_action"{"Complete native records action"}else{"Exact exchanged native proof commitment"}});
+        }
+        source["review"]["consequences"].as_array_mut().expect("review consequences").push(json!("The native resource independently verifies the selected native proof and complete canonical action before its protected store. The gateway retains AP073 admission and recovery."));
+        use sha2::Digest as _;
+        lock["schema_digest"] = json!(hex::encode(sha2::Sha256::digest(
+            serde_json_canonicalizer::to_vec(&lock["command_schema"]).unwrap()
+        )));
+        source["profile_schema_digest"] = lock["schema_digest"].clone();
     }
     let source = serde_json::to_vec(&source).expect("source");
     let lock = serde_json::to_vec(&lock).expect("lock");
@@ -526,9 +552,17 @@ fn run_journey(case: InstalledCase) -> Value {
     getrandom::fill(&mut entropy).expect("content entropy");
     let content =
         Zeroizing::new(format!("PRIVATE_AP073_{}", hex::encode(&entropy[..16])).into_bytes());
-    let provider = match creation {
-        None => Provider::with_content(secret.to_vec(), true, content.to_vec()),
-        Some(listing) => Provider::with_created_content(secret.to_vec(), content.to_vec(), listing),
+    let native_fixture = native_records
+        .then(|| NativeFixture::new(&operator, &mut owner, &mut a, &mut b, &content, now));
+    let native_action = native_fixture
+        .as_ref()
+        .map(|fixture| (fixture.action(), fixture.proof_commitment()));
+    if let Some((action, _)) = &native_action {
+        forbidden(action.as_bytes(), &content);
+    }
+    let provider = match native_fixture {
+        Some(fixture) => InstalledProvider::native(secret.to_vec(), fixture),
+        None => InstalledProvider::standard(secret.to_vec(), content.to_vec(), creation),
     };
     success(cli(
         "install",
@@ -539,7 +573,14 @@ fn run_journey(case: InstalledCase) -> Value {
             ("--trusted-context", path(&operator.join("trust"))),
             ("--effect-policy", path(&operator.join("policy"))),
             ("--approve-digest", &recipe.digest_hex()),
-            ("--provider", "airtable"),
+            (
+                "--provider",
+                if native_records {
+                    "native-records"
+                } else {
+                    "airtable"
+                },
+            ),
             ("--alias", "delegation"),
             ("--account-label", "ap073-simulation"),
         ],
@@ -710,12 +751,13 @@ fn run_journey(case: InstalledCase) -> Value {
         None,
     ));
     let mutation = |operation: &str| {
-        call(
-            recipe.review().service(),
-            recipe.review().tool(),
-            json!({"operation_id":operation,
-        "operator_namespace":recipe.namespace().as_str(),"recipe_digest":recipe.digest_hex(),"record_id":RECORD,"replacement":"Approved"}),
-        )
+        let mut arguments = json!({"operation_id":operation,"operator_namespace":recipe.namespace().as_str(),
+            "recipe_digest":recipe.digest_hex(),"record_id":RECORD,"replacement":"Approved"});
+        if let Some((action, commitment)) = &native_action {
+            arguments["native_action"] = json!(action);
+            arguments["native_proof_commitment"] = json!(commitment);
+        }
+        call(recipe.review().service(), recipe.review().tool(), arguments)
     };
     let witnesses: Vec<_> = pins
         .scopes
@@ -894,7 +936,7 @@ fn run_journey(case: InstalledCase) -> Value {
             .is_some_and(|name| name == "credentials.cbor")),
         "probe actual custody file"
     );
-    let mut probed = vec![&mut machine, &mut a, &mut b];
+    let mut probed = vec![&mut owner, &mut machine, &mut a, &mut b, &mut reviewer];
     if let Some(standby) = standby.as_mut() {
         probed.push(standby);
     }
@@ -1970,7 +2012,7 @@ fn run_journey(case: InstalledCase) -> Value {
         "creation_listing":creation.map(|listing|format!("{listing:?}")),"premature_child_review_refused":creation.is_some(),
         "exact_created_child_acquired_once":child_acquired,"unresolved_child_review_refused":creation.is_some() && !recovery_linked,"recovery_replay_provider_calls":0,
         "wrong_reviewer_refused":true,"ancestor_shared_limit_refused_second_writer":true,"restart_replay_new_writes":0,
-        "old_enrollment_retry_revision":3,"current_control_revision":withdrawal_revision,"instance_recovery":recovery_evidence,"original_control_audit_replayed":true,
+        "native_records":provider.native_report(),"old_enrollment_retry_revision":3,"current_control_revision":withdrawal_revision,"instance_recovery":recovery_evidence,"original_control_audit_replayed":true,
         "withdrawn_descendant_new_review_refused":true,
         "not_established":["live-provider-qualification","human-presence","process-crash-at-every-boundary","postgres-execution","full-AP073-acceptance"]});
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");

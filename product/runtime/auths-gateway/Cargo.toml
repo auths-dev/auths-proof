@@ -80,6 +80,7 @@ url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+auths-records-api = { workspace = true, features = ["testkit"] }
 async-trait.workspace = true
 auths-recipe-qualification-issuance = { workspace = true, features = ["testkit"] }
 auths-author.workspace = true

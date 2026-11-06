@@ -38,8 +38,10 @@ Ownership and finite bounds are specified in [ADR 0018](../adr/0018-engagement-d
 
 ## Requirement-by-requirement acceptance matrix
 
-All entries are **open**. Existing source below identifies reusable mechanisms,
-not evidence that multi-agent coverage has passed on this branch.
+This table is the original continuation baseline, retained to distinguish its
+initial gaps from later results. The dated construction sections below record
+implemented/observed slices; exact-head hosted acceptance remains pending. Do not
+interpret every baseline row as an instruction to reimplement completed work.
 
 | ID | Required evidence and existing owner | Remaining work |
 | --- | --- | --- |
@@ -1811,3 +1813,138 @@ separate-UID confinement, TLS PostgreSQL, disconnected escrow, global revocation
 whole-store rollback detection, native-records qualification or source-linked
 formal closure. Those scoped gates/implementation gaps remain required for full
 AP073 acceptance. No push, hosted CI observation, merge or deployment occurred.
+
+
+### Native records bounded closure batch (unverified)
+
+ADR0022 selects the existing gateway plus real records service composition, not
+another native execution framework. Move the demo's existing native proof fixture
+and records-only persistent lifecycle registry into feature-gated domain testkit
+ownership; both the demo and installed native conformance consume it. Default
+records builds do not include fixture issuance/keys. A small fixture signer port
+receives public evidence/signatures from the existing owner/A/B processes.
+Central records presentation preparation supplies identical signing preimages
+for local and external keys; verification remains at the resource.
+
+The eighth installed case uses a real records ledger/service. Its approved
+canonical native create action and exact exchanged-proof commitment fit existing
+bounded recipe fields; no giant proof field, chunking, dynamic header or shared
+provider branch is added. Native proof bytes are retained unverified inputs,
+never allow verdicts; the resource re-verifies them at a fresh explicit server
+clock. The native policy retains separate provider usage while the existing
+AP073 journal alone owns participant/ancestor admission, withdrawal and Unknown.
+Initial parent state is independent operator setup. Native parent/child reads,
+B's child create, lost response, restart, independent listing, child use and old
+scope withdrawal join the existing installed journey. Credential-free/wrong-token
+HTTP requests fail before protected calls. Six service-level negative cases use
+real native verification for proof, presentation, action, audience, time and
+configuration; typed refusal/Err returns no projection or protected usage.
+
+Construction batch: finish all source, wire/inventory/spec/CI and adversarial
+assertions, format, construct the intentional dependency graph/lock artifacts,
+then regenerate semantic closure. Build the existing gateway artifact targets
+and records API library constructors together. Add the external-presentation
+constructor to the prior 37-selector cohort; installed artifact/5 must contain
+all eight actual cases. Require compiled-registry resolution and exactly one
+executed test per selector. Preserve existing product canonical fixtures; hosted
+AP024 tests must exercise unchanged demo behavior. No behavioral constructor,
+build, architecture constructor, broad gate or hosted CI has run for this new
+batch yet. The initial format attempt found a duplicate existing SDK dependency;
+remove that redundant declaration, keeping the existing SDK dependency intact.
+
+The goal audit still has native conformance construction, source-linked assurance
+and the final exact-head hosted cohort open. Earlier completed evidence must not
+be reimplemented merely because the initial baseline table still says pending.
+Do not expand into another runtime, provider abstraction or identity framework.
+
+
+Native batch construction prelude completed: the intentional architecture and
+lockfile artifacts were generated (only the new domain testkit/dev dependency
+edges; no dependency version changes), and all required native targets compiled
+without diagnostics. Before executing behavioral constructors, source review
+separates B's proposed child payload from the private parent sentinel. The native
+write action is carried through B's submission, so copying the private parent
+content into that action would defeat the intended information-flow experiment.
+Use an independently public child payload and assert the private parent sentinel
+and its encodings/hashes are absent from the native action. The baseline parent
+remains private and is delivered only through the existing controlled disclosure.
+No behavioral constructor result is claimed yet; rebuild the changed integration
+target before the complete 38-constructor artifact cohort.
+
+
+The 38-selector native-records constructor cohort passed 37. The installed
+constructor retained seven passing scenarios; the new native case failed during
+its independent parent setup because the copied native policy still selected
+the old demo executor audience. The native policy correctly refused the mismatch.
+Set its explicit audience to the same installed resource audience; keep all
+verification checks intact. Add stable refusal-code context to the setup assertion
+without printing private actions or contents. This changes only the integration
+fixture. Rerun the affected installed constructor (all eight scenarios) and
+semantic closure equality; do not repeat the 37 unaffected constructors whose
+source and artifacts have not changed. Logs remain in
+`/tmp/ap073-native-records-final/` and the matching result/build logs.
+
+
+The affected installed rerun again retained seven passing scenarios and refused
+the native parent setup with presentation-invalid. The fixture had confused two
+identifier contracts: the canonical raw-key principal of the native proof and
+the records presentation's existing `key:ed25519:<public-key-hex>` label. They use
+the same signing key here, but are distinct encodings. Centralize that domain
+presentation label in `RecordsPresentationV1::signer_principal`, used by its
+preparation function, the existing demo and the native fixture policy. Keep core
+principal-method IDs unchanged; never treat the presentation label as one. The
+wire bytes of existing presentations remain the same. Recheck the affected
+presentation constructor alongside the installed journey and semantic equality;
+37 other native artifact constructors remain unchanged in source/results.
+
+
+The identity-label repair passed external presentation and semantic equality.
+All native records work, resource usage and the eight-case workflow reached the
+final report, which exposed a fixture-count mismatch: the existing direct-provider
+loop probes machine/A/B, while the new native report expected all five roles plus
+its wrong-token probe. Extend the common loop to owner and reviewer as well,
+including their distinct-UID file probes, and assert the exact six refusals in the
+native case. Keep the existing agent probes; do not lower the expected isolation
+coverage to hide the mismatch. This affects only the installed constructor; its
+presentation and semantic source/results are unchanged. Preserve the failed
+identity cohort logs under `/tmp/ap073-native-records-identities-final/`.
+
+
+### Gateway-protected native records construction result
+
+The installed constructor now passed all **eight** actual scenarios (54.40 seconds)
+with exactly one executed test. Native records conformance performed one child
+create through the real records service and sealed persistent store, two distinct
+native read actions, gateway response loss/crash/restart, independent listing,
+bound child use, replay and ancestor withdrawal. Six native preflight mutations
+were refused without protected usage/projection. Five real installed roles and
+one substituted dispatch credential received HTTP refusals; all were retained as
+exact counted facts. The private parent payload is absent from B's native write
+request. Original mutation/creation/recovery cases remain passing.
+
+`engagement/installed-process.json` is artifact/5 with eight completed cases.
+The new presentation artifact passed after the domain presentation-label helper
+was centralized, and semantic equality passed. The prior 37 unaffected native
+constructors passed in the first cohort; only affected selectors were rerun for
+repairs. Logs remain in `/tmp/ap073-native-records-final/`,
+`/tmp/ap073-native-records-identities-final/` and successful installed
+`/tmp/ap073-native-records-probes-final/`, with their matching build/result logs.
+All counts reflect executed registered tests rather than exit-zero empty filters.
+
+The records demo reuses its existing authoring/records registry through the gated
+domain testkit; native external signing returns no private actor keys. Presentation
+wire bytes are unchanged. Intentional optional/dev dependency snapshots and lock
+entries were constructed without version upgrades. The resource adapter is test
+and conformance code; no records dispatch, callback or native profile interpreter
+was introduced in the shared gateway. Local cases have distinct_uids=false and
+reuse unchanged installed packages. They do not establish exact-head rebuilt
+packages, Linux confinement, provider HTTPS/crash recovery, human intent or
+production recipe qualification. No broad local/PG/formal gate, push or hosted
+CI observation has occurred.
+
+The current assurance/acceptance owner map is
+[0073-assurance-map.md](0073-assurance-map.md). Remaining bounded engineering is
+its exact-source ancestor arithmetic link and reverse stale-prefix checkpoint
+case, followed by source/evidence freeze and final exact-head hosted gates.
+The map explicitly distinguishes native product tests from actual translated
+proofs and from independently authenticated deployment floors.

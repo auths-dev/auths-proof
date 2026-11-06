@@ -5,6 +5,8 @@ on:
     paths:
       - "product/runtime/auths-lifecycle/**"
       - "product/runtime/auths-gateway/**"
+      - "product/integrations/auths-records-api/**"
+      - "demos/rest-api-authorization/**"
       - "product/stores/auths-stores/**"
       - "bindings/fixtures/gateway/**"
       - "qualification/reference/ap074_information_differential.py"
@@ -103,6 +105,11 @@ jobs:
           cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres || failures=$((failures + 1))
           test "$failures" -eq 0
           } 2>&1 | tee target/ap074-native-adapter-evidence.log
+      - name: Verify native records external presentation corpus
+        run: |
+          set -o pipefail
+          cargo test --locked -p auths-records-api --features testkit --lib -- --exact presentation::external_authoring_tests::native_records_presentation_authoring_fixture_is_current 2>&1 | tee target/ap073-native-records-presentation.log
+          grep -Fq 'test result: ok. 1 passed; 0 failed; 0 ignored;' target/ap073-native-records-presentation.log
       - name: Run complete AP074 final hardening batch
         if: ${{ !cancelled() }}
         env:

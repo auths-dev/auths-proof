@@ -653,3 +653,24 @@ verification/lifecycle cannot substitute for enrolled participant scope and shar
 ancestor accounting. Native resource qualification and the isolated native
 journey remain required until an explicit adapter/refinement contract is
 implemented; the federated gateway corpus alone cannot close them.
+
+
+## Native records conformance topology
+
+[ADR0022](../adr/0022-gateway-protected-native-records-conformance.md) defines a
+concrete gateway-protected native resource topology. AP073 authority, exact
+approval, shared capacity and one-use entry remain in the common gateway owner.
+The records resource additionally verifies its own typed canonical action,
+proof/presentation, installed policy and configuration before its sealed store.
+Its entrypoint requires the gateway-held dispatch credential; standalone direct
+AP024 traffic is a different deployment and confers no AP073 guarantees.
+
+The recipe contains the complete native canonical action and immutable commitment
+to separately exchanged native proof/presentation bytes. The resource re-verifies
+those original bytes at fresh server time. A proof commitment is a selector, not
+authority or a cached allow decision. Existing finite recipe field limits remain
+unchanged. Native read proofs are independently exchanged and bound to exact
+parent/child actions. Records domain policy and provider replay state compose
+with gateway limits without becoming a second engagement journal. Production
+qualification, actual separate-UID evidence and provider crash durability remain
+separate gates. The ledger records implementation and construction status.

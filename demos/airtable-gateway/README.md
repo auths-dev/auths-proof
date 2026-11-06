@@ -324,7 +324,7 @@ authored until their exact-head hosted result is recorded in the AP074 ledger.
 The source-free handoff also contains `bin/auths-ap073-journey`, a compiled native
 test orchestrator. CI explicitly invokes its installed delegation constructor
 with the packaged simulation gateway and installed wheel/npm clients. Six
-scenarios use five separate Linux UIDs; the commissioned recovery scenario uses
+ordinary scenarios use five separate Linux UIDs; the commissioned recovery scenario uses
 a sixth independently held standby key/UID. It exercises machine→A→B enrollment, exact independent
 scripted review, scoped read/disclosure/write, shared limits, replay and original
 control audit. The normal demo launcher does not run this test executable.
@@ -333,3 +333,12 @@ claim. The recovery case composes lost-create reconciliation with a new holder,
 retained capacity, restart gaps and old-approval refusal. Exact-head hosted
 containment and full AP073 acceptance remain separate gates.
 
+
+
+The AP073 native-records scenario uses the real records vertical behind a
+credential-gated reference resource. It separately verifies the native record
+proof/presentation and policy, while the gateway retains participant admission,
+ancestor capacity and recovery. The recipe carries the complete canonical native
+action and a commitment to separately exchanged native proof bytes. Neither
+adds records logic to the gateway. This reference uses loopback HTTP; it is not
+a production-qualified recipe or proof of provider crash durability.
