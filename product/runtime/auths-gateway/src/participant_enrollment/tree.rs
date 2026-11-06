@@ -169,7 +169,7 @@ impl EnrollmentTree {
         now: u64,
         invocation: &super::EnrollmentInvocation<'_>,
     ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
-        self.verify_scope(context, scope_id, now, invocation, None)
+        self.verify_scope(context, scope_id, now, invocation, None, None)
     }
 
     /// The common effect compiler alone supplies protected source provenance for
@@ -182,7 +182,26 @@ impl EnrollmentTree {
         invocation: &super::EnrollmentInvocation<'_>,
         resource: &super::EnrollmentResourceBinding,
     ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
-        self.verify_scope(context, scope_id, now, invocation, Some(resource))
+        self.verify_scope(context, scope_id, now, invocation, Some(resource), None)
+    }
+
+    pub(crate) fn verify_created_scope(
+        &self,
+        context: &TrustedContext,
+        scope_id: &str,
+        now: u64,
+        invocation: &super::EnrollmentInvocation<'_>,
+        lineage: &crate::effect::CreatedLineage,
+        compiled_resource: Option<&super::EnrollmentResourceBinding>,
+    ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
+        self.verify_scope(
+            context,
+            scope_id,
+            now,
+            invocation,
+            compiled_resource,
+            Some(lineage),
+        )
     }
 
     fn verify_scope(
@@ -192,6 +211,7 @@ impl EnrollmentTree {
         now: u64,
         invocation: &super::EnrollmentInvocation<'_>,
         resource: Option<&super::EnrollmentResourceBinding>,
+        lineage: Option<&crate::effect::CreatedLineage>,
     ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
         super::bounded_invocations(std::iter::once(*invocation))?;
         let scope = self
@@ -200,13 +220,11 @@ impl EnrollmentTree {
             .iter()
             .find(|scope| scope.scope_id == scope_id)
             .ok_or(EnrollmentTreeError::Binding)?;
-        // A future-created-child witness proves authority only. Until the
-        // managed compiler supplies independently verified lineage, no literal
-        // handle can be inferred from it for an executable operation.
         if matches!(
             scope.resource,
             super::EnrollmentResourceBinding::CreatedChild { .. }
-        ) {
+        ) && lineage.is_none_or(|lineage| !lineage.admits(&self.root, scope))
+        {
             return Err(EnrollmentTreeError::Binding);
         }
         let audience = super::resource_audience(
@@ -238,7 +256,15 @@ impl EnrollmentTree {
                 return Err(EnrollmentTreeError::Binding);
             }
             Some(_) => {}
-            None => super::require_resource_witness(scope, &command, &branch)?,
+            None => {
+                let mut resolved = scope.clone();
+                if let Some(lineage) = lineage {
+                    resolved.resource = super::EnrollmentResourceBinding::Exact {
+                        handle: lineage.resource.clone(),
+                    };
+                }
+                super::require_resource_witness(&resolved, &command, &branch)?;
+            }
         }
         self.retained_identity(branch.actor.as_str())
     }

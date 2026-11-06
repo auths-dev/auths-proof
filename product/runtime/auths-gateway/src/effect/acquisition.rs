@@ -662,6 +662,7 @@ pub(super) fn compile_verified_acquisition(
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
         enrollment: installed.enrollment.cloned(),
+        lineages: installed.lineages.to_vec(),
     };
     #[cfg(unix)]
     effect

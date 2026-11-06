@@ -1563,7 +1563,7 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_mutation_effect(
             &self
                 .effect_policy
@@ -1574,7 +1574,8 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_lineages(&lineages),
             now,
             proof,
             action,
@@ -1683,7 +1684,7 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_disclosure(
             &self
                 .effect_policy
@@ -1694,7 +1695,8 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_lineages(&lineages),
             target,
             now,
             proof,
@@ -1943,7 +1945,7 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_content_action(
             &self
                 .effect_policy
@@ -1954,7 +1956,8 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_lineages(&lineages),
             now,
             proof,
             action,
@@ -2043,7 +2046,7 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         let target =
             crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
                 .map_err(|_| not_entered("gateway.acquisition.binding"))?;
@@ -2057,7 +2060,8 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_lineages(&lineages),
             &target,
             now,
             proof,
@@ -2122,7 +2126,7 @@ impl GatewayEngine {
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
         let target = self.recovery_compilation_target(source_operation).await?;
-        let (loaded, now, enrollment) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_recovery_acquisition(
             &self
                 .effect_policy
@@ -2133,7 +2137,8 @@ impl GatewayEngine {
                     self.qualification.policy(),
                     self.effect_configuration_candidate().map_err(not_entered)?,
                 )
-                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
+                .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                .with_lineages(&lineages),
             &target,
             now,
             proof,
@@ -2404,6 +2409,7 @@ impl GatewayEngine {
             LoadedConnection,
             u64,
             Option<crate::EngagementConfigurationSnapshot>,
+            Vec<crate::effect::CreatedLineage>,
         ),
         GatewaySubmitResult,
     > {
@@ -2423,7 +2429,12 @@ impl GatewayEngine {
         {
             return Err(not_entered("gateway.engagement.clock-rollback"));
         }
-        Ok((loaded, now, enrollment))
+        let lineages = self
+            .attempts
+            .created_lineages(self.effect_policy.engagement().map(|policy| policy.root()))
+            .await
+            .map_err(|_| not_entered("gateway.engagement.created-history-unavailable"))?;
+        Ok((loaded, now, enrollment, lineages))
     }
 
     // Both data-only call construction and native compilation use the same
@@ -2916,7 +2927,8 @@ impl SubmitIo for EngineIo<'_> {
                         .effect_configuration_candidate()
                         .map_err(not_entered)?,
                 )
-                .with_enrollment(approved.enrollment()),
+                .with_enrollment(approved.enrollment())
+                .with_lineages(approved.lineages()),
             now,
         )?;
         #[cfg(unix)]
@@ -2953,7 +2965,8 @@ impl SubmitIo for EngineIo<'_> {
                         .effect_configuration_candidate()
                         .map_err(not_entered)?,
                 )
-                .with_enrollment(approved.enrollment()),
+                .with_enrollment(approved.enrollment())
+                .with_lineages(approved.lineages()),
             now,
         )
     }

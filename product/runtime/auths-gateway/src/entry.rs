@@ -150,7 +150,10 @@ impl EntryValidation {
         }
     }
 
-    pub(crate) fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
+    pub(crate) fn dependencies(
+        &self,
+        approved: &ApprovedEffect,
+    ) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
         match self {
             Self::Installed(entry) => {
                 let mut keys = vec![
@@ -170,6 +173,9 @@ impl EntryValidation {
                 if let Some(authority) = &entry.commissioning {
                     keys.push((GatewayRecordKind::CommissioningBudget, authority.budget_key));
                 }
+                if let Some(lineage) = approved.effect().binding().created_lineage() {
+                    keys.extend(lineage.dependencies());
+                }
                 keys
             }
             #[cfg(any(test, feature = "testkit-harness"))]
@@ -187,7 +193,7 @@ impl EntryValidation {
     ) -> Result<u64, &'static str> {
         match self {
             Self::Installed(entry) => {
-                if snapshots.len() != self.dependencies().len() {
+                if snapshots.len() != self.dependencies(approved).len() {
                     return Err("gateway.entry.dependencies-unavailable");
                 }
                 if !entry.connection.validate(
@@ -248,6 +254,18 @@ impl EntryValidation {
                     }
                     _ => return Err("gateway.engagement.installation"),
                 };
+                let lineages = match approved.effect().binding().created_lineage() {
+                    None => Vec::new(),
+                    Some(lineage) => {
+                        let tail = snapshots
+                            .len()
+                            .checked_sub(3)
+                            .ok_or("gateway.engagement.created-history-unavailable")?;
+                        crate::store::revalidate_created_lineage(lineage, &snapshots[tail..])
+                            .map_err(|_| "gateway.engagement.created-history-unavailable")?;
+                        vec![lineage.clone()]
+                    }
+                };
                 approved
                     .validate_for_entry(
                         &entry
@@ -259,7 +277,8 @@ impl EntryValidation {
                                 entry.qualification.policy(),
                                 entry.configuration.candidate(),
                             )
-                            .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree())),
+                            .with_enrollment(enrollment.as_ref().map(|snapshot| snapshot.tree()))
+                            .with_lineages(&lineages),
                         now,
                     )
                     .map_err(|_| "gateway.effect.authority-unavailable")?;

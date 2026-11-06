@@ -1535,6 +1535,9 @@ fn deferred_child_witness_is_authority_not_a_resource_binding() {
     let fixture = Fixture::new();
     let mut pins = fixture.committed_root();
     pins.scopes[0].resource = EnrollmentResourceBinding::CreatedChild {
+        create_namespace: "created-source".into(),
+        create_partition: "recipe-partition".into(),
+        create_epoch: 1,
         create_operation_id: "create-one".into(),
         create_recipe_digest: "cd".repeat(32),
         parent_scope_id: "ef".repeat(32),
@@ -2197,7 +2200,15 @@ pub(crate) fn effect_scope_hierarchy_fixture(
     connection: &auths_connections::ConnectionRecord,
     arguments: &Map<String, Value>,
 ) -> EffectScopeFixture {
-    effect_scope_fixture_with_topology(recipe, connection, arguments, 0x55, [1; 32], None, true)
+    effect_scope_fixture_with_topology(
+        recipe,
+        connection,
+        arguments,
+        0x55,
+        [1; 32],
+        None,
+        ScopeTopology::Hierarchy,
+    )
 }
 
 pub(crate) fn effect_scope_fixture_with_channel(
@@ -2215,7 +2226,31 @@ pub(crate) fn effect_scope_fixture_with_channel(
         actor_seed,
         engagement,
         sibling_channel,
-        false,
+        ScopeTopology::Siblings,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ScopeTopology {
+    Siblings,
+    Hierarchy,
+    CreatedChildContent,
+}
+
+pub(crate) fn effect_scope_created_child_fixture(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+    engagement: [u8; 32],
+) -> EffectScopeFixture {
+    effect_scope_fixture_with_topology(
+        recipe,
+        connection,
+        arguments,
+        0x44,
+        engagement,
+        None,
+        ScopeTopology::CreatedChildContent,
     )
 }
 
@@ -2230,8 +2265,9 @@ fn effect_scope_fixture_with_topology(
     actor_seed: u8,
     engagement: [u8; 32],
     sibling_channel: Option<[u8; 32]>,
-    hierarchy: bool,
+    topology: ScopeTopology,
 ) -> EffectScopeFixture {
+    let hierarchy = matches!(topology, ScopeTopology::Hierarchy);
     assert!([0x44, 0x55].contains(&actor_seed));
     let depth = if hierarchy { 2 } else { 1 };
     let mut fixture = Fixture::with_depth(0x44, depth);
@@ -2382,6 +2418,27 @@ fn effect_scope_fixture_with_topology(
                 .commitment()
                 .unwrap()
         });
+    }
+    if matches!(topology, ScopeTopology::CreatedChildContent) {
+        assert!(content.is_some());
+        let parent_scope_id = creation_parent_scope_commitment(&fixture.pins.scopes[0]).unwrap();
+        for scope in &mut fixture.pins.scopes {
+            if [
+                crate::effect::CONTENT_READ_TOOL,
+                crate::effect::DISCLOSURE_TOOL,
+            ]
+            .contains(&scope.tool.as_str())
+            {
+                scope.resource = EnrollmentResourceBinding::CreatedChild {
+                    create_namespace: recipe.namespace().as_str().into(),
+                    create_partition: "recipe-partition".into(),
+                    create_epoch: 1,
+                    create_operation_id: arguments["operation_id"].as_str().unwrap().into(),
+                    create_recipe_digest: recipe.digest_hex(),
+                    parent_scope_id: parent_scope_id.clone(),
+                };
+            }
+        }
     }
     fixture.enrollment.scopes[0].grant_id = *grant_id(fixture.child_resource.statement())
         .unwrap()

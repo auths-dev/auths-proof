@@ -96,6 +96,33 @@ impl ScopePurpose<'_> {
 }
 
 impl Scope {
+    pub(super) fn created_lineage(&self) -> Option<&super::CreatedLineage> {
+        match self {
+            Self::Engagement { bound } => bound.lineage.as_ref(),
+            Self::Unscoped => None,
+        }
+    }
+    pub(super) fn creation_parent(
+        &self,
+    ) -> Result<([u8; 32], [u8; 32], u64, EnrollmentScopePins), EffectBindingError> {
+        match self {
+            Self::Engagement { bound }
+                if bound.lineage.is_none()
+                    && matches!(
+                        bound.scope.resource,
+                        crate::participant_enrollment::EnrollmentResourceBinding::Exact { .. }
+                    ) =>
+            {
+                Ok((
+                    bound.root,
+                    bound.engagement,
+                    bound.authority_epoch,
+                    bound.scope.clone(),
+                ))
+            }
+            _ => Err(EffectBindingError::Invalid),
+        }
+    }
     pub(super) fn prerequisite_reservations(
         &self,
     ) -> Result<Vec<super::EngagementReservation>, EffectBindingError> {
@@ -168,6 +195,7 @@ impl Scope {
                     && a.scope.connection_binding == b.scope.connection_binding
                     && a.scope.service == b.scope.service
                     && a.scope.resource == b.scope.resource
+                    && a.lineage == b.lineage
             }
             _ => false,
         }
@@ -218,6 +246,8 @@ pub(super) struct EngagementScope {
     scope: EnrollmentScopePins,
     ancestors: Vec<Ancestor>,
     recipient: Option<Recipient>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lineage: Option<super::CreatedLineage>,
 }
 
 impl EngagementScope {
@@ -269,8 +299,12 @@ impl EngagementScope {
                     None => {
                         let args = call.get("arguments");
                         let args = if matches!(purpose, ScopePurpose::Content) { args.and_then(|args| args.get("resource_arguments")) } else { args };
-                        matches!(&scope.resource, crate::participant_enrollment::EnrollmentResourceBinding::Exact { handle }
-                            if args.and_then(|args| args.get(&scope.resource_argument)).and_then(serde_json::Value::as_str) == Some(handle.as_str()))
+                        let handle=args.and_then(|args| args.get(&scope.resource_argument)).and_then(serde_json::Value::as_str);
+                        match &scope.resource {
+                            crate::participant_enrollment::EnrollmentResourceBinding::Exact {handle: expected} => handle==Some(expected.as_str()),
+                            crate::participant_enrollment::EnrollmentResourceBinding::CreatedChild{..} => installed.lineages.iter().any(|lineage|
+                                lineage.admits(&policy.root,scope) && handle==Some(lineage.resource.as_str())),
+                        }
                     }
                 }
         });
@@ -278,15 +312,43 @@ impl EngagementScope {
         if matches.next().is_some() {
             return Err(EffectBindingError::Invalid);
         }
-        let participant = match purpose.source() {
-            Some(_) => tree.verify_compiled_scope(
+        let lineage = if matches!(
+            scope.resource,
+            crate::participant_enrollment::EnrollmentResourceBinding::CreatedChild { .. }
+        ) {
+            let mut matches = installed
+                .lineages
+                .iter()
+                .filter(|lineage| lineage.admits(&policy.root, scope));
+            let lineage = matches.next().ok_or(EffectBindingError::Invalid)?;
+            if matches.next().is_some()
+                || purpose
+                    .source()
+                    .is_some_and(|source| source.created_lineage() != Some(lineage))
+            {
+                return Err(EffectBindingError::Invalid);
+            }
+            Some(lineage.clone())
+        } else {
+            None
+        };
+        let participant = match (lineage.as_ref(), purpose.source()) {
+            (Some(lineage), source) => tree.verify_created_scope(
+                installed.context,
+                &scope.scope_id,
+                now,
+                &invocation,
+                lineage,
+                source.map(|_| &scope.resource),
+            ),
+            (None, Some(_)) => tree.verify_compiled_scope(
                 installed.context,
                 &scope.scope_id,
                 now,
                 &invocation,
                 &scope.resource,
             ),
-            None => {
+            (None, None) => {
                 tree.verify_operation_scope(installed.context, &scope.scope_id, now, &invocation)
             }
         }
@@ -322,6 +384,7 @@ impl EngagementScope {
             root: policy.root.enrollment_commitment,
             executor: policy.executor.clone(),
             scope: scope.clone(),
+            lineage,
             ancestors,
             recipient: match purpose {
                 ScopePurpose::Disclosure {
@@ -400,10 +463,25 @@ impl EngagementScope {
             || !identifier(&self.scope.tool)
             || crate::control_namespace::is_control_service(&self.scope.service)
             || !self.scope.resource.valid()
-            || matches!(
-                self.scope.resource,
-                crate::participant_enrollment::EnrollmentResourceBinding::CreatedChild { .. }
-            )
+            || match (&self.scope.resource, &self.lineage) {
+                (crate::participant_enrollment::EnrollmentResourceBinding::Exact { .. }, None) => {
+                    false
+                }
+                (
+                    crate::participant_enrollment::EnrollmentResourceBinding::CreatedChild {
+                        ..
+                    },
+                    Some(lineage),
+                ) => {
+                    lineage.validate().is_err()
+                        || lineage.root != self.root
+                        || lineage.engagement != self.engagement
+                        || lineage.authority_epoch != self.authority_epoch
+                        || lineage.connection != self.scope.connection_binding
+                        || !lineage.matches_resource(&self.scope.resource)
+                }
+                _ => true,
+            }
             || crate::participant_enrollment::resource_audience(
                 &self.engagement,
                 self.authority_epoch,

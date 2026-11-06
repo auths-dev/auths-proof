@@ -132,12 +132,218 @@ impl Case {
     }
 }
 
+fn child_effect(
+    setup: &Setup,
+    lineages: &[crate::effect::CreatedLineage],
+    resource: &str,
+    operation: &str,
+) -> Result<crate::effect::BoundEffect, crate::GatewaySubmitResult> {
+    let target = crate::effect::ContentReadTarget::new(
+        &setup.recipe,
+        &setup.connection,
+        json!({"record_id":resource}).as_object().unwrap().clone(),
+    )
+    .unwrap();
+    let call = target
+        .authorization_call(
+            &setup.recipe,
+            &crate::LogicalOperationId::parse(operation).unwrap(),
+        )
+        .unwrap();
+    let native = setup.native.signed_call(&call, 0x55);
+    crate::effect::compile_content_acquisition(
+        &installed(setup).with_lineages(lineages),
+        &target,
+        NOW,
+        &native.proof,
+        &native.action,
+    )
+}
+
+async fn replace_raw_read(
+    setup: &Setup,
+    key: crate::GatewayAttemptKey,
+    before: Vec<u8>,
+    after: Vec<u8>,
+) {
+    let store = setup.backend.raw();
+    tokio::task::spawn_blocking(move || {
+        store.replace(crate::GatewayRecordKind::Attempt, &key, &before, &after)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one complete native lineage substitution and final-fence schedule"
+)]
+async fn consume_child(setup: &Setup, unique: bool) -> Value {
+    let attempts = setup.attempts(setup.backend.raw());
+    let lineages = attempts
+        .created_lineages(Some(&setup.native.root))
+        .await
+        .unwrap();
+    assert!(child_effect(setup, &[], CHILD, "consume-created-child").is_err());
+    assert!(
+        child_effect(
+            setup,
+            &lineages,
+            "forged-other-child",
+            "consume-created-child"
+        )
+        .is_err()
+    );
+    if !unique {
+        assert!(lineages.is_empty());
+        assert!(child_effect(setup, &lineages, CHILD, "consume-created-child").is_err());
+        return json!({"selected":false,"consumer_refused":true});
+    }
+    assert_eq!(lineages.len(), 1);
+    let lineage = &lineages[0];
+    assert_eq!(lineage.resource, CHILD);
+    assert!(child_effect(setup, &lineages, CHILD, &lineage.producer_operation).is_err());
+    assert!(child_effect(setup, &lineages, CHILD, "lookup-child").is_err());
+    let mut mutations = Vec::new();
+    for field in [
+        "root",
+        "engagement",
+        "authority-epoch",
+        "namespace",
+        "partition",
+        "epoch",
+        "operation",
+        "recipe",
+        "parent-scope",
+        "connection",
+        "resource",
+        "producer-key",
+        "acquisition-key",
+        "allocation-key",
+        "producer-effect",
+        "acquisition-effect",
+        "producer-revision",
+        "acquisition-revision",
+    ] {
+        let mut altered = lineage.clone();
+        match field {
+            "root" => altered.root[0] ^= 1,
+            "engagement" => altered.engagement[0] ^= 1,
+            "authority-epoch" => altered.authority_epoch += 1,
+            "namespace" => altered.producer_namespace.push('x'),
+            "partition" => altered.producer_partition.push('x'),
+            "epoch" => altered.producer_epoch += 1,
+            "operation" => altered.producer_operation.push('x'),
+            "recipe" => altered.producer_recipe = "ab".repeat(32),
+            "parent-scope" => altered.parent_scope = "ab".repeat(32),
+            "connection" => altered.connection[0] ^= 1,
+            "resource" => altered.resource = "forged-child".into(),
+            "producer-key" => altered.producer_key[0] ^= 1,
+            "acquisition-key" => altered.acquisition_key[0] ^= 1,
+            "allocation-key" => altered.allocation_key[0] ^= 1,
+            "producer-effect" => altered.producer_effect[0] ^= 1,
+            "acquisition-effect" => altered.acquisition_effect[0] ^= 1,
+            "producer-revision" => altered.producer_revision += 1,
+            "acquisition-revision" => altered.acquisition_revision += 1,
+            _ => panic!("mutation case"),
+        }
+        if let Ok(effect) = child_effect(setup, &[altered], CHILD, "consume-created-child") {
+            let approved = Arc::new(approve(effect));
+            assert!(
+                attempts
+                    .claim_content(&approved, NOW, setup.validation())
+                    .await
+                    .is_err(),
+                "substituted lineage admitted: {field}"
+            );
+        }
+        assert!(record(setup, "consume-created-child").await.is_none());
+        mutations.push(field);
+    }
+    let approved = Arc::new(approve(
+        child_effect(setup, &lineages, CHILD, "consume-created-child").unwrap(),
+    ));
+    let review = private(approved.effect().binding());
+    assert_eq!(
+        review["scope"]["bound"]["lineage"]["resource"],
+        json!(CHILD)
+    );
+    let crate::AcquisitionClaim::Reserved(reserved) = attempts
+        .claim_content(&approved, NOW, setup.validation())
+        .await
+        .unwrap()
+    else {
+        panic!("child reservation")
+    };
+    let key = crate::GatewayAttemptKey::from_bytes(lineage.acquisition_key);
+    let store = setup.backend.raw();
+    let original =
+        tokio::task::spawn_blocking(move || store.load(crate::GatewayRecordKind::Attempt, &key))
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    let substituted = crate::store::fixture_created_history_substitutions(&original)
+        .unwrap()
+        .into_iter()
+        .find(|(name, _)| *name == "body")
+        .unwrap()
+        .1;
+    replace_raw_read(setup, key, original.clone(), substituted.clone()).await;
+    assert!(
+        reserved
+            .grant_entry(Arc::clone(&approved), setup.validation(), NOW)
+            .await
+            .is_err(),
+        "stale pre-lock provenance granted child entry"
+    );
+    assert!(record(setup, "consume-created-child").await.unwrap()["entry"].is_null());
+    replace_raw_read(setup, key, substituted, original).await;
+    // Reopening the unentered reservation creates no new charge. A fresh fence
+    // may grant it only after the original immutable dependency is restored.
+    let content =
+        super::information_tests::acquire(setup, &approved, b"PRIVATE-CREATED-CHILD-CONTENT").await;
+    let recipient = SigningKey::from_bytes(&[0x55; 32])
+        .verifying_key()
+        .to_bytes();
+    let channel = super::information_tests::channel(setup);
+    let target =
+        crate::effect::DisclosureTarget::new(content, recipient, channel, [0x79; 32]).unwrap();
+    let call = target
+        .authorization_call(
+            &setup.recipe,
+            &crate::LogicalOperationId::parse("release-created-child").unwrap(),
+        )
+        .unwrap();
+    let native = setup.native.signed_call(&call, 0x55);
+    let release = Arc::new(approve(
+        crate::effect::compile_disclosure(
+            &installed(setup).with_lineages(&lineages),
+            &target,
+            NOW,
+            &native.proof,
+            &native.action,
+        )
+        .unwrap(),
+    ));
+    let disclosure = attempts
+        .claim_disclosure(&release, NOW, setup.validation())
+        .await
+        .unwrap();
+    assert_eq!(disclosure.stage, crate::DisclosureStage::Reserved);
+    assert!(record(setup, "release-created-child").await.unwrap()["entry"].is_null());
+    json!({"selected":true,"lineage_mutations_refused":mutations,"stale_original_read_refused_at_final_fence":true,
+        "native_child_acquisition_entered_once_after_exact_restoration":true,"child_disclosure_reserved_without_delivery_permit":true,
+        "responses_are_injected":true,"provider_calls":0})
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "complete native source/read/refinement/replay and privacy relation"
 )]
 async fn lifecycle(backend: Backend, case: Case) -> Value {
-    let setup = Setup::with_recipe(backend, recipe(), [1; 32]).await;
+    let setup = Setup::with_created_resource(backend, recipe(), [1; 32]).await;
     let source = Arc::new(approve(
         compile_mutation_effect(
             &installed(&setup),
@@ -455,9 +661,10 @@ async fn lifecycle(backend: Backend, case: Case) -> Value {
         assert_eq!(allocation_rows(&setup, &source, 0).await, source_rows);
         assert_eq!(allocation_rows(&setup, &read, 0).await, read_rows);
     }
+    let consumer = consume_child(&setup, case.unique()).await;
     json!({"case":format!("{case:?}"),"private_identity_recorded":case.unique(),"source_response_status":Value::Null,"original_source_and_recovery_link_retained":case.unique(),
         "public_identity_echo_and_raw_hash_absent":true,"no_new_claim_or_charge_on_replay":true,"canonical_identity_substitution_refused":case.unique(),
-        "original_acquisition_substitutions_refused":if case.unique(){5}else{0},"provider_calls":0,"responses_are_injected":true})
+        "original_acquisition_substitutions_refused":if case.unique(){5}else{0},"consumer":consumer,"provider_calls":0,"responses_are_injected":true})
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -475,9 +682,9 @@ async fn native_created_resource_recovery_fixture_is_current() {
         failures.is_empty(),
         "native creation recovery case failures: {failures:?}"
     );
-    let bytes=serde_json::to_vec_pretty(&json!({"schema":"auths.created-resource-recovery-vectors/2","cases":cases,"compiler_refusal_matrix_checked":true,
+    let bytes=serde_json::to_vec_pretty(&json!({"schema":"auths.created-resource-recovery-vectors/3","cases":cases,"compiler_refusal_matrix_checked":true,
         "scope":"native entered source, separately authorized/approved current read and real file source/read/allocation fence with injected response facts",
-        "not_established":["actual-provider-create","TLS-postgres","dependent-child-entry","installed-key-isolation","human-presence","full-F10"]})).unwrap();
+        "not_established":["actual-provider-create","TLS-postgres","real-provider-dependent-child-entry","installed-key-isolation","human-presence","full-F10"]})).unwrap();
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway/engagement/creation-recovery.json");
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {

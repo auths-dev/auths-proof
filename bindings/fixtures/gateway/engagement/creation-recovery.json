@@ -1,5 +1,5 @@
 {
-  "schema": "auths.created-resource-recovery-vectors/2",
+  "schema": "auths.created-resource-recovery-vectors/3",
   "cases": [
     {
       "case": "Unique",
@@ -10,6 +10,34 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": true,
       "original_acquisition_substitutions_refused": 5,
+      "consumer": {
+        "selected": true,
+        "lineage_mutations_refused": [
+          "root",
+          "engagement",
+          "authority-epoch",
+          "namespace",
+          "partition",
+          "epoch",
+          "operation",
+          "recipe",
+          "parent-scope",
+          "connection",
+          "resource",
+          "producer-key",
+          "acquisition-key",
+          "allocation-key",
+          "producer-effect",
+          "acquisition-effect",
+          "producer-revision",
+          "acquisition-revision"
+        ],
+        "stale_original_read_refused_at_final_fence": true,
+        "native_child_acquisition_entered_once_after_exact_restoration": true,
+        "child_disclosure_reserved_without_delivery_permit": true,
+        "responses_are_injected": true,
+        "provider_calls": 0
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -22,6 +50,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -34,6 +66,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -46,6 +82,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -58,6 +98,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -70,6 +114,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -82,6 +130,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -94,6 +146,10 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
       "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -106,6 +162,34 @@
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": true,
       "original_acquisition_substitutions_refused": 5,
+      "consumer": {
+        "selected": true,
+        "lineage_mutations_refused": [
+          "root",
+          "engagement",
+          "authority-epoch",
+          "namespace",
+          "partition",
+          "epoch",
+          "operation",
+          "recipe",
+          "parent-scope",
+          "connection",
+          "resource",
+          "producer-key",
+          "acquisition-key",
+          "allocation-key",
+          "producer-effect",
+          "acquisition-effect",
+          "producer-revision",
+          "acquisition-revision"
+        ],
+        "stale_original_read_refused_at_final_fence": true,
+        "native_child_acquisition_entered_once_after_exact_restoration": true,
+        "child_disclosure_reserved_without_delivery_permit": true,
+        "responses_are_injected": true,
+        "provider_calls": 0
+      },
       "provider_calls": 0,
       "responses_are_injected": true
     }
@@ -115,7 +199,7 @@
   "not_established": [
     "actual-provider-create",
     "TLS-postgres",
-    "dependent-child-entry",
+    "real-provider-dependent-child-entry",
     "installed-key-isolation",
     "human-presence",
     "full-F10"

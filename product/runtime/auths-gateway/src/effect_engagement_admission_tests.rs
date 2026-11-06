@@ -34,7 +34,7 @@ impl Setup {
         recipe: CompiledRecipe,
         engagement: [u8; 32],
     ) -> Self {
-        Self::with_inputs(backend, recipe, engagement, None).await
+        Self::with_inputs(backend, recipe, engagement, None, false).await
     }
     pub(super) async fn with_channel(
         backend: Backend,
@@ -42,26 +42,43 @@ impl Setup {
         engagement: [u8; 32],
         channel: [u8; 32],
     ) -> Self {
-        Self::with_inputs(backend, recipe, engagement, Some(channel)).await
+        Self::with_inputs(backend, recipe, engagement, Some(channel), false).await
+    }
+    pub(super) async fn with_created_resource(
+        backend: Backend,
+        recipe: CompiledRecipe,
+        engagement: [u8; 32],
+    ) -> Self {
+        Self::with_inputs(backend, recipe, engagement, None, true).await
     }
     async fn with_inputs(
         backend: Backend,
         recipe: CompiledRecipe,
         engagement: [u8; 32],
         channel: Option<[u8; 32]>,
+        created_child: bool,
     ) -> Self {
         let backend = TestAttempts::open(backend);
         let store = backend.raw();
         let connection = connection(&recipe);
         let args = json!({"operation_id":"initial", "operator_namespace":recipe.namespace().as_str(), "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
-        let native = crate::participant_enrollment::tests::effect_scope_fixture_with_channel(
-            &recipe,
-            &connection,
-            args.as_object().unwrap(),
-            0x44,
-            engagement,
-            channel,
-        );
+        let native = if created_child {
+            crate::participant_enrollment::tests::effect_scope_created_child_fixture(
+                &recipe,
+                &connection,
+                args.as_object().unwrap(),
+                engagement,
+            )
+        } else {
+            crate::participant_enrollment::tests::effect_scope_fixture_with_channel(
+                &recipe,
+                &connection,
+                args.as_object().unwrap(),
+                0x44,
+                engagement,
+                channel,
+            )
+        };
         let policy = policy(native.root.clone(), "gateway");
         let configuration = crate::configuration::SharedConfiguration::new(
             Arc::clone(&store),

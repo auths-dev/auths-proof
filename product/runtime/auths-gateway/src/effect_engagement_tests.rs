@@ -431,7 +431,7 @@ async fn entry_snapshots_revalidate_current_enrollment() {
             #[cfg(unix)]
             commissioning: None,
         }));
-    let dependencies = validation.dependencies();
+    let dependencies = validation.dependencies(&approved);
     assert_eq!(dependencies.len(), 3);
     assert_eq!(
         dependencies[2],

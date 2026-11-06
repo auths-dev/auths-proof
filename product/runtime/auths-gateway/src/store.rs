@@ -840,6 +840,7 @@ enum ProtocolState {
 mod acquisition;
 #[cfg(test)]
 pub(crate) use acquisition::fixture_created_history_substitutions;
+pub(crate) use acquisition::revalidate_created_lineage;
 mod capacity;
 mod disclosure;
 mod engagement;
@@ -1465,6 +1466,17 @@ impl GatewayAttemptKey {
     ) -> Result<Self, GatewayAttemptError> {
         policy
             .operation_key(namespace, operation_id)
+            .map(Self)
+            .map_err(|_| GatewayAttemptError::Corrupt)
+    }
+
+    pub(crate) fn for_context(
+        namespace: &OperatorNamespace,
+        partition: &str,
+        epoch: u64,
+        operation: &LogicalOperationId,
+    ) -> Result<Self, GatewayAttemptError> {
+        crate::effect::replay_key(namespace, partition, epoch, operation)
             .map(Self)
             .map_err(|_| GatewayAttemptError::Corrupt)
     }
@@ -2987,7 +2999,7 @@ impl ClaimedGatewayAttempt {
             .clone();
         blocking(move || {
             let mut attempt = self.attempt;
-            let dependencies = validation.dependencies();
+            let dependencies = validation.dependencies(&approved);
             let prerequisites = approved
                 .prerequisite_plans()
                 .map_err(|_| GatewayAttemptError::InvalidTransition)?;
@@ -3721,7 +3733,7 @@ struct Admission {
 
 impl Admission {
     fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
-        self.validation.dependencies()
+        self.validation.dependencies(&self.approved)
     }
 
     fn stamp<S: JournalProtocol>(

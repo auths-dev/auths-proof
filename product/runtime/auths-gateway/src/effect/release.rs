@@ -291,6 +291,7 @@ pub fn compile_disclosure(
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
         enrollment: installed.enrollment.cloned(),
+        lineages: installed.lineages.to_vec(),
     };
     #[cfg(unix)]
     effect

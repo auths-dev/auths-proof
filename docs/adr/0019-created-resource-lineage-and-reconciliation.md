@@ -114,6 +114,45 @@ must not be able to forge a convincing candidate within the claimed deployment.
 No gateway claim can repair dishonest/incomplete provider evidence. Live provider
 qualification requires its own reviewed contract and execution evidence.
 
-The initial selection/recovery implementation does not remove the pending-child
-execution refusal. That changes only with dependency-complete native compilation
-and final-entry integration, never by accepting an application-supplied handle.
+The selection/recovery checkpoint retained pending-child execution refusal.
+The following consumer batch removes it only through dependency-complete native
+compilation and final-entry integration, never an application-supplied handle.
+
+## Consumer lineage contract
+
+A pending scope explicitly pins producer namespace, replay partition and epoch,
+logical operation, recipe digest and the exact parent-scope commitment. The
+parent commitment includes scope ID, recipe, connection, service, tool, argument
+name and exact resource; it excludes the grant witness to avoid a signed-root
+commitment cycle. Native entry still verifies the complete actual grant suffix.
+Old incomplete pending declarations are rejected; there is no compatibility
+reader or inference from the consumer's replay context.
+
+Protected history alone constructs the private `auths.created-resource-lineage/1`
+projection. It includes the original producer/read keys, effects and revisions,
+the original charged acquisition row, root/engagement/epoch, exact parent and
+selected identity. Consumer connection pins must equal the original producer's
+connection commitment, binding account and credential generation. The native
+compiler compares the signed consumer handle with that resolved identity while
+retaining the signed pending declaration. Native proof, full enrolled ancestry,
+exact approval and permanent current consumer charges remain mandatory.
+
+Admission and final entry both append the original producer, original acquisition
+and its permanent source-lifetime allocation to the existing native dependency
+set. The same pure historical relation used by lookup revalidates these snapshots
+without nested store I/O. Missing/substituted data, a changed projection or current
+authority/configuration mismatch refuses entry. The exact consumer approval binds
+the complete lineage. The consumer cannot reuse its producer/read replay key.
+Recovery/disclosure must preserve this same resolved provenance.
+
+The first closed lineage relation admits only a producer with an exact parent.
+It is a one-edge acyclic dependency graph. A producer that itself has pending-child
+lineage cannot manufacture another usable child projection; recursive traversal
+is unsupported and fails closed. This is an explicit finite support boundary,
+not a claim of arbitrary recursive lineage. No candidate becomes a permit.
+
+Native evidence must exercise unresolved producer, wrong child, all replay/root/
+connection/recipe/parent/effect/revision/key substitutions, a changed original read
+after reservation, exact restoration with no new charge, child acquisition replay
+and child disclosure without a delivery permit. Injected response facts do not
+establish actual HTTP creation or installed-process F10 acceptance.

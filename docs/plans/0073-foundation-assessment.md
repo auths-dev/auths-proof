@@ -1403,3 +1403,56 @@ evidence records that count. Logs: `/tmp/ap073-created-history-results.log` and
 `/tmp/ap073-created-history-final/`. This is synthetic artifact construction;
 PostgreSQL, general/formal/hosted gates remain unrun. Native `CreatedChild`
 execution remains refused pending consumer compilation and final fencing.
+
+### Dependency-bound child scope and native final entry batch
+
+The next complete coding batch connects the source/read history owner to the
+existing native effect/admission/entry owners. Pending declarations pin complete
+producer replay context and exact parent scope. One private typed projection
+binds original source/read/effects/revisions/allocation and selected identity.
+The compiler retains the declaration and checks the actual native consumer
+argument. Admission and final entry reload all three original dependencies and
+recompute the projection without nested store I/O. Ordinary history lookup and
+entry reuse one pure original-history relation. The common replay-key leaf is
+shared by policy lookup and explicit producer context. No task ledger, alternate
+verifier, provider dispatch or SDK authority is introduced.
+
+The initial relation supports an exact-parent producer and one dependency edge;
+recursive pending parents are explicitly unsupported. Production remains data
+only. The ADR records this finite boundary and the same-connection requirement.
+Existing exact scopes retain their representation; obsolete incomplete pending
+declarations are rejected rather than decoded through compatibility machinery.
+
+Planned evidence is the complete nine-case native recovery matrix with pending
+content/disclosure scopes installed before create: nonunique sources refuse the
+consumer; unique cases reject 18 lineage substitutions before admission, reject
+a changed original read at the final fence after reservation, reopen the exact
+unentered reservation after original-byte restoration without another charge,
+record one native child acquisition and reserve (without delivering) disclosure.
+The corpus becomes version 3. Current native proof, independent exact approval,
+shared ancestor charges, replay, current withdrawal and private/public boundaries
+remain exercised. All code, tests, docs, inventory and CI are written before
+constructors run. Required regeneration covers semantic closure, both new native
+artifacts and the affected prior constructor cohort. Actual HTTP create/child
+execution, installed actors, PostgreSQL and global/formal gates remain required;
+no new result is claimed here.
+
+The consumer batch completed required artifact construction without a repair
+cycle: semantic regeneration ran one actual test, required executable construction
+succeeded, and all 18 registry/count-checked constructors passed exactly once.
+The version-3 nine-case native artifact contains both unique consumer histories,
+each with 18 named lineage substitutions refused, producer/read replay-key reuse
+refusal, stale original-read refusal after reservation, exact restoration with
+no new charge, native child acquisition replay and disclosure reservation with
+no delivery permit. Other cases have no resolved candidate and refuse child
+compilation. The independent Python oracle still agrees on all 39 projection
+cases. No HTTP provider is called by the new native cases. Logs:
+`/tmp/ap073-created-consumer-results.log` and
+`/tmp/ap073-created-consumer-final/`; semantic/build logs have the matching prefix.
+
+The production code inventory includes the generic unavailable-history denial.
+No public SDK payload or alternate authorizer was added. Pending declarations
+now reject incomplete producer replay pins; exact scopes retain their existing
+representation. Source-linked formal, PostgreSQL, real create/child HTTP and
+installed F10 work, lifecycle/federation/native-resource conformance and exact-head
+hosted gates remain open. No push or CI observation has occurred.

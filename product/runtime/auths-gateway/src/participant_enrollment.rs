@@ -225,11 +225,17 @@ pub enum EnrollmentResourceBinding {
     },
     /// The sole child of an exact approved create, resolved by the task journal.
     CreatedChild {
+        /// Producer's native recipe namespace, independently pinned by the root.
+        create_namespace: String,
+        /// Producer's replay partition, independent of the engagement partition.
+        create_partition: String,
+        /// Producer's replay epoch; never inferred from a missing record.
+        create_epoch: u64,
         /// Exact producer operation from the signed pending-child proposal.
         create_operation_id: String,
         /// Compiled producer recipe from that proposal.
         create_recipe_digest: String,
-        /// Exact signed create scope, including its account and generation.
+        /// `creation_parent_scope_commitment` of the exact producer scope.
         parent_scope_id: String,
     },
 }
@@ -239,13 +245,17 @@ impl EnrollmentResourceBinding {
         match self {
             Self::Exact { handle } => crate::resource_identity::valid_handle(handle),
             Self::CreatedChild {
+                create_namespace,
+                create_partition,
+                create_epoch,
                 create_operation_id,
                 create_recipe_digest,
                 parent_scope_id,
             } => {
-                !create_operation_id.is_empty()
-                    && create_operation_id.len() <= 128
-                    && !create_operation_id.chars().any(char::is_control)
+                crate::OperatorNamespace::parse(create_namespace).is_ok()
+                    && identifier(create_partition)
+                    && (1..=MAX_JSON_INTEGER).contains(create_epoch)
+                    && crate::LogicalOperationId::parse(create_operation_id).is_ok()
                     && canonical_digest(create_recipe_digest)
                     && canonical_digest(parent_scope_id)
             }
@@ -323,6 +333,41 @@ pub struct EnrollmentScopePins {
     pub resource_argument: String,
     /// Exact signed resource or deferred verified-create lineage.
     pub resource: EnrollmentResourceBinding,
+}
+
+/// Commits the immutable target of a producer scope without its grant witness.
+/// This data-only authoring helper performs no authorization or journal lookup.
+/// Excluding the grant ID avoids a cycle when a root signs its pending-child
+/// declarations; entry still verifies the complete actual native grant suffix.
+///
+/// # Errors
+/// Refuses malformed scope pins or a producer that is itself a deferred child.
+pub fn creation_parent_scope_commitment(
+    scope: &EnrollmentScopePins,
+) -> Result<String, ParticipantEnrollmentError> {
+    if !identifier(&scope.scope_id)
+        || !identifier(&scope.service)
+        || !identifier(&scope.tool)
+        || !identifier(&scope.resource_argument)
+        || !canonical_digest(&scope.recipe_digest)
+        || !matches!(scope.resource, EnrollmentResourceBinding::Exact { .. })
+        || !scope.resource.valid()
+    {
+        return Err(ParticipantEnrollmentError::Invalid);
+    }
+    let bytes = crate::effect::canonical(&(
+        &scope.scope_id,
+        &scope.recipe_digest,
+        &scope.connection_binding,
+        &scope.service,
+        &scope.tool,
+        &scope.resource_argument,
+        &scope.resource,
+    ))
+    .map_err(|_| ParticipantEnrollmentError::Invalid)?;
+    crate::effect::commitment("auths.created-resource-parent-scope/1", &bytes)
+        .map(hex::encode)
+        .map_err(|_| ParticipantEnrollmentError::Invalid)
 }
 
 /// Operator-owned identity and process instance for one registered channel.

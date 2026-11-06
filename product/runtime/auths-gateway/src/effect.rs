@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroizing;
 
+mod lineage;
+pub(crate) use lineage::CreatedLineage;
 mod engagement;
 pub use engagement::EngagementPolicy;
 use engagement::{EngagementScope, ScopePurpose};
@@ -108,15 +110,7 @@ impl EffectPolicy {
         operation: &LogicalOperationId,
     ) -> Result<[u8; 32], EffectBindingError> {
         self.validate()?;
-        commitment(
-            "auths.effect-replay-key/1",
-            &canonical(&(
-                namespace.as_str(),
-                &self.partition,
-                self.epoch,
-                operation.as_str(),
-            ))?,
-        )
+        replay_key(namespace, &self.partition, self.epoch, operation)
     }
 
     pub(crate) fn configuration_key(
@@ -251,6 +245,7 @@ impl EffectPolicy {
             approver: self.approver,
             engagement: self.engagement.as_ref(),
             enrollment: None,
+            lineages: &[],
         }
     }
 }
@@ -346,6 +341,7 @@ fn approve_driver_with_plan(
         proof: Zeroizing::new(Vec::new()),
         action: Zeroizing::new(Vec::new()),
         enrollment: None,
+        lineages: Vec::new(),
     };
     if let Some(approval) = approval {
         return effect
@@ -582,6 +578,21 @@ impl fmt::Debug for EffectBinding {
     }
 }
 
+pub(crate) fn replay_key(
+    namespace: &OperatorNamespace,
+    partition: &str,
+    epoch: u64,
+    operation: &LogicalOperationId,
+) -> Result<[u8; 32], EffectBindingError> {
+    if !label(partition) || !(1..=MAX_SAFE_INTEGER).contains(&epoch) {
+        return Err(EffectBindingError::Invalid);
+    }
+    commitment(
+        "auths.effect-replay-key/1",
+        &canonical(&(namespace.as_str(), partition, epoch, operation.as_str()))?,
+    )
+}
+
 pub(crate) fn commitment(domain: &str, bytes: &[u8]) -> Result<[u8; 32], EffectBindingError> {
     auths_codec::domain_commitment(domain, bytes)
         .map(|digest| *digest.as_bytes())
@@ -693,6 +704,25 @@ impl EffectBinding {
                 .any(|budget| budget.reservations == actual)
     }
 
+    pub(crate) fn replay_partition(&self) -> (&str, u64) {
+        (&self.wire.partition, self.wire.epoch)
+    }
+    pub(crate) fn created_lineage(&self) -> Option<&CreatedLineage> {
+        self.wire.scope.created_lineage()
+    }
+    pub(crate) fn creation_parent(
+        &self,
+    ) -> Result<
+        (
+            [u8; 32],
+            [u8; 32],
+            u64,
+            crate::participant_enrollment::EnrollmentScopePins,
+        ),
+        EffectBindingError,
+    > {
+        self.wire.scope.creation_parent()
+    }
     pub(crate) fn is_mutation(&self) -> bool {
         matches!(self.wire.protocol, Protocol::Mutation { .. })
     }
@@ -796,6 +826,16 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
         return Err(EffectBindingError::Invalid);
     }
     let ApprovalPolicy::Exact { approver } = wire.approval_policy;
+    if let Some(lineage) = wire.scope.created_lineage() {
+        let namespace =
+            OperatorNamespace::parse(&wire.namespace).map_err(|_| EffectBindingError::Invalid)?;
+        let operation =
+            LogicalOperationId::parse(&wire.operation).map_err(|_| EffectBindingError::Invalid)?;
+        let key = replay_key(&namespace, &wire.partition, wire.epoch, &operation)?;
+        if key == lineage.producer_key || key == lineage.acquisition_key {
+            return Err(EffectBindingError::Invalid);
+        }
+    }
     if VerifyingKey::from_bytes(&approver).map_or(true, |key| key.is_weak()) {
         return Err(EffectBindingError::Invalid);
     }
@@ -941,6 +981,7 @@ pub struct BoundEffect {
     proof: Zeroizing<Vec<u8>>,
     action: Zeroizing<Vec<u8>>,
     enrollment: Option<crate::participant_enrollment::EnrollmentTree>,
+    lineages: Vec<CreatedLineage>,
 }
 
 /// Human review produced entirely by native code from the sealed effect.
@@ -1446,6 +1487,9 @@ impl ApprovedEffect {
     pub(crate) fn connection(&self) -> &ConnectionRecord {
         &self.effect.connection
     }
+    pub(crate) fn lineages(&self) -> &[CreatedLineage] {
+        &self.effect.lineages
+    }
     pub(crate) fn enrollment(&self) -> Option<&crate::participant_enrollment::EnrollmentTree> {
         self.effect.enrollment.as_ref()
     }
@@ -1552,9 +1596,15 @@ pub struct EffectInstallation<'a> {
     pub engagement: Option<&'a EngagementPolicy>,
     /// Protected enrollment data, reloaded again under the final entry fence.
     pub enrollment: Option<&'a crate::participant_enrollment::EnrollmentTree>,
+    /// Protected creation projections, never accepted from application frames.
+    pub(crate) lineages: &'a [CreatedLineage],
 }
 
 impl<'a> EffectInstallation<'a> {
+    pub(crate) fn with_lineages(mut self, lineages: &'a [CreatedLineage]) -> Self {
+        self.lineages = lineages;
+        self
+    }
     pub(crate) fn with_enrollment(
         mut self,
         tree: Option<&'a crate::participant_enrollment::EnrollmentTree>,
@@ -1736,6 +1786,7 @@ fn bind_mutation(
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
         enrollment: installed.enrollment.cloned(),
+        lineages: installed.lineages.to_vec(),
     };
     #[cfg(unix)]
     effect

@@ -548,8 +548,21 @@ native journal composition under synthetic evidence, not provider completeness,
 marker integrity, exclusive causation or a live create. PostgreSQL and property
 tests are authored for hosted execution and have not been run locally.
 
-`CreatedChild` execution remains refused. F10 still requires actual response-loss
-HTTP creation, a dependent operation whose native bound scope derives from the
-original producer and acquisition, their revalidation under the final fence,
-adversarial lineage substitutions and installed-process evidence. A selected ID
-is not authority. Full AP073 acceptance remains open.
+Native `CreatedChild` compilation now pins the complete producer replay context,
+recipe and exact parent-scope commitment, then compares the signed consumer
+handle with a protected original-history projection. Native admission and final
+entry reload the original producer, original recovery acquisition and charged
+lifetime row under the existing writer fence. The bound effect and exact approval
+retain that lineage; recovery/disclosure preserve it. Producer/read replay-key
+reuse is refused. This first relation accepts an exact-parent producer with the
+same connection commitment; recursive pending-parent creation is unsupported
+and fails closed.
+
+Version-3 native evidence installs pending scopes before creation. Unique and
+withdrawn-writer cases reject 18 lineage substitutions, refuse a changed original
+read after reservation, reopen after exact restoration without another charge,
+record one child acquisition and reserve disclosure without a delivery permit.
+Nonunique cases refuse the child compiler. These are native file/store facts
+with injected responses. F10 still requires actual response-loss HTTP creation,
+real child provider use, installed actors and hosted PostgreSQL evidence. A
+selected ID is not authority. Full AP073 acceptance remains open.

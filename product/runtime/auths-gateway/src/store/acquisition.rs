@@ -17,6 +17,7 @@ mod recovery;
 pub(super) use recovery::RecoveryEvidenceLink;
 #[cfg(test)]
 pub(crate) use recovery::fixture_created_history_substitutions;
+pub(crate) use recovery::revalidate_created_lineage;
 pub(super) use recovery::validate_created_history;
 pub use recovery::{
     GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition, RecoveryEscalation,
@@ -987,7 +988,7 @@ fn acquisition_entry_dependencies(
         .state
         .allocation
         .ok_or(GatewayAttemptError::Corrupt)?;
-    let dependencies = validation.dependencies();
+    let dependencies = validation.dependencies(approved);
     let mut keys = vec![
         (GatewayRecordKind::Attempt, attempt.key),
         (

@@ -689,7 +689,8 @@ impl GatewayAttempts {
                     capacity::allocation_key(&capacity, slot),
                 ),
             ];
-            let native_indices = append_dependencies(&mut keys, &validation.dependencies());
+            let native_indices =
+                append_dependencies(&mut keys, &validation.dependencies(&approved));
             let native_end = keys.len();
             keys.extend(capacity::dependencies(&record.state.counters)?);
             let counter_end = keys.len();
