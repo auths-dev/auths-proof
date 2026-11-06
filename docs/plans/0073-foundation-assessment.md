@@ -2260,3 +2260,47 @@ formal citation hashes and no freeze changes. Logs: `/tmp/ap073-third-ci-affecte
 result. Hosted Kani job `127879304137` is successful at `12b54e9f`; translation
 is still acquiring its pinned tools, so whole-program CI acceptance remains
 unestablished. Commit the complete bounded repair, with no merge or deployment.
+
+
+### Downstream workspace fixture closure before publication
+
+The repaired all-feature gateway library now passes 406 tests with 67 ignored;
+the explicit process conformance race also passes under the workspace run. The
+workspace command then stops at a downstream content-CLI fixture equality check.
+Collect the remaining integration targets with failure continuation before
+editing: 38 target results, 129 passed, two failed and four ignored. The only
+failures are `native_application_content_cli_fixture_is_current` and
+`native_application_recovery_cli_fixture_is_current`, which embed the refreshed
+application frame approvals. All 116 workspace doctest target results pass
+(13 executed examples). No fixture updates were enabled during diagnosis.
+
+Map the bounded repair to both existing real CLI/refusal-socket constructors,
+resolve their exact selectors from the compiled registries, regenerate both
+JSON outputs with the explicit update setting, and rerun equality without it.
+No approval assertion, schema decoder, runtime semantics or gate is weakened.
+Then rerun the formerly failing workspace test command with failure continuation
+and four parallel test threads; internal two-process races retain their original
+schedules and assertions. Source closure/formal identities are unchanged by these
+two generated outputs. Hosted translation job `127879304196` has succeeded with
+two byte-identical reproductions and no bounded generated update; its retained
+phase/evidence artifacts are `13502162708` and `13502142841`. Authoritative Lean
+job `127893037529` is still running and remains required.
+
+Both registered CLI constructors passed with updates enabled, then both
+equality checks passed without updates (one passed, zero ignored per call).
+Only their generated approval-bearing requests changed: CLI request equality
+and refusal response assertions still pass. Logs:
+`/tmp/ap073-third-ci-cli-fixtures/` and
+`/tmp/ap073-third-ci-cli-fixture-results.log`. The full workspace reproduction
+with failure continuation is now running; its outcome is not yet established.
+
+The final failed-check reproduction completed successfully:
+`cargo test --locked --workspace --all-features --no-fail-fast -- --test-threads=4`
+exited zero. Its 305 reported target results total 1,676 passed, zero failed and
+79 ignored, including workspace doctests. The gateway library is 406/0/67 and
+both downstream CLI equality cases pass. The ignored TLS/backend and installed
+environment cases are not local qualification evidence; the separately
+configured hosted gates remain required on the eventual pushed head. Full log:
+`/tmp/ap073-third-ci-workspace-final.log`. No further local suite repetition is
+needed without another change or concrete failure. Authoritative hosted Lean is
+still running; do not cancel it by publishing before its result is collected.
