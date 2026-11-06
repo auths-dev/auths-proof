@@ -1554,3 +1554,28 @@ does not establish live provider truth, separate-UID confinement, PostgreSQL,
 every crash schedule, arbitrary recursive lineage, identity lifecycle, federation,
 native-resource qualification, source-linked formal closure or full AP073 gates.
 Those remain required. No push or hosted CI observation has occurred.
+
+### First identity lifecycle contract: commissioned successor and stable capacity
+
+[ADR 0020](../adr/0020-commissioned-instance-recovery-and-budget-continuity.md)
+records the concrete next M4/F12 boundary. A fresh enrollment alone cannot be
+called transparent key recovery: with a larger parent allowance it could reset
+the predecessor's narrower lifetime budget. The selected first profile uses an
+independently commissioned standby principal/channel, acknowledged native subtree
+withdrawal, then a typed successor enrollment with fresh parent/resource grants
+and new-holder acceptance. Old descendants remain invalid. Root recovery, changed
+parent, arbitrary commissioning, expired-authority revival and offline escrow
+are explicitly unsupported, never inferred from another epoch.
+
+Keep ceilings immutable across a successor chain and derive one capacity origin
+from its first fresh enrollment. Current principal/instance and historical budget
+identity are distinct facts in the same effect owner. The existing allocation
+key uses that origin, preserving the exact permanent rows/ceiling contract without
+a second ledger, migration or refund. The tree must require a withdrawn retained
+predecessor, same live direct parent, exact next generation, nonoverlapping fresh
+principal, narrowed time/scope/depth and one successor per retained node.
+
+The ADR maps the complete implementation/adversarial/adapters/installed/binding/
+formal batch before execution. No lifecycle runtime change or passing evidence
+is claimed yet; it is an implementation contract rather than M4 acceptance.
+Native resource/federation and all exact-head hosted gates remain in scope.
