@@ -112,6 +112,17 @@ fn public(output: Output) -> Value {
     serde_json::from_slice(&success(output)).expect("public native JSON")
 }
 
+// Public synthetic provider identity; its presence in a caller fixture does not
+// supply native lineage. Public gateway outputs still must not reveal it.
+const CREATED_RESOURCE: &str = "recCREATED000000001";
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CreatedListing {
+    Zero,
+    Multiple,
+    Incomplete,
+    Unique,
+}
+
 struct Provider {
     port: u16,
     calls: Arc<Mutex<Vec<String>>>,
@@ -129,6 +140,17 @@ impl Provider {
         Self::with_content(secret, refuse_unauthorized, CONTENT.to_vec())
     }
     fn with_content(secret: Vec<u8>, refuse_unauthorized: bool, content: Vec<u8>) -> Self {
+        Self::with_configuration(secret, refuse_unauthorized, content, None)
+    }
+    fn with_created_content(secret: Vec<u8>, content: Vec<u8>, listing: CreatedListing) -> Self {
+        Self::with_configuration(secret, true, content, Some(listing))
+    }
+    fn with_configuration(
+        secret: Vec<u8>,
+        refuse_unauthorized: bool,
+        content: Vec<u8>,
+        creation: Option<CreatedListing>,
+    ) -> Self {
         let secret = zeroize::Zeroizing::new(secret);
         let content = zeroize::Zeroizing::new(content);
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
@@ -197,14 +219,31 @@ impl Provider {
                 captured.lock().expect("calls").push(line.clone());
                 let (media, response) = if line
                     == format!("GET /documents/{RECORD}?format=text%2Fplain HTTP/1.1")
-                {
+                    || (creation == Some(CreatedListing::Unique)
+                        && applied.load(Ordering::SeqCst)
+                        && line
+                            == format!(
+                                "GET /documents/{CREATED_RESOURCE}?format=text%2Fplain HTTP/1.1"
+                            )) {
                     ("text/plain", content.to_vec())
-                } else if line
-                    == format!("PATCH /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1")
+                } else if (creation.is_none()
+                    && line
+                        == format!(
+                            "PATCH /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1"
+                        ))
+                    || (creation.is_some()
+                        && line == format!("POST /parents/{RECORD}/children HTTP/1.1"))
                 {
                     record = serde_json::from_slice(&body).expect("write JSON");
                     assert_eq!(record["fields"]["DemoStatus"], "Approved");
                     assert_eq!(record["fields"].as_object().expect("fields").len(), 2);
+                    assert_eq!(
+                        record.as_object().expect("write object").len(),
+                        if creation.is_some() { 2 } else { 1 }
+                    );
+                    if creation.is_some() {
+                        assert_eq!(record["parent_id"], RECORD);
+                    }
                     assert!(record["fields"]["auths_echo"].is_string());
                     let held = hold_reply.load(Ordering::SeqCst);
                     applied.store(true, Ordering::SeqCst);
@@ -218,6 +257,26 @@ impl Provider {
                         continue;
                     }
                     ("application/json", body)
+                } else if let Some(listing) =
+                    creation.filter(|_| line == format!("GET /parents/{RECORD}/children HTTP/1.1"))
+                {
+                    assert!(
+                        applied.load(Ordering::SeqCst),
+                        "creation lookup must follow the actual write"
+                    );
+                    let item = json!({"id":CREATED_RESOURCE,"parent_id":record["parent_id"],"auths_echo":record["fields"]["auths_echo"]});
+                    let document = match listing {
+                        CreatedListing::Zero => json!({"records":[]}),
+                        CreatedListing::Multiple => json!({"records":[item.clone(),item]}),
+                        CreatedListing::Incomplete => {
+                            json!({"records":[item],"offset":"next-page"})
+                        }
+                        CreatedListing::Unique => json!({"records":[item]}),
+                    };
+                    (
+                        "application/json",
+                        serde_json::to_vec(&document).expect("created resource list"),
+                    )
                 } else if line
                     == format!("GET /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1")
                 {

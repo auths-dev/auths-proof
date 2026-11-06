@@ -196,6 +196,40 @@ fn approve_native(
         approval,
     }
 }
+fn refuse_content_review(state: &Path, invocation: Invocation, name: &str, now: u64) {
+    let directory = state.parent().expect("private operator directory");
+    let proof = directory.join(format!("{name}.proof"));
+    let action = directory.join(format!("{name}.action"));
+    let request = directory.join(format!("{name}.request"));
+    let binding = directory.join(format!("{name}.binding"));
+    private(&proof, &invocation.proof);
+    private(&action, &invocation.action);
+    let result = cli(
+        "effect-review",
+        &[
+            ("--state-dir", path(state)),
+            ("--proof", path(&proof)),
+            ("--action", path(&action)),
+            ("--not-before", &now.to_string()),
+            ("--expires-at", &(now + 250).to_string()),
+            ("--request-out", path(&request)),
+            ("--binding-out", path(&binding)),
+        ],
+        &["--content"],
+        None,
+    );
+    assert!(
+        !result.status.success(),
+        "unresolved or foreign child obtained native review"
+    );
+    assert!(
+        !request.exists() && !binding.exists(),
+        "refusal must not publish approval artifacts"
+    );
+    forbidden(&result.stdout, CREATED_RESOURCE.as_bytes());
+    forbidden(&result.stderr, CREATED_RESOURCE.as_bytes());
+}
+
 fn submission(actor: &mut Actor, socket: &Path, approved: &Approved, operation: &str) -> Value {
     actor.call(submission_request(socket, approved, operation))
 }
@@ -223,22 +257,56 @@ fn forbidden(bytes: &[u8], secret: &[u8]) {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum InstalledCase {
+    RetainedMutation,
+    LostMutation,
+    LostCreation(CreatedListing),
+}
+impl InstalledCase {
+    const ALL: [Self; 6] = [
+        Self::RetainedMutation,
+        Self::LostMutation,
+        Self::LostCreation(CreatedListing::Zero),
+        Self::LostCreation(CreatedListing::Multiple),
+        Self::LostCreation(CreatedListing::Incomplete),
+        Self::LostCreation(CreatedListing::Unique),
+    ];
+    fn creation(self) -> Option<CreatedListing> {
+        match self {
+            Self::LostCreation(listing) => Some(listing),
+            _ => None,
+        }
+    }
+    fn crash_after_write(self) -> bool {
+        !matches!(self, Self::RetainedMutation)
+    }
+    fn label(self) -> &'static str {
+        match self {
+            Self::RetainedMutation => "provider-response-retained",
+            Self::LostMutation => "crash-after-provider-write",
+            Self::LostCreation(CreatedListing::Zero) => "lost-create-zero-match",
+            Self::LostCreation(CreatedListing::Multiple) => "lost-create-multiple-matches",
+            Self::LostCreation(CreatedListing::Incomplete) => "lost-create-incomplete-list",
+            Self::LostCreation(CreatedListing::Unique) => "lost-create-unique-child",
+        }
+    }
+}
+
 #[test]
 #[ignore = "requires installed wheel/npm consumer; source-free CI explicitly runs this constructor"]
 fn native_installed_delegation_process_fixture_is_current() {
     let mut cases = Vec::new();
     let mut failures = Vec::new();
-    for crash_after_write in [false, true] {
-        match std::panic::catch_unwind(|| run_journey(crash_after_write)) {
+    for case in InstalledCase::ALL {
+        match std::panic::catch_unwind(|| run_journey(case)) {
             Ok(report) => cases.push(report),
-            Err(_) => failures.push(crash_after_write),
+            Err(_) => failures.push(format!("{case:?}")),
         }
     }
-    assert!(
-        failures.is_empty(),
-        "installed case failures (crash-after-write flags): {failures:?}"
-    );
-    let report = json!({"schema":"auths.installed-delegation-process-vectors/2",
+    assert!(failures.is_empty(), "installed case failures: {failures:?}");
+    assert_eq!(cases.len(), InstalledCase::ALL.len());
+    let report = json!({"schema":"auths.installed-delegation-process-vectors/3",
         "cases":cases});
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");
     if let Some(output) = std::env::var_os("AUTHS_DELEGATION_EVIDENCE_OUT") {
@@ -257,7 +325,14 @@ fn native_installed_delegation_process_fixture_is_current() {
     clippy::too_many_lines,
     reason = "complete installed process journey; separate protocols retain their native owners"
 )]
-fn run_journey(crash_after_write: bool) -> Value {
+fn run_journey(case: InstalledCase) -> Value {
+    let crash_after_write = case.crash_after_write();
+    let creation = case.creation();
+    let write_prefix = if creation.is_some() {
+        "POST "
+    } else {
+        "PATCH "
+    };
     let consumer = std::env::var_os("AUTHS_DELEGATION_CONSUMER_DIR")
         .map(PathBuf::from)
         .expect("installed consumer directory required");
@@ -298,8 +373,22 @@ fn run_journey(crash_after_write: bool) -> Value {
     source["content"] = json!({"schema":"auths.gateway-content-read/1","resource_field":"record_id",
         "path":[{"kind":"fixed","value":"documents"},{"kind":"field","name":"record_id"}],
         "query":[{"name":"format","value":"text/plain"}],"projection":{"kind":"utf8"},"maximum_response_bytes":1024,"maximum_content_bytes":64});
+    let mut lock = corpus["bases"]["airtable"]["lock"].clone();
+    if creation.is_some() {
+        source["tool"] = json!("create_child_v1");
+        lock["tool"] = source["tool"].clone();
+        source["write"]["method"] = json!("POST");
+        source["write"]["path"] = json!([{"kind":"fixed","value":"parents"},{"kind":"field","name":"record_id"},{"kind":"fixed","value":"children"}]);
+        source["write"]["body"]["value"]["fields"]["parent_id"] =
+            json!({"kind":"field","name":"record_id"});
+        source["observation"] = json!({"path":[{"kind":"fixed","value":"parents"},{"kind":"field","name":"record_id"},{"kind":"fixed","value":"children"}],
+            "json_pointer":"/records","expected_field":"record_id","maximum_response_bytes":4096,
+            "created_resource":{"schema":"auths.created-resource-selection/1","resource_pointer":"/id","parent_pointer":"/parent_id","parent_kind":"scalar",
+                "maximum_items":8,"complete":[{"kind":"absent","pointer":"/offset"}]}});
+        source["echo"]["observe"] = json!("/auths_echo");
+    }
     let source = serde_json::to_vec(&source).expect("source");
-    let lock = serde_json::to_vec(&corpus["bases"]["airtable"]["lock"]).expect("lock");
+    let lock = serde_json::to_vec(&lock).expect("lock");
     let recipe = CompiledRecipe::compile(&source, &lock).expect("recipe");
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -427,7 +516,10 @@ fn run_journey(crash_after_write: bool) -> Value {
     getrandom::fill(&mut entropy).expect("content entropy");
     let content =
         Zeroizing::new(format!("PRIVATE_AP073_{}", hex::encode(&entropy[..16])).into_bytes());
-    let provider = Provider::with_content(secret.to_vec(), true, content.to_vec());
+    let provider = match creation {
+        None => Provider::with_content(secret.to_vec(), true, content.to_vec()),
+        Some(listing) => Provider::with_created_content(secret.to_vec(), content.to_vec(), listing),
+    };
     success(cli(
         "install",
         &[
@@ -509,6 +601,41 @@ fn run_journey(crash_after_write: bool) -> Value {
         None,
     ));
     pins = serde_json::from_slice(&prepared).expect("native pins");
+    if creation.is_some() {
+        let producer = pins
+            .scopes
+            .iter()
+            .find(|scope| scope.tool == recipe.review().tool())
+            .expect("producer scope");
+        let parent_scope_id = creation_parent_scope_commitment(producer)
+            .expect("native acyclic parent scope commitment");
+        let mut pending = Vec::new();
+        for tool in [CONTENT_READ_TOOL, DISCLOSURE_TOOL] {
+            let mut scope = pins
+                .scopes
+                .iter()
+                .find(|scope| scope.tool == tool)
+                .expect("related scope")
+                .clone();
+            scope.scope_id = format!("created-{}", scope.scope_id);
+            scope.resource = EnrollmentResourceBinding::CreatedChild {
+                create_namespace: recipe.namespace().as_str().into(),
+                create_partition: "ap073-installed".into(),
+                create_epoch: 1,
+                create_operation_id: "delegated-write".into(),
+                create_recipe_digest: recipe.digest_hex(),
+                parent_scope_id: parent_scope_id.clone(),
+            };
+            pending.push(scope);
+        }
+        pins.scopes.extend(pending);
+        // Participant descriptors and their witnesses use the root's order.
+        // Normalize it before committing/signing any root or child evidence.
+        pins.scopes.sort_by(|a, b| a.scope_id.cmp(&b.scope_id));
+        pins.enrollment_commitment =
+            root_enrollment_commitment(&pins).expect("native pending root commitment");
+    }
+    let prepared = serde_json_canonicalizer::to_vec(&pins).expect("canonical native pins");
     private(&pins_file, &prepared);
     let scoped = initial
         .with_engagement(
@@ -570,12 +697,14 @@ fn run_journey(crash_after_write: bool) -> Value {
         "operator_namespace":recipe.namespace().as_str(),"recipe_digest":recipe.digest_hex(),"record_id":RECORD,"replacement":"Approved"}),
         )
     };
-    let witnesses: Vec<_> = tools
+    let witnesses: Vec<_> = pins
+        .scopes
         .iter()
-        .map(|tool| {
-            if *tool == CONTENT_READ_TOOL {
+        .map(|scope| {
+            let tool = scope.tool.as_str();
+            if tool == CONTENT_READ_TOOL {
                 call_file(&read_call)
-            } else if *tool == recipe.review().tool() {
+            } else if tool == recipe.review().tool() {
                 mutation("enrollment-witness")
             } else {
                 call(recipe.review().service(), tool, json!({"record_id":RECORD}))
@@ -596,8 +725,16 @@ fn run_journey(crash_after_write: bool) -> Value {
     let inactive_action = operator.join("inactive.action");
     let inactive_request = operator.join("inactive.request");
     let inactive_binding = operator.join("inactive.binding");
-    private(&inactive_proof, &root_proofs[0].proof);
-    private(&inactive_action, &root_proofs[0].action);
+    let primary_content = pins
+        .scopes
+        .iter()
+        .position(|scope| {
+            scope.tool == CONTENT_READ_TOOL
+                && matches!(scope.resource, EnrollmentResourceBinding::Exact { .. })
+        })
+        .expect("exact parent content scope");
+    private(&inactive_proof, &root_proofs[primary_content].proof);
+    private(&inactive_action, &root_proofs[primary_content].action);
     assert!(
         !cli(
             "effect-review",
@@ -1027,6 +1164,43 @@ fn run_journey(crash_after_write: bool) -> Value {
         now,
     );
     let write = approve_native(&state, write_proof, "write", &mut reviewer, now, &[], &[]);
+    let child_call = operator.join("created-child.call");
+    if creation.is_some() {
+        let child_resource = operator.join("created-child.resource");
+        private(
+            &child_resource,
+            &serde_json::to_vec(&json!({"record_id":CREATED_RESOURCE})).expect("child arguments"),
+        );
+        success(cli(
+            "effect-content-call",
+            &[
+                ("--state-dir", path(&state)),
+                ("--resource-arguments", path(&child_resource)),
+                ("--operation", "delegated-child-read"),
+                ("--call-out", path(&child_call)),
+            ],
+            &[],
+            None,
+        ));
+        refuse_content_review(
+            &state,
+            author(
+                &mut b,
+                &b_resources,
+                &call_file(&child_call),
+                audience.clone(),
+                &trust,
+                now,
+            ),
+            "premature-child",
+            now,
+        );
+        assert_eq!(
+            provider.calls().len(),
+            1,
+            "pending child cannot acquire before its producer"
+        );
+    }
     let saved_approval = std::fs::read(&write.approval).expect("approval");
     // The agent signs the actual exact approval request with its own key;
     // native entry must require the independently installed reviewer instead.
@@ -1076,7 +1250,7 @@ fn run_journey(crash_after_write: bool) -> Value {
         provider
             .calls()
             .iter()
-            .filter(|line| line.starts_with("PATCH "))
+            .filter(|line| line.starts_with(write_prefix))
             .count(),
         1
     );
@@ -1102,7 +1276,7 @@ fn run_journey(crash_after_write: bool) -> Value {
         provider
             .calls()
             .iter()
-            .filter(|line| line.starts_with("PATCH "))
+            .filter(|line| line.starts_with(write_prefix))
             .count(),
         1
     );
@@ -1116,7 +1290,7 @@ fn run_journey(crash_after_write: bool) -> Value {
         provider
             .calls()
             .iter()
-            .filter(|line| line.starts_with("PATCH "))
+            .filter(|line| line.starts_with(write_prefix))
             .count(),
         1
     );
@@ -1153,9 +1327,20 @@ fn run_journey(crash_after_write: bool) -> Value {
     recovery_request["source_operation"] = json!("delegated-write");
     let recovered = b.call(recovery_request.clone());
     assert_eq!(recovered["outcome"], "recovery-report");
-    assert_eq!(recovered["report"]["source"]["provider_linked"], true);
+    let recovery_linked = creation.is_none() || creation == Some(CreatedListing::Unique);
+    assert_eq!(
+        recovered["report"]["source"]["provider_linked"],
+        recovery_linked
+    );
     assert!(recovered["report"]["source"]["observation_match"].is_null());
-    assert_eq!(recovered["report"]["disposition"], "recorded");
+    assert_eq!(
+        recovered["report"]["disposition"],
+        if recovery_linked {
+            "recorded"
+        } else {
+            "response-unusable"
+        }
+    );
     if crash_after_write {
         assert!(recovered["report"]["source"]["response_status"].is_null());
     }
@@ -1173,17 +1358,121 @@ fn run_journey(crash_after_write: bool) -> Value {
         "one content read, one write, one independent recovery read"
     );
     let mut retained_recovery = recovered.clone();
-    retained_recovery["report"]["disposition"] = json!("already-recorded");
+    if recovery_linked {
+        retained_recovery["report"]["disposition"] = json!("already-recorded");
+    }
     assert_eq!(b.call(recovery_request), retained_recovery);
     assert_eq!(
         submission(&mut b, &socket, &write, "submit")["outcome"],
-        "observed-by-provider"
+        if recovery_linked {
+            "observed-by-provider"
+        } else {
+            "unknown"
+        }
     );
     assert_eq!(
         provider.calls().len(),
         3,
         "recovery and mutation replay cannot re-enter the provider"
     );
+    let mut child_acquired = false;
+    if let Some(listing) = creation {
+        forbidden(
+            &serde_json::to_vec(&recovered).expect("redacted creation report"),
+            CREATED_RESOURCE.as_bytes(),
+        );
+        let child_proof = author(
+            &mut b,
+            &b_resources,
+            &call_file(&child_call),
+            audience.clone(),
+            &trust,
+            now,
+        );
+        if listing == CreatedListing::Unique {
+            let child = approve_native(
+                &state,
+                child_proof,
+                "child",
+                &mut reviewer,
+                now,
+                &[],
+                &["--content"],
+            );
+            let acquired_child = submission(&mut b, &socket, &child, "acquire");
+            assert_eq!(
+                acquired_child["history"]["snapshot"]["stage"],
+                "response-recorded"
+            );
+            assert_eq!(
+                provider.calls().len(),
+                4,
+                "only one exact child read follows the original three calls"
+            );
+            assert!(
+                provider.calls()[3].starts_with(&format!("GET /documents/{CREATED_RESOURCE}?"))
+            );
+            assert_eq!(
+                submission(&mut b, &socket, &child, "acquire"),
+                acquired_child
+            );
+            assert_eq!(provider.calls().len(), 4, "child replay cannot refetch");
+            let public = serde_json::to_vec(&acquired_child).expect("redacted child history");
+            forbidden(&public, &secret);
+            forbidden(&public, &content);
+            forbidden(&public, CREATED_RESOURCE.as_bytes());
+            let wrong_resource = operator.join("foreign-child.resource");
+            let wrong_call = operator.join("foreign-child.call");
+            private(
+                &wrong_resource,
+                &serde_json::to_vec(&json!({"record_id":"recFOREIGN000000001"}))
+                    .expect("foreign child"),
+            );
+            success(cli(
+                "effect-content-call",
+                &[
+                    ("--state-dir", path(&state)),
+                    ("--resource-arguments", path(&wrong_resource)),
+                    ("--operation", "foreign-child-read"),
+                    ("--call-out", path(&wrong_call)),
+                ],
+                &[],
+                None,
+            ));
+            refuse_content_review(
+                &state,
+                author(
+                    &mut b,
+                    &b_resources,
+                    &call_file(&wrong_call),
+                    audience.clone(),
+                    &trust,
+                    now,
+                ),
+                "foreign-child",
+                now,
+            );
+            assert_eq!(provider.calls().len(), 4);
+            child_acquired = true;
+        } else {
+            refuse_content_review(&state, child_proof, "unresolved-child", now);
+            assert_eq!(
+                provider.calls().len(),
+                3,
+                "unusable listing cannot acquire its candidate"
+            );
+        }
+        assert_eq!(
+            provider
+                .calls()
+                .iter()
+                .filter(|line| line.starts_with("POST "))
+                .count(),
+            1,
+            "creation cannot repeat after recovery or child use"
+        );
+    }
+    let expected_provider_calls = if child_acquired { 4 } else { 3 };
     let revoke = author(
         &mut machine,
         &machine_controls,
@@ -1212,7 +1501,7 @@ fn run_journey(crash_after_write: bool) -> Value {
         "withdrawal cannot erase already authenticated historical ACK facts"
     );
     assert_eq!(a.call(loss_receive), late_ack);
-    assert_eq!(provider.calls().len(), 3);
+    assert_eq!(provider.calls().len(), expected_provider_calls);
     let denied_call = operator.join("withdrawn.call");
     success(cli(
         "effect-content-call",
@@ -1291,14 +1580,16 @@ fn run_journey(crash_after_write: bool) -> Value {
     let logs = daemon.finish_logs();
     forbidden(&logs, &secret);
     forbidden(&logs, &content);
-    let report = json!({"case":if crash_after_write {"crash-after-provider-write"} else {"provider-response-retained"},"distinct_uids":distinct,
+    let report = json!({"case":case.label(),"distinct_uids":distinct,
         "installed_python_and_npm":true,"fresh_process_held_keys":5,"private_keys_exported_to_orchestrator":0,
         "native_enrollment_revisions":[1,2,3,4],"resource_authority_suffix":3,"scripted_independent_reviewer":true,"human_presence":false,
-        "native_content_read_calls":1,"separate_native_disclosure_ack":true,"native_provider_writes":1,
+        "native_content_read_calls":if child_acquired{2}else{1},"separate_native_disclosure_ack":true,"native_provider_writes":1,
         "disclosure_crash_after_receipt":true,"late_original_ack_after_restart":true,"disclosure_replay_deliveries":0,
         "late_ack_cannot_refund_ancestor_disclosure_capacity":true,
         "write_response_lost":crash_after_write,"replay_before_recovery":written["outcome"],
-        "independent_recovery_reads":1,"provider_linked_observation":true,"recovery_replay_provider_calls":0,
+        "independent_recovery_reads":1,"provider_linked_observation":recovery_linked,
+        "creation_listing":creation.map(|listing|format!("{listing:?}")),"premature_child_review_refused":creation.is_some(),
+        "exact_created_child_acquired_once":child_acquired,"unresolved_child_review_refused":creation.is_some() && !recovery_linked,"recovery_replay_provider_calls":0,
         "wrong_reviewer_refused":true,"ancestor_shared_limit_refused_second_writer":true,"restart_replay_new_writes":0,
         "old_enrollment_retry_revision":3,"current_control_revision":4,"original_control_audit_replayed":true,
         "withdrawn_descendant_new_review_refused":true,
@@ -1306,5 +1597,8 @@ fn run_journey(crash_after_write: bool) -> Value {
     let bytes = serde_json::to_vec_pretty(&report).expect("evidence");
     forbidden(&bytes, &secret);
     forbidden(&bytes, &content);
+    if creation.is_some() {
+        forbidden(&bytes, CREATED_RESOURCE.as_bytes());
+    }
     report
 }

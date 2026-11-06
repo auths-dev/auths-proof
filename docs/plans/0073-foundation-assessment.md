@@ -1456,3 +1456,101 @@ now reject incomplete producer replay pins; exact scopes retain their existing
 representation. Source-linked formal, PostgreSQL, real create/child HTTP and
 installed F10 work, lifecycle/federation/native-resource conformance and exact-head
 hosted gates remain open. No push or CI observation has occurred.
+
+### Installed response-less creation and dependent HTTP use: next bounded batch
+
+The remaining F10 transport gap will use the maintained installed multi-agent
+constructor, not another task owner or key fixture. Keep the existing retained
+mutation and post-write-crash cases; add four fresh installations whose actual
+HTTP create is applied before the gateway is killed without a response. Their
+independently approved native recovery reads return zero, duplicate, incomplete
+or uniquely linked candidates. Each uses five independently generated process
+keys in installed Python/npm actors and the same native daemon, control tree,
+exact reviewer, disclosure transport, restart and ancestor accounting.
+
+Install additional pending content/disclosure scopes before creation, pinning
+the actual connection and complete producer replay context. The existing native
+parent-scope authoring helper computes the acyclic commitment; no independent
+implementation or new application authority is needed. The deterministic HTTP
+double alone gains a concrete create/list contract. Shared production gateway
+logic remains entirely recipe data.
+
+Before producer resolution and for all unusable listings, a genuine signed child
+request must fail review without approval artifacts or provider I/O. Only the
+unique case may obtain independent exact approval and fetch the exact child
+once. Replay must fetch nothing, another child must fail before provider entry,
+and public receipts/errors/logs must expose neither private content, credential
+nor selected ID/raw digest. Creation never repeats or refunds the one shared
+write; existing disclosure ACK-loss/late-ACK and withdrawal checks remain.
+
+The installed artifact becomes version 3 with six checked cases. Source-free CI
+retains its five-UID/capability isolation and source manifest requirements. Map
+and finish the complete recipe, provider double, root/witness, recovery/child,
+privacy, evidence, docs and inventory edits before required constructors. The
+whole checked constructor cohort will collect independent failures together.
+No execution result is claimed for this planned batch. Hosted PostgreSQL, formal
+and exact-head acceptance plus broader lifecycle/federation/native-resource work
+remain required; no push/CI observation occurs until spec implementation ends.
+
+The complete installed batch is now written, including all four listing outcomes,
+pre-resolution refusal, exact child GET/replay/foreign-child checks, redaction and
+all previous installed assertions. The shared HTTP double keeps its prior default
+contract and adds only a test-owned concrete creation/list relation. Version-3
+compliance registrations cover both the gateway and installed demo consumer.
+Shipping Rust and bindings are unchanged from c9e1b03d; the existing source-linked
+semantic artifact therefore needs equality checking, not regeneration. Build the
+required constructors together, then run the 18 registry/count-checked artifact
+cohort (including all affected shared-double process artifacts and the six-case
+installed constructor), collecting all independent failures before repair.
+
+The first installed-creation construction collected all failures: 17 constructors
+passed; the installed constructor retained its two old successful cases and all
+four new creation installations refused A enrollment before provider access.
+The common fixture cause is scope ordering: new `created-*` scopes were appended
+after `scope-*`, while signed participant scopes must be strictly sorted. Native
+validation correctly refused that descriptor. Normalize root scope order once
+before committing or signing root/participant/witness evidence. Keep the initial
+inactive-root probe explicitly on the exact parent content scope, so its failure
+cannot instead be explained by an unresolved pending source. No native validation
+or product limit is changed. Rerun the existing full constructor cohort and all
+six installed cases together after this coherent fixture-authoring repair.
+
+After the ordering repair, all six installations pass enrollment. The collected
+four creation failures moved to one strict HTTP-double assertion: it expected
+`fields.parent_id`, while the declared ValueExpr produces top-level `parent_id`.
+The native recipe and original native fixtures already declare and consume that
+verified body argument. Correct the concrete double to assert top-level parent
+equality and derive its listing from that actual received parent; keep exact
+payload-field count two, enforce the complete outer object size (two for create,
+one for the prior mutation) and preserve exact status/echo/path checks. This
+repairs the reference's request contract, without relaxing production checks.
+The prior 17 artifact constructors and two original installed cases passed.
+Rerun the same complete cohort and six installed scenarios after this repair.
+
+The strict body-contract repair completes the required constructors: all 18
+registry/count-checked artifact commands executed once and passed. The installed
+constructor independently completed all six cases in 37.83 seconds, including four
+actual HTTP creates applied before a real gateway crash with no response. Native
+restart retained Unknown. Separate exact-approved HTTP reads returned zero,
+duplicate, incomplete and unique listings; only unique obtained a child review
+and one exact child HTTP acquisition. Premature/unusable/foreign child reviews
+produced no approval artifacts or extra provider calls. Child replay did not
+refetch; no case repeated its one create. Existing ACK-loss/late-ACK, wrong
+reviewer, shared write limit, restart, withdrawal and audit assertions passed.
+
+The version-3 installed artifact records six independent five-key installations.
+All local cases report `distinct_uids=false`; reuse of unchanged installed SDK
+packages plus the current native executable constructs this evidence, not an
+exact-head package/isolation qualification. Logs are
+`/tmp/ap073-installed-creation-body-results.log` and
+`/tmp/ap073-installed-creation-body-final/`; constructor build uses the matching
+`/tmp/ap073-installed-creation-body-build.log`. No shipping Rust changed in this
+batch; semantic equality passed without regeneration. The two earlier failed
+cohorts remain documented, not counted as passes.
+
+This establishes the defined local installed HTTP creation/child-use slice. The
+synthetic child ID is fixture-known rather than confidentially discovered. It
+does not establish live provider truth, separate-UID confinement, PostgreSQL,
+every crash schedule, arbitrary recursive lineage, identity lifecycle, federation,
+native-resource qualification, source-linked formal closure or full AP073 gates.
+Those remain required. No push or hosted CI observation has occurred.

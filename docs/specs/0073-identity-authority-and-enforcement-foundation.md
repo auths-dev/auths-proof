@@ -492,7 +492,7 @@ establish human presence, live provider qualification, every crash boundary,
 PostgreSQL, lifecycle/federation/native-resource conformance, formal refinement,
 or complete M0–M4/F01–F16 acceptance. The full program remains required.
 
-The installed process corpus now uses version 2 with independent retained-response
+The version-2 installed process checkpoint added independent retained-response
 and post-write-crash installations. In each, actual authenticated receipt precedes
 a gateway/recipient crash without an ACK. Reconnection yields historical facts
 without content files; the original late ACK and its replay preserve accounting,
@@ -566,3 +566,35 @@ Nonunique cases refuse the child compiler. These are native file/store facts
 with injected responses. F10 still requires actual response-loss HTTP creation,
 real child provider use, installed actors and hosted PostgreSQL evidence. A
 selected ID is not authority. Full AP073 acceptance remains open.
+
+## Installed creation transport contract
+
+The version-3 installed constructor retains the two prior mutation cases and
+adds four fresh process-key installations. In each, the credential-checking HTTP
+double applies one exact POST create before the gateway is killed with its
+response withheld. Native restart retains Unknown and the shared write charge.
+A separately authorized and exactly reviewed recovery GET returns zero matches,
+duplicate matches, an incomplete listing or one linked child. Only the last
+may obtain another exact approval and perform the child content GET.
+
+Pending content/disclosure scopes are installed and natively witnessed before
+the create. The producer replay context and parent-scope commitment are pinned
+in that same root. Premature/unresolved/foreign child requests must fail review
+without artifacts or provider calls; successful child replay must not refetch.
+The synthetic child ID is public fixture input, so this does not establish
+confidential identifier discovery. Public responses/errors/logs still must not
+expose that ID, private content, credentials or their raw digests.
+
+The original ACK-loss, no automatic redelivery, wrong reviewer, shared write
+limit, restart, subtree withdrawal and original control audit assertions remain.
+Each installation has its own five process-held fresh keys. Local construction
+does not establish separate-UID isolation; the source-free hosted Linux cohort
+must exercise that deployment. No live-provider or human-presence claim follows.
+The companion ledger records actual constructor results separately.
+
+The version-3 local artifact now records all six successful installed cases,
+including the four actual HTTP create/response-loss/recovery schedules. Only
+unique performed the child HTTP read, and its replay did not refetch. This is
+file-store process-crash evidence with the explicit fixture assumptions above.
+Source-free UID isolation, hosted PostgreSQL, remaining lifecycle/federation/
+native-resource and formal acceptance remain unestablished.
