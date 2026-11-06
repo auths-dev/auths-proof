@@ -366,115 +366,67 @@ fn acting_child_cannot_supply_its_own_exact_human_approval() {
 /// Snapshot-level composition only; actual lock/process schedules belong to
 /// the shared adapter admission tests, not this unit case.
 #[tokio::test]
-#[allow(
-    clippy::too_many_lines,
-    reason = "one installed snapshot composition case retains all independent inputs"
-)]
 async fn entry_snapshots_revalidate_current_enrollment() {
-    let (recipe, connection, root, tree, trust, action) = fixture();
-    let policy = policy(root.clone(), "gateway");
-    let effect = compile_mutation_effect(
-        &policy
-            .installation(
-                &recipe,
-                &trust,
-                &connection,
-                crate::QualificationPolicy::Optional,
-                [12; 32],
-            )
-            .with_enrollment(Some(&tree)),
-        NOW,
-        &action.proof,
-        &action.action,
+    let setup = admission_tests::Setup::with_recipe(
+        crate::store_testkit::Backend::File,
+        recipe(&json!({}), &Value::Null),
+        [1; 32],
     )
-    .unwrap();
-    let approved = approve(effect);
-    let directory = tempfile::tempdir().unwrap();
-    let store: Arc<dyn crate::GatewayAttemptStore> =
-        Arc::new(crate::FileGatewayAttemptStore::open(directory.path()).unwrap());
-    let configuration = crate::configuration::SharedConfiguration::new(
-        Arc::clone(&store),
-        policy.configuration_key(recipe.namespace()).unwrap(),
-        [12; 32],
-        policy.epoch(),
-    );
-    let qualification = Arc::new(crate::QualificationGate::new(
-        crate::QualificationPolicy::Optional,
-        None,
-        None,
-        Box::new(Arc::new(crate::FixedClock::at(NOW))),
-        auths_recipe_qualification::VerifierState::default(),
-    ));
-    configuration.initialize(&qualification).unwrap();
-    let controller = crate::EngagementConfiguration::new(
-        Arc::clone(&store),
-        root.clone(),
-        trust.clone(),
-        configuration.clone(),
-        Arc::clone(&qualification),
-    )
-    .unwrap();
-    let shared = crate::SharedConnection::new(
-        Arc::clone(&store),
-        connection.provider_kind().clone(),
-        connection.alias().clone(),
-    );
-    shared.insert(&connection).await.unwrap();
-    let loaded = shared.load().await.unwrap().unwrap();
-    let connection_bytes = loaded.private_bytes().to_vec();
-    let configuration_bytes = store
-        .load(
-            crate::GatewayRecordKind::EffectConfiguration,
-            &configuration.key(),
+    .await;
+    let approved = approve(
+        compile_mutation_effect(
+            &setup
+                .policy
+                .installation(
+                    &setup.recipe,
+                    &setup.native.context,
+                    &setup.connection,
+                    crate::QualificationPolicy::Optional,
+                    [12; 32],
+                )
+                .with_enrollment(Some(&setup.native.tree)),
+            NOW,
+            &setup.native.action.proof,
+            &setup.native.action.action,
         )
-        .unwrap()
-        .unwrap();
-    let validation =
-        crate::entry::EntryValidation::Installed(Box::new(crate::entry::InstalledEntry {
-            recipe,
-            trust,
-            observer: None,
-            policy,
-            configuration,
-            engagement: Some(controller.clone()),
-            connection: crate::entry::EntryConnection::Installed(Box::new(loaded)),
-            connection_key: crate::connection_key(connection.provider_kind(), connection.alias()),
-            qualification,
-            workload: "gateway".to_owned(),
-            profile: connection.allowed_profiles()[0].clone(),
-            started: std::time::Instant::now(),
-            #[cfg(unix)]
-            commissioning: None,
-        }));
+        .unwrap(),
+    );
+    let validation = setup.validation();
     let dependencies = validation.dependencies(&approved);
     assert_eq!(dependencies.len(), 3);
     assert_eq!(
         dependencies[2],
         (
             crate::GatewayRecordKind::EffectConfiguration,
-            controller.dependency_key()
+            setup.controller.dependency_key()
         )
     );
-    let record = |tree: &crate::participant_enrollment::EnrollmentTree, at| {
-        serde_json_canonicalizer::to_vec(&json!({"schema":"auths.engagement-configuration/1",
-            "root":root.enrollment_commitment, "revision":2, "accepted_at":at,
-            "tree":String::from_utf8(tree.encode().unwrap()).unwrap()}))
-        .unwrap()
-    };
-    let mut snapshots = vec![
-        Some(connection_bytes),
-        Some(configuration_bytes),
-        Some(record(&tree, NOW)),
-    ];
+    // Use the current native control owner and retained history, rather than
+    // reconstructing a private record format independently in this test.
+    let mut snapshots: Vec<_> = dependencies
+        .iter()
+        .map(|(kind, key)| setup.store.load(*kind, key).unwrap())
+        .collect();
     assert_eq!(validation.validate(&approved, &snapshots, NOW), Ok(NOW));
-    let mut revoked = tree.clone();
-    revoked.revoke(root.enrollment_commitment).unwrap();
-    snapshots[2] = Some(record(&revoked, NOW));
+    let current = snapshots[2].clone().unwrap();
+    setup
+        .controller
+        .apply_control(setup.native.withdrawal_evidence(0x44))
+        .unwrap();
+    snapshots[2] = setup
+        .store
+        .load(dependencies[2].0, &dependencies[2].1)
+        .unwrap();
     assert_eq!(
         validation.validate(&approved, &snapshots, NOW),
         Err("gateway.effect.authority-unavailable")
     );
-    snapshots[2] = Some(record(&tree, NOW + 1));
+    // A structurally consistent snapshot accepted beyond the current clock
+    // must fail the entry time fence. This is not a historical proof replay.
+    let mut future: Value = serde_json::from_slice(&current).unwrap();
+    future["accepted_at"] = json!(NOW + 1);
+    future["events"].as_array_mut().unwrap().last_mut().unwrap()["accepted_at"] = json!(NOW + 1);
+    snapshots[2] = Some(serde_json_canonicalizer::to_vec(&future).unwrap());
     assert_eq!(
         validation.validate(&approved, &snapshots, NOW),
         Err("gateway.engagement.clock-rollback")

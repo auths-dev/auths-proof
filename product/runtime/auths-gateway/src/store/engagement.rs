@@ -373,42 +373,72 @@ mod tests {
     /// scoped information compilation must independently produce these units.
     #[test]
     fn byte_allocation_prefix_counts_zero_bytes_and_refuses_exhaustion_or_corruption() {
-        let directory = tempfile::tempdir().unwrap();
-        let store = FileGatewayAttemptStore::open(directory.path()).unwrap();
+        let attempts =
+            crate::store_testkit::TestAttempts::open(crate::store_testkit::Backend::File);
+        let store = attempts.raw();
         let mut limit = EngagementReservation {
             key: [0x91; 32],
             unit: Unit::DisclosureBytes,
             amount: 0,
             ceiling: 2,
         };
-        let first =
-            Candidate::new(&store, &limit, GatewayAttemptKey([0x11; 32]), [0x12; 32]).unwrap();
+        let first = Candidate::new(
+            store.as_ref(),
+            &limit,
+            GatewayAttemptKey([0x11; 32]),
+            [0x12; 32],
+        )
+        .unwrap();
         assert_eq!(first.row.slot, 0);
         assert_eq!(first.row.cumulative, 0);
         store.insert_all(&[first.entry()]).unwrap();
         limit.amount = 2;
-        let second =
-            Candidate::new(&store, &limit, GatewayAttemptKey([0x21; 32]), [0x22; 32]).unwrap();
+        let second = Candidate::new(
+            store.as_ref(),
+            &limit,
+            GatewayAttemptKey([0x21; 32]),
+            [0x22; 32],
+        )
+        .unwrap();
         assert_eq!(second.row.slot, 1);
         assert_eq!(second.row.cumulative, 2);
         store.insert_all(&[second.entry()]).unwrap();
         limit.amount = 1;
-        assert!(Candidate::new(&store, &limit, GatewayAttemptKey([0x31; 32]), [0x32; 32]).is_err());
+        assert!(
+            Candidate::new(
+                store.as_ref(),
+                &limit,
+                GatewayAttemptKey([0x31; 32]),
+                [0x32; 32]
+            )
+            .is_err()
+        );
         let mut row: serde_json::Value = serde_json::from_slice(&second.bytes).unwrap();
         row["reservation"]["unit"] = serde_json::json!("mutation-count");
         assert!(decode_allocation(&serde_json::to_vec(&row).unwrap(), &limit, 1).is_err());
         limit.ceiling = 0;
         limit.amount = 0;
         assert!(
-            Candidate::new(&store, &limit, GatewayAttemptKey([0x31; 32]), [0x32; 32]).is_err(),
+            Candidate::new(
+                store.as_ref(),
+                &limit,
+                GatewayAttemptKey([0x31; 32]),
+                [0x32; 32]
+            )
+            .is_err(),
             "another ceiling cannot reuse this counter prefix"
         );
         limit.key = [0x92; 32];
         assert_eq!(
-            Candidate::new(&store, &limit, GatewayAttemptKey([0x31; 32]), [0x32; 32])
-                .unwrap()
-                .row
-                .cumulative,
+            Candidate::new(
+                store.as_ref(),
+                &limit,
+                GatewayAttemptKey([0x31; 32]),
+                [0x32; 32]
+            )
+            .unwrap()
+            .row
+            .cumulative,
             0
         );
     }

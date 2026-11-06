@@ -2192,3 +2192,71 @@ comments, consistent with existing reviewed public-digest entries. No path,
 regex, rule or general allowlist is added. Stage only this repair and its ledger,
 run the required exact staged-diff scan, and keep collecting any other failures
 from the current cohort before publication.
+
+
+### Third authoritative cohort: seven-test repair batch
+
+The exact-head authoritative workspace test job `127879304154` reached the
+gateway library and reported 399 passed, seven failed and 67 ignored. Map all
+seven repairs before execution: regenerate app content/recovery frame seeds,
+the stable production-code inventory and native attempt/transition fuzz seeds
+through their existing assertion-bearing constructors; replace two direct
+world-readable temporary-directory stores with the existing private-directory
+`TestAttempts` fixture; and repair the immutable enrolled-suffix counterexample.
+The latter previously moved the alternate child grant's expiry beyond its
+parent, so native attenuation rejected it before the intended suffix check.
+Narrow the original child to the exact canonical action body, assert
+a distinct grant identity and successful independent native verification, then
+retain the exact enrolled-binding refusal assertion. Do not weaken the runtime
+private-directory guard or accept an arbitrary earlier verification failure.
+
+After all source edits, regenerate semantic closure, build the gateway test
+registry, resolve each of the seven exact selectors and collect their outcomes
+together. Run the four artifact constructors with the explicit update setting
+and rerun their equality checks without it. Collect remaining independent
+formal-job failures before publishing this repair plus the four fingerprint
+exceptions. The previous full local history scan is inconclusive because its
+Git process reported disappearing pack-index files; a clean hosted scan remains
+required. No production behavior or release gate changes are intended.
+
+The combined reproduction exposed a second stale setup behind the Linux
+permission failure: the snapshot test independently encoded obsolete
+configuration/1 bytes without retained control history. Reuse the existing
+admission `Setup`, current native persistence and actual signed withdrawal.
+Retain only an explicit structurally consistent future-clock mutation for the
+snapshot-level clock fence. The alternate-grant test uses an exact-body
+restriction with unchanged validity: the submission helper deliberately signs
+the whole original window, so narrowing validity would invalidate that action
+before the enrolled-suffix check. Both corrections preserve the intended
+assertions and remove misleading fixture evidence.
+
+All seven exact selectors plus semantic closure pass without fixture updates
+after this batch. Reviewing the constructor diff found that its static code
+rows omitted the still-shipping `gateway.engagement.created-history-unavailable`
+code. Preserve the committed public inventory row by registering it in the
+constructor instead of accepting its deletion. Rebuild that constructor and
+verify inventory equality and implementation ownership together.
+
+The full local all-feature gateway library reproduction reports 405 passed,
+one failed and 67 ignored. All seven hosted failures are resolved; the only
+local failure is the existing two-process contended-batch conformance case,
+which received `Unavailable` under the concurrent full-library workload. The
+same case passed in the hosted Linux cohort. Reproduce it alone to classify
+the failure; do not weaken the production deadline or race assertions. Two
+formal jobs were still running initially; Kani has now finished and translation
+remains in tool acquisition. Pending gates remain required.
+
+Final bounded reproduction: all ten registry-resolved selectors pass with
+exactly one passed and zero ignored each, including the formerly failing
+process conformance case in 9.93 seconds. The production-code constructor
+preserves the existing fixture byte-for-byte; its separate equality test
+passes without updates. The all-feature gateway/all-target Clippy check passes
+with warnings denied. Semantic freeze construction reports zero refreshed
+formal citation hashes and no freeze changes. Logs: `/tmp/ap073-third-ci-affected/`,
+`/tmp/ap073-third-ci-final-affected-results.log`,
+`/tmp/ap073-third-ci-code-inventory-equality.log`,
+`/tmp/ap073-third-ci-gateway-clippy.log`. The full-library concurrent run's
+405/1/67 result remains recorded; the isolated pass does not rewrite that
+result. Hosted Kani job `127879304137` is successful at `12b54e9f`; translation
+is still acquiring its pinned tools, so whole-program CI acceptance remains
+unestablished. Commit the complete bounded repair, with no merge or deployment.

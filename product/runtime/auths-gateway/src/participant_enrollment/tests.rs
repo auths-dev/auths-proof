@@ -1722,15 +1722,32 @@ fn native_operation_requires_the_exact_enrolled_scope_grant_suffix() {
 
     // A freshly signed, natively authorized alternative from the same parent
     // to the same holder is not the enrolled immutable resource authority.
-    let replacement = grant_for_audiences_at(
-        &fixture.parent,
-        &fixture.child,
-        RESOURCE_SERVICE,
-        &[RESOURCE_TOOL],
-        Some(grant_id(fixture.parent_resource.statement()).unwrap()),
-        0,
-        vec![resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap()],
-        NOW + 1,
+    let original = fixture.child_resource.statement();
+    let canonical =
+        auths_codec::decode_canonical_action(&signed.action, &VerifierLimits::default()).unwrap();
+    let statement = GrantStatement::new(
+        original.issuer().clone(),
+        original.subject().clone(),
+        original.profile().clone(),
+        original.permissions().clone(),
+        original.validity(),
+        original.audiences().clone(),
+        ActionConstraint::ExactBodyDigest(auths_codec::body_digest(canonical.body())),
+        original.budget_ceiling().cloned(),
+        original.remaining_depth(),
+        original.parent(),
+        original.status_policy().clone(),
+        original.assurance_floor().clone(),
+        original.extensions().clone(),
+    );
+    let descriptor = fixture.parent.descriptor();
+    let signature = fixture
+        .parent
+        .sign(&grant_signing_preimage(&statement, &descriptor).unwrap());
+    let replacement = SignedGrant::new(statement, SignatureEnvelope::new(descriptor, signature));
+    assert_ne!(
+        grant_id(replacement.statement()).unwrap(),
+        grant_id(original).unwrap()
     );
     let substituted = chained_at(
         &[&fixture.root, &fixture.parent, &fixture.child],
@@ -1738,13 +1755,22 @@ fn native_operation_requires_the_exact_enrolled_scope_grant_suffix() {
         RESOURCE_SERVICE,
         RESOURCE_TOOL,
         json!({"record_id": "record-a"}).as_object().unwrap(),
-        NOW + 1,
+        NOW,
     );
+    native_invocation_for_audience(
+        &fixture.context,
+        NOW,
+        invocation(&substituted),
+        RESOURCE_SERVICE,
+        RESOURCE_TOOL,
+        resource_audience(&[1; 32], 2, &"ab".repeat(32)).unwrap(),
+    )
+    .expect("the alternate grant is independently natively authorized");
     assert_eq!(
         tree.verify_operation_scope(
             &fixture.context,
             "project-a-read",
-            NOW + 1,
+            NOW,
             &invocation(&substituted)
         ),
         Err(EnrollmentTreeError::Binding)
