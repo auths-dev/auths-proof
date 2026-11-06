@@ -479,3 +479,91 @@ source-linked formal evidence; regenerate the complete affected corpus and
 release inventories; then publish and inspect exact-head hosted CI as requested.
 No broad local gate, PostgreSQL execution, push, CI observation, merge or
 deployment occurred in this batch. All F01–F16 remain open for their full scope.
+
+## Scoped information batch, 6 November 2026
+
+The next bounded implementation extends the same effect/compiler and journal
+owners to literal-resource content, independent recovery reads and separately
+authorized disclosure. It directly cuts over to bound-effect 5/compiler 10 and
+engagement-scope 2; no obsolete reader is retained. Root/tree formats remain 3
+because their representations are unchanged. Resource witnesses now interpret
+the content action's verified nested resource arguments. Compilers accept only
+full native authority, the exact installed native grant suffix and active
+enrollment. Recovery/disclosure obtain resource identity from protected retained
+source provenance and refuse another engagement/root/account/recipe or an
+unscoped escape. They do not reuse the original source actor's authority.
+
+Disclosure also binds the active enrolled recipient path, registered channel,
+instance generation and consented resource metadata. Native sender authority
+and independent human approval remain required; live recipient authentication
+is still a separate final-entry obligation. Disclosure reservations charge the
+distinct sender/recipient ancestor union for count and actual projected bytes,
+with common ancestry counted once. This is an exposure ceiling on both sending
+and receiving. Empty content retains count charges. The same atomic journal
+admission and final grant owner persist/verify these declarations; no task ledger
+or provider branch is introduced.
+
+Planned source/tests include real file and TLS PostgreSQL adapters, native
+content/direct-action compiler equivalence, foreign resource and unenrolled
+native-holder refusal, cross-engagement source refusal, recipient/channel
+substitution, current recipient withdrawal, zero-byte disclosure count, ancestor
+read/disclosure exhaustion without partial charges, exact replay/reopen and
+dropped read grant projecting Unknown. A recovery case withdraws the original
+writer through maintained native configuration and separately admits/grants a
+current sibling reader under the final fence. These fixtures use controlled
+time and injected synthetic complete response facts after dropping an actual
+read permit. They establish no HTTPS provider or live recipient behavior.
+
+The required canonical constructor will carry an explicitly named diagnostic
+projection of disclosure scope/charges, omitting randomized content MACs and
+dependent identities; it is not a restorable edited journal record. Whole native
+bindings and real records are compared during the case itself. The existing
+mutation effect/admission corpora and source closure must be refreshed together.
+Execution results are pending; no new behavioral or hosted pass is claimed.
+
+Remaining full-program requirements include typed prerequisite read lineage
+(still refused rather than charged as writes), created-resource lineage and
+uncertain-create reconciliation, original enrollment proof/context/time audit
+history, live scoped delivery/ACK loss, actual process schedules, cross-recipe
+sharing/isolation, installed multi-hop machine→A→B bindings journey, lifecycle/
+federation/native-resource contracts, source-linked formal refinement and final
+complete fixture/release inventories. No previous AP074 gate substitutes for
+these requirements. All F01–F16 remain open for their full scope.
+
+### Information constructor initial results
+
+The complete feature-enabled library target compiled 445 cases without compile
+errors. The initial cohort refreshed the mutation effect, admission and source
+closure artifacts successfully. The information constructor exposed two fixture
+expectation errors: a foreign resource must first satisfy the recipe's identifier
+syntax, and an exact disclosure reservation replay returns retained Reserved facts
+rather than an error. Neither returns a delivery permit. The fixture now uses the
+existing valid other-resource constant and checks the returned stage plus exact
+unchanged retained bytes. Independent empty-content, writer-withdrawal/recovery
+and recipient-withdrawal cases are collected as one constructor cohort; all three
+passed in the initial repair run. Full information construction is pending the
+corrected replay assertion; no PostgreSQL, transport or hosted pass is claimed.
+
+### Acknowledged scoped information artifacts
+
+After the complete fixture repair, the four required constructors passed with
+`loopback-provider,testkit-harness`: `native_engagement_information_fixture_is_current`,
+`native_engagement_effect_fixture_is_current`,
+`native_engagement_admission_fixture_is_current` and
+`semantic_closure_is_current`. Logs are
+`/tmp/ap073-information-final-{information,effect,admission,semantic-closure}.log`.
+The feature-complete library target compiled 445 cases; only these four filtered
+constructors ran. The information constructor actually executes its independent
+file-backed empty-content, current-recipient-withdrawal, original-writer-withdrawal
+and full information lifecycle cases before writing the artifact. It confirms
+current sibling recovery authority can be granted after the original writer is
+withdrawn; read grant loss reopens Unknown; disclosure replay returns unchanged
+reservation facts; common root exposure is charged once; exhaustion creates no
+partial operation/ancestor rows. No read or disclosure permit is sent to transport.
+All responses are explicitly injected synthetic facts, not provider evidence.
+
+The new canonical `bindings/fixtures/gateway/engagement/information.json` contains
+native data plus named diagnostic projection, with its unestablished claims listed.
+Broader authored tests and PostgreSQL did not run locally. Full native binding,
+corpus/freeze/qualification, installed multi-hop and source-linked formal work
+remain required. No push or CI observation occurred; full AP073 remains active.

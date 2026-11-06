@@ -284,8 +284,16 @@ fn require_resource_witness(
     command: &McpCommand,
     branch: &AuthorizedBranch,
 ) -> Result<(), ParticipantEnrollmentError> {
-    if command
-        .arguments()
+    let arguments = if command.name() == crate::effect::CONTENT_READ_TOOL {
+        command
+            .arguments()
+            .get("resource_arguments")
+            .and_then(Value::as_object)
+            .ok_or(ParticipantEnrollmentError::ResourceAuthority)?
+    } else {
+        command.arguments()
+    };
+    if arguments
         .get(&scope.resource_argument)
         .and_then(Value::as_str)
         .is_some_and(|value| scope.resource.admits_witness(value, branch))
@@ -466,7 +474,15 @@ fn native_invocation(
 ) -> Result<(McpCommand, AuthorizedBranch), ParticipantEnrollmentError> {
     let audience = Audience::parse(&format!("mcp://{service}"))
         .map_err(|_| ParticipantEnrollmentError::Invalid)?;
-    native_invocation_for_audience(context, now, invocation, service, tool, audience)
+    let (command, branch) =
+        native_invocation_for_audience(context, now, invocation, service, tool, audience)?;
+    if branch.chain.iter().any(|grant| {
+        !grant.statement().extensions().as_slice().is_empty()
+            || grant.statement().budget_ceiling().is_some()
+    }) {
+        return Err(ParticipantEnrollmentError::ControlAuthority);
+    }
+    Ok((command, branch))
 }
 
 fn native_invocation_for_audience(
@@ -510,13 +526,7 @@ fn native_invocation_for_audience(
         return Err(ParticipantEnrollmentError::ControlAuthority);
     }
     let branch = branches.pop().ok_or(ParticipantEnrollmentError::Invalid)?;
-    if branch.chain.is_empty()
-        || branch.chain.len() > 16
-        || branch.chain.iter().any(|grant| {
-            !grant.statement().extensions().as_slice().is_empty()
-                || grant.statement().budget_ceiling().is_some()
-        })
-    {
+    if branch.chain.is_empty() || branch.chain.len() > 16 {
         return Err(ParticipantEnrollmentError::ControlAuthority);
     }
     Ok((command, branch))

@@ -183,20 +183,38 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
-The concrete native encoding is `auths.bound-effect/4`, with effect compiler
-`auths.gateway-effect-compiler/9`. Reservations use a closed window alternative:
+The concrete native encoding is `auths.bound-effect/5`, with effect compiler
+`auths.gateway-effect-compiler/10`. Reservations use a closed window alternative:
 fixed epoch-aligned windows, the retained source effect's lifetime, or AP073's
 shared engagement/ancestor lifetime. AP073's complete immutable ancestry and
 planned typed charges are part of the binding and private review; decoding them
 is data validation. The common journal atomically persists all corresponding ancestor allocation
-references with direct mutation claims and verifies the retained rows at entry.
-Scoped information and prerequisite composition still require their full typed
-compilation/accounting integration before transport is supported. Mutation
+references with direct mutation, content/recovery acquisition and disclosure
+claims and verifies the retained rows at entry. Scoped prerequisite composition
+still requires its typed lineage/accounting integration before transport is
+supported. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
 source-lifetime bound must survive operation-ID changes, replay and restart.
 An encoded bound declares an obligation; only the journal's atomic admission
 and entry transitions can discharge it. Decoding never grants authority.
+
+AP073's `auths.effect-engagement-scope/2` binds content resource identity from
+the verified nested `resource_arguments`. Recovery and disclosure instead bind
+the resource from validated protected source provenance. Their current native
+proofs still authorize the exact separate read/release action. A source flow
+must match authority namespace/partition/generation, engagement/root, recipe,
+connection, service and resource; historical writer authority is not fresh
+reader/releaser authority. Scoped and unscoped provenance cannot be mixed.
+
+A scoped disclosure additionally binds the recipient's active enrolled ancestry,
+instance generation, exact registered channel and consented resource scope.
+Registered metadata never replaces live peer/key authentication. Participant
+disclosure count and actual projected byte reservations cover the union of the
+sender and recipient ancestor paths, counting a common ancestor once. These are
+exposure ceilings, including sending and receiving; recipient withdrawal prevents
+new grants, while unknown outcomes retain all reservations. Empty projections
+still reserve disclosure count even when their byte amount is zero.
 
 The replay key MUST NOT include the action/effect digest as its only differentiator: the same logical operation ID with changed binding is a conflict, not a fresh operation. Exact replays return existing state; they never mint another capability. A newly chosen operation ID cannot evade a signed approval's binding or the shared budget.
 

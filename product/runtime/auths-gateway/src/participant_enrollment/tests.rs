@@ -1988,31 +1988,99 @@ pub(crate) struct EffectScopeFixture {
     pub(crate) context: TrustedContext,
     pub(crate) action: Submission,
     activation: Submission,
-    root_resource: Submission,
-    children: Vec<(Submission, Submission, Submission)>,
+    root_resources: Vec<Submission>,
+    children: Vec<(Submission, Submission, Vec<Submission>)>,
     withdrawal: Submission,
 }
 
 impl EffectScopeFixture {
+    pub(crate) fn withdraw_participant(
+        &self,
+        controller: &crate::EngagementConfiguration,
+        target: [u8; 32],
+    ) {
+        let mut fixture = Fixture::new();
+        fixture.pins = self.root.clone();
+        let withdrawal = fixture.withdraw_as_parent(target);
+        controller.revoke(&invocation(&withdrawal)).unwrap();
+    }
     pub(crate) fn withdraw_root(&self, controller: &crate::EngagementConfiguration) {
         controller.revoke(&invocation(&self.withdrawal)).unwrap();
     }
+    pub(crate) fn signed_call(&self, call: &McpToolCall, actor: u8) -> Submission {
+        let issuer = Signer::new(0x11);
+        let parent = Signer::new(0x22);
+        let child = Signer::new(actor);
+        let tools: Vec<_> = self
+            .root
+            .scopes
+            .iter()
+            .map(|scope| scope.tool.as_str())
+            .collect();
+        let audience = resource_audience(
+            &self.root.engagement_commitment,
+            self.root.partition_generation,
+            &self.root.scopes[0].recipe_digest,
+        )
+        .unwrap();
+        let parent_grant = grant_for_audiences(
+            &issuer,
+            &parent,
+            call.service(),
+            &tools,
+            None,
+            1,
+            vec![audience.clone()],
+        );
+        assert_eq!(
+            grant_id(parent_grant.statement()).unwrap(),
+            self.root.scopes[0].parent_grant
+        );
+        let child_grant = grant_for_audiences(
+            &parent,
+            &child,
+            call.service(),
+            &tools,
+            Some(grant_id(parent_grant.statement()).unwrap()),
+            0,
+            vec![audience],
+        );
+        chained(
+            &[&issuer, &parent, &child],
+            &[&parent_grant, &child_grant],
+            call.service(),
+            call.name(),
+            call.arguments(),
+        )
+    }
     pub(crate) fn persist(&self, controller: &crate::EngagementConfiguration) {
-        let resources = [EnrollmentResourceWitness {
-            scope_id: "project-a-read",
-            invocation: invocation(&self.root_resource),
-        }];
+        let resources: Vec<_> = self
+            .root
+            .scopes
+            .iter()
+            .zip(&self.root_resources)
+            .map(|(scope, proof)| EnrollmentResourceWitness {
+                scope_id: &scope.scope_id,
+                invocation: invocation(proof),
+            })
+            .collect();
         controller
             .bootstrap(&RootEnrollmentProofs {
                 activation: invocation(&self.activation),
                 resources: &resources,
             })
             .unwrap();
-        for (parent, child, resource) in &self.children {
-            let resources = [EnrollmentResourceWitness {
-                scope_id: "project-a-read",
-                invocation: invocation(resource),
-            }];
+        for (parent, child, proofs) in &self.children {
+            let resources: Vec<_> = self
+                .root
+                .scopes
+                .iter()
+                .zip(proofs)
+                .map(|(scope, proof)| EnrollmentResourceWitness {
+                    scope_id: &scope.scope_id,
+                    invocation: invocation(proof),
+                })
+                .collect();
             controller
                 .enroll(
                     self.root.enrollment_commitment,
@@ -2040,8 +2108,23 @@ pub(crate) fn effect_scope_fixture_for_actor(
     arguments: &Map<String, Value>,
     actor_seed: u8,
 ) -> EffectScopeFixture {
+    effect_scope_fixture_in_engagement(recipe, connection, arguments, actor_seed, [1; 32])
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "native root and all resource/consent inputs are authored as one fixture"
+)]
+pub(crate) fn effect_scope_fixture_in_engagement(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+    actor_seed: u8,
+    engagement: [u8; 32],
+) -> EffectScopeFixture {
     assert!([0x44, 0x55].contains(&actor_seed));
     let mut fixture = Fixture::new();
+    fixture.pins.engagement_commitment = engagement;
     let sibling = Signer::new(0x55);
     let audience = resource_audience(
         &fixture.pins.engagement_commitment,
@@ -2052,11 +2135,28 @@ pub(crate) fn effect_scope_fixture_for_actor(
     let service = recipe.service();
     let review = recipe.review();
     let tool = review.tool();
+    let content = crate::effect::ContentReadTarget::new(
+        recipe,
+        connection,
+        serde_json::json!({"record_id":arguments["record_id"]})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .ok();
+    let mut tools = vec![tool];
+    if content.is_some() {
+        tools.extend([
+            crate::effect::CONTENT_READ_TOOL,
+            crate::effect::DISCLOSURE_TOOL,
+            crate::effect::RECOVERY_READ_TOOL,
+        ]);
+    }
     fixture.parent_resource = grant_for_audiences(
         &fixture.root,
         &fixture.parent,
         service,
-        &[tool],
+        &tools,
         None,
         1,
         vec![audience.clone()],
@@ -2065,7 +2165,7 @@ pub(crate) fn effect_scope_fixture_for_actor(
         &fixture.parent,
         &fixture.child,
         service,
-        &[tool],
+        &tools,
         Some(grant_id(fixture.parent_resource.statement()).unwrap()),
         0,
         vec![audience.clone()],
@@ -2082,12 +2182,19 @@ pub(crate) fn effect_scope_fixture_for_actor(
         &fixture.parent,
         &sibling,
         service,
-        &[tool],
+        &tools,
         Some(grant_id(fixture.parent_resource.statement()).unwrap()),
         0,
         vec![audience.clone()],
     );
     let observer = GatewayObserver::from_test_seed(0x33);
+    let mut profiles = vec![
+        (PARTICIPANT_SERVICE, ACTIVATE_ROOT_TOOL),
+        (PARTICIPANT_SERVICE, ENROLL_PARTICIPANT_TOOL),
+        (PARTICIPANT_SERVICE, ACCEPT_PARTICIPANT_TOOL),
+        (PARTICIPANT_SERVICE, REVOKE_PARTICIPANT_TOOL),
+    ];
+    profiles.extend(tools.iter().map(|tool| (service, *tool)));
     fixture.context = harness::context_for_profiles_and_audiences(
         &[&fixture.root],
         observer.principal(),
@@ -2096,13 +2203,7 @@ pub(crate) fn effect_scope_fixture_for_actor(
         2,
         CompositionRequirement::new(None, 1, 1, 1).unwrap(),
         &[auths_raw_key::RAW_KEY_V1],
-        &[
-            (PARTICIPANT_SERVICE, ACTIVATE_ROOT_TOOL),
-            (PARTICIPANT_SERVICE, ENROLL_PARTICIPANT_TOOL),
-            (PARTICIPANT_SERVICE, ACCEPT_PARTICIPANT_TOOL),
-            (PARTICIPANT_SERVICE, REVOKE_PARTICIPANT_TOOL),
-            (service, tool),
-        ],
+        &profiles,
         &[audience],
     )
     .unwrap();
@@ -2126,29 +2227,94 @@ pub(crate) fn effect_scope_fixture_for_actor(
             instance_generation: 1,
         },
     );
+    if content.is_some() {
+        let base = fixture.pins.scopes[0].clone();
+        for (suffix, tool) in [
+            ("content", crate::effect::CONTENT_READ_TOOL),
+            ("disclosure", crate::effect::DISCLOSURE_TOOL),
+            ("recovery", crate::effect::RECOVERY_READ_TOOL),
+        ] {
+            let mut scope = base.clone();
+            scope.scope_id = format!("project-a-read-{suffix}");
+            scope.tool = tool.to_owned();
+            fixture.pins.scopes.push(scope);
+        }
+        fixture
+            .pins
+            .permitted_channels
+            .get_mut("sibling-channel")
+            .unwrap()
+            .channel_binding = crate::effect::UnixDisclosurePolicy::new(1000, 1001, [0x78; 32])
+            .commitment()
+            .unwrap();
+    }
     fixture.enrollment.scopes[0].grant_id = *grant_id(fixture.child_resource.statement())
         .unwrap()
         .as_bytes();
     fixture.commit_root();
     let activation = fixture.root_activation(&fixture.pins);
-    let root_resource = chained(
-        &[&fixture.root, &fixture.parent],
-        &[&fixture.parent_resource],
-        service,
-        tool,
-        arguments,
-    );
-    let root_resources = [EnrollmentResourceWitness {
-        scope_id: "project-a-read",
-        invocation: invocation(&root_resource),
-    }];
+    let witness = |actor: &Signer,
+                   child_grant: Option<&SignedGrant>,
+                   scope: &EnrollmentScopePins| {
+        let args = if scope.tool == crate::effect::CONTENT_READ_TOOL {
+            content
+                .as_ref()
+                .unwrap()
+                .authorization_call(
+                    recipe,
+                    &crate::LogicalOperationId::parse("native-enrollment-content-witness").unwrap(),
+                )
+                .unwrap()
+                .arguments()
+                .clone()
+        } else if scope.tool == tool {
+            arguments.clone()
+        } else {
+            serde_json::json!({"record_id":arguments["record_id"]})
+                .as_object()
+                .unwrap()
+                .clone()
+        };
+        match child_grant {
+            None => chained(
+                &[&fixture.root, actor],
+                &[&fixture.parent_resource],
+                service,
+                &scope.tool,
+                &args,
+            ),
+            Some(grant) => chained(
+                &[&fixture.root, &fixture.parent, actor],
+                &[&fixture.parent_resource, grant],
+                service,
+                &scope.tool,
+                &args,
+            ),
+        }
+    };
+    let root_resources: Vec<_> = fixture
+        .pins
+        .scopes
+        .iter()
+        .map(|scope| witness(&fixture.parent, None, scope))
+        .collect();
+    let resource_refs: Vec<_> = fixture
+        .pins
+        .scopes
+        .iter()
+        .zip(&root_resources)
+        .map(|(scope, proof)| EnrollmentResourceWitness {
+            scope_id: &scope.scope_id,
+            invocation: invocation(proof),
+        })
+        .collect();
     let mut tree = EnrollmentTree::bootstrap(
         &fixture.context,
         &fixture.pins,
         NOW,
         &RootEnrollmentProofs {
             activation: invocation(&activation),
-            resources: &root_resources,
+            resources: &resource_refs,
         },
     )
     .unwrap();
@@ -2163,6 +2329,15 @@ pub(crate) fn effect_scope_fixture_for_actor(
         (&sibling, &sibling_control, &sibling_resource, true),
     ] {
         let mut descriptor = child_descriptor(child_signer, control, resource, &fixture.pins);
+        descriptor.scopes = fixture
+            .pins
+            .scopes
+            .iter()
+            .map(|scope| ParticipantScopeGrant {
+                scope_id: scope.scope_id.clone(),
+                grant_id: *grant_id(resource.statement()).unwrap().as_bytes(),
+            })
+            .collect();
         if is_sibling {
             descriptor.enrollment_id = "sibling".to_owned();
             descriptor.delivery_channel = "sibling-channel".to_owned();
@@ -2177,17 +2352,22 @@ pub(crate) fn effect_scope_fixture_for_actor(
                 .as_object()
                 .unwrap(),
         );
-        let resource = chained(
-            &[&fixture.root, &fixture.parent, child_signer],
-            &[&fixture.parent_resource, resource],
-            service,
-            tool,
-            arguments,
-        );
-        let resources = [EnrollmentResourceWitness {
-            scope_id: "project-a-read",
-            invocation: invocation(&resource),
-        }];
+        let proofs: Vec<_> = fixture
+            .pins
+            .scopes
+            .iter()
+            .map(|scope| witness(child_signer, Some(resource), scope))
+            .collect();
+        let resources: Vec<_> = fixture
+            .pins
+            .scopes
+            .iter()
+            .zip(&proofs)
+            .map(|(scope, proof)| EnrollmentResourceWitness {
+                scope_id: &scope.scope_id,
+                invocation: invocation(proof),
+            })
+            .collect();
         tree.enroll(
             &fixture.context,
             fixture.pins.enrollment_commitment,
@@ -2199,7 +2379,7 @@ pub(crate) fn effect_scope_fixture_for_actor(
             },
         )
         .unwrap();
-        children.push((parent, child, resource));
+        children.push((parent, child, proofs));
     }
     let action = chained(
         &[
@@ -2230,7 +2410,7 @@ pub(crate) fn effect_scope_fixture_for_actor(
         context: fixture.context,
         action,
         activation,
-        root_resource,
+        root_resources,
         children,
         withdrawal,
     }

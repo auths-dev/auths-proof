@@ -6,6 +6,9 @@ use std::sync::Arc;
 #[path = "effect_engagement_admission_tests.rs"]
 mod admission_tests;
 
+#[path = "effect_engagement_information_tests.rs"]
+mod information_tests;
+
 fn approve(effect: crate::effect::BoundEffect) -> crate::effect::ApprovedEffect {
     let key = SigningKey::from_bytes(&[29; 32]);
     let request = effect.approval_request(NOW, NOW + 60).unwrap();

@@ -46,7 +46,6 @@ impl RecoveryReadTarget {
         echo: Option<String>,
     ) -> Result<Self, EffectBindingError> {
         if !matches!(source.wire.protocol, Protocol::Mutation { .. })
-            || source.wire.scope != Scope::Unscoped
             || !(1..=65_536).contains(&request.maximum_response_bytes())
         {
             return Err(EffectBindingError::Invalid);
@@ -215,11 +214,6 @@ pub(super) fn build_binding(
     reservations: Vec<Reservation>,
 ) -> Result<EffectBinding, GatewaySubmitResult> {
     let invalid = || not_entered("gateway.acquisition.binding");
-    if installed.engagement.is_some() {
-        return Err(not_entered(
-            "gateway.engagement.information-scope-unavailable",
-        ));
-    }
     let connection = Zeroizing::new(
         installed
             .connection
@@ -381,7 +375,7 @@ impl RecoveryPlan {
             || source.wire.epoch != effect.wire.epoch
             || source.wire.recipe != effect.wire.recipe
             || source.wire.credential_generation != effect.wire.credential_generation
-            || source.wire.scope != effect.wire.scope
+            || !source.wire.scope.same_flow(&effect.wire.scope)
             || source.wire.connection != effect.wire.connection
             || source.wire.operation == effect.wire.operation
             || effect.wire.protocol
@@ -504,7 +498,8 @@ pub(super) fn compile_acquisition(
     proof: &[u8],
     action: &[u8],
 ) -> Result<BoundEffect, GatewaySubmitResult> {
-    let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
+    let context = installed.native_context()?;
+    let sealed = crate::engine::verify_native(&context, now, proof, action)?;
     compile_verified_acquisition(installed, target, now, proof, action, &sealed)
 }
 
@@ -560,8 +555,8 @@ pub(super) fn compile_verified_acquisition(
         }
     }
     .map_err(|_| invalid())?;
-    // Comparing the canonical call also rejects extra fields and channel-binding
-    // representations this unscoped protocol does not yet support.
+    // Comparing the canonical call rejects extra fields before the scope owner
+    // binds the verified actor and protected resource provenance.
     if command.call() != &expected {
         return Err(invalid());
     }
@@ -585,8 +580,26 @@ pub(super) fn compile_verified_acquisition(
         }
         AcquisitionTarget::Candidate(target) => target.prerequisites().clone(),
     };
+    let context = installed.native_context()?;
     let authority =
-        NativeAuthority::verified(sealed.portable(), installed.context).map_err(|_| invalid())?;
+        NativeAuthority::verified(sealed.portable(), &context).map_err(|_| invalid())?;
+    let scope = match &target {
+        AcquisitionTarget::Content(_) => Scope::compile(
+            installed,
+            now,
+            crate::participant_enrollment::EnrollmentInvocation { proof, action },
+            super::ScopePurpose::Content,
+        ),
+        AcquisitionTarget::Recovery(target) => Scope::compile(
+            installed,
+            now,
+            crate::participant_enrollment::EnrollmentInvocation { proof, action },
+            super::ScopePurpose::Recovery(&target.source),
+        ),
+        AcquisitionTarget::Candidate(_) if installed.engagement.is_none() => Ok(Scope::Unscoped),
+        AcquisitionTarget::Candidate(_) => Err(EffectBindingError::Unsupported),
+    }
+    .map_err(|_| invalid())?;
     let (binding, review) = match &target {
         AcquisitionTarget::Recovery(target) => (
             target.binding(
@@ -624,6 +637,7 @@ pub(super) fn compile_verified_acquisition(
                 "consequences": "Check this exact candidate credential with the declared bounded reads. These reads do not authorize publication, mutation or disclosure."}),
         ),
     };
+    let binding = super::bind_information_scope(binding, scope)?;
     let effect = BoundEffect {
         authority,
         review,

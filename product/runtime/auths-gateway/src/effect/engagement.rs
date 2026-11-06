@@ -1,11 +1,13 @@
 //! Installed engagement scope in the existing effect owner. These projections
 //! are private data; native authority and the final writer fence remain required.
-use super::{EffectBindingError, Reservation, ReservationWindow, Unit, canonical, commitment};
+use super::{
+    EffectBinding, EffectBindingError, EffectInstallation, Protocol, Reservation,
+    ReservationWindow, Scope, Unit, canonical, commitment,
+};
 use crate::participant_enrollment::{
     EnrollmentInvocation, EnrollmentScopePins, EnrollmentTree, ParentEnrollmentPins,
     ParticipantCeilings, root_enrollment_commitment,
 };
-use auths_model::TrustedContext;
 use serde::{Deserialize, Serialize};
 
 /// Operator-installed engagement root and exact gateway workload. This is not
@@ -62,6 +64,122 @@ struct Ancestor {
     resource_grant: [u8; 32],
 }
 
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Recipient {
+    channel_id: String,
+    channel_binding: [u8; 32],
+    consent_scope: String,
+    ancestors: Vec<Ancestor>,
+}
+
+/// Closed native compiler purpose; a source is protected journal provenance,
+/// never a separate application map or a writer's current read authority.
+pub(super) enum ScopePurpose<'a> {
+    Mutation,
+    Content,
+    Recovery(&'a EffectBinding),
+    Disclosure {
+        source: &'a EffectBinding,
+        recipient: &'a str,
+        channel: [u8; 32],
+    },
+}
+
+impl ScopePurpose<'_> {
+    fn source(&self) -> Option<&EffectBinding> {
+        match self {
+            Self::Recovery(source) | Self::Disclosure { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl Scope {
+    pub(super) fn compile(
+        installed: &EffectInstallation<'_>,
+        now: u64,
+        invocation: EnrollmentInvocation<'_>,
+        purpose: ScopePurpose<'_>,
+    ) -> Result<Self, EffectBindingError> {
+        let Some(policy) = installed.engagement else {
+            if purpose
+                .source()
+                .is_some_and(|source| !matches!(source.wire.scope, Scope::Unscoped))
+            {
+                return Err(EffectBindingError::Invalid);
+            }
+            return Ok(Self::Unscoped);
+        };
+        let tree = installed.enrollment.ok_or(EffectBindingError::Invalid)?;
+        let connection = commitment(
+            "auths.effect-installation/1",
+            &installed
+                .connection
+                .to_canonical_cbor()
+                .map_err(|_| EffectBindingError::Invalid)?,
+        )?;
+        let bound = EngagementScope::compile(
+            installed, policy, tree, connection, now, invocation, &purpose,
+        )?;
+        let scope = Self::Engagement {
+            bound: Box::new(bound),
+        };
+        if purpose
+            .source()
+            .is_some_and(|source| !scope.same_flow(&source.wire.scope))
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(scope)
+    }
+    pub(super) fn same_flow(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Unscoped, Self::Unscoped) => true,
+            (Self::Engagement { bound: a }, Self::Engagement { bound: b }) => {
+                a.authority_namespace == b.authority_namespace
+                    && a.authority_partition == b.authority_partition
+                    && a.authority_epoch == b.authority_epoch
+                    && a.engagement == b.engagement
+                    && a.root == b.root
+                    && a.scope.recipe_digest == b.scope.recipe_digest
+                    && a.scope.connection_binding == b.scope.connection_binding
+                    && a.scope.service == b.scope.service
+                    && a.scope.resource == b.scope.resource
+            }
+            _ => false,
+        }
+    }
+    pub(super) fn reservations(
+        &self,
+        protocol: &Protocol,
+    ) -> Result<Vec<Reservation>, EffectBindingError> {
+        let Self::Engagement { bound } = self else {
+            return Ok(Vec::new());
+        };
+        match protocol {
+            Protocol::Mutation { .. } if bound.recipient.is_none() => {
+                bound.reservations(Unit::MutationCount, 1)
+            }
+            Protocol::Acquisition { .. } if bound.recipient.is_none() => {
+                bound.reservations(Unit::AcquisitionCount, 1)
+            }
+            Protocol::Disclosure {
+                recipient,
+                channel,
+                maximum_bytes,
+                ..
+            } => {
+                bound.validate_recipient(recipient, channel)?;
+                let mut reservations = bound.reservations(Unit::DisclosureCount, 1)?;
+                reservations.extend(bound.reservations(Unit::DisclosureBytes, *maximum_bytes)?);
+                Ok(reservations)
+            }
+            _ => Err(EffectBindingError::Invalid),
+        }
+    }
+}
+
 /// Complete immutable scope projection covered by the exact effect approval.
 /// Mutable whole-tree revision is deliberately absent: sibling enrollment does
 /// not alter an existing participant's approved path. Fresh activity is fenced.
@@ -77,17 +195,22 @@ pub(super) struct EngagementScope {
     executor: String,
     scope: EnrollmentScopePins,
     ancestors: Vec<Ancestor>,
+    recipient: Option<Recipient>,
 }
 
 impl EngagementScope {
-    pub(super) fn compile(
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one native scope projection binds independently verified actor and recipient paths"
+    )]
+    fn compile(
+        installed: &EffectInstallation<'_>,
         policy: &EngagementPolicy,
         tree: &EnrollmentTree,
-        context: &TrustedContext,
-        recipe: [u8; 32],
         connection: [u8; 32],
         now: u64,
         invocation: EnrollmentInvocation<'_>,
+        purpose: &ScopePurpose<'_>,
     ) -> Result<Self, EffectBindingError> {
         policy.validate()?;
         // Use the maintained tree decoder's independent installation comparison;
@@ -115,21 +238,37 @@ impl EngagementScope {
             .and_then(serde_json::Value::as_str)
             .ok_or(EffectBindingError::Invalid)?;
         let mut matches = policy.root.scopes.iter().filter(|scope| {
-            scope.recipe_digest == hex::encode(recipe)
+            scope.recipe_digest == installed.recipe.digest_hex()
                 && scope.connection_binding == connection
                 && scope.service == service
                 && scope.tool == tool
-                && matches!(&scope.resource, crate::participant_enrollment::EnrollmentResourceBinding::Exact { handle }
-                    if call.get("arguments").and_then(|arguments| arguments.get(&scope.resource_argument))
-                        .and_then(serde_json::Value::as_str) == Some(handle.as_str()))
+                && match purpose.source() {
+                    Some(source) => matches!(&source.wire.scope, Scope::Engagement { bound } if bound.scope.resource == scope.resource),
+                    None => {
+                        let args = call.get("arguments");
+                        let args = if matches!(purpose, ScopePurpose::Content) { args.and_then(|args| args.get("resource_arguments")) } else { args };
+                        matches!(&scope.resource, crate::participant_enrollment::EnrollmentResourceBinding::Exact { handle }
+                            if args.and_then(|args| args.get(&scope.resource_argument)).and_then(serde_json::Value::as_str) == Some(handle.as_str()))
+                    }
+                }
         });
         let scope = matches.next().ok_or(EffectBindingError::Invalid)?;
         if matches.next().is_some() {
             return Err(EffectBindingError::Invalid);
         }
-        let participant = tree
-            .verify_operation_scope(context, &scope.scope_id, now, &invocation)
-            .map_err(|_| EffectBindingError::Invalid)?;
+        let participant = match purpose.source() {
+            Some(_) => tree.verify_compiled_scope(
+                installed.context,
+                &scope.scope_id,
+                now,
+                &invocation,
+                &scope.resource,
+            ),
+            None => {
+                tree.verify_operation_scope(installed.context, &scope.scope_id, now, &invocation)
+            }
+        }
+        .map_err(|_| EffectBindingError::Invalid)?;
         let path = tree
             .active_principal_path(participant.principal(), now)
             .map_err(|_| EffectBindingError::Invalid)?;
@@ -153,7 +292,7 @@ impl EngagementScope {
             })
             .collect::<Result<Vec<_>, EffectBindingError>>()?;
         let result = Self {
-            schema: "auths.effect-engagement-scope/1".to_owned(),
+            schema: "auths.effect-engagement-scope/2".to_owned(),
             authority_namespace: policy.root.admission_namespace.clone(),
             authority_partition: policy.root.admission_partition.clone(),
             authority_epoch: policy.root.partition_generation,
@@ -162,6 +301,61 @@ impl EngagementScope {
             executor: policy.executor.clone(),
             scope: scope.clone(),
             ancestors,
+            recipient: match purpose {
+                ScopePurpose::Disclosure {
+                    recipient, channel, ..
+                } => {
+                    let principal = auths_model::PrincipalId::parse(recipient)
+                        .map_err(|_| EffectBindingError::Invalid)?;
+                    let (channel_id, path) = tree
+                        .delivery_path(
+                            &principal,
+                            channel,
+                            &scope.resource,
+                            &scope.recipe_digest,
+                            &connection,
+                            now,
+                        )
+                        .map_err(|_| EffectBindingError::Invalid)?;
+                    let consent_scope = path
+                        .last()
+                        .and_then(|pins| {
+                            pins.scopes.iter().find(|candidate| {
+                                candidate.resource == scope.resource
+                                    && candidate.recipe_digest == scope.recipe_digest
+                                    && candidate.connection_binding == connection
+                            })
+                        })
+                        .map(|scope| scope.scope_id.clone())
+                        .ok_or(EffectBindingError::Invalid)?;
+                    let ancestors = path
+                        .iter()
+                        .map(|pins| {
+                            let grant = pins
+                                .scopes
+                                .iter()
+                                .find(|scope| scope.scope_id == consent_scope)
+                                .ok_or(EffectBindingError::Invalid)?;
+                            Ok(Ancestor {
+                                enrollment: pins.enrollment_commitment,
+                                principal: pins.principal.as_str().to_owned(),
+                                instance: pins.instance_generation,
+                                not_before: pins.not_before,
+                                expires_at: pins.expires_at,
+                                ceilings: pins.ceilings,
+                                resource_grant: *grant.parent_grant.as_bytes(),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, EffectBindingError>>()?;
+                    Some(Recipient {
+                        channel_id,
+                        channel_binding: *channel,
+                        consent_scope,
+                        ancestors,
+                    })
+                }
+                _ => None,
+            },
         };
         result.validate()?;
         Ok(result)
@@ -169,7 +363,7 @@ impl EngagementScope {
 
     pub(super) fn validate(&self) -> Result<(), EffectBindingError> {
         use crate::participant_enrollment::{MAX_JSON_INTEGER, MAX_PARTICIPANTS, identifier};
-        if self.schema != "auths.effect-engagement-scope/1"
+        if self.schema != "auths.effect-engagement-scope/2"
             || crate::OperatorNamespace::parse(&self.authority_namespace).is_err()
             || !identifier(&self.authority_partition)
             || !super::label(&self.executor)
@@ -197,28 +391,74 @@ impl EngagementScope {
         {
             return Err(EffectBindingError::Invalid);
         }
-        for (index, ancestor) in self.ancestors.iter().enumerate() {
-            let principal = auths_model::PrincipalId::parse(&ancestor.principal)
-                .map_err(|_| EffectBindingError::Invalid)?;
-            if !(1..=MAX_JSON_INTEGER).contains(&ancestor.instance)
-                || ancestor.not_before >= ancestor.expires_at
-                || ancestor.expires_at > MAX_JSON_INTEGER
-                || !ancestor.ceilings.within(ancestor.ceilings)
-                || self.ancestors[..index].iter().any(|previous| {
-                    previous.enrollment == ancestor.enrollment
-                        || previous.resource_grant == ancestor.resource_grant
-                        || auths_model::PrincipalId::parse(&previous.principal)
-                            .map_or(true, |p| crate::principals_overlap(&p, &principal))
-                })
-                || index.checked_sub(1).is_some_and(|parent| {
-                    let parent = &self.ancestors[parent];
-                    ancestor.not_before < parent.not_before
-                        || ancestor.expires_at > parent.expires_at
-                        || !ancestor.ceilings.within(parent.ceilings)
-                })
+        validate_path(&self.ancestors)?;
+        if let Some(recipient) = &self.recipient {
+            if !identifier(&recipient.channel_id)
+                || !identifier(&recipient.consent_scope)
+                || recipient
+                    .ancestors
+                    .first()
+                    .is_none_or(|ancestor| ancestor.enrollment != self.root)
             {
                 return Err(EffectBindingError::Invalid);
             }
+            validate_path(&recipient.ancestors)?;
+            for node in &recipient.ancestors {
+                for actor in &self.ancestors {
+                    if node.enrollment == actor.enrollment {
+                        if !same_identity(node, actor) {
+                            return Err(EffectBindingError::Invalid);
+                        }
+                    } else {
+                        let node = auths_model::PrincipalId::parse(&node.principal)
+                            .map_err(|_| EffectBindingError::Invalid)?;
+                        let actor = auths_model::PrincipalId::parse(&actor.principal)
+                            .map_err(|_| EffectBindingError::Invalid)?;
+                        if crate::principals_overlap(&node, &actor) {
+                            return Err(EffectBindingError::Invalid);
+                        }
+                    }
+                }
+            }
+            if self.exposure_ancestors().len() > MAX_PARTICIPANTS {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+        Ok(())
+    }
+
+    fn exposure_ancestors(&self) -> Vec<&Ancestor> {
+        let mut nodes: Vec<_> = self.ancestors.iter().collect();
+        if let Some(recipient) = &self.recipient {
+            for node in &recipient.ancestors {
+                if !nodes
+                    .iter()
+                    .any(|existing| existing.enrollment == node.enrollment)
+                {
+                    nodes.push(node);
+                }
+            }
+        }
+        nodes
+    }
+    fn validate_recipient(
+        &self,
+        recipient: &str,
+        channel: &[u8; 32],
+    ) -> Result<(), EffectBindingError> {
+        let registered = self.recipient.as_ref().ok_or(EffectBindingError::Invalid)?;
+        let leaf = registered
+            .ancestors
+            .last()
+            .ok_or(EffectBindingError::Invalid)?;
+        let expected = auths_model::PrincipalId::parse(&leaf.principal)
+            .map_err(|_| EffectBindingError::Invalid)?;
+        let recipient =
+            auths_model::PrincipalId::parse(recipient).map_err(|_| EffectBindingError::Invalid)?;
+        if &registered.channel_binding != channel
+            || !crate::principals_overlap(&expected, &recipient)
+        {
+            return Err(EffectBindingError::Invalid);
         }
         Ok(())
     }
@@ -251,8 +491,13 @@ impl EngagementScope {
         unit: Unit,
         amount: u64,
     ) -> Result<Vec<Reservation>, EffectBindingError> {
-        self.ancestors
-            .iter()
+        let nodes = if matches!(unit, Unit::DisclosureCount | Unit::DisclosureBytes) {
+            self.exposure_ancestors()
+        } else {
+            self.ancestors.iter().collect()
+        };
+        nodes
+            .into_iter()
             .map(|ancestor| {
                 let ceiling = match unit {
                     Unit::MutationCount => u64::from(ancestor.ceilings.writes),
@@ -284,4 +529,43 @@ impl EngagementScope {
             })
             .collect()
     }
+}
+
+fn same_identity(a: &Ancestor, b: &Ancestor) -> bool {
+    a.enrollment == b.enrollment
+        && a.principal == b.principal
+        && a.instance == b.instance
+        && a.not_before == b.not_before
+        && a.expires_at == b.expires_at
+        && a.ceilings == b.ceilings
+}
+fn validate_path(ancestors: &[Ancestor]) -> Result<(), EffectBindingError> {
+    use crate::participant_enrollment::{MAX_JSON_INTEGER, MAX_PARTICIPANTS};
+    if ancestors.is_empty() || ancestors.len() > MAX_PARTICIPANTS {
+        return Err(EffectBindingError::Invalid);
+    }
+    for (index, ancestor) in ancestors.iter().enumerate() {
+        let principal = auths_model::PrincipalId::parse(&ancestor.principal)
+            .map_err(|_| EffectBindingError::Invalid)?;
+        if !(1..=MAX_JSON_INTEGER).contains(&ancestor.instance)
+            || ancestor.not_before >= ancestor.expires_at
+            || ancestor.expires_at > MAX_JSON_INTEGER
+            || !ancestor.ceilings.within(ancestor.ceilings)
+            || ancestors[..index].iter().any(|previous| {
+                previous.enrollment == ancestor.enrollment
+                    || previous.resource_grant == ancestor.resource_grant
+                    || auths_model::PrincipalId::parse(&previous.principal)
+                        .map_or(true, |p| crate::principals_overlap(&p, &principal))
+            })
+            || index.checked_sub(1).is_some_and(|parent| {
+                let parent = &ancestors[parent];
+                ancestor.not_before < parent.not_before
+                    || ancestor.expires_at > parent.expires_at
+                    || !ancestor.ceilings.within(parent.ceilings)
+            })
+        {
+            return Err(EffectBindingError::Invalid);
+        }
+    }
+    Ok(())
 }

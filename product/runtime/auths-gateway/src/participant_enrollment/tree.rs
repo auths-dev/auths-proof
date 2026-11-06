@@ -169,6 +169,30 @@ impl EnrollmentTree {
         now: u64,
         invocation: &super::EnrollmentInvocation<'_>,
     ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
+        self.verify_scope(context, scope_id, now, invocation, None)
+    }
+
+    /// The common effect compiler alone supplies protected source provenance for
+    /// recovery/disclosure. This projection cannot authorize another command.
+    pub(crate) fn verify_compiled_scope(
+        &self,
+        context: &TrustedContext,
+        scope_id: &str,
+        now: u64,
+        invocation: &super::EnrollmentInvocation<'_>,
+        resource: &super::EnrollmentResourceBinding,
+    ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
+        self.verify_scope(context, scope_id, now, invocation, Some(resource))
+    }
+
+    fn verify_scope(
+        &self,
+        context: &TrustedContext,
+        scope_id: &str,
+        now: u64,
+        invocation: &super::EnrollmentInvocation<'_>,
+        resource: Option<&super::EnrollmentResourceBinding>,
+    ) -> Result<super::EnrolledParticipant, EnrollmentTreeError> {
         super::bounded_invocations(std::iter::once(*invocation))?;
         let scope = self
             .root
@@ -209,8 +233,57 @@ impl EnrollmentTree {
         if expected.is_empty() || !actual.ends_with(&expected) {
             return Err(EnrollmentTreeError::Binding);
         }
-        super::require_resource_witness(scope, &command, &branch)?;
+        match resource {
+            Some(resource) if resource != &scope.resource => {
+                return Err(EnrollmentTreeError::Binding);
+            }
+            Some(_) => {}
+            None => super::require_resource_witness(scope, &command, &branch)?,
+        }
         self.retained_identity(branch.actor.as_str())
+    }
+
+    pub(crate) fn delivery_path(
+        &self,
+        recipient: &PrincipalId,
+        channel_binding: &[u8; 32],
+        resource: &super::EnrollmentResourceBinding,
+        recipe: &str,
+        connection: &[u8; 32],
+        now: u64,
+    ) -> Result<(String, Vec<ParentEnrollmentPins>), EnrollmentTreeError> {
+        let mut channels = self.root.permitted_channels.iter().filter(|(_, channel)| {
+            &channel.channel_binding == channel_binding
+                && crate::principals_overlap(&channel.principal, recipient)
+        });
+        let (id, channel) = channels.next().ok_or(EnrollmentTreeError::Binding)?;
+        if channels.next().is_some() {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        let path = self.active_principal_path(channel.principal.as_str(), now)?;
+        let leaf = path.last().ok_or(EnrollmentTreeError::Binding)?;
+        if leaf.instance_generation != channel.instance_generation {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        if leaf.enrollment_commitment != self.root.enrollment_commitment
+            && self
+                .child(&leaf.enrollment_commitment)
+                .is_none_or(|child| child.descriptor.delivery_channel != *id)
+        {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        // Consent includes a related resource scope, but provider authority for
+        // disclosure belongs to the initiating proof, not to this metadata.
+        if path.iter().any(|pins| {
+            !pins.scopes.iter().any(|scope| {
+                &scope.resource == resource
+                    && scope.recipe_digest == recipe
+                    && &scope.connection_binding == connection
+            })
+        }) {
+            return Err(EnrollmentTreeError::Binding);
+        }
+        Ok((id.clone(), path))
     }
 
     fn from_stored(stored: StoredTree) -> Result<Self, EnrollmentTreeError> {

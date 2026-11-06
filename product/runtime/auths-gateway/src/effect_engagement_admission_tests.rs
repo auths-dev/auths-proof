@@ -12,26 +12,39 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-struct Setup {
-    backend: TestAttempts,
-    store: Arc<dyn GatewayAttemptStore>,
-    recipe: CompiledRecipe,
-    connection: ConnectionRecord,
-    native: EffectScopeFixture,
-    policy: EffectPolicy,
-    loaded: crate::LoadedConnection,
-    configuration: crate::configuration::SharedConfiguration,
-    controller: crate::EngagementConfiguration,
-    qualification: Arc<crate::QualificationGate>,
+pub(super) struct Setup {
+    pub(super) backend: TestAttempts,
+    pub(super) store: Arc<dyn GatewayAttemptStore>,
+    pub(super) recipe: CompiledRecipe,
+    pub(super) connection: ConnectionRecord,
+    pub(super) native: EffectScopeFixture,
+    pub(super) policy: EffectPolicy,
+    pub(super) loaded: crate::LoadedConnection,
+    pub(super) configuration: crate::configuration::SharedConfiguration,
+    pub(super) controller: crate::EngagementConfiguration,
+    pub(super) qualification: Arc<crate::QualificationGate>,
 }
 
 impl Setup {
     async fn new(backend: Backend) -> Self {
+        Self::with_recipe(backend, recipe(&json!({}), &Value::Null), [1; 32]).await
+    }
+    pub(super) async fn with_recipe(
+        backend: Backend,
+        recipe: CompiledRecipe,
+        engagement: [u8; 32],
+    ) -> Self {
         let backend = TestAttempts::open(backend);
         let store = backend.raw();
-        let recipe = recipe(&json!({}), &Value::Null);
         let connection = connection(&recipe);
-        let native = native(&recipe, &connection, "initial", 0x44);
+        let args = json!({"operation_id":"initial", "operator_namespace":NAMESPACE, "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
+        let native = crate::participant_enrollment::tests::effect_scope_fixture_in_engagement(
+            &recipe,
+            &connection,
+            args.as_object().unwrap(),
+            0x44,
+            engagement,
+        );
         let policy = policy(native.root.clone(), "gateway");
         let configuration = crate::configuration::SharedConfiguration::new(
             Arc::clone(&store),
@@ -108,7 +121,7 @@ impl Setup {
             .unwrap(),
         ))
     }
-    fn validation(&self) -> crate::entry::EntryValidation {
+    pub(super) fn validation(&self) -> crate::entry::EntryValidation {
         crate::entry::EntryValidation::Installed(Box::new(crate::entry::InstalledEntry {
             recipe: self.recipe.clone(),
             trust: self.native.context.clone(),
@@ -129,7 +142,7 @@ impl Setup {
             commissioning: None,
         }))
     }
-    fn attempts(&self, store: Arc<dyn GatewayAttemptStore>) -> crate::GatewayAttempts {
+    pub(super) fn attempts(&self, store: Arc<dyn GatewayAttemptStore>) -> crate::GatewayAttempts {
         crate::GatewayAttempts::new(store, self.policy.clone()).unwrap()
     }
     fn key(&self, operation: &str) -> GatewayAttemptKey {

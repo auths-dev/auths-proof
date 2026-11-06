@@ -20,7 +20,7 @@ use zeroize::Zeroizing;
 
 mod engagement;
 pub use engagement::EngagementPolicy;
-use engagement::EngagementScope;
+use engagement::{EngagementScope, ScopePurpose};
 mod authority;
 pub(crate) use authority::NativeAuthority;
 mod acquisition;
@@ -63,12 +63,12 @@ pub(crate) use prerequisite::{
 };
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/4";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/5";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/9";
+const COMPILER: &str = "auths.gateway-effect-compiler/10";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -769,12 +769,7 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
             if !bound.matches_installation(&wire.recipe, &wire.connection) {
                 return Err(EffectBindingError::Invalid);
             }
-            let expected = match wire.protocol {
-                Protocol::Mutation { .. } => bound.reservations(Unit::MutationCount, 1)?,
-                // Information-flow compilation joins this same contract in its
-                // own complete source batch; it may never fall back unscoped.
-                _ => return Err(EffectBindingError::Unsupported),
-            };
+            let expected = wire.scope.reservations(&wire.protocol)?;
             let actual: Vec<_> = wire
                 .reservations
                 .iter()
@@ -792,7 +787,10 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     for reservation in &wire.reservations {
         let key = (reservation.key, reservation.unit);
         if previous.is_some_and(|previous| previous >= key)
-            || reservation.ceiling == 0
+            || (reservation.ceiling == 0
+                && !(reservation.window == ReservationWindow::EngagementLifetime
+                    && reservation.unit == Unit::DisclosureBytes
+                    && reservation.amount == 0))
             || reservation.amount > reservation.ceiling
             || reservation.ceiling > MAX_SAFE_INTEGER
             || match reservation.window {
@@ -1543,6 +1541,23 @@ pub fn compile_mutation_effect(
         .map_err(|_| not_entered("gateway.effect.invalid-binding"))
 }
 
+fn bind_information_scope(
+    mut binding: EffectBinding,
+    scope: Scope,
+) -> Result<EffectBinding, GatewaySubmitResult> {
+    binding.wire.reservations.extend(
+        scope
+            .reservations(&binding.wire.protocol)
+            .map_err(|_| not_entered("gateway.engagement.binding"))?,
+    );
+    binding
+        .wire
+        .reservations
+        .sort_by_key(|entry| (entry.key, entry.unit));
+    binding.wire.scope = scope;
+    EffectBinding::new(binding.wire).map_err(|_| not_entered("gateway.engagement.binding"))
+}
+
 fn managed_reservations(
     bound: Option<&crate::bounds::BoundAdmission>,
     count_unit: Unit,
@@ -1604,26 +1619,14 @@ fn bind_mutation(
             .map_err(|_| EffectBindingError::Invalid)?,
     );
     let connection_binding = commitment("auths.effect-installation/1", &connection)?;
-    let scope = match installed.engagement {
-        None => Scope::Unscoped,
-        Some(policy) => {
-            let tree = installed.enrollment.ok_or(EffectBindingError::Invalid)?;
-            let bound = EngagementScope::compile(
-                policy,
-                tree,
-                installed.context,
-                *installed.recipe.digest(),
-                connection_binding,
-                now,
-                crate::participant_enrollment::EnrollmentInvocation { proof, action },
-            )?;
-            reservations.extend(bound.reservations(Unit::MutationCount, 1)?);
-            reservations.sort_by_key(|entry| (entry.key, entry.unit));
-            Scope::Engagement {
-                bound: Box::new(bound),
-            }
-        }
-    };
+    let scope = Scope::compile(
+        installed,
+        now,
+        crate::participant_enrollment::EnrollmentInvocation { proof, action },
+        ScopePurpose::Mutation,
+    )?;
+    reservations.extend(scope.reservations(&Protocol::Mutation { request: [0; 32] })?);
+    reservations.sort_by_key(|entry| (entry.key, entry.unit));
     let binding = EffectBinding::new(BindingWire {
         schema: EFFECT_BINDING_SCHEMA.to_owned(),
         namespace: request.namespace().as_str().to_owned(),
