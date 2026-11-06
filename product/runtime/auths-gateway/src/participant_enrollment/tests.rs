@@ -1992,7 +1992,7 @@ pub(crate) struct EffectScopeFixture {
     pub(crate) action: Submission,
     activation: Submission,
     root_resources: Vec<Submission>,
-    children: Vec<(Submission, Submission, Vec<Submission>)>,
+    children: Vec<([u8; 32], Submission, Submission, Vec<Submission>)>,
     withdrawal: Submission,
 }
 
@@ -2020,10 +2020,10 @@ impl EffectScopeFixture {
             .collect()
     }
     pub(crate) fn enrollment_evidence(&self, index: usize) -> crate::EngagementControlEvidence {
-        let (parent, child, proofs) = &self.children[index];
+        let (parent_id, parent, child, proofs) = &self.children[index];
         let resources = self.control_resources(proofs);
         crate::EngagementControlEvidence::enroll(
-            self.root.enrollment_commitment,
+            *parent_id,
             &ParticipantEnrollmentProofs {
                 parent: invocation(parent),
                 child: invocation(child),
@@ -2039,7 +2039,7 @@ impl EffectScopeFixture {
             .retained_principal_pins(principal.principal.as_str())
             .unwrap()
             .enrollment_commitment;
-        let mut fixture = Fixture::new();
+        let mut fixture = Fixture::with_depth(0x44, self.root.remaining_depth);
         fixture.pins = self.root.clone();
         let withdrawal = fixture.withdraw_as_parent(target);
         crate::EngagementControlEvidence::revoke(invocation(&withdrawal)).unwrap()
@@ -2049,7 +2049,7 @@ impl EffectScopeFixture {
         controller: &crate::EngagementConfiguration,
         target: [u8; 32],
     ) {
-        let mut fixture = Fixture::new();
+        let mut fixture = Fixture::with_depth(0x44, self.root.remaining_depth);
         fixture.pins = self.root.clone();
         let withdrawal = fixture.withdraw_as_parent(target);
         controller.revoke(&invocation(&withdrawal)).unwrap();
@@ -2059,8 +2059,19 @@ impl EffectScopeFixture {
     }
     pub(crate) fn signed_call(&self, call: &McpToolCall, actor: u8) -> Submission {
         let issuer = Signer::new(0x11);
-        let parent = Signer::new(0x22);
-        let child = Signer::new(actor);
+        let actor_signer = Signer::new(actor);
+        // Build the same native resource suffix retained by enrollment. Unknown
+        // actors deliberately get a direct proposal for negative compiler cases.
+        let path = self
+            .tree
+            .active_principal_path(actor_signer.principal.as_str(), NOW)
+            .ok();
+        let seeds: Vec<u8> = if path.as_ref().is_some_and(|path| path.len() == 3) {
+            vec![0x22, 0x44, actor]
+        } else {
+            vec![0x22, actor]
+        };
+        let signers: Vec<_> = seeds.iter().map(|seed| Signer::new(*seed)).collect();
         let tools: Vec<_> = self
             .root
             .scopes
@@ -2073,31 +2084,35 @@ impl EffectScopeFixture {
             &self.root.scopes[0].recipe_digest,
         )
         .unwrap();
-        let parent_grant = grant_for_audiences(
-            &issuer,
-            &parent,
-            call.service(),
-            &tools,
-            None,
-            1,
-            vec![audience.clone()],
-        );
+        let mut grants = Vec::new();
+        for (index, signer) in signers.iter().enumerate() {
+            let parent = if index == 0 {
+                &issuer
+            } else {
+                &signers[index - 1]
+            };
+            let previous = grants
+                .last()
+                .map(|grant: &SignedGrant| grant_id(grant.statement()).unwrap());
+            grants.push(grant_for_audiences(
+                parent,
+                signer,
+                call.service(),
+                &tools,
+                previous,
+                self.root.remaining_depth - u16::try_from(index).unwrap(),
+                vec![audience.clone()],
+            ));
+        }
         assert_eq!(
-            grant_id(parent_grant.statement()).unwrap(),
+            grant_id(grants[0].statement()).unwrap(),
             self.root.scopes[0].parent_grant
         );
-        let child_grant = grant_for_audiences(
-            &parent,
-            &child,
-            call.service(),
-            &tools,
-            Some(grant_id(parent_grant.statement()).unwrap()),
-            0,
-            vec![audience],
-        );
+        let signer_refs: Vec<_> = std::iter::once(&issuer).chain(signers.iter()).collect();
+        let grant_refs: Vec<_> = grants.iter().collect();
         chained(
-            &[&issuer, &parent, &child],
-            &[&parent_grant, &child_grant],
+            &signer_refs,
+            &grant_refs,
             call.service(),
             call.name(),
             call.arguments(),
@@ -2120,7 +2135,7 @@ impl EffectScopeFixture {
                 resources: &resources,
             })
             .unwrap();
-        for (parent, child, proofs) in &self.children {
+        for (parent_id, parent, child, proofs) in &self.children {
             let resources: Vec<_> = self
                 .root
                 .scopes
@@ -2133,7 +2148,7 @@ impl EffectScopeFixture {
                 .collect();
             controller
                 .enroll(
-                    self.root.enrollment_commitment,
+                    *parent_id,
                     &ParticipantEnrollmentProofs {
                         parent: invocation(parent),
                         child: invocation(child),
@@ -2171,10 +2186,14 @@ pub(crate) fn effect_scope_fixture_in_engagement(
     effect_scope_fixture_with_channel(recipe, connection, arguments, actor_seed, engagement, None)
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "native root and all resource/consent inputs are authored as one fixture"
-)]
+pub(crate) fn effect_scope_hierarchy_fixture(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+) -> EffectScopeFixture {
+    effect_scope_fixture_with_topology(recipe, connection, arguments, 0x55, [1; 32], None, true)
+}
+
 pub(crate) fn effect_scope_fixture_with_channel(
     recipe: &crate::CompiledRecipe,
     connection: &auths_connections::ConnectionRecord,
@@ -2183,8 +2202,33 @@ pub(crate) fn effect_scope_fixture_with_channel(
     engagement: [u8; 32],
     sibling_channel: Option<[u8; 32]>,
 ) -> EffectScopeFixture {
+    effect_scope_fixture_with_topology(
+        recipe,
+        connection,
+        arguments,
+        actor_seed,
+        engagement,
+        sibling_channel,
+        false,
+    )
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native root and full control/resource suffix for the selected test topology"
+)]
+fn effect_scope_fixture_with_topology(
+    recipe: &crate::CompiledRecipe,
+    connection: &auths_connections::ConnectionRecord,
+    arguments: &Map<String, Value>,
+    actor_seed: u8,
+    engagement: [u8; 32],
+    sibling_channel: Option<[u8; 32]>,
+    hierarchy: bool,
+) -> EffectScopeFixture {
     assert!([0x44, 0x55].contains(&actor_seed));
-    let mut fixture = Fixture::new();
+    let depth = if hierarchy { 2 } else { 1 };
+    let mut fixture = Fixture::with_depth(0x44, depth);
     fixture.pins.engagement_commitment = engagement;
     let sibling = Signer::new(0x55);
     let audience = resource_audience(
@@ -2219,7 +2263,7 @@ pub(crate) fn effect_scope_fixture_with_channel(
         service,
         &tools,
         None,
-        1,
+        depth,
         vec![audience.clone()],
     );
     fixture.child_resource = grant_for_audiences(
@@ -2228,23 +2272,45 @@ pub(crate) fn effect_scope_fixture_with_channel(
         service,
         &tools,
         Some(grant_id(fixture.parent_resource.statement()).unwrap()),
-        0,
+        depth - 1,
         vec![audience.clone()],
     );
     let sibling_control = grant(
-        &fixture.parent,
+        if hierarchy {
+            &fixture.child
+        } else {
+            &fixture.parent
+        },
         &sibling,
         PARTICIPANT_SERVICE,
         CONTROL_TOOLS,
-        Some(grant_id(fixture.parent_control.statement()).unwrap()),
+        Some(
+            grant_id(if hierarchy {
+                fixture.child_control.statement()
+            } else {
+                fixture.parent_control.statement()
+            })
+            .unwrap(),
+        ),
         0,
     );
     let sibling_resource = grant_for_audiences(
-        &fixture.parent,
+        if hierarchy {
+            &fixture.child
+        } else {
+            &fixture.parent
+        },
         &sibling,
         service,
         &tools,
-        Some(grant_id(fixture.parent_resource.statement()).unwrap()),
+        Some(
+            grant_id(if hierarchy {
+                fixture.child_resource.statement()
+            } else {
+                fixture.parent_resource.statement()
+            })
+            .unwrap(),
+        ),
         0,
         vec![audience.clone()],
     );
@@ -2261,7 +2327,7 @@ pub(crate) fn effect_scope_fixture_with_channel(
         observer.principal(),
         None,
         NOW,
-        2,
+        depth + 1,
         CompositionRequirement::new(None, 1, 1, 1).unwrap(),
         &[auths_raw_key::RAW_KEY_V1],
         &profiles,
@@ -2346,6 +2412,13 @@ pub(crate) fn effect_scope_fixture_with_channel(
                 &scope.tool,
                 &args,
             ),
+            Some(grant) if hierarchy && actor.principal == sibling.principal => chained(
+                &[&fixture.root, &fixture.parent, &fixture.child, actor],
+                &[&fixture.parent_resource, &fixture.child_resource, grant],
+                service,
+                &scope.tool,
+                &args,
+            ),
             Some(grant) => chained(
                 &[&fixture.root, &fixture.parent, actor],
                 &[&fixture.parent_resource, grant],
@@ -2391,7 +2464,16 @@ pub(crate) fn effect_scope_fixture_with_channel(
         ),
         (&sibling, &sibling_control, &sibling_resource, true),
     ] {
-        let mut descriptor = child_descriptor(child_signer, control, resource, &fixture.pins);
+        let parent_pins = if hierarchy && is_sibling {
+            tree.retained_principal_pins(fixture.child.principal.as_str())
+                .unwrap()
+        } else {
+            fixture.pins.clone()
+        };
+        let mut descriptor = child_descriptor(child_signer, control, resource, &parent_pins);
+        if hierarchy && !is_sibling {
+            descriptor.remaining_depth = 1;
+        }
         descriptor.scopes = fixture
             .pins
             .scopes
@@ -2405,10 +2487,30 @@ pub(crate) fn effect_scope_fixture_with_channel(
             descriptor.enrollment_id = "sibling".to_owned();
             descriptor.delivery_channel = "sibling-channel".to_owned();
         }
-        let parent = fixture.parent_proof(&descriptor);
+        let parent = if hierarchy && is_sibling {
+            chained(
+                &[&fixture.root, &fixture.parent, &fixture.child],
+                &[&fixture.parent_control, &fixture.child_control],
+                PARTICIPANT_SERVICE,
+                ENROLL_PARTICIPANT_TOOL,
+                json!({"enrollment":descriptor}).as_object().unwrap(),
+            )
+        } else {
+            fixture.parent_proof(&descriptor)
+        };
+        let child_signers: Vec<_> = if hierarchy && is_sibling {
+            vec![&fixture.root, &fixture.parent, &fixture.child, child_signer]
+        } else {
+            vec![&fixture.root, &fixture.parent, child_signer]
+        };
+        let child_controls: Vec<_> = if hierarchy && is_sibling {
+            vec![&fixture.parent_control, &fixture.child_control, control]
+        } else {
+            vec![&fixture.parent_control, control]
+        };
         let child = chained(
-            &[&fixture.root, &fixture.parent, child_signer],
-            &[&fixture.parent_control, control],
+            &child_signers,
+            &child_controls,
             PARTICIPANT_SERVICE,
             ACCEPT_PARTICIPANT_TOOL,
             serde_json::json!({"enrollment_commitment":descriptor.commitment().unwrap()})
@@ -2433,7 +2535,7 @@ pub(crate) fn effect_scope_fixture_with_channel(
             .collect();
         tree.enroll(
             &fixture.context,
-            fixture.pins.enrollment_commitment,
+            parent_pins.enrollment_commitment,
             NOW,
             &ParticipantEnrollmentProofs {
                 parent: invocation(&parent),
@@ -2442,30 +2544,44 @@ pub(crate) fn effect_scope_fixture_with_channel(
             },
         )
         .unwrap();
-        children.push((parent, child, proofs));
+        children.push((parent_pins.enrollment_commitment, parent, child, proofs));
     }
-    let action = chained(
-        &[
-            &fixture.root,
-            &fixture.parent,
-            if actor_seed == 0x44 {
-                &fixture.child
-            } else {
-                &sibling
-            },
-        ],
-        &[
-            &fixture.parent_resource,
-            if actor_seed == 0x44 {
-                &fixture.child_resource
-            } else {
-                &sibling_resource
-            },
-        ],
-        service,
-        tool,
-        arguments,
-    );
+    let action = if hierarchy && actor_seed == 0x55 {
+        chained(
+            &[&fixture.root, &fixture.parent, &fixture.child, &sibling],
+            &[
+                &fixture.parent_resource,
+                &fixture.child_resource,
+                &sibling_resource,
+            ],
+            service,
+            tool,
+            arguments,
+        )
+    } else {
+        chained(
+            &[
+                &fixture.root,
+                &fixture.parent,
+                if actor_seed == 0x44 {
+                    &fixture.child
+                } else {
+                    &sibling
+                },
+            ],
+            &[
+                &fixture.parent_resource,
+                if actor_seed == 0x44 {
+                    &fixture.child_resource
+                } else {
+                    &sibling_resource
+                },
+            ],
+            service,
+            tool,
+            arguments,
+        )
+    };
     let withdrawal = fixture.withdraw_as_parent(fixture.pins.enrollment_commitment);
     EffectScopeFixture {
         root: fixture.pins,

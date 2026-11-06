@@ -899,3 +899,66 @@ Both refreshed constructors passed without compile warnings.
 This closes the installed **control surface** subrequirement using the existing
 native evidence/configuration owner. The remaining full-program requirements
 listed above are unchanged; the persistent goal remains active.
+
+### Native hierarchical control and entry: next bounded batch
+
+The native scope fixture now authors either the existing siblings or a genuine
+machine→A→B chain through the same proof-building owner. Each child retains its
+actual parent commitment, and action signing follows the retained native ancestry.
+Root control/resource depth is two, A narrows to one, B to zero. Every original
+parent/acceptance/resource proof is carried unchanged through the actual engine
+and app socket. This is test authoring infrastructure, not a production alternate
+delegation mechanism or credential owner.
+
+The new hierarchy constructor refuses B before A is enrolled, enrolls A and B at
+distinct acknowledged revisions, compiles B's three-grant resource suffix, and
+obtains an exact independent human fixture approval over three ancestors. The
+existing journal claims and charges all three ancestors. Native withdrawal of A
+then wins the shared entry fence: B gets no permit, original charges stay retained,
+and retry of B's original enrollment returns its old revision without reactivation.
+Original control/audit history is replayed with independent trusted inputs.
+PostgreSQL runs the same authored schedule when configured.
+
+Required artifact constructors, after the full batch is written: new hierarchy,
+existing control, scope effect/admission, information/prerequisite/live disclosure
+(shared authoring helper changed), and semantic closure. The existing portable
+sibling corpus must remain unchanged. No constructor result is claimed yet.
+Fixed public keys, same-process Unix peers, no provider send and no installed
+binding/containment claim are explicit. The full installed journey, additional
+failure schedules and M4/formal/global/hosted requirements remain open.
+
+The complete initial hierarchy cohort passed seven of eight constructors; the
+new hierarchy reached its final replay assertion and showed that the test had
+incorrectly expected reservation reopening itself to refuse. AP074 intentionally
+permits the original Reserved handle to reopen without a fresh charge or entry
+authority. The test now checks the stronger actual boundary: after A's native
+withdrawal, both the original and reopened handles fail the fresh shared entry
+fence, retaining all three charges. No production transition was changed to
+satisfy an incorrect test expectation. The affected hierarchy/control and
+semantic-closure constructors are refreshed together after this repair.
+
+### Acknowledged native multi-hop artifacts
+
+The repaired hierarchy, existing control and semantic-closure constructors all
+passed without warnings with `loopback-provider,testkit-harness`; logs are
+`/tmp/ap073-hierarchy-final-{hierarchy,control,semantic-closure}.log`.
+The earlier complete cohort's other five scope/admission/information/prerequisite/
+live constructors passed in `/tmp/ap073-hierarchy-initial-*.log`. All prior sibling
+corpus bytes remain unchanged. The library compiled 459 cases; these filtered
+artifact constructors, not the complete suite, were executed.
+
+Static review added a cross-check that generic action authoring for B reproduces
+the genuine three-grant native hierarchy proof/action exactly. The affected
+hierarchy and semantic-closure constructors passed again without warnings in
+`/tmp/ap073-hierarchy-review-{hierarchy,semantic-closure}.log`.
+The new 1,039-byte `engagement/hierarchy.json` records three participants, three
+native resource grants, exact independent approval, three unchanged permanent
+ancestor charges, premature B refusal, parent-withdrawal denial at both original
+and reopened entry fences, original B revision 3 versus current revision 4, and
+native original-audit replay. Provider entry count is zero by construction.
+
+This adds multi-hop native runtime evidence for parts of F02/F05/F06/F11/F16. It
+does not establish private agent keys, distinct processes/UIDs, installed binding
+authoring, provider effects, actual process crashes, PostgreSQL execution or the
+full installed representative journey. Those and the other full-program gates
+remain required. No push, hosted CI observation, merge or deployment occurred.

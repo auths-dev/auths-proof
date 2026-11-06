@@ -5,7 +5,9 @@ use super::*;
 use crate::app::{
     APP_PARTICIPANT_SCHEMA, AppParticipantControl, app_session, read_frame, write_frame,
 };
-use crate::participant_enrollment::tests::{EffectScopeFixture, effect_scope_fixture};
+use crate::participant_enrollment::tests::{
+    EffectScopeFixture, effect_scope_fixture, effect_scope_hierarchy_fixture,
+};
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::{
     EngagementControlEvidence, GatewayAttemptStore, GatewayEngine, ParticipantControlOutcome,
@@ -22,16 +24,24 @@ struct Control {
     native: EffectScopeFixture,
     policy: EffectPolicy,
     clock: Arc<crate::FixedClock>,
+    qualification: Arc<crate::QualificationGate>,
 }
 impl Control {
     async fn new(backend: Backend, scoped: bool) -> Self {
+        Self::with_topology(backend, scoped, false).await
+    }
+    async fn with_topology(backend: Backend, scoped: bool, hierarchy: bool) -> Self {
         let backend = TestAttempts::open(backend);
         let store = Arc::new(FaultStore::new(backend.raw()));
         let recipe = recipe(&json!({}), &Value::Null);
         let connection = connection(&recipe);
         let arguments = json!({"operation_id":"control-check", "operator_namespace":NAMESPACE,
             "recipe_digest":recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"});
-        let native = effect_scope_fixture(&recipe, &connection, arguments.as_object().unwrap());
+        let native = if hierarchy {
+            effect_scope_hierarchy_fixture(&recipe, &connection, arguments.as_object().unwrap())
+        } else {
+            effect_scope_fixture(&recipe, &connection, arguments.as_object().unwrap())
+        };
         let policy = if scoped {
             policy(native.root.clone(), "gateway")
         } else {
@@ -69,7 +79,7 @@ impl Control {
                 attempts,
             )
             .unwrap()
-            .with_qualification(gate),
+            .with_qualification(Arc::clone(&gate)),
         );
         crate::SharedConnection::new(
             store.clone(),
@@ -93,6 +103,7 @@ impl Control {
             native,
             policy,
             clock,
+            qualification: gate,
         }
     }
     fn request(&self, evidence: EngagementControlEvidence) -> AppParticipantControl {
@@ -131,6 +142,39 @@ impl Control {
             &self.native.action.action,
         )
         .is_ok()
+    }
+    async fn validation(&self) -> crate::entry::EntryValidation {
+        let connection = crate::SharedConnection::new(
+            self.store.clone(),
+            self.connection.provider_kind().clone(),
+            self.connection.alias().clone(),
+        )
+        .load()
+        .await
+        .unwrap()
+        .unwrap();
+        crate::entry::EntryValidation::Installed(Box::new(crate::entry::InstalledEntry {
+            recipe: self.recipe.clone(),
+            trust: self.native.context.clone(),
+            observer: None,
+            policy: self.policy.clone(),
+            configuration: self.engine.shared_configuration().unwrap(),
+            engagement: Some(
+                self.engine
+                    .engagement_configuration(self.native.root.clone())
+                    .unwrap(),
+            ),
+            connection: crate::entry::EntryConnection::Installed(Box::new(connection)),
+            connection_key: crate::connection_key(
+                self.connection.provider_kind(),
+                self.connection.alias(),
+            ),
+            qualification: Arc::clone(&self.qualification),
+            workload: "gateway".into(),
+            profile: self.connection.allowed_profiles()[0].clone(),
+            started: std::time::Instant::now(),
+            commissioning: None,
+        }))
     }
 }
 async fn exchange(engine: Arc<GatewayEngine>, request: &[u8]) -> Value {
@@ -387,6 +431,199 @@ async fn native_engagement_control_fixture_is_current() {
 async fn postgres_native_engine_controls_retain_original_revision_after_withdrawal_and_lost_ack() {
     if postgres_configured() {
         cases(Backend::Postgres).await;
+    }
+}
+
+/// A real machine-root/A/B chain uses the same control and effect owners. The
+/// one claimed mutation is never sent to a provider; revocation wins its fence.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one native multi-hop enrollment, reservation, revocation and replay history"
+)]
+async fn hierarchy(backend: Backend) -> Value {
+    let setup = Control::with_topology(backend, true, true).await;
+    let native_bundle = auths_codec::decode_bundle(
+        &setup.native.action.proof,
+        &auths_model::VerifierLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(native_bundle.grants().len(), 3);
+    let call = auths_profile_mcp::McpToolCall::new(setup.recipe.service(), setup.recipe.review().tool(),
+        json!({"operation_id":"control-check", "operator_namespace":NAMESPACE,
+            "recipe_digest":setup.recipe.digest_hex(), "record_id":RECORD, "replacement":"Approved"})
+            .as_object().unwrap().clone()).unwrap();
+    let reauthored = setup.native.signed_call(&call, 0x55);
+    assert_eq!(reauthored.action, setup.native.action.action);
+    assert_eq!(reauthored.proof, setup.native.action.proof);
+    assert_eq!(
+        setup
+            .engine
+            .bootstrap_engagement(setup.native.root_evidence())
+            .await,
+        recorded(1)
+    );
+    assert!(!setup.eligible());
+    let premature = setup.send(setup.native.enrollment_evidence(1)).await;
+    assert!(matches!(
+        premature,
+        ParticipantControlOutcome::Refused { .. }
+    ));
+    assert_eq!(setup.snapshot().revision(), 1);
+    assert_eq!(
+        setup.send(setup.native.enrollment_evidence(0)).await,
+        recorded(2)
+    );
+    assert!(!setup.eligible());
+    assert_eq!(
+        setup.send(setup.native.enrollment_evidence(1)).await,
+        recorded(3)
+    );
+    assert!(setup.eligible());
+    let snapshot = setup.snapshot();
+    let installed = setup
+        .policy
+        .installation(
+            &setup.recipe,
+            &setup.native.context,
+            &setup.connection,
+            crate::QualificationPolicy::Optional,
+            setup.engine.effect_configuration_candidate().unwrap(),
+        )
+        .with_enrollment(Some(snapshot.tree()));
+    let effect = compile_mutation_effect(
+        &installed,
+        NOW,
+        &setup.native.action.proof,
+        &setup.native.action.action,
+    )
+    .unwrap();
+    let binding: Value =
+        serde_json::from_slice(&effect.binding().to_private_bytes().unwrap()).unwrap();
+    assert_eq!(
+        binding["scope"]["bound"]["ancestors"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    // Signer 29 is independent of machine 22 and agents 44/55. Its exact
+    // approval binds all three native authority ancestors and planned charges.
+    let approved = Arc::new(approve(effect));
+    assert_eq!(
+        approved.effect().binding().engagement_reservations().len(),
+        3
+    );
+    let attempts = crate::GatewayAttempts::new(setup.store.clone(), setup.policy.clone()).unwrap();
+    let claim = match attempts
+        .claim_bounded(&approved, NOW, setup.validation().await)
+        .await
+        .unwrap()
+    {
+        crate::store::BoundedClaim::Claimed(claim) => *claim,
+        _ => panic!("one native claim required"),
+    };
+    let mut rows = Vec::new();
+    for reservation in approved.effect().binding().engagement_reservations() {
+        let key = crate::store::fixture_engagement_allocation_key(&reservation.key, 0);
+        let row = setup
+            .store
+            .load(crate::GatewayRecordKind::EffectAllocation, &key)
+            .unwrap()
+            .unwrap();
+        rows.push((key, row));
+    }
+    assert_eq!(
+        setup.send(setup.native.withdrawal_evidence(0x44)).await,
+        recorded(4)
+    );
+    assert!(!setup.eligible());
+    assert!(
+        claim
+            .grant_entry(
+                Arc::clone(&approved),
+                setup.validation().await,
+                NOW,
+                &crate::GatewayPreEntry::default()
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        setup.send(setup.native.enrollment_evidence(1)).await,
+        recorded(3)
+    );
+    assert!(!setup.eligible());
+    assert_eq!(setup.snapshot().revision(), 4);
+    let reopened = match attempts
+        .claim_bounded(&approved, NOW, setup.validation().await)
+        .await
+        .unwrap()
+    {
+        crate::store::BoundedClaim::Claimed(claim) => *claim,
+        _ => panic!("reserved history reopens without an entry permit"),
+    };
+    assert!(
+        reopened
+            .grant_entry(
+                Arc::clone(&approved),
+                setup.validation().await,
+                NOW,
+                &crate::GatewayPreEntry::default()
+            )
+            .await
+            .is_err()
+    );
+    for (key, row) in &rows {
+        assert_eq!(
+            setup
+                .store
+                .load(crate::GatewayRecordKind::EffectAllocation, key)
+                .unwrap()
+                .as_ref(),
+            Some(row)
+        );
+    }
+    let (audit, head) = setup.engine.export_engagement_audit().unwrap();
+    assert_eq!(
+        audit
+            .verify(
+                &setup.native.root,
+                std::slice::from_ref(&setup.native.context),
+                &head
+            )
+            .unwrap()
+            .revision(),
+        4
+    );
+    json!({"machine_to_agents_depth":2, "participants":setup.snapshot().tree().participant_count(),
+        "native_resource_suffix_grants":3, "independent_exact_approval":true,
+        "permanent_ancestor_charges":rows.len(), "grandchild_before_parent":premature,
+        "parent_withdrawal_wins_entry":true, "reserved_history_reopens_without_entry_authority":true,
+        "grandchild_retry_revision":3, "current_revision":4,
+        "capacity_refunded":false,"provider_entries":0,"private_audit_replayed":true})
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn native_engagement_hierarchy_fixture_is_current() {
+    let file = hierarchy(Backend::File).await;
+    let document = json!({"schema":"auths.engagement-hierarchy-vectors/1",
+        "generated_by":"native_engagement_hierarchy_fixture_is_current", "file":file,
+        "claim_boundary":"actual native engine/Unix control, full authority suffix, exact independent approval, file-backed shared claim and entry fence; no provider send",
+        "not_established":["installed-process-isolation","private-agent-key-custody","provider-effect","postgres-execution","full-installed-AP073-journey"]});
+    let mut bytes = serde_json::to_vec_pretty(&document).unwrap();
+    bytes.push(b'\n');
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../bindings/fixtures/gateway/engagement/hierarchy.json");
+    if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &bytes).unwrap();
+    }
+    assert_eq!(std::fs::read(path).unwrap(), bytes);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn postgres_native_hierarchy_parent_withdrawal_denies_reserved_grandchild_entry() {
+    if postgres_configured() {
+        hierarchy(Backend::Postgres).await;
     }
 }
 
