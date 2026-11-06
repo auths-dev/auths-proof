@@ -15,6 +15,9 @@ mod candidate;
 pub use candidate::CandidatePublication;
 mod recovery;
 pub(super) use recovery::RecoveryEvidenceLink;
+#[cfg(test)]
+pub(crate) use recovery::fixture_created_history_substitutions;
+pub(super) use recovery::validate_created_history;
 pub use recovery::{
     GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition, RecoveryEscalation,
     RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts,

@@ -838,6 +838,8 @@ enum ProtocolState {
 }
 
 mod acquisition;
+#[cfg(test)]
+pub(crate) use acquisition::fixture_created_history_substitutions;
 mod capacity;
 mod disclosure;
 mod engagement;
@@ -2872,6 +2874,22 @@ impl GatewayAttempts {
             || record.operation_id != operation_id.as_str()
         {
             return Err(GatewayAttemptError::Corrupt);
+        }
+        if record.state.created_resource.is_some() {
+            let store = Arc::clone(&self.store);
+            let policy = self.policy.clone();
+            let source = record.clone();
+            let source_bytes = bytes.clone();
+            blocking(move || {
+                acquisition::validate_created_history(
+                    store.as_ref(),
+                    &policy,
+                    key,
+                    &source_bytes,
+                    &source,
+                )
+            })
+            .await?;
         }
         Ok(Some((bytes, record)))
     }

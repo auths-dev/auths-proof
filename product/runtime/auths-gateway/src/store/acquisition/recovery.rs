@@ -267,6 +267,128 @@ impl Record<AcquisitionState> {
     }
 }
 
+/// Reopens selected-resource provenance through the original native read and
+/// permanent source-lifetime allocations. Retained response projection alone
+/// cannot establish that its independently authorized acquisition still exists.
+/// This is historical validation: it neither refreshes time nor reauthorizes
+/// the original writer/reader, and it never produces an execution permit.
+pub(in crate::store) fn validate_created_history(
+    store: &dyn GatewayAttemptStore,
+    policy: &EffectPolicy,
+    source_key: GatewayAttemptKey,
+    source_bytes: &[u8],
+    source: &Record,
+) -> Result<(), GatewayAttemptError> {
+    if source.state.created_resource.is_none() {
+        return Ok(());
+    }
+    let link = source
+        .state
+        .recovery_evidence
+        .as_ref()
+        .ok_or(GatewayAttemptError::Corrupt)?;
+    link.validate(source)?;
+    let namespace =
+        OperatorNamespace::parse(&source.namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
+    let operation = LogicalOperationId::parse(&link.acquisition_operation)
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    let read_key = GatewayAttemptKey::for_operation(policy, &namespace, &operation)?;
+    let read_bytes = store
+        .load(GatewayRecordKind::Attempt, &read_key)?
+        .ok_or(GatewayAttemptError::Corrupt)?;
+    let read: Record<AcquisitionState> = decode_as(&read_bytes)?;
+    let capacity = read
+        .state
+        .plan
+        .capacity()
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    let mut keys = vec![
+        (GatewayRecordKind::Attempt, source_key),
+        (GatewayRecordKind::Attempt, read_key),
+    ];
+    for slot in 0..capacity.attempts {
+        keys.push((
+            GatewayRecordKind::EffectAllocation,
+            capacity::allocation_key(&capacity, slot),
+        ));
+    }
+    let mut inspected = false;
+    let result = store.fenced_replace(&keys, &mut |snapshots| {
+        if snapshots.len() != keys.len()
+            || snapshots[0].as_deref() != Some(source_bytes)
+            || snapshots[1].as_deref() != Some(read_bytes.as_slice())
+        {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        let AcquisitionPlan::Recovery(plan) = &read.state.plan else {
+            return Err(GatewayAttemptError::Corrupt);
+        };
+        let AcquisitionPhase::ResponseRecorded { response } = &read.state.phase else {
+            return Err(GatewayAttemptError::Corrupt);
+        };
+        let binding = read.validate_header()?;
+        let expected_link = read
+            .response_link(link.recorded_at)?
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        if !policy.contains(&binding)
+            || read.namespace != source.namespace
+            || read.operation_id != operation.as_str()
+            || plan.source_binding != source.binding_canonical
+            || !plan
+                .matches_target(&source.recovery_target_data()?)
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+            || expected_link != *link
+            || !(200..=299).contains(&response.status)
+            || !response.version_ok
+            || source
+                .state
+                .provider_evidence
+                .as_ref()
+                .is_none_or(|evidence| evidence.evidence_b64 != response.body_b64)
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        recovery_budget(&read, read_key, &capacity, &snapshots[2..])?;
+        inspected = true;
+        // The maintained adapter aborts the inspection transaction. No record
+        // is rewritten, re-signed, re-timestamped or allocated by this read.
+        Err(GatewayAttemptError::Replay)
+    });
+    match result {
+        Err(GatewayAttemptError::Replay) if inspected => Ok(()),
+        Err(error) => Err(error),
+        Ok(()) => Err(GatewayAttemptError::Corrupt),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn fixture_created_history_substitutions(
+    bytes: &[u8],
+) -> Result<Vec<(&'static str, Vec<u8>)>, GatewayAttemptError> {
+    let original: Record<AcquisitionState> = decode_as(bytes)?;
+    let mut cases = Vec::new();
+    for name in ["status", "version", "received-at", "body", "revision"] {
+        let mut read = original.clone();
+        let AcquisitionPhase::ResponseRecorded { response } = &mut read.state.phase else {
+            return Err(GatewayAttemptError::Corrupt);
+        };
+        match name {
+            "status" => response.status = 503,
+            "version" => response.version_ok = false,
+            "received-at" => response.received_at += 1,
+            "body" => response.body_b64 = Base64::encode_string(b"{\"records\":[]}"),
+            "revision" => read.revision += 1,
+            _ => return Err(GatewayAttemptError::Corrupt),
+        }
+        let bytes = encode(&read)?;
+        // Every mutation is valid native acquisition data in isolation. Only
+        // its relation to the original selected-resource source refuses it.
+        decode_as::<AcquisitionState>(&bytes)?;
+        cases.push((name, bytes));
+    }
+    Ok(cases)
+}
+
 /// Returns a proposed mutation transition, or truthful unchanged history. The
 /// request/echo/projection comes only from the retained source contract.
 fn refinement(

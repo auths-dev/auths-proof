@@ -530,7 +530,12 @@ remain required. Zero/multiple/incomplete/malformed/stale/version-mismatched
 evidence retains Unknown; no result permits a blind create retry or refund.
 
 The private source journal retains the selected identity with its original
-recovery link and provider evidence. Decoding independently reprojects those
+recovery link and provider evidence. Ordinary native mutation lookup also checks
+the original acquisition and permanent lifetime allocations under the common
+writer fence. A canonical but independently changed read (status, version,
+receipt time, response body or revision) cannot leave usable creation history.
+These are historical comparisons; they neither rewrite records nor refresh
+the original evidence. Decoding independently reprojects those
 bytes and rejects a canonical but inconsistent identity. Public results expose
 neither the selected identity, marker nor a raw private-content hash. Original
 writer withdrawal does not prevent an independently authorized current reader

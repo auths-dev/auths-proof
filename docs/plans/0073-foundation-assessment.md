@@ -1371,3 +1371,35 @@ These are artifact-construction results only. No broad local suite, PostgreSQL,
 property/formal gate, hosted qualification or CI has been run for this batch.
 No push has occurred. Dependent child scope/final-fence execution and the remaining
 M0–M4/F01–F16 work remain required; this batch cannot close the full goal.
+
+### Original acquisition provenance before dependent-scope promotion
+
+The next source review exposed a prerequisite to enabling child operations:
+mutation decoding reprojects retained bytes, but an ordinary history lookup
+did not reload the original acquisition and permanent source-lifetime rows.
+A locally consistent selected ID cannot substitute for that original native
+read. This bounded batch makes the existing mutation loader validate the source,
+original acquisition and finite allocation set under the maintained writer
+fence. Its inspection aborts without writing, refreshing timestamps, consuming
+capacity or reconstructing permits. Historical read expiry or writer withdrawal
+does not erase valid provenance; fresh consumer authority remains separate.
+
+The entire planned evidence batch extends both nine-case native matrices with
+five canonical, independently valid acquisition substitutions (status, version,
+receipt time, response bytes and revision), checks ordinary and approved-effect
+history paths, exact restoration and unchanged source/charges. Artifact schema
+becomes version 2. Required constructor regeneration covers native semantic
+closure, creation recovery and the previously affected native/process artifacts
+in one registry/count-checked cohort. Hosted PostgreSQL/general gates remain
+deferred until spec implementation completes. No result is claimed yet.
+
+The complete provenance batch constructed successfully: semantic regeneration
+executed one test, required executable construction succeeded, and all 18
+registry/count-checked constructors executed exactly once and passed. Both
+unique-selection cases checked all five independently valid acquisition
+substitutions through ordinary and approved-effect lookup, then restored exact
+bytes and checked unchanged source/ancestor charges. Version-2 creation recovery
+evidence records that count. Logs: `/tmp/ap073-created-history-results.log` and
+`/tmp/ap073-created-history-final/`. This is synthetic artifact construction;
+PostgreSQL, general/formal/hosted gates remain unrun. Native `CreatedChild`
+execution remains refused pending consumer compilation and final fencing.

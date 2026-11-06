@@ -34,6 +34,16 @@ The producer's mutable status is distinct from the selected resource identity.
 provider integrity assumptions; it does not establish exclusive causation.
 The selected ID remains private. Public recovery results retain redacted facts.
 
+Ordinary native mutation lookup also reopens the original acquisition and its
+finite permanent source-lifetime allocations under the shared writer fence.
+The read must retain its exact native effect, revision, response digest and
+receipt time, exact source contract and usable status/version; its response
+bytes must equal the source's retained evidence. Inspection aborts without
+rewriting either record. This checks historical provenance at the original
+recorded time; it does not refresh evidence or require the historical actors
+to remain currently eligible. Missing/corrupt/substituted original history
+fails closed. This is not yet the dependent consumer's final entry fence.
+
 Executable dependent scope must additionally bind the producer replay identity,
 original effect/recipe, exact parent scope, engagement/root/epoch and selected
 resource. Its native final fence must include and validate the producer and

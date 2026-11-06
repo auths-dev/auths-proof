@@ -1,5 +1,5 @@
 {
-  "schema": "auths.created-resource-recovery-vectors/1",
+  "schema": "auths.created-resource-recovery-vectors/2",
   "cases": [
     {
       "case": "Unique",
@@ -9,6 +9,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": true,
+      "original_acquisition_substitutions_refused": 5,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -20,6 +21,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -31,6 +33,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -42,6 +45,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -53,6 +57,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -64,6 +69,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -75,6 +81,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -86,6 +93,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
       "provider_calls": 0,
       "responses_are_injected": true
     },
@@ -97,6 +105,7 @@
       "public_identity_echo_and_raw_hash_absent": true,
       "no_new_claim_or_charge_on_replay": true,
       "canonical_identity_substitution_refused": true,
+      "original_acquisition_substitutions_refused": 5,
       "provider_calls": 0,
       "responses_are_injected": true
     }
