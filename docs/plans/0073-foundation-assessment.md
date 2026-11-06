@@ -2161,3 +2161,34 @@ or passing status in the specification. Rebuild/freeze only changed identities,
 publish this complete repair batch, and require all applicable hosted gates on
 that revision. Historical passing PostgreSQL and source-free Linux results do
 not substitute for final-head results; no merge or deployment is authorized.
+
+
+### Third hosted cohort: retained evidence and exact secret-scan findings
+
+At revision `12b54e9f`, repository preflight, both SDK package/runtime matrices,
+Airtable and Stripe installed demos, gateway UID isolation, dependency policy and
+configured TLS PostgreSQL qualification pass. Retrieved the Airtable evidence
+archive `13500920296` from run `42213007499`; verified its GitHub SHA-256 digest
+`99e5ac10b4d846fc90012414e5de73ee2b014e65341b41d60189fb47d339dc94`.
+Its package manifest names this exact revision. The uploaded delegation report
+is artifact/5 with all eight cases and distinct_uids=true throughout; native
+records reports six preflight refusals, zero protected preflight effects, one
+create and two native reads. The packaged owner/browser report is also bound to
+this revision. This now establishes retained hosted evidence at this head,
+including the previously failing private report handoff. Formal/authoritative/
+compliance gates are still pending; no whole-program acceptance is inferred.
+
+The full-history Gitleaks job finds four generic-api-key matches. Reproduced with
+the exact v8.28.0 Go module and a redacted JSON report, printing only file/line/
+fingerprint metadata. Three are record_key_hex in historical native enrollment
+configuration fixtures (commits `430122ac`, `065150dc`, `28ca7e82`); one is the
+operation_key_hex public replay key in the AP074 merge occurrence `68987975`.
+Inspected all matched fields and their constructors: each is a deterministic
+64-hex SHA-256 lookup identity derived from public synthetic policy/namespace/
+partition/engagement/operation inputs. None is a signing key, provider credential
+or private content. The fixture wire identities are required; preserve their
+bytes. Add only the four exact historical fingerprints with source-linked
+comments, consistent with existing reviewed public-digest entries. No path,
+regex, rule or general allowlist is added. Stage only this repair and its ledger,
+run the required exact staged-diff scan, and keep collecting any other failures
+from the current cohort before publication.
