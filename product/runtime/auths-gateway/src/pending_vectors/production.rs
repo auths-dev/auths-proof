@@ -90,6 +90,7 @@ const ROWS: &[&str] = &[
     "gateway.attempt.state-unavailable engine journal implemented 5 -",
     "gateway.connection.credential-generation-missing engine before-claim existing - C:lease-generation-not-held",
     "gateway.credential.unavailable engine recorded existing - C:lease-commitment-mismatch",
+    "gateway.engagement.created-history-unavailable engine before-custody implemented 5 -",
     "gateway.install.credential-store-unavailable install install existing - -",
     "gateway.serve.credential-store-unavailable serve serve existing - -",
 ];

@@ -252,7 +252,8 @@ pub fn compile_content_action(
 ) -> Result<BoundEffect, GatewaySubmitResult> {
     use auths_profile_api::ActionProfile as _;
     let invalid = || not_entered("gateway.acquisition.binding");
-    let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
+    let context = installed.native_context()?;
+    let sealed = crate::engine::verify_native(&context, now, proof, action)?;
     let verified = sealed.action().ok_or_else(invalid)?;
     let command = auths_profile_mcp::McpProfile
         .decode_verified(verified)

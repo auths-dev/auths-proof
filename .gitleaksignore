@@ -125,3 +125,15 @@ e2d10a74fa0be5e6bfe2b9f698632c835cd7b11b:demos/google-employee-delegation/eviden
 # Historical rebase of the reviewed public Git base revision in the
 # independent AP070 demo lock file; not a credential.
 e2d10a74fa0be5e6bfe2b9f698632c835cd7b11b:demos/google-employee-delegation/versions.lock.json:generic-api-key:4
+
+# AP073 native enrollment configuration fixtures: deterministic public record
+# lookup digests, not credentials. configuration/engagement.rs::key_for_root
+# hashes the synthetic namespace, partition and engagement commitment; the
+# fixture constructor emits those required bytes as record_key_hex.
+430122acfccb96d7ca7f99c84a20c42f72107ac0:bindings/fixtures/gateway/engagement/configuration.json:generic-api-key:1
+065150dcf9589a6c2338125263c0d238a4ca2af9:bindings/fixtures/gateway/engagement/configuration.json:generic-api-key:1
+28ca7e823dea36538e85cb4d4e013d6dea6938c3:bindings/fixtures/gateway/engagement/configuration.json:generic-api-key:1
+# AP074 merge occurrence of the native effect fixture's public operation key.
+# effect_native_tests.rs derives operation_key_hex with GatewayAttemptKey's
+# policy/namespace/operation replay-key constructor; no secret is an input.
+68987975ac2bea6879c944b2ef6c5300702406ca:bindings/fixtures/gateway/effect-binding.json:generic-api-key:400

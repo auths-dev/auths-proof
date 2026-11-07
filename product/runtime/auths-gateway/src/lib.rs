@@ -21,12 +21,23 @@ pub use engine::{
     GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
 };
 mod configuration;
+pub use configuration::{
+    EngagementAudit, EngagementAuditCheckpoint, EngagementConfiguration,
+    EngagementConfigurationError, EngagementConfigurationSnapshot, EngagementControlEvidence,
+    MAX_ENGAGEMENT_CONTROL_BYTES,
+};
 mod connection;
+mod control_namespace;
 mod credential_journal;
 mod echo_verify;
 pub mod effect;
 mod engine;
 mod entry;
+mod participant_control;
+pub use participant_control::ParticipantControlOutcome;
+/// Bounded installation envelope: the complete native effect policy plus the
+/// existing fixed manifest metadata allowance. Readers/writers share this bound.
+pub const MAX_GATEWAY_INSTALLATION_BYTES: usize = effect::MAX_EFFECT_POLICY_BYTES + 4096;
 mod execution_witness;
 pub use execution_witness::GatewayExecutionWitness;
 #[cfg(unix)]
@@ -39,10 +50,12 @@ pub mod listener;
 mod observer;
 mod onboarding;
 mod operator;
+pub mod participant_enrollment;
 mod pre_entry;
 mod qualification;
 mod readiness;
 pub mod recipe;
+mod resource_identity;
 mod semantic_closure;
 mod separation;
 mod store;
@@ -158,6 +171,9 @@ pub use transport::MAX_TRANSPORT_DURATION;
 
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_process_tests;
+
+#[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
+mod native_cross_recipe_tests;
 
 #[cfg(all(test, unix, feature = "loopback-provider", feature = "testkit-harness"))]
 mod native_crash_tests;

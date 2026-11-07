@@ -262,6 +262,8 @@ pub(super) struct ObservationSource {
     pub(super) json_pointer: String,
     pub(super) expected_field: String,
     pub(super) maximum_response_bytes: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) created_resource: Option<super::created_resource::Selection>,
 }
 
 /// Where the compiler places the echo token: a new key of a fixed JSON

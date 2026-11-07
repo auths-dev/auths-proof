@@ -18,6 +18,11 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroizing;
 
+mod lineage;
+pub(crate) use lineage::CreatedLineage;
+mod engagement;
+pub use engagement::EngagementPolicy;
+use engagement::{EngagementScope, ScopePurpose};
 mod authority;
 pub(crate) use authority::NativeAuthority;
 mod acquisition;
@@ -60,12 +65,12 @@ pub(crate) use prerequisite::{
 };
 
 /// Only accepted effect binding schema. Old disposable state is rejected.
-pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/3";
+pub const EFFECT_BINDING_SCHEMA: &str = "auths.bound-effect/7";
 /// Maximum private canonical binding or compiler projection bytes.
 pub const MAX_EFFECT_BYTES: usize = 65_536;
 /// Maximum reservations in one effect, preserving the gateway counter bound.
 pub const MAX_EFFECT_RESERVATIONS: usize = 34;
-const COMPILER: &str = "auths.gateway-effect-compiler/8";
+const COMPILER: &str = "auths.gateway-effect-compiler/12";
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const APPROVAL_SCHEMA: &str = "auths.exact-effect-approval/1";
 /// Maximum encoded exact human approval, checked before decoding.
@@ -78,7 +83,7 @@ pub const MAX_PRIVATE_EFFECT_REVIEW_BYTES: usize = 131_072;
 /// Native full-value, non-markup private review renderer.
 pub const LITERAL_REVIEW_RENDERER: &str = "auths.literal-complete-review/1";
 /// Maximum canonical operator effect policy, checked before decoding.
-pub const MAX_EFFECT_POLICY_BYTES: usize = 4_096;
+pub const MAX_EFFECT_POLICY_BYTES: usize = 65_536;
 
 /// Operator-installed replay partition and human approval authority. This is
 /// configuration, never authority supplied by an application submission.
@@ -89,6 +94,7 @@ pub struct EffectPolicy {
     partition: String,
     epoch: u64,
     approver: [u8; 32],
+    engagement: Option<EngagementPolicy>,
 }
 
 impl fmt::Debug for EffectPolicy {
@@ -104,15 +110,7 @@ impl EffectPolicy {
         operation: &LogicalOperationId,
     ) -> Result<[u8; 32], EffectBindingError> {
         self.validate()?;
-        commitment(
-            "auths.effect-replay-key/1",
-            &canonical(&(
-                namespace.as_str(),
-                &self.partition,
-                self.epoch,
-                operation.as_str(),
-            ))?,
-        )
+        replay_key(namespace, &self.partition, self.epoch, operation)
     }
 
     pub(crate) fn configuration_key(
@@ -128,6 +126,14 @@ impl EffectPolicy {
 
     pub(crate) const fn epoch(&self) -> u64 {
         self.epoch
+    }
+
+    /// Whether two policies use the same admission partition. A policy update
+    /// must retain this namespace so review/activation cannot switch to a fresh
+    /// configuration row and forget permanent admission or revocation history.
+    #[must_use]
+    pub fn same_admission_partition(&self, other: &Self) -> bool {
+        self.partition == other.partition
     }
 
     pub(crate) fn contains(&self, binding: &EffectBinding) -> bool {
@@ -147,17 +153,18 @@ impl EffectPolicy {
         approver: [u8; 32],
     ) -> Result<Self, EffectBindingError> {
         let policy = Self {
-            schema: "auths.effect-policy/1".to_owned(),
+            schema: "auths.effect-policy/2".to_owned(),
             partition,
             epoch,
             approver,
+            engagement: None,
         };
         policy.validate()?;
         Ok(policy)
     }
 
     pub(crate) fn validate(&self) -> Result<(), EffectBindingError> {
-        if self.schema != "auths.effect-policy/1" {
+        if self.schema != "auths.effect-policy/2" {
             return Err(EffectBindingError::Unsupported);
         }
         if !label(&self.partition)
@@ -166,10 +173,34 @@ impl EffectPolicy {
         {
             return Err(EffectBindingError::Invalid);
         }
+        if let Some(policy) = &self.engagement {
+            policy.validate()?;
+        }
         Ok(())
     }
 
-    /// Reads a canonical operator policy, with a 4 KiB limit before decoding.
+    /// Binds this policy to one independently commissioned engagement and
+    /// executor. Applications cannot select or remove this installation input.
+    ///
+    /// # Errors
+    /// Refuses invalid root pins, workload, or policy representation bounds.
+    pub fn with_engagement(
+        mut self,
+        engagement: EngagementPolicy,
+    ) -> Result<Self, EffectBindingError> {
+        engagement.validate()?;
+        self.engagement = Some(engagement);
+        if self.to_private_bytes()?.len() > MAX_EFFECT_POLICY_BYTES {
+            return Err(EffectBindingError::Invalid);
+        }
+        Ok(self)
+    }
+
+    pub(crate) fn engagement(&self) -> Option<&EngagementPolicy> {
+        self.engagement.as_ref()
+    }
+
+    /// Reads a canonical operator policy, with a 64 KiB limit before decoding.
     ///
     /// # Errors
     /// Refuses obsolete, malformed, noncanonical or oversized policy files.
@@ -212,6 +243,9 @@ impl EffectPolicy {
             qualification,
             configuration,
             approver: self.approver,
+            engagement: self.engagement.as_ref(),
+            enrollment: None,
+            lineages: &[],
         }
     }
 }
@@ -294,6 +328,9 @@ fn approve_driver_with_plan(
     binding.wire.protocol = Protocol::Mutation {
         request: request_commitment(&command.request, &prerequisites).map_err(|_| invalid())?,
     };
+    binding.wire.prerequisite_budgets = prerequisites
+        .budgets(&binding.wire.scope)
+        .map_err(|_| invalid())?;
     binding = EffectBinding::new(binding.wire).map_err(|_| invalid())?;
     let effect = BoundEffect {
         authority: command.native_authority.clone(),
@@ -306,6 +343,8 @@ fn approve_driver_with_plan(
         connection,
         proof: Zeroizing::new(Vec::new()),
         action: Zeroizing::new(Vec::new()),
+        enrollment: None,
+        lineages: Vec::new(),
     };
     if let Some(approval) = approval {
         return effect
@@ -361,6 +400,7 @@ pub(crate) fn store_binding_fixture(
             approver: policy.approver,
         },
         reservations: Vec::new(),
+        prerequisite_budgets: Vec::new(),
         protocol: Protocol::Mutation {
             request: request_commitment(request, &Prerequisites::oracle_empty())?,
         },
@@ -421,18 +461,29 @@ pub enum EffectBindingError {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum Scope {
     Unscoped,
-    Task { commitment: [u8; 32] },
+    Engagement { bound: Box<EngagementScope> },
 }
 
 #[derive(Clone, Copy, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum Unit {
+pub(crate) enum Unit {
     MutationCount,
     MutationSum,
     AcquisitionCount,
     ResponseBytes,
     DisclosureCount,
     DisclosureBytes,
+}
+
+/// Immutable typed declaration used by the common journal allocation owner.
+/// It is derived from a validated binding, never an independent policy input.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct EngagementReservation {
+    pub(crate) key: [u8; 32],
+    pub(crate) unit: Unit,
+    pub(crate) amount: u64,
+    pub(crate) ceiling: u64,
 }
 
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
@@ -445,11 +496,23 @@ struct Reservation {
     window: ReservationWindow,
 }
 
+/// One compiler-owned read in the approved parent request. Every actual child
+/// reserves these typed ancestor read units once under its own journal key;
+/// they never substitute for or repeat the parent's mutation/read charge.
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PrerequisiteBudget {
+    index: u8,
+    maximum_response_bytes: u64,
+    reservations: Vec<EngagementReservation>,
+}
+
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum ReservationWindow {
     Fixed { index: u64, seconds: u64 },
     SourceLifetime,
+    EngagementLifetime,
 }
 
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
@@ -499,6 +562,7 @@ struct BindingWire {
     configuration: [u8; 32],
     approval_policy: ApprovalPolicy,
     reservations: Vec<Reservation>,
+    prerequisite_budgets: Vec<PrerequisiteBudget>,
     protocol: Protocol,
 }
 
@@ -515,6 +579,21 @@ impl fmt::Debug for EffectBinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("EffectBinding { private: [redacted] }")
     }
+}
+
+pub(crate) fn replay_key(
+    namespace: &OperatorNamespace,
+    partition: &str,
+    epoch: u64,
+    operation: &LogicalOperationId,
+) -> Result<[u8; 32], EffectBindingError> {
+    if !label(partition) || !(1..=MAX_SAFE_INTEGER).contains(&epoch) {
+        return Err(EffectBindingError::Invalid);
+    }
+    commitment(
+        "auths.effect-replay-key/1",
+        &canonical(&(namespace.as_str(), partition, epoch, operation.as_str()))?,
+    )
 }
 
 pub(crate) fn commitment(domain: &str, bytes: &[u8]) -> Result<[u8; 32], EffectBindingError> {
@@ -589,6 +668,64 @@ impl EffectBinding {
         matches!(&self.wire.protocol, Protocol::Disclosure { channel: expected, .. } if expected == channel)
     }
 
+    pub(crate) fn engagement_reservations(&self) -> Vec<EngagementReservation> {
+        self.wire
+            .reservations
+            .iter()
+            .filter(|entry| entry.window == ReservationWindow::EngagementLifetime)
+            .map(|entry| EngagementReservation {
+                key: entry.key,
+                unit: entry.unit,
+                amount: entry.amount,
+                ceiling: entry.ceiling,
+            })
+            .collect()
+    }
+
+    pub(crate) fn prerequisite_engagement_reservations(
+        &self,
+        index: u8,
+        maximum_response_bytes: u64,
+    ) -> Result<Vec<EngagementReservation>, EffectBindingError> {
+        let budget = self
+            .wire
+            .prerequisite_budgets
+            .get(usize::from(index))
+            .filter(|budget| {
+                budget.index == index && budget.maximum_response_bytes == maximum_response_bytes
+            })
+            .ok_or(EffectBindingError::Invalid)?;
+        Ok(budget.reservations.clone())
+    }
+
+    pub(crate) fn matches_engagement_declarations(&self, actual: &[EngagementReservation]) -> bool {
+        self.engagement_reservations() == actual
+            || self
+                .wire
+                .prerequisite_budgets
+                .iter()
+                .any(|budget| budget.reservations == actual)
+    }
+
+    pub(crate) fn replay_partition(&self) -> (&str, u64) {
+        (&self.wire.partition, self.wire.epoch)
+    }
+    pub(crate) fn created_lineage(&self) -> Option<&CreatedLineage> {
+        self.wire.scope.created_lineage()
+    }
+    pub(crate) fn creation_parent(
+        &self,
+    ) -> Result<
+        (
+            [u8; 32],
+            [u8; 32],
+            u64,
+            crate::participant_enrollment::EnrollmentScopePins,
+        ),
+        EffectBindingError,
+    > {
+        self.wire.scope.creation_parent()
+    }
     pub(crate) fn is_mutation(&self) -> bool {
         matches!(self.wire.protocol, Protocol::Mutation { .. })
     }
@@ -692,14 +829,28 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
         return Err(EffectBindingError::Invalid);
     }
     let ApprovalPolicy::Exact { approver } = wire.approval_policy;
+    if let Some(lineage) = wire.scope.created_lineage() {
+        let namespace =
+            OperatorNamespace::parse(&wire.namespace).map_err(|_| EffectBindingError::Invalid)?;
+        let operation =
+            LogicalOperationId::parse(&wire.operation).map_err(|_| EffectBindingError::Invalid)?;
+        let key = replay_key(&namespace, &wire.partition, wire.epoch, &operation)?;
+        if key == lineage.producer_key || key == lineage.acquisition_key {
+            return Err(EffectBindingError::Invalid);
+        }
+    }
     if VerifyingKey::from_bytes(&approver).map_or(true, |key| key.is_weak()) {
         return Err(EffectBindingError::Invalid);
     }
+    validate_scope(wire, &approver)?;
     let mut previous = None;
     for reservation in &wire.reservations {
         let key = (reservation.key, reservation.unit);
         if previous.is_some_and(|previous| previous >= key)
-            || reservation.ceiling == 0
+            || (reservation.ceiling == 0
+                && !(reservation.window == ReservationWindow::EngagementLifetime
+                    && reservation.unit == Unit::DisclosureBytes
+                    && reservation.amount == 0))
             || reservation.amount > reservation.ceiling
             || reservation.ceiling > MAX_SAFE_INTEGER
             || match reservation.window {
@@ -708,6 +859,9 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
                 }
                 ReservationWindow::SourceLifetime => {
                     matches!(wire.protocol, Protocol::Mutation { .. })
+                }
+                ReservationWindow::EngagementLifetime => {
+                    !matches!(wire.scope, Scope::Engagement { .. })
                 }
             }
         {
@@ -759,6 +913,57 @@ fn validate(wire: &BindingWire) -> Result<(), EffectBindingError> {
     Ok(())
 }
 
+fn validate_scope(wire: &BindingWire, approver: &[u8; 32]) -> Result<(), EffectBindingError> {
+    match &wire.scope {
+        Scope::Unscoped => {
+            if wire
+                .reservations
+                .iter()
+                .any(|r| r.window == ReservationWindow::EngagementLifetime)
+            {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+        Scope::Engagement { bound } => {
+            bound.validate()?;
+            bound.independent_approver(approver)?;
+            if !bound.matches_installation(&wire.recipe, &wire.connection) {
+                return Err(EffectBindingError::Invalid);
+            }
+            let expected = wire.scope.reservations(&wire.protocol)?;
+            let actual: Vec<_> = wire
+                .reservations
+                .iter()
+                .filter(|r| r.window == ReservationWindow::EngagementLifetime)
+                .cloned()
+                .collect();
+            let mut expected = expected;
+            expected.sort_by_key(|entry| (entry.key, entry.unit));
+            if actual != expected {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+    }
+    if wire.prerequisite_budgets.len() > prerequisite::MAX_PREREQUISITES
+        || (matches!(wire.protocol, Protocol::Disclosure { .. })
+            && !wire.prerequisite_budgets.is_empty())
+    {
+        return Err(EffectBindingError::Invalid);
+    }
+    if !wire.prerequisite_budgets.is_empty() {
+        let expected = wire.scope.prerequisite_reservations()?;
+        for (index, budget) in wire.prerequisite_budgets.iter().enumerate() {
+            if usize::from(budget.index) != index
+                || !(1..=65_536).contains(&budget.maximum_response_bytes)
+                || budget.reservations != expected
+            {
+                return Err(EffectBindingError::Invalid);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Closed protocol-specific compiler output. None of these alternatives is transport
 /// authority, and a mutation-only admission path must refuse an acquisition.
 enum CompiledEffect {
@@ -783,6 +988,8 @@ pub struct BoundEffect {
     connection: ConnectionRecord,
     proof: Zeroizing<Vec<u8>>,
     action: Zeroizing<Vec<u8>>,
+    enrollment: Option<crate::participant_enrollment::EnrollmentTree>,
+    lineages: Vec<CreatedLineage>,
 }
 
 /// Human review produced entirely by native code from the sealed effect.
@@ -1288,6 +1495,13 @@ impl ApprovedEffect {
     pub(crate) fn connection(&self) -> &ConnectionRecord {
         &self.effect.connection
     }
+    pub(crate) fn lineages(&self) -> &[CreatedLineage] {
+        &self.effect.lineages
+    }
+    pub(crate) fn enrollment(&self) -> Option<&crate::participant_enrollment::EnrollmentTree> {
+        self.effect.enrollment.as_ref()
+    }
+
     /// Immutable effect reviewed by the approver.
     #[must_use]
     pub const fn effect(&self) -> &BoundEffect {
@@ -1386,6 +1600,46 @@ pub struct EffectInstallation<'a> {
     pub configuration: [u8; 32],
     /// Exact human approver key pinned independently by installation policy.
     pub approver: [u8; 32],
+    /// Independently installed scope requirement; never supplied by an app.
+    pub engagement: Option<&'a EngagementPolicy>,
+    /// Protected enrollment data, reloaded again under the final entry fence.
+    pub enrollment: Option<&'a crate::participant_enrollment::EnrollmentTree>,
+    /// Protected creation projections, never accepted from application frames.
+    pub(crate) lineages: &'a [CreatedLineage],
+}
+
+impl<'a> EffectInstallation<'a> {
+    pub(crate) fn with_lineages(mut self, lineages: &'a [CreatedLineage]) -> Self {
+        self.lineages = lineages;
+        self
+    }
+    pub(crate) fn with_enrollment(
+        mut self,
+        tree: Option<&'a crate::participant_enrollment::EnrollmentTree>,
+    ) -> Self {
+        self.enrollment = tree;
+        self
+    }
+    pub(crate) fn native_context(&self) -> Result<TrustedContext, GatewaySubmitResult> {
+        match self.engagement {
+            None => Ok(self.context.clone()),
+            Some(policy) => {
+                let audience = crate::participant_enrollment::resource_audience(
+                    &policy.root().engagement_commitment,
+                    policy.root().partition_generation,
+                    &self.recipe.digest_hex(),
+                )
+                .map_err(|_| not_entered("gateway.engagement.installation"))?;
+                self.context
+                    .for_request(
+                        audience,
+                        self.context.expected_challenge(),
+                        self.context.evaluation_time(),
+                    )
+                    .map_err(|_| not_entered("gateway.engagement.installation"))
+            }
+        }
+    }
 }
 
 /// Verifies natively and compiles one mutation into an immutable bound effect.
@@ -1402,9 +1656,31 @@ pub fn compile_mutation_effect(
 ) -> Result<BoundEffect, GatewaySubmitResult> {
     GatewayConnectionDescriptor::from_record(installed.connection, installed.recipe)
         .map_err(|_| not_entered("gateway.effect.installation"))?;
-    let command = verify_detailed(installed.recipe, installed.context, now, proof, action)?;
-    bind_mutation(installed, command, proof, action)
+    let context = installed.native_context()?;
+    let command = verify_detailed(installed.recipe, &context, now, proof, action)?;
+    bind_mutation(installed, command, now, proof, action)
         .map_err(|_| not_entered("gateway.effect.invalid-binding"))
+}
+
+fn bind_information_scope(
+    mut binding: EffectBinding,
+    scope: Scope,
+    prerequisites: &Prerequisites,
+) -> Result<EffectBinding, GatewaySubmitResult> {
+    binding.wire.reservations.extend(
+        scope
+            .reservations(&binding.wire.protocol)
+            .map_err(|_| not_entered("gateway.engagement.binding"))?,
+    );
+    binding
+        .wire
+        .reservations
+        .sort_by_key(|entry| (entry.key, entry.unit));
+    binding.wire.prerequisite_budgets = prerequisites
+        .budgets(&scope)
+        .map_err(|_| not_entered("gateway.engagement.binding"))?;
+    binding.wire.scope = scope;
+    EffectBinding::new(binding.wire).map_err(|_| not_entered("gateway.engagement.binding"))
 }
 
 fn managed_reservations(
@@ -1446,6 +1722,7 @@ fn managed_reservations(
 fn bind_mutation(
     installed: &EffectInstallation<'_>,
     command: VerifiedCommand,
+    now: u64,
     proof: &[u8],
     action: &[u8],
 ) -> Result<BoundEffect, EffectBindingError> {
@@ -1455,7 +1732,7 @@ fn bind_mutation(
         &command,
         *installed.connection.account_commitment(),
     )?;
-    let reservations = managed_reservations(
+    let mut reservations = managed_reservations(
         command.bound.as_ref(),
         Unit::MutationCount,
         Unit::MutationSum,
@@ -1466,6 +1743,16 @@ fn bind_mutation(
             .to_canonical_cbor()
             .map_err(|_| EffectBindingError::Invalid)?,
     );
+    let connection_binding = commitment("auths.effect-installation/1", &connection)?;
+    let scope = Scope::compile(
+        installed,
+        now,
+        crate::participant_enrollment::EnrollmentInvocation { proof, action },
+        ScopePurpose::Mutation,
+    )?;
+    reservations.extend(scope.reservations(&Protocol::Mutation { request: [0; 32] })?);
+    reservations.sort_by_key(|entry| (entry.key, entry.unit));
+    let prerequisite_budgets = prerequisites.budgets(&scope)?;
     let binding = EffectBinding::new(BindingWire {
         schema: EFFECT_BINDING_SCHEMA.to_owned(),
         namespace: request.namespace().as_str().to_owned(),
@@ -1474,10 +1761,10 @@ fn bind_mutation(
         operation: request.operation_id().as_str().to_owned(),
         action: *request.action_commitment(),
         native_authority: command.native_authority.commitment(),
-        scope: Scope::Unscoped,
+        scope,
         recipe: *installed.recipe.digest(),
         compiler: COMPILER.to_owned(),
-        connection: commitment("auths.effect-installation/1", &connection)?,
+        connection: connection_binding,
         credential_generation: installed.connection.credential_generation().get(),
         qualification_policy: installed.qualification.as_str().to_owned(),
         configuration: installed.configuration,
@@ -1485,6 +1772,7 @@ fn bind_mutation(
             approver: installed.approver,
         },
         reservations,
+        prerequisite_budgets,
         protocol: Protocol::Mutation {
             request: request_commitment(request, &prerequisites)?,
         },
@@ -1505,6 +1793,8 @@ fn bind_mutation(
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
+        enrollment: installed.enrollment.cloned(),
+        lineages: installed.lineages.to_vec(),
     };
     #[cfg(unix)]
     effect
@@ -1637,6 +1927,7 @@ mod tests {
                     seconds: 60,
                 },
             }],
+            prerequisite_budgets: Vec::new(),
             protocol: Protocol::Mutation { request: [6; 32] },
         }
     }
@@ -1697,9 +1988,7 @@ mod tests {
                 0 => changed.action[0] ^= 1,
                 1 => changed.native_authority[0] ^= 1,
                 2 => {
-                    changed.scope = Scope::Task {
-                        commitment: [7; 32],
-                    }
+                    changed.configuration[0] ^= 1;
                 }
                 3 => changed.recipe[0] ^= 1,
                 4 => changed.connection[0] ^= 1,

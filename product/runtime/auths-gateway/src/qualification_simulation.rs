@@ -522,8 +522,14 @@ async fn stripe_qualification_simulation() {
             read_back_url: family.read_back_url(),
             read_backs: AtomicUsize::new(0),
         };
-        let mut measured =
-            lifecycle(family, &provider, &recording, &mut store, mode != "respond").await;
+        let mut measured = Box::pin(lifecycle(
+            family,
+            &provider,
+            &recording,
+            &mut store,
+            mode != "respond",
+        ))
+        .await;
         assert_eq!(provider.inner.writes(), 1);
         for case in &mut measured {
             case.case = format!("{mode}/{}", case.case);
@@ -564,13 +570,13 @@ async fn airtable_qualification_simulation() {
             read_back_url: family.read_back_url(),
             read_backs: AtomicUsize::new(0),
         };
-        let mut measured = lifecycle(
+        let mut measured = Box::pin(lifecycle(
             family,
             &provider,
             &recording,
             &mut store,
             label != "respond",
-        )
+        ))
         .await;
         assert_eq!(provider.inner.writes(), 1);
         for case in &mut measured {

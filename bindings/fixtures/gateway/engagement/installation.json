@@ -1,0 +1,21 @@
+{
+  "schema": "auths.engagement-installation-vectors/1",
+  "generated_by": "native_engagement_installation_fixture_is_current",
+  "scope": "actual CLI installation, native connection/root authoring, candidate review, shared CAS, local manifest publication and interrupted-publication recovery; no enrollment/provider/language/UID claim",
+  "read_only_review": true,
+  "actual_connection_pins": true,
+  "changed_candidate_refused": true,
+  "stale_revision_refused": true,
+  "partition_reset_refused": true,
+  "concurrent_winners": 1,
+  "ack_before_manifest_requires_fresh_review": true,
+  "provider_observation": "not-exercised",
+  "not_established": [
+    "native-root-activation",
+    "installed-multi-agent-journey",
+    "process-kill-during-activation",
+    "power-loss",
+    "production-custody",
+    "postgres-execution"
+  ]
+}

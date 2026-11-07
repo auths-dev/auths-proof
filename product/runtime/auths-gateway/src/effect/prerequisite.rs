@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
 
 /// Account, four denied-capability reads, pre-entry and relative ceiling.
-const MAX_PREREQUISITES: usize = 7;
+pub(super) const MAX_PREREQUISITES: usize = 7;
 const MAX_RESPONSE_BYTES: usize = 65_536;
 pub(crate) const MAX_PREREQUISITE_EVIDENCE_AGE_SECONDS: u64 = 30;
 
@@ -107,6 +107,31 @@ impl Serialize for ClosedPrerequisiteRead {
 }
 
 impl Prerequisites {
+    pub(super) fn budgets(
+        &self,
+        scope: &super::Scope,
+    ) -> Result<Vec<super::PrerequisiteBudget>, EffectBindingError> {
+        if self.0.is_empty() {
+            return Ok(Vec::new());
+        }
+        let reservations = scope.prerequisite_reservations()?;
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(index, read)| {
+                let maximum = match &read.request {
+                    ClosedPrerequisiteRead::Credential(read) => read.maximum_response_bytes(),
+                    ClosedPrerequisiteRead::Action(read) => read.maximum_response_bytes(),
+                };
+                Ok(super::PrerequisiteBudget {
+                    index: u8::try_from(index).map_err(|_| EffectBindingError::Invalid)?,
+                    maximum_response_bytes: u64::try_from(maximum)
+                        .map_err(|_| EffectBindingError::Invalid)?,
+                    reservations: reservations.clone(),
+                })
+            })
+            .collect()
+    }
     /// Disclosure reads only retained evidence and never leases a credential.
     pub(super) const fn disclosure() -> Self {
         Self(Vec::new())
@@ -412,6 +437,10 @@ impl PrerequisitePlan {
         {
             return Err(EffectBindingError::Invalid);
         }
+        source.prerequisite_engagement_reservations(
+            self.index,
+            declaration.request.maximum_response_bytes,
+        )?;
         Ok(declaration)
     }
 
@@ -434,6 +463,17 @@ impl PrerequisitePlan {
             maximum_bytes: declaration.request.maximum_response_bytes,
             attempts: 1,
         })
+    }
+
+    pub(crate) fn engagement_reservations(
+        &self,
+        effect: &super::EffectBinding,
+    ) -> Result<Vec<super::EngagementReservation>, EffectBindingError> {
+        self.validate(effect)?;
+        effect.prerequisite_engagement_reservations(
+            self.index,
+            self.declaration()?.request.maximum_response_bytes,
+        )
     }
 
     pub(crate) fn validate(

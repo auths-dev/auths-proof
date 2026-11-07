@@ -406,6 +406,20 @@ export class GatewayClient {
     return this.#exchange(payload, "outcome may be unknown", parseResult);
   }
 
+  /** Carries native canonical enrollment/withdrawal evidence unchanged. Rust
+   * alone owns identity, native verification and durable publication. A recorded
+   * revision is history, not current authority or a permit. Lost replies allow
+   * exact evidence replay, never fresh capacity or an external-effect retry.
+   * Root bootstrap remains operator-only. */
+  async participantControl(evidence: Uint8Array): Promise<Uint8Array> {
+    if (!(evidence instanceof Uint8Array) || evidence.length < 1 || evidence.length > 6 * 1024 * 1024 - 1024) {
+      throw new TypeError("evidence must be 1-6290432 native canonical bytes");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({ schema: "auths.gateway-participant-control/1",
+      evidence_b64: encodeBase64Url(evidence) }));
+    return this.#exchange(payload, "participant control persistence may be unknown", (bytes) => bytes);
+  }
+
   /** Returns bounded native recovery-report/refusal JSON unchanged. The separately
    * approved read uses native admission and accounting. No provider content is
    * disclosed. A lost response never authorizes a retry. */

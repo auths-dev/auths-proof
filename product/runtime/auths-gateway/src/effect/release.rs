@@ -42,7 +42,7 @@ impl DisclosureTarget {
     /// This neither authenticates a recipient nor reuses source read authority.
     ///
     /// # Errors
-    /// Refuses a weak/invalid recipient key or unsupported source scope.
+    /// Refuses a weak/invalid recipient key or oversized retained content.
     pub fn new(
         content: crate::RetainedContent,
         recipient_key: [u8; 32],
@@ -51,7 +51,7 @@ impl DisclosureTarget {
     ) -> Result<Self, EffectBindingError> {
         let key =
             VerifyingKey::from_bytes(&recipient_key).map_err(|_| EffectBindingError::Invalid)?;
-        if key.is_weak() || content.bytes > 65_536 || content.source.wire.scope != Scope::Unscoped {
+        if key.is_weak() || content.bytes > 65_536 {
             return Err(EffectBindingError::Invalid);
         }
         let recipient = RawKeyDescriptor::new(RawKeyType::Ed25519, recipient_key.to_vec())
@@ -214,7 +214,8 @@ pub fn compile_disclosure(
     target
         .validate_installation(installed)
         .map_err(|_| invalid())?;
-    let sealed = crate::engine::verify_native(installed.context, now, proof, action)?;
+    let context = installed.native_context()?;
+    let sealed = crate::engine::verify_native(&context, now, proof, action)?;
     let verified = sealed.action().ok_or_else(invalid)?;
     let command = McpProfile
         .decode_verified(verified)
@@ -242,7 +243,7 @@ pub fn compile_disclosure(
     let action_commitment =
         commitment("auths.canonical-action.v1", &canonical_action).map_err(|_| invalid())?;
     let authority =
-        NativeAuthority::verified(sealed.portable(), installed.context).map_err(|_| invalid())?;
+        NativeAuthority::verified(sealed.portable(), &context).map_err(|_| invalid())?;
     let mut reservations = target.reservations().map_err(|_| invalid())?;
     reservations.extend(managed_reservations(
         bound.as_ref(),
@@ -258,6 +259,18 @@ pub fn compile_disclosure(
         target.protocol(),
         reservations,
     )?;
+    let scope = Scope::compile(
+        installed,
+        now,
+        crate::participant_enrollment::EnrollmentInvocation { proof, action },
+        super::ScopePurpose::Disclosure {
+            source: &target.content.source,
+            recipient: &target.recipient,
+            channel: target.channel,
+        },
+    )
+    .map_err(|_| invalid())?;
+    let binding = super::bind_information_scope(binding, scope, &Prerequisites::disclosure())?;
     let effect = BoundEffect {
         authority,
         review: json!({"contract": CONTRACT, "disclosure": target.contract(),
@@ -277,6 +290,8 @@ pub fn compile_disclosure(
         connection: installed.connection.clone(),
         proof: Zeroizing::new(proof.to_vec()),
         action: Zeroizing::new(action.to_vec()),
+        enrollment: installed.enrollment.cloned(),
+        lineages: installed.lineages.to_vec(),
     };
     #[cfg(unix)]
     effect
@@ -356,8 +371,7 @@ impl DisclosurePlan {
             || source.wire.epoch != effect.wire.epoch
             || source.wire.recipe != effect.wire.recipe
             || source.wire.credential_generation != effect.wire.credential_generation
-            || source.wire.scope != Scope::Unscoped
-            || effect.wire.scope != Scope::Unscoped
+            || !source.wire.scope.same_flow(&effect.wire.scope)
             || source.wire.connection != effect.wire.connection
             || source.wire.operation == effect.wire.operation
             || effect.wire.protocol

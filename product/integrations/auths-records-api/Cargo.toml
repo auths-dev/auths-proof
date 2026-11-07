@@ -9,7 +9,20 @@ description = "Transport-neutral, bounded Auths authorization for a typed record
 repository.workspace = true
 homepage.workspace = true
 
+[features]
+# Fixed/public and external-signature authoring for reference demos/conformance.
+# Default production builds contain neither fixture issuance nor demo keys.
+testkit = ["dep:auths-author", "dep:auths-codec", "dep:auths-ports", "dep:auths-raw-key", "dep:auths-registries", "dep:auths-runtime", "dep:auths-signature", "dep:auths-stores"]
+
 [dependencies]
+auths-author = { workspace = true, optional = true }
+auths-codec = { workspace = true, optional = true }
+auths-ports = { workspace = true, optional = true }
+auths-raw-key = { workspace = true, optional = true }
+auths-registries = { workspace = true, optional = true }
+auths-runtime = { workspace = true, optional = true }
+auths-signature = { workspace = true, optional = true }
+auths-stores = { workspace = true, optional = true }
 auths-bounded-policy.workspace = true
 auths-lifecycle.workspace = true
 auths-model.workspace = true

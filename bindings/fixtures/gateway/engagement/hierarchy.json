@@ -1,0 +1,30 @@
+{
+  "schema": "auths.engagement-hierarchy-vectors/1",
+  "generated_by": "native_engagement_hierarchy_fixture_is_current",
+  "file": {
+    "machine_to_agents_depth": 2,
+    "participants": 3,
+    "native_resource_suffix_grants": 3,
+    "independent_exact_approval": true,
+    "permanent_ancestor_charges": 3,
+    "grandchild_before_parent": {
+      "kind": "refused",
+      "code": "gateway.engagement.native-refused"
+    },
+    "parent_withdrawal_wins_entry": true,
+    "reserved_history_reopens_without_entry_authority": true,
+    "grandchild_retry_revision": 3,
+    "current_revision": 4,
+    "capacity_refunded": false,
+    "provider_entries": 0,
+    "private_audit_replayed": true
+  },
+  "claim_boundary": "actual native engine/Unix control, full authority suffix, exact independent approval, file-backed shared claim and entry fence; no provider send",
+  "not_established": [
+    "installed-process-isolation",
+    "private-agent-key-custody",
+    "provider-effect",
+    "postgres-execution",
+    "full-installed-AP073-journey"
+  ]
+}

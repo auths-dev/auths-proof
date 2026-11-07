@@ -84,6 +84,8 @@ pub(super) struct EngineControls {
     pub(super) trust: Option<Vec<u8>>,
     /// Explicit public synthetic credential for a recipe's real prefix guard.
     pub(super) credential: Option<&'static [u8]>,
+    /// Independent connection identity for cross-recipe adapter tests.
+    pub(super) connection: Option<ConnectionRecord>,
 }
 impl EngineControls {
     pub(super) fn baseline() -> Self {
@@ -93,6 +95,7 @@ impl EngineControls {
             recipe: None,
             trust: None,
             credential: None,
+            connection: None,
         }
     }
 }
@@ -130,7 +133,9 @@ pub(super) async fn load_controlled_engine_at_generation(
 ) -> (GatewayEngine, ConnectionRecord) {
     let recipe = controls.recipe.unwrap_or_else(recipe);
     let trust = controls.trust.unwrap_or_else(|| trust(&recipe));
-    let initial = crate::harness::fixture_connection(&recipe).expect("connection template");
+    let initial = controls.connection.unwrap_or_else(|| {
+        crate::harness::fixture_connection(&recipe).expect("connection template")
+    });
     let credentials = Arc::new(
         PersistentCredentialStore::open(setup.root.join(format!("custody-{label}.cbor")))
             .expect("custody"),

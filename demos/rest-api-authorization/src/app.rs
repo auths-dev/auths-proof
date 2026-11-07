@@ -10,8 +10,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use auths_bounded_policy::{CommitmentDigest, UnitId};
-use auths_lifecycle::{StoreError, WorkflowId};
 use auths_proof_exchange_iroh::{IrohChannelConfig, IrohClientChannel, IrohServerChannel};
 use auths_proof_exchange_model::{
     AUTHS_PROTOCOL_V1, ActionChallenge, ActionResponse, ActionSubmission, ChallengeNonce,
@@ -21,17 +19,16 @@ use auths_proof_exchange_model::{
 use auths_proof_exchange_port::{
     ClientProofChannel as _, ProofExchangeService, ServiceError, serve_one,
 };
+use auths_records_api::testkit::PersistentRecordsLifecycleRegistry as DemoRecordsLifecycleRegistry;
 use auths_records_api::{
     BoundedRecordApiPolicyV1, CREATE_OPERATION, CreateRecordProfile, CreateRecordV1,
     CustomerRecordV1, DeliveryAdapter, DeliveryReceipt, PersistentRecordsLedger,
     PresentationClaimsV1, READ_OPERATION, ReadField, ReadRecordProfile, ReadRecordV1,
     ReceiptBundle, RecordIdentifier, RecordsActionV1, RecordsApiVerifierConfigurationV1,
-    RecordsExecutionRequest, RecordsLedger, RecordsLifecycleRegistry, RecordsLifecycleStore,
-    RecordsPresentationV1, RecordsRequestEnvelopeV1, RecordsService, RecordsWorkflowOutcome,
-    SdkRecordsProofVerifier, demo_configuration,
+    RecordsExecutionRequest, RecordsLedger, RecordsPresentationV1, RecordsRequestEnvelopeV1,
+    RecordsService, RecordsWorkflowOutcome, SdkRecordsProofVerifier, demo_configuration,
 };
 use auths_sdk::{RequestContext, Verifier};
-use auths_stores::{LifecycleCapacityRuleV1, PersistentLifecycleStore};
 use axum::{
     Json, Router,
     body::Body,
@@ -183,91 +180,6 @@ pub enum StartupError {
     State,
 }
 
-struct DemoRecordsLifecycleStore {
-    inner: PersistentLifecycleStore,
-}
-
-impl auths_lifecycle::LifecycleStore for DemoRecordsLifecycleStore {
-    fn transact(
-        &self,
-        transaction: &auths_lifecycle::StoreTransactionV1,
-    ) -> Result<auths_lifecycle::StoredTransitionV1, StoreError> {
-        auths_lifecycle::LifecycleStore::transact(&self.inner, transaction)
-    }
-}
-
-impl RecordsLifecycleStore for DemoRecordsLifecycleStore {
-    fn load_records_lifecycle(
-        &self,
-        workflow: &WorkflowId,
-    ) -> Result<Option<auths_lifecycle::LifecycleRecordV1>, StoreError> {
-        self.inner.load(workflow)
-    }
-}
-
-struct DemoRecordsLifecycleRegistry {
-    directory: PathBuf,
-    stores: Mutex<HashMap<String, Arc<DemoRecordsLifecycleStore>>>,
-}
-
-impl DemoRecordsLifecycleRegistry {
-    fn new(directory: PathBuf) -> Self {
-        Self {
-            directory,
-            stores: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-impl RecordsLifecycleRegistry for DemoRecordsLifecycleRegistry {
-    fn for_policy(
-        &self,
-        policy: &BoundedRecordApiPolicyV1,
-    ) -> Result<Arc<dyn RecordsLifecycleStore>, StoreError> {
-        let policy_digest = policy.digest().map_err(|_| StoreError::Corrupt)?;
-        let scope_bytes: [u8; 32] = hex::decode(&policy_digest)
-            .map_err(|_| StoreError::Corrupt)?
-            .try_into()
-            .map_err(|_| StoreError::Corrupt)?;
-        let scope = CommitmentDigest::new(scope_bytes);
-        let mut stores = self.stores.lock().map_err(|_| StoreError::Unavailable)?;
-        if let Some(store) = stores.get(&policy_digest) {
-            let concrete = Arc::clone(store);
-            let store: Arc<dyn RecordsLifecycleStore> = concrete;
-            return Ok(store);
-        }
-        let store = Arc::new(DemoRecordsLifecycleStore {
-            inner: PersistentLifecycleStore::open(
-                self.directory.join(format!("{policy_digest}.lifecycle")),
-                vec![
-                    LifecycleCapacityRuleV1::Additive {
-                        scope_digest: scope,
-                        window_digest: None,
-                        unit: UnitId::parse("create-unit").map_err(|_| StoreError::Corrupt)?,
-                        ceiling: u64::from(policy.maximum_creates),
-                    },
-                    LifecycleCapacityRuleV1::Additive {
-                        scope_digest: scope,
-                        window_digest: None,
-                        unit: UnitId::parse("created-bytes").map_err(|_| StoreError::Corrupt)?,
-                        ceiling: policy.maximum_created_bytes,
-                    },
-                    LifecycleCapacityRuleV1::Additive {
-                        scope_digest: scope,
-                        window_digest: None,
-                        unit: UnitId::parse("read-unit").map_err(|_| StoreError::Corrupt)?,
-                        ceiling: u64::from(policy.maximum_reads),
-                    },
-                ],
-                4096,
-            )
-            .map_err(|_| StoreError::Corrupt)?,
-        });
-        stores.insert(policy_digest, Arc::clone(&store));
-        Ok(store)
-    }
-}
-
 /// Builds the HTTPS application with its persistent records ledger.
 ///
 /// # Errors
@@ -409,10 +321,8 @@ async fn create_session(
             .map_err(|_| ApiError::bad_request("invalid generated namespace"))?;
         (presenter, namespace, None, None)
     };
-    let presenter_principal = format!(
-        "key:ed25519:{}",
-        hex::encode(presenter.verifying_key().to_bytes())
-    );
+    let presenter_principal =
+        RecordsPresentationV1::signer_principal(&presenter.verifying_key().to_bytes());
     let record_id = RecordIdentifier::parse(input.record_id.unwrap_or_else(|| {
         if input.experiment == "exact-read" {
             source_record.as_ref().map_or_else(

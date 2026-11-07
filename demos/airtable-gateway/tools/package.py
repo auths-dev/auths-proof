@@ -12,7 +12,7 @@ import tarfile
 
 def main():
     parser = argparse.ArgumentParser()
-    for name in ['gateway', 'simulation-gateway', 'wheel', 'npm', 'compiled-client', 'output']:
+    for name in ['gateway', 'simulation-gateway', 'delegation-journey', 'wheel', 'npm', 'compiled-client', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--commit', required=True)
     args = parser.parse_args()
@@ -36,6 +36,7 @@ def main():
         files['reference/' + name] = ((repository / 'qualification/reference' / name).read_bytes(), 0o644)
     files['bin/auths-gateway'] = (args.gateway.read_bytes(), 0o755)
     files['bin/auths-gateway-simulation'] = (args.simulation_gateway.read_bytes(), 0o755)
+    files['bin/auths-ap073-journey'] = (args.delegation_journey.read_bytes(), 0o755)
     files['submit.mjs'] = (args.compiled_client.read_bytes(), 0o644)
     for path in [args.wheel, args.npm]:
         files['artifacts/' + path.name] = (path.read_bytes(), 0o644)

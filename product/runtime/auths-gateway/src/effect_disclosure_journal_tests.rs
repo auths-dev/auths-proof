@@ -123,6 +123,7 @@ pub(super) async fn corpus(
             observer: None,
             policy: policy.clone(),
             configuration: configuration.clone(),
+            engagement: None,
             connection: crate::entry::EntryConnection::Installed(Box::new(loaded.clone())),
             connection_key: crate::connection_key(connection.provider_kind(), connection.alias()),
             qualification,

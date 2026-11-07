@@ -8,7 +8,8 @@
     "auths.gateway-content/1",
     "auths.gateway-disclose/1",
     "auths.gateway-content-history/1",
-    "auths.gateway-disclosure-acknowledge/1"
+    "auths.gateway-disclosure-acknowledge/1",
+    "auths.gateway-participant-control/1"
   ],
   "operator_commands": [
     "disable",
@@ -674,6 +675,11 @@
       "command": "effect-configuration-activate",
       "arguments": [
         {
+          "name": "effect_policy",
+          "long": "effect-policy",
+          "required": false
+        },
+        {
           "name": "expected_candidate",
           "long": "expected-candidate",
           "required": true
@@ -698,6 +704,11 @@
     {
       "command": "effect-configuration-review",
       "arguments": [
+        {
+          "name": "effect_policy",
+          "long": "effect-policy",
+          "required": false
+        },
         {
           "name": "help",
           "long": "help",
@@ -777,6 +788,11 @@
           "name": "approver_public_key",
           "long": "approver-public-key",
           "required": true
+        },
+        {
+          "name": "engagement_root",
+          "long": "engagement-root",
+          "required": false
         },
         {
           "name": "epoch",
@@ -902,6 +918,101 @@
           "name": "state_dir",
           "long": "state-dir",
           "required": true
+        }
+      ]
+    },
+    {
+      "command": "engagement-audit-export",
+      "arguments": [
+        {
+          "name": "checkpoint",
+          "long": "checkpoint",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "out",
+          "long": "out",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "engagement-audit-verify",
+      "arguments": [
+        {
+          "name": "bundle",
+          "long": "bundle",
+          "required": true
+        },
+        {
+          "name": "checkpoint",
+          "long": "checkpoint",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "root",
+          "long": "root",
+          "required": true
+        },
+        {
+          "name": "trusted_context",
+          "long": "trusted-context",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "engagement-bootstrap",
+      "arguments": [
+        {
+          "name": "evidence",
+          "long": "evidence",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "engagement-root",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "pins",
+          "long": "pins",
+          "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": false
         }
       ]
     },
@@ -1205,6 +1316,56 @@
         {
           "name": "verification_method",
           "long": "verification-method",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "participant-commitment",
+      "arguments": [
+        {
+          "name": "enrollment",
+          "long": "enrollment",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "participant-control",
+      "arguments": [
+        {
+          "name": "app_socket",
+          "long": "app-socket",
+          "required": true
+        },
+        {
+          "name": "evidence",
+          "long": "evidence",
+          "required": true
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "participant-evidence",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "input",
+          "long": "input",
           "required": true
         }
       ]

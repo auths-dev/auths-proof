@@ -1146,7 +1146,8 @@ function webauthnControl(
     { kind: "controller-state-current-at", observedAt: BigInt(record.observed_at) },
     { kind: "revocation-checked-at", observedAt: BigInt(record.observed_at) },
   ];
-  if ((flags & 4) !== 0) claims.push({ kind: "user-verified", observedAt: evaluationTime });
+  // The signed UV flag does not contain a trusted ceremony timestamp.
+  if ((flags & 4) !== 0) claims.push({ kind: "user-verified" });
   if (record.attestation_level) {
     claims.push({ kind: "hardware-attested", observedAt: BigInt(record.observed_at) });
   }

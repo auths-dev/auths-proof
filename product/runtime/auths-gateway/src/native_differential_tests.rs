@@ -295,6 +295,7 @@ fn response_cases(family: Family, request: &crate::ClosedProviderRequest) -> Vec
         .map(|(name, raw)| {
             let native = match observation.read_back(Some(echo), raw.as_bytes()) {
                 Some(ReadBack::EchoMatched) => "echo-linked",
+                Some(ReadBack::CreatedResource(_)) => "created-resource-projection",
                 Some(ReadBack::EchoMismatch) => "echo-mismatch",
                 Some(ReadBack::Value { matched: true }) => "state-match",
                 Some(ReadBack::Value { matched: false }) => "state-mismatch",

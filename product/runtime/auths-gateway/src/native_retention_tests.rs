@@ -79,7 +79,7 @@ async fn replay(
 ) -> Value {
     let acquisition = replay_content(engine, input, acquired).await;
     match disclosure {
-        Some(history) => replay_release(engine, history).await,
+        Some(history) => Box::pin(replay_release(engine, history)).await,
         None => acquisition,
     }
 }

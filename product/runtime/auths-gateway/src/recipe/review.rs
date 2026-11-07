@@ -323,6 +323,7 @@ impl CompiledRecipe {
             "write_is_conditional": false,
         });
         document["provider_headers"] = self.provider_headers_review();
+        self.created_resource_review(&mut document);
         document["credential_guard"] = self.guard_review();
         if let Some(content) = &source.content {
             document["content_acquisition"] = json!({
@@ -384,6 +385,19 @@ impl CompiledRecipe {
             }))})
         });
         document
+    }
+
+    fn created_resource_review(&self, document: &mut Value) {
+        if let Some(selection) = self
+            .source
+            .observation
+            .as_ref()
+            .and_then(|observation| observation.created_resource.as_ref())
+        {
+            document["created_resource_selection"] = json!({"declaration":selection,
+                "authority":"private provider projection; independent current recovery authority, exact approval and native journal evidence required; this declaration grants no dependent-child permission",
+                "assumptions":"provider completeness, marker integrity, account isolation and identifier lifetime require explicit deployment/qualification evidence; no absence, refund or retry proof"});
+        }
     }
 
     fn provider_headers_review(&self) -> Value {

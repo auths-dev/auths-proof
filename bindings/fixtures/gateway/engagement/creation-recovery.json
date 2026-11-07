@@ -1,0 +1,207 @@
+{
+  "schema": "auths.created-resource-recovery-vectors/3",
+  "cases": [
+    {
+      "case": "Unique",
+      "private_identity_recorded": true,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": true,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": true,
+      "original_acquisition_substitutions_refused": 5,
+      "consumer": {
+        "selected": true,
+        "lineage_mutations_refused": [
+          "root",
+          "engagement",
+          "authority-epoch",
+          "namespace",
+          "partition",
+          "epoch",
+          "operation",
+          "recipe",
+          "parent-scope",
+          "connection",
+          "resource",
+          "producer-key",
+          "acquisition-key",
+          "allocation-key",
+          "producer-effect",
+          "acquisition-effect",
+          "producer-revision",
+          "acquisition-revision"
+        ],
+        "stale_original_read_refused_at_final_fence": true,
+        "native_child_acquisition_entered_once_after_exact_restoration": true,
+        "child_disclosure_reserved_without_delivery_permit": true,
+        "responses_are_injected": true,
+        "provider_calls": 0
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Zero",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Multiple",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Incomplete",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "WrongParent",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Malformed",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "VersionMismatch",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "Stale",
+      "private_identity_recorded": false,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": false,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": false,
+      "original_acquisition_substitutions_refused": 0,
+      "consumer": {
+        "selected": false,
+        "consumer_refused": true
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    },
+    {
+      "case": "WriterWithdrawn",
+      "private_identity_recorded": true,
+      "source_response_status": null,
+      "original_source_and_recovery_link_retained": true,
+      "public_identity_echo_and_raw_hash_absent": true,
+      "no_new_claim_or_charge_on_replay": true,
+      "canonical_identity_substitution_refused": true,
+      "original_acquisition_substitutions_refused": 5,
+      "consumer": {
+        "selected": true,
+        "lineage_mutations_refused": [
+          "root",
+          "engagement",
+          "authority-epoch",
+          "namespace",
+          "partition",
+          "epoch",
+          "operation",
+          "recipe",
+          "parent-scope",
+          "connection",
+          "resource",
+          "producer-key",
+          "acquisition-key",
+          "allocation-key",
+          "producer-effect",
+          "acquisition-effect",
+          "producer-revision",
+          "acquisition-revision"
+        ],
+        "stale_original_read_refused_at_final_fence": true,
+        "native_child_acquisition_entered_once_after_exact_restoration": true,
+        "child_disclosure_reserved_without_delivery_permit": true,
+        "responses_are_injected": true,
+        "provider_calls": 0
+      },
+      "provider_calls": 0,
+      "responses_are_injected": true
+    }
+  ],
+  "compiler_refusal_matrix_checked": true,
+  "scope": "native entered source, separately authorized/approved current read and real file source/read/allocation fence with injected response facts",
+  "not_established": [
+    "actual-provider-create",
+    "TLS-postgres",
+    "real-provider-dependent-child-entry",
+    "installed-key-isolation",
+    "human-presence",
+    "full-F10"
+  ]
+}

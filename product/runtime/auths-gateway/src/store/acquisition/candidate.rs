@@ -128,7 +128,8 @@ impl GatewayAttempts {
                     capacity::allocation_key(&capacity, slot),
                 ),
             ];
-            let native_indices = append_dependencies(&mut keys, &validation.dependencies());
+            let native_indices =
+                append_dependencies(&mut keys, &validation.dependencies(&approved));
             let native_end = keys.len();
             let prerequisites = approved
                 .prerequisite_plans()

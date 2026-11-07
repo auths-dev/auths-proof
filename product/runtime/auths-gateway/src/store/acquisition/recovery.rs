@@ -267,6 +267,339 @@ impl Record<AcquisitionState> {
     }
 }
 
+/// Reopens selected-resource provenance through the original native read and
+/// permanent source-lifetime allocations. Retained response projection alone
+/// cannot establish that its independently authorized acquisition still exists.
+/// This is historical validation: it neither refreshes time nor reauthorizes
+/// the original writer/reader, and it never produces an execution permit.
+pub(in crate::store) fn validate_created_history(
+    store: &dyn GatewayAttemptStore,
+    policy: &EffectPolicy,
+    source_key: GatewayAttemptKey,
+    source_bytes: &[u8],
+    source: &Record,
+) -> Result<(), GatewayAttemptError> {
+    if source.state.created_resource.is_none() {
+        return Ok(());
+    }
+    let link = source
+        .state
+        .recovery_evidence
+        .as_ref()
+        .ok_or(GatewayAttemptError::Corrupt)?;
+    link.validate(source)?;
+    let namespace =
+        OperatorNamespace::parse(&source.namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
+    let operation = LogicalOperationId::parse(&link.acquisition_operation)
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    let read_key = GatewayAttemptKey::for_operation(policy, &namespace, &operation)?;
+    let read_bytes = store
+        .load(GatewayRecordKind::Attempt, &read_key)?
+        .ok_or(GatewayAttemptError::Corrupt)?;
+    let read: Record<AcquisitionState> = decode_as(&read_bytes)?;
+    let capacity = read
+        .state
+        .plan
+        .capacity()
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    let mut keys = vec![
+        (GatewayRecordKind::Attempt, source_key),
+        (GatewayRecordKind::Attempt, read_key),
+    ];
+    for slot in 0..capacity.attempts {
+        keys.push((
+            GatewayRecordKind::EffectAllocation,
+            capacity::allocation_key(&capacity, slot),
+        ));
+    }
+    let mut inspected = false;
+    let result = store.fenced_replace(&keys, &mut |snapshots| {
+        if snapshots.len() != keys.len()
+            || snapshots[0].as_deref() != Some(source_bytes)
+            || snapshots[1].as_deref() != Some(read_bytes.as_slice())
+        {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        let slot = read.state.allocation.ok_or(GatewayAttemptError::Corrupt)?;
+        check_created_history_relation(
+            source,
+            &read,
+            read_key,
+            snapshots
+                .get(2 + usize::try_from(slot).map_err(|_| GatewayAttemptError::Corrupt)?)
+                .and_then(Option::as_deref)
+                .ok_or(GatewayAttemptError::Corrupt)?,
+        )?;
+        recovery_budget(&read, read_key, &capacity, &snapshots[2..])?;
+        inspected = true;
+        // The maintained adapter aborts the inspection transaction. No record
+        // is rewritten, re-signed, re-timestamped or allocated by this read.
+        Err(GatewayAttemptError::Replay)
+    });
+    match result {
+        Err(GatewayAttemptError::Replay) if inspected => Ok(()),
+        Err(error) => Err(error),
+        Ok(()) => Err(GatewayAttemptError::Corrupt),
+    }
+}
+
+/// Pure relation shared by history lookup and the consumer's native entry fence.
+/// It uses the original recorded-at time and accepts no newly supplied evidence.
+fn check_created_history_relation(
+    source: &Record,
+    read: &Record<AcquisitionState>,
+    read_key: GatewayAttemptKey,
+    row: &[u8],
+) -> Result<(), GatewayAttemptError> {
+    source.snapshot(true)?;
+    read.snapshot()?;
+    let link = source
+        .state
+        .recovery_evidence
+        .as_ref()
+        .ok_or(GatewayAttemptError::Corrupt)?;
+    link.validate(source)?;
+    let AcquisitionPlan::Recovery(plan) = &read.state.plan else {
+        return Err(GatewayAttemptError::Corrupt);
+    };
+    let AcquisitionPhase::ResponseRecorded { response } = &read.state.phase else {
+        return Err(GatewayAttemptError::Corrupt);
+    };
+    let binding = read.validate_header()?;
+    let (partition, epoch) = binding.replay_partition();
+    let namespace =
+        OperatorNamespace::parse(&read.namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
+    let operation =
+        LogicalOperationId::parse(&read.operation_id).map_err(|_| GatewayAttemptError::Corrupt)?;
+    let slot = read.state.allocation.ok_or(GatewayAttemptError::Corrupt)?;
+    if source.state.created_resource.is_none()
+        || source.state.stage != GatewayAttemptStage::ObservedByProvider
+        || GatewayAttemptKey::for_context(&namespace, partition, epoch, &operation)? != read_key
+        || read.namespace != source.namespace
+        || read.operation_id != link.acquisition_operation
+        || plan.source_binding != source.binding_canonical
+        || !plan
+            .matches_target(&source.recovery_target_data()?)
+            .map_err(|_| GatewayAttemptError::Corrupt)?
+        || read.response_link(link.recorded_at)?.as_ref() != Some(link)
+        || !(200..=299).contains(&response.status)
+        || !response.version_ok
+        || source
+            .state
+            .provider_evidence
+            .as_ref()
+            .is_none_or(|evidence| evidence.evidence_b64 != response.body_b64)
+        || row != canonical(&allocation(&read.state.plan, read_key, slot)?)?.as_slice()
+    {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    Ok(())
+}
+
+pub(in crate::store) fn created_lineage_from_records(
+    source_key: GatewayAttemptKey,
+    read_key: GatewayAttemptKey,
+    source: &Record,
+    read: &Record<AcquisitionState>,
+    row: &[u8],
+) -> Result<crate::effect::CreatedLineage, GatewayAttemptError> {
+    check_created_history_relation(source, read, read_key, row)?;
+    let source_binding = source.validate_header()?;
+    let (root, engagement, authority_epoch, scope) = source_binding
+        .creation_parent()
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    let (partition, epoch) = source_binding.replay_partition();
+    let namespace =
+        OperatorNamespace::parse(&source.namespace).map_err(|_| GatewayAttemptError::Corrupt)?;
+    let operation = LogicalOperationId::parse(&source.operation_id)
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    if GatewayAttemptKey::for_context(&namespace, partition, epoch, &operation)? != source_key {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    let read_binding = read.validate_header()?;
+    let slot = read.state.allocation.ok_or(GatewayAttemptError::Corrupt)?;
+    let capacity = read
+        .state
+        .plan
+        .capacity()
+        .map_err(|_| GatewayAttemptError::Corrupt)?;
+    let value = crate::effect::CreatedLineage {
+        schema: "auths.created-resource-lineage/1".into(),
+        producer_namespace: source.namespace.clone(),
+        producer_partition: partition.into(),
+        producer_epoch: epoch,
+        producer_operation: source.operation_id.clone(),
+        producer_recipe: source.recipe_digest.clone(),
+        parent_scope: crate::participant_enrollment::creation_parent_scope_commitment(&scope)
+            .map_err(|_| GatewayAttemptError::Corrupt)?,
+        connection: scope.connection_binding,
+        root,
+        engagement,
+        authority_epoch,
+        producer_key: *source_key.as_bytes(),
+        producer_effect: *source_binding.id().as_bytes(),
+        producer_revision: source.revision,
+        acquisition_key: *read_key.as_bytes(),
+        acquisition_effect: *read_binding.id().as_bytes(),
+        acquisition_revision: read.revision,
+        allocation_key: *capacity::allocation_key(&capacity, slot).as_bytes(),
+        resource: source
+            .state
+            .created_resource
+            .clone()
+            .ok_or(GatewayAttemptError::Corrupt)?,
+    };
+    value.validate().map_err(|_| GatewayAttemptError::Corrupt)?;
+    Ok(value)
+}
+
+/// Exactly the original producer, native read and charged lifetime row, loaded
+/// by the caller under its final admission/entry fence. No nested store I/O.
+pub(crate) fn revalidate_created_lineage(
+    expected: &crate::effect::CreatedLineage,
+    snapshots: &[Option<Vec<u8>>],
+) -> Result<(), GatewayAttemptError> {
+    if snapshots.len() != 3 {
+        return Err(GatewayAttemptError::Corrupt);
+    }
+    let source = decode(
+        snapshots[0]
+            .as_deref()
+            .ok_or(GatewayAttemptError::Corrupt)?,
+    )?;
+    let read = decode_as(
+        snapshots[1]
+            .as_deref()
+            .ok_or(GatewayAttemptError::Corrupt)?,
+    )?;
+    let actual = created_lineage_from_records(
+        GatewayAttemptKey::from_bytes(expected.producer_key),
+        GatewayAttemptKey::from_bytes(expected.acquisition_key),
+        &source,
+        &read,
+        snapshots[2]
+            .as_deref()
+            .ok_or(GatewayAttemptError::Corrupt)?,
+    )?;
+    if actual != *expected {
+        return Err(GatewayAttemptError::BindingConflict);
+    }
+    Ok(())
+}
+
+impl GatewayAttempts {
+    /// Protects missing producers by omitting their projection; unrelated exact
+    /// scopes remain compilable. Only a matching complete native history can
+    /// satisfy a pending scope, and entry must reload its dependencies.
+    pub(crate) async fn created_lineages(
+        &self,
+        root: Option<&crate::participant_enrollment::ParentEnrollmentPins>,
+    ) -> Result<Vec<crate::effect::CreatedLineage>, GatewayAttemptError> {
+        use crate::participant_enrollment::EnrollmentResourceBinding;
+        let Some(root) = root else {
+            return Ok(Vec::new());
+        };
+        let mut results = Vec::new();
+        for scope in &root.scopes {
+            let EnrollmentResourceBinding::CreatedChild {
+                create_namespace,
+                create_partition,
+                create_epoch,
+                create_operation_id,
+                ..
+            } = &scope.resource
+            else {
+                continue;
+            };
+            if results.iter().any(|value: &crate::effect::CreatedLineage| {
+                value.matches_resource(&scope.resource)
+            }) {
+                continue;
+            }
+            let policy = EffectPolicy::new(
+                create_partition.clone(),
+                *create_epoch,
+                *self.policy.approver(),
+            )
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+            let attempts = GatewayAttempts::new(Arc::clone(&self.store), policy)?;
+            let namespace = OperatorNamespace::parse(create_namespace)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            let operation = LogicalOperationId::parse(create_operation_id)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            let Some((_, source)) = attempts.load(&namespace, &operation).await? else {
+                continue;
+            };
+            if source.state.created_resource.is_none() {
+                continue;
+            }
+            let source_key = attempts.key(&namespace, &operation)?;
+            let link = source
+                .state
+                .recovery_evidence
+                .as_ref()
+                .ok_or(GatewayAttemptError::Corrupt)?;
+            let read_operation = LogicalOperationId::parse(&link.acquisition_operation)
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            let read_key = attempts.key(&namespace, &read_operation)?;
+            let store = Arc::clone(&self.store);
+            let lineage = blocking(move || {
+                let read_bytes = store
+                    .load(GatewayRecordKind::Attempt, &read_key)?
+                    .ok_or(GatewayAttemptError::Corrupt)?;
+                let read: Record<AcquisitionState> = decode_as(&read_bytes)?;
+                let slot = read.state.allocation.ok_or(GatewayAttemptError::Corrupt)?;
+                let capacity = read
+                    .state
+                    .plan
+                    .capacity()
+                    .map_err(|_| GatewayAttemptError::Corrupt)?;
+                let row = store
+                    .load(
+                        GatewayRecordKind::EffectAllocation,
+                        &capacity::allocation_key(&capacity, slot),
+                    )?
+                    .ok_or(GatewayAttemptError::Corrupt)?;
+                created_lineage_from_records(source_key, read_key, &source, &read, &row)
+            })
+            .await?;
+            if !lineage.admits(root, scope) {
+                return Err(GatewayAttemptError::BindingConflict);
+            }
+            results.push(lineage);
+        }
+        Ok(results)
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn fixture_created_history_substitutions(
+    bytes: &[u8],
+) -> Result<Vec<(&'static str, Vec<u8>)>, GatewayAttemptError> {
+    let original: Record<AcquisitionState> = decode_as(bytes)?;
+    let mut cases = Vec::new();
+    for name in ["status", "version", "received-at", "body", "revision"] {
+        let mut read = original.clone();
+        let AcquisitionPhase::ResponseRecorded { response } = &mut read.state.phase else {
+            return Err(GatewayAttemptError::Corrupt);
+        };
+        match name {
+            "status" => response.status = 503,
+            "version" => response.version_ok = false,
+            "received-at" => response.received_at += 1,
+            "body" => response.body_b64 = Base64::encode_string(b"{\"records\":[]}"),
+            "revision" => read.revision += 1,
+            _ => return Err(GatewayAttemptError::Corrupt),
+        }
+        let bytes = encode(&read)?;
+        // Every mutation is valid native acquisition data in isolation. Only
+        // its relation to the original selected-resource source refuses it.
+        decode_as::<AcquisitionState>(&bytes)?;
+        cases.push((name, bytes));
+    }
+    Ok(cases)
+}
+
 /// Returns a proposed mutation transition, or truthful unchanged history. The
 /// request/echo/projection comes only from the retained source contract.
 fn refinement(
@@ -316,8 +649,12 @@ fn refinement(
         return Ok(Err(RecoveryDisposition::ResponseUnusable));
     };
     let mut next = source.clone();
+    let created_resource = match &reading {
+        ReadBack::CreatedResource(candidate) => Some(candidate.handle().to_owned()),
+        _ => None,
+    };
     match reading {
-        ReadBack::EchoMatched => {
+        ReadBack::EchoMatched | ReadBack::CreatedResource(_) => {
             // A response-derived locator cannot resolve an unknown send. The
             // shared reducer checks this link condition again before commit.
             if source.state.response_status.is_none()
@@ -326,6 +663,7 @@ fn refinement(
                 return Ok(Err(RecoveryDisposition::Inconclusive));
             }
             next.state.stage = GatewayAttemptStage::ObservedByProvider;
+            next.state.created_resource = created_resource;
             next.state.provider_evidence = Some(EvidenceWire {
                 channel: GatewayEvidenceChannel::ReadBack,
                 locator: request.url().to_owned(),

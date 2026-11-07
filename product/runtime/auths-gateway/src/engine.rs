@@ -662,6 +662,12 @@ impl GatewayEngine {
         if attempts.policy() != &effect_policy {
             return Err(GatewayEngineConfigurationError::InvalidEffectPolicy);
         }
+        if effect_policy
+            .engagement()
+            .is_some_and(|policy| policy.executor() != workload_id)
+        {
+            return Err(GatewayEngineConfigurationError::InvalidEffectPolicy);
+        }
         if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
@@ -748,6 +754,74 @@ impl GatewayEngine {
     /// Refuses unavailable storage or a different already-installed policy.
     pub fn initialize_effect_configuration(&self) -> Result<(), &'static str> {
         self.shared_configuration()?.initialize(&self.qualification)
+    }
+
+    /// Builds a trusted control-plane handle for independently installed root
+    /// pins. Applications cannot select root pins through an effect submission.
+    /// Root publication still needs native control/resource proofs under the
+    /// existing store fence and current installed configuration.
+    ///
+    /// This performs no I/O, enrollment, reservation or provider action. A
+    /// handle is configuration, not permission to execute a scoped effect.
+    ///
+    /// # Errors
+    /// Refuses invalid root commitments, missing configuration or invalid pins.
+    pub fn engagement_configuration(
+        &self,
+        root: crate::participant_enrollment::ParentEnrollmentPins,
+    ) -> Result<crate::EngagementConfiguration, crate::EngagementConfigurationError> {
+        crate::configuration::EngagementConfiguration::new(
+            self.attempts.store(),
+            root,
+            self.trusted_context.clone(),
+            self.shared_configuration()
+                .map_err(|_| crate::EngagementConfigurationError::Configuration)?,
+            Arc::clone(&self.qualification),
+        )
+    }
+
+    /// Prepares private root authoring data against this recipe's actual current
+    /// connection. Only matching recipe scopes are filled; other recipe pins
+    /// remain explicit operator inputs. This does not install a root or grant
+    /// any authority. Native root/control proofs must authorize the final pins.
+    /// No credential is leased and no provider request is made.
+    /// # Errors
+    /// Refuses a missing connection, no matching scope or malformed root pins.
+    pub async fn prepare_engagement_root(
+        &self,
+        mut root: crate::participant_enrollment::ParentEnrollmentPins,
+    ) -> Result<
+        crate::participant_enrollment::ParentEnrollmentPins,
+        crate::EngagementConfigurationError,
+    > {
+        let connection = self
+            .connection
+            .load()
+            .await
+            .map_err(|_| crate::EngagementConfigurationError::Configuration)?
+            .ok_or(crate::EngagementConfigurationError::Configuration)?;
+        let bytes = connection
+            .record()
+            .to_canonical_cbor()
+            .map_err(|_| crate::EngagementConfigurationError::Installation)?;
+        let binding = crate::effect::commitment("auths.effect-installation/1", &bytes)
+            .map_err(|_| crate::EngagementConfigurationError::Installation)?;
+        let mut matched = false;
+        for scope in &mut root.scopes {
+            if scope.recipe_digest == self.recipe.digest_hex()
+                && scope.service == self.recipe.service()
+            {
+                scope.connection_binding = binding;
+                matched = true;
+            }
+        }
+        if !matched {
+            return Err(crate::EngagementConfigurationError::Installation);
+        }
+        root.enrollment_commitment =
+            crate::participant_enrollment::root_enrollment_commitment(&root)
+                .map_err(|_| crate::EngagementConfigurationError::Installation)?;
+        Ok(root)
     }
 
     /// Returns the private native commitment to this candidate installation.
@@ -1489,15 +1563,23 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_mutation_effect(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
+                .with_lineages(&lineages),
             now,
             proof,
             action,
@@ -1531,6 +1613,8 @@ impl GatewayEngine {
     /// # Errors
     /// Refuses JSON over 65,536 bytes, duplicate members, nonobjects, unsupported
     /// resource fields, invalid operation IDs and unavailable installation state.
+    /// Root enrollment is not required to construct this data-only witness;
+    /// compiling, approving and executing it still require current enrollment.
     pub async fn content_authorization_call(
         &self,
         resource_arguments: &[u8],
@@ -1541,7 +1625,7 @@ impl GatewayEngine {
             .and_then(|value| value.as_object().cloned())
             .ok_or_else(invalid)?;
         let operation = crate::LogicalOperationId::parse(operation).map_err(|_| invalid())?;
-        let (loaded, _) = self.effect_compilation_inputs().await?;
+        let (loaded, _) = self.effect_connection_inputs().await?;
         crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
             .and_then(|target| target.authorization_call(&self.recipe, &operation))
             .map_err(|_| invalid())
@@ -1604,15 +1688,23 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_disclosure(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
+                .with_lineages(&lineages),
             target,
             now,
             proof,
@@ -1861,15 +1953,23 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_content_action(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
+                .with_lineages(&lineages),
             now,
             proof,
             action,
@@ -1958,18 +2058,26 @@ impl GatewayEngine {
         proof: &[u8],
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         let target =
             crate::effect::ContentReadTarget::new(&self.recipe, loaded.record(), arguments)
                 .map_err(|_| not_entered("gateway.acquisition.binding"))?;
         crate::effect::compile_content_acquisition(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
+                .with_lineages(&lineages),
             &target,
             now,
             proof,
@@ -2034,15 +2142,23 @@ impl GatewayEngine {
         action: &[u8],
     ) -> Result<crate::effect::BoundEffect, GatewaySubmitResult> {
         let target = self.recovery_compilation_target(source_operation).await?;
-        let (loaded, now) = self.effect_compilation_inputs().await?;
+        let (loaded, now, enrollment, lineages) = self.effect_compilation_inputs().await?;
         crate::effect::compile_recovery_acquisition(
-            &self.effect_policy.installation(
-                &self.recipe,
-                &self.trusted_context,
-                loaded.record(),
-                self.qualification.policy(),
-                self.effect_configuration_candidate().map_err(not_entered)?,
-            ),
+            &self
+                .effect_policy
+                .installation(
+                    &self.recipe,
+                    &self.trusted_context,
+                    loaded.record(),
+                    self.qualification.policy(),
+                    self.effect_configuration_candidate().map_err(not_entered)?,
+                )
+                .with_enrollment(
+                    enrollment
+                        .as_ref()
+                        .map(crate::EngagementConfigurationSnapshot::tree),
+                )
+                .with_lineages(&lineages),
             &target,
             now,
             proof,
@@ -2294,7 +2410,62 @@ impl GatewayEngine {
             .map_err(|_| unavailable())
     }
 
+    pub(crate) fn installed_engagement(
+        &self,
+    ) -> Result<Option<crate::EngagementConfiguration>, &'static str> {
+        self.effect_policy
+            .engagement()
+            .map(|policy| {
+                self.engagement_configuration(policy.root().clone())
+                    .map_err(|_| "gateway.engagement.installation")
+            })
+            .transpose()
+    }
+
     async fn effect_compilation_inputs(
+        &self,
+    ) -> Result<
+        (
+            LoadedConnection,
+            u64,
+            Option<crate::EngagementConfigurationSnapshot>,
+            Vec<crate::effect::CreatedLineage>,
+        ),
+        GatewaySubmitResult,
+    > {
+        let (loaded, now) = self.effect_connection_inputs().await?;
+        let enrollment = match self.installed_engagement().map_err(not_entered)? {
+            None => None,
+            Some(controller) => Some(
+                tokio::task::spawn_blocking(move || controller.snapshot())
+                    .await
+                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?
+                    .map_err(|_| not_entered("gateway.engagement.state-unavailable"))?,
+            ),
+        };
+        if enrollment
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.accepted_at() > now)
+        {
+            return Err(not_entered("gateway.engagement.clock-rollback"));
+        }
+        let lineages = self
+            .attempts
+            .created_lineages(
+                self.effect_policy
+                    .engagement()
+                    .map(crate::effect::EngagementPolicy::root),
+            )
+            .await
+            .map_err(|_| not_entered("gateway.engagement.created-history-unavailable"))?;
+        Ok((loaded, now, enrollment, lineages))
+    }
+
+    // Both data-only call construction and native compilation use the same
+    // installed configuration, connection eligibility and time checks. Only
+    // compilation consumes enrollment authority: construction must also work
+    // when authoring the independent resource witnesses that activate a root.
+    async fn effect_connection_inputs(
         &self,
     ) -> Result<(LoadedConnection, u64), GatewaySubmitResult> {
         self.check_effect_configuration()
@@ -2734,6 +2905,7 @@ impl SubmitIo for EngineIo<'_> {
                     .map(|observer| observer.principal().clone()),
                 policy: self.engine.effect_policy.clone(),
                 configuration: self.engine.shared_configuration()?,
+                engagement: self.engine.installed_engagement()?,
                 connection: crate::entry::EntryConnection::Installed(Box::new(
                     prepared.loaded.clone(),
                 )),
@@ -2767,15 +2939,20 @@ impl SubmitIo for EngineIo<'_> {
             .take()
             .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
         approved.validate_for_entry(
-            &self.engine.effect_policy.installation(
-                &self.engine.recipe,
-                &self.engine.trusted_context,
-                approved.connection(),
-                self.engine.qualification.policy(),
-                self.engine
-                    .effect_configuration_candidate()
-                    .map_err(not_entered)?,
-            ),
+            &self
+                .engine
+                .effect_policy
+                .installation(
+                    &self.engine.recipe,
+                    &self.engine.trusted_context,
+                    approved.connection(),
+                    self.engine.qualification.policy(),
+                    self.engine
+                        .effect_configuration_candidate()
+                        .map_err(not_entered)?,
+                )
+                .with_enrollment(approved.enrollment())
+                .with_lineages(approved.lineages()),
             now,
         )?;
         #[cfg(unix)]
@@ -2800,15 +2977,20 @@ impl SubmitIo for EngineIo<'_> {
             .get()
             .ok_or_else(|| not_entered("gateway.effect.unavailable"))?;
         approved.validate_for_entry(
-            &self.engine.effect_policy.installation(
-                &self.engine.recipe,
-                &self.engine.trusted_context,
-                prepared.loaded.record(),
-                self.engine.qualification.policy(),
-                self.engine
-                    .effect_configuration_candidate()
-                    .map_err(not_entered)?,
-            ),
+            &self
+                .engine
+                .effect_policy
+                .installation(
+                    &self.engine.recipe,
+                    &self.engine.trusted_context,
+                    prepared.loaded.record(),
+                    self.engine.qualification.policy(),
+                    self.engine
+                        .effect_configuration_candidate()
+                        .map_err(not_entered)?,
+                )
+                .with_enrollment(approved.enrollment())
+                .with_lineages(approved.lineages()),
             now,
         )
     }
@@ -4521,14 +4703,20 @@ pub(crate) mod tests {
         /// The processes of one connection over each shared store: the file
         /// store, and the `PostgreSQL` store where the TLS fixture runs.
         async fn across_processes(backend: crate::store_testkit::Backend) {
-            a_second_host_joins_only_with_the_matching_secret_after_state_changes(backend).await;
-            a_disable_or_revoke_through_one_process_stops_entry_in_another(backend).await;
-            a_cross_process_rotation_then_disable_and_enable_leases_on_every_host(backend).await;
+            Box::pin(
+                a_second_host_joins_only_with_the_matching_secret_after_state_changes(backend),
+            )
+            .await;
+            Box::pin(a_disable_or_revoke_through_one_process_stops_entry_in_another(backend)).await;
+            Box::pin(
+                a_cross_process_rotation_then_disable_and_enable_leases_on_every_host(backend),
+            )
+            .await;
         }
 
         #[tokio::test]
         async fn file_store_shares_the_connection_across_processes() {
-            across_processes(crate::store_testkit::Backend::File).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::File)).await;
         }
 
         #[tokio::test]
@@ -4538,7 +4726,7 @@ pub(crate) mod tests {
                 crate::store_testkit::postgres_configured(),
                 "TLS PostgreSQL environment slots are required"
             );
-            across_processes(crate::store_testkit::Backend::Postgres).await;
+            Box::pin(across_processes(crate::store_testkit::Backend::Postgres)).await;
         }
     }
 }

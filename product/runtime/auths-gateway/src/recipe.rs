@@ -21,6 +21,7 @@ use url::{Host, Url};
 pub use auths_gateway_kernel::{construct, recovery};
 
 mod content;
+pub(crate) mod created_resource;
 pub(crate) use content::ContentProjectionSpec;
 pub use content::{CONTENT_READ_SCHEMA, ClosedContentRead, ContentProjectionError};
 mod effect_review;
@@ -549,7 +550,10 @@ impl CompiledRecipe {
             ),
             None => source.tool == crate::effect::CONTENT_READ_TOOL,
         };
-        if source.schema != RECIPE_SOURCE_SCHEMA || !valid_tool {
+        if source.schema != RECIPE_SOURCE_SCHEMA
+            || crate::control_namespace::is_control_service(&source.service)
+            || !valid_tool
+        {
             return Err(GatewayRecipeError::InvalidSource);
         }
         validate_lock(&lock)?;
@@ -862,6 +866,7 @@ impl CompiledRecipe {
                 .ok_or(GatewayRecipeError::ActionMismatch)?,
             maximum_response_bytes: source.maximum_response_bytes,
             echo_pointer: self.source.echo.as_ref().map(|echo| echo.observe.clone()),
+            created_resource: source.created_resource.clone(),
         }))
     }
 
@@ -951,6 +956,7 @@ impl CompiledRecipe {
             expected: Value::Null,
             maximum_response_bytes: source.maximum_response_bytes,
             echo_pointer: self.source.echo.as_ref().map(|echo| echo.observe.clone()),
+            created_resource: source.created_resource.clone(),
         })
     }
 }
@@ -1288,11 +1294,12 @@ pub struct ClosedObservationRequest {
     expected: Value,
     maximum_response_bytes: usize,
     echo_pointer: Option<String>,
+    created_resource: Option<created_resource::Selection>,
 }
 
 /// Classified read-back. Only an exact echo-token match links the provider
 /// record to the authorized action; nothing here proves absence of an effect.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ReadBack {
     /// No echo token was found (or none is declared); plain value equality.
     Value { matched: bool },
@@ -1300,9 +1307,15 @@ pub(crate) enum ReadBack {
     EchoMatched,
     /// The echo field holds something other than this attempt's token.
     EchoMismatch,
+    /// One complete, bounded marker/parent match; native journal provenance
+    /// and downstream authority are separate from this private projection.
+    CreatedResource(created_resource::Candidate),
 }
 
 impl ClosedObservationRequest {
+    pub(crate) fn created_resource_selection(&self) -> Option<&created_resource::Selection> {
+        self.created_resource.as_ref()
+    }
     /// Returns the closed GET URL.
     #[must_use]
     pub fn url(&self) -> &str {
@@ -1347,6 +1360,9 @@ impl ClosedObservationRequest {
     /// large, not JSON, or lacks the observed value yields `None`.
     #[cfg(any(test, feature = "testkit-harness"))]
     pub(crate) fn observed_values(&self, response: &[u8]) -> Option<(Value, Option<Value>)> {
+        if self.created_resource.is_some() {
+            return None;
+        }
         if response.len() > self.maximum_response_bytes {
             return None;
         }
@@ -1369,6 +1385,17 @@ impl ClosedObservationRequest {
             return None;
         }
         let decoded = response::parse(response)?;
+        if let Some(selection) = &self.created_resource {
+            return selection
+                .select(
+                    &decoded,
+                    &self.json_pointer,
+                    self.echo_pointer.as_deref()?,
+                    token?,
+                    self.expected.as_str()?,
+                )
+                .map(ReadBack::CreatedResource);
+        }
         let matched = decoded.pointer(&self.json_pointer)? == &self.expected;
         let (Some(pointer), Some(token)) = (self.echo_pointer.as_deref(), token) else {
             return Some(ReadBack::Value { matched });

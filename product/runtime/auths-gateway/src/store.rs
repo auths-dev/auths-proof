@@ -2,7 +2,7 @@
 //! the shared connection record. This store does not infer provider effect.
 //!
 //! [`GatewayAttempts`] owns the attempt record format
-//! `auths.gateway-attempt/16`, its stages, and which stage changes are valid;
+//! `auths.gateway-attempt/17`, its stages, and which stage changes are valid;
 //! the transition rule itself is the translated leaf
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
@@ -37,7 +37,7 @@ use zeroize::Zeroizing;
 
 pub use auths_stores::GatewayRecordKind;
 
-const SCHEMA: &str = "auths.gateway-attempt/16";
+const SCHEMA: &str = "auths.gateway-attempt/17";
 const PRE_ENTRY_DOMAIN: &[u8] = b"auths.gateway-pre-entry/1\0";
 const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
@@ -629,6 +629,7 @@ struct Record<S = MutationState> {
     nonce: String,
     evaluated_at: u64,
     entry: Option<EntryAudit>,
+    engagement_allocations: Vec<engagement::AllocationRef>,
     state: S,
 }
 
@@ -667,6 +668,7 @@ impl<S> Record<S> {
             nonce: hex::encode(nonce),
             evaluated_at,
             entry: None,
+            engagement_allocations: Vec::new(),
             state,
         })
     }
@@ -747,6 +749,7 @@ impl<S> Record<S> {
         {
             return Err(GatewayAttemptError::Corrupt);
         }
+        engagement::validate_partial(&binding, &self.engagement_allocations)?;
         Ok(binding)
     }
 
@@ -757,7 +760,11 @@ impl<S> Record<S> {
         now: u64,
         pre_entry: Option<PreEntryWire>,
         dependencies: &[Option<Vec<u8>>],
-    ) -> Result<(), GatewayAttemptError> {
+    ) -> Result<(), GatewayAttemptError>
+    where
+        S: JournalProtocol,
+    {
+        engagement::validate_record(self)?;
         if self.entry.is_some() || authorization_started_at < self.evaluated_at {
             return Err(GatewayAttemptError::InvalidTransition);
         }
@@ -811,6 +818,7 @@ impl<S> Record<S> {
             nonce: self.nonce,
             evaluated_at: self.evaluated_at,
             entry: self.entry,
+            engagement_allocations: self.engagement_allocations,
             state: map(self.state)?,
         })
     }
@@ -830,8 +838,12 @@ enum ProtocolState {
 }
 
 mod acquisition;
+#[cfg(test)]
+pub(crate) use acquisition::fixture_created_history_substitutions;
+pub(crate) use acquisition::revalidate_created_lineage;
 mod capacity;
 mod disclosure;
+mod engagement;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
     ContentProjectionStatus, GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition,
@@ -848,6 +860,11 @@ trait JournalProtocol: Clone + Sized {
     fn extract(state: ProtocolState) -> Result<Self, GatewayAttemptError>;
     fn view(record: &Record<Self>) -> Result<AttemptView, GatewayAttemptError>;
     fn validate(record: &Record<Self>) -> Result<(), GatewayAttemptError>;
+    fn engagement_reservations(
+        record: &Record<Self>,
+    ) -> Result<Vec<crate::effect::EngagementReservation>, GatewayAttemptError> {
+        Ok(record.validate_header()?.engagement_reservations())
+    }
 }
 
 impl JournalProtocol for MutationState {
@@ -896,6 +913,20 @@ struct MutationState {
     pre_entry: Option<PreEntryWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     recovery_evidence: Option<acquisition::RecoveryEvidenceLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    created_resource: Option<String>,
+}
+
+/// Emits canonical-but-inconsistent bytes for the native corruption test. No
+/// shipping caller may replace a selected identity independently of evidence.
+#[cfg(test)]
+pub(crate) fn fixture_created_resource_substitution(
+    bytes: &[u8],
+    handle: &str,
+) -> Result<Vec<u8>, GatewayAttemptError> {
+    let mut record: Record = decode(bytes)?;
+    record.state.created_resource = Some(handle.into());
+    canonical(&record)
 }
 
 /// Private immutable evidence of the unique acknowledged grant. It does not
@@ -928,6 +959,7 @@ struct FixedFields<'a> {
     nonce: &'a str,
     evaluated_at: u64,
     counters: &'a [CounterWire],
+    engagement_allocations: &'a [engagement::AllocationRef],
     observation_plan: Option<&'a ObservationTemplate>,
 }
 
@@ -1064,6 +1096,7 @@ impl Record {
                 nonce: &self.nonce,
                 evaluated_at: self.evaluated_at,
                 counters: &self.state.counters,
+                engagement_allocations: &self.engagement_allocations,
                 observation_plan: self.state.observation_plan.as_ref(),
             })?,
             stage: self.state.stage.kernel(),
@@ -1133,6 +1166,42 @@ impl Record {
         }
     }
 
+    fn created_resource_valid(&self) -> bool {
+        let declared = self
+            .state
+            .observation_plan
+            .as_ref()
+            .is_some_and(|plan| plan.created_resource.is_some());
+        match &self.state.created_resource {
+            None => !declared || self.state.stage != GatewayAttemptStage::ObservedByProvider,
+            Some(handle) => {
+                if !declared
+                    || !crate::resource_identity::valid_handle(handle)
+                    || self.state.stage != GatewayAttemptStage::ObservedByProvider
+                    || self.state.recovery_evidence.is_none()
+                {
+                    return false;
+                }
+                let Some(evidence) = &self.state.provider_evidence else {
+                    return false;
+                };
+                if evidence.evidence_b64.len() > (MAX_EVIDENCE_BYTES / 3 + 1) * 4 {
+                    return false;
+                }
+                let Some(request) = self.observation_request() else {
+                    return false;
+                };
+                let Ok(body) = Base64::decode_vec(&evidence.evidence_b64) else {
+                    return false;
+                };
+                let Ok(token) = self.echo_token() else {
+                    return false;
+                };
+                matches!(request.read_back(Some(&token),&body),Some(crate::recipe::ReadBack::CreatedResource(candidate)) if candidate.handle()==handle)
+            }
+        }
+    }
+
     fn snapshot(&self, recovered: bool) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         if !self.validate_header()?.is_mutation() {
             return Err(GatewayAttemptError::Corrupt);
@@ -1150,6 +1219,7 @@ impl Record {
                 .as_ref()
                 .is_none_or(ObservationTemplate::valid)
             || !self.locator_valid()
+            || !self.created_resource_valid()
             || !transition::consistent(&self.view()?)
         {
             return Err(GatewayAttemptError::Corrupt);
@@ -1400,6 +1470,17 @@ impl GatewayAttemptKey {
             .map_err(|_| GatewayAttemptError::Corrupt)
     }
 
+    pub(crate) fn for_context(
+        namespace: &OperatorNamespace,
+        partition: &str,
+        epoch: u64,
+        operation: &LogicalOperationId,
+    ) -> Result<Self, GatewayAttemptError> {
+        crate::effect::replay_key(namespace, partition, epoch, operation)
+            .map(Self)
+            .map_err(|_| GatewayAttemptError::Corrupt)
+    }
+
     /// Uses `bytes`, a key derived under another record kind's hash domain.
     #[must_use]
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
@@ -1441,6 +1522,14 @@ impl GatewayRecordEntry {
 #[cfg(test)]
 pub(crate) fn fixture_prerequisite_key(parent: GatewayAttemptKey, index: u8) -> GatewayAttemptKey {
     acquisition::prerequisite_key(parent, index)
+}
+
+#[cfg(test)]
+pub(crate) fn fixture_engagement_allocation_key(
+    counter: &[u8; 32],
+    slot: u64,
+) -> GatewayAttemptKey {
+    GatewayAttemptKey(engagement::slot_key(counter, slot))
 }
 
 fn validate_batch(entries: &[GatewayRecordEntry]) -> Result<(), GatewayAttemptError> {
@@ -2498,6 +2587,7 @@ fn claim_record(
             observation_fact: None,
             provider_evidence: None,
             recovery_evidence: None,
+            created_resource: None,
             pre_entry: None,
         },
     );
@@ -2797,6 +2887,22 @@ impl GatewayAttempts {
         {
             return Err(GatewayAttemptError::Corrupt);
         }
+        if record.state.created_resource.is_some() {
+            let store = Arc::clone(&self.store);
+            let policy = self.policy.clone();
+            let source = record.clone();
+            let source_bytes = bytes.clone();
+            blocking(move || {
+                acquisition::validate_created_history(
+                    store.as_ref(),
+                    &policy,
+                    key,
+                    &source_bytes,
+                    &source,
+                )
+            })
+            .await?;
+        }
         Ok(Some((bytes, record)))
     }
 
@@ -2878,6 +2984,10 @@ impl ClaimedGatewayAttempt {
     /// Validates the native authority, dependencies and every existing slot
     /// under the same writer fence, then persists one immutable grant. No
     /// deserialization path can construct the returned transport permit.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keep the atomic entry fence and durable acknowledgement before permit creation visible as one protocol"
+    )]
     pub(crate) async fn grant_entry(
         self,
         approved: Arc<ApprovedEffect>,
@@ -2893,7 +3003,7 @@ impl ClaimedGatewayAttempt {
             .clone();
         blocking(move || {
             let mut attempt = self.attempt;
-            let dependencies = validation.dependencies();
+            let dependencies = validation.dependencies(&approved);
             let prerequisites = approved
                 .prerequisite_plans()
                 .map_err(|_| GatewayAttemptError::InvalidTransition)?;
@@ -2905,6 +3015,10 @@ impl ClaimedGatewayAttempt {
                 attempt.key,
                 &prerequisites,
             )?);
+            let prerequisite_end = keys.len();
+            keys.extend(engagement::dependencies(
+                &attempt.record.engagement_allocations,
+            ));
             let mut committed = None;
             attempt.store.fenced_replace(&keys, &mut |snapshots| {
                 if snapshots.len() != keys.len()
@@ -2952,9 +3066,10 @@ impl ClaimedGatewayAttempt {
                     &validation,
                     pre_entry.as_ref(),
                     &prerequisites,
-                    &snapshots[counter_end..],
+                    &snapshots[counter_end..prerequisite_end],
                     now,
                 )?;
+                engagement::validate_entry(&current, attempt.key, &snapshots[prerequisite_end..])?;
                 let mut next = current.clone();
                 next.record_grant(
                     &approved,
@@ -3270,16 +3385,19 @@ fn decode_protocol(bytes: &[u8]) -> Result<Record<ProtocolState>, GatewayAttempt
             let typed = record
                 .clone()
                 .map_state(disclosure::DisclosureState::extract)?;
+            engagement::validate_record(&typed)?;
             disclosure::DisclosureState::validate(&typed)?;
         }
         ProtocolState::Mutation(_) => {
             let typed = record.clone().map_state(MutationState::extract)?;
+            engagement::validate_record(&typed)?;
             MutationState::validate(&typed)?;
         }
         ProtocolState::Acquisition(_) => {
             let typed = record
                 .clone()
                 .map_state(acquisition::AcquisitionState::extract)?;
+            engagement::validate_record(&typed)?;
             acquisition::AcquisitionState::validate(&typed)?;
         }
     }
@@ -3427,7 +3545,9 @@ fn valid_transition<S: JournalProtocol>(
     old: &Record<S>,
     new: &Record<S>,
 ) -> Result<bool, GatewayAttemptError> {
-    Ok(transition::valid_transition(&S::view(old)?, &S::view(new)?) && S::validate(new).is_ok())
+    Ok(transition::valid_transition(&S::view(old)?, &S::view(new)?)
+        && engagement::validate_record(new).is_ok()
+        && S::validate(new).is_ok())
 }
 
 fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
@@ -3617,7 +3737,7 @@ struct Admission {
 
 impl Admission {
     fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
-        self.validation.dependencies()
+        self.validation.dependencies(&self.approved)
     }
 
     fn stamp<S: JournalProtocol>(
@@ -3654,16 +3774,22 @@ fn insert_claim(
     if let Some(candidate) = candidate {
         dependencies.extend(candidate.dependencies());
     }
-    store.fenced_insert_all(entries, &dependencies, &mut |snapshots| {
-        if snapshots.len() != dependencies.len() {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        admission.stamp(record, &snapshots[..native_end])?;
-        if let Some(candidate) = candidate {
-            candidate.validate_predecessors(&snapshots[native_end..])?;
-        }
-        encode(record)
-    })
+    engagement::insert(
+        store,
+        record,
+        entries,
+        &dependencies,
+        &mut |record, snapshots| {
+            if snapshots.len() != dependencies.len() {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+            admission.stamp(record, &snapshots[..native_end])?;
+            if let Some(candidate) = candidate {
+                candidate.validate_predecessors(&snapshots[native_end..])?;
+            }
+            Ok(())
+        },
+    )
 }
 
 impl GatewayAttempts {

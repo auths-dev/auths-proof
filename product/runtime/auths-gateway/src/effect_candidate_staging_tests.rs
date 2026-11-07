@@ -83,7 +83,7 @@ pub(super) async fn histories(
             "no lease or provider entry"
         );
     }
-    let installation = installation_histories(recipe, trust, policy).await;
+    let installation = Box::pin(installation_histories(recipe, trust, policy)).await;
     json!({"installation": installation, "schema": "auths.candidate-staging-fixture/1", "scope": "actual engine, persistent file custody, generation floor and cleanup journal; fixed deployment clock; no provider execution, process crash or PostgreSQL claim", "cases": cases})
 }
 

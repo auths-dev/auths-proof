@@ -37,6 +37,12 @@ const RECORD: &str = "recTEST0000000001";
 #[path = "content_journey/interface_tests.rs"]
 mod interface_tests;
 
+#[path = "content_journey/engagement_installation.rs"]
+mod engagement_installation;
+
+#[path = "content_journey/delegation_process.rs"]
+mod delegation_process;
+
 fn private(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).expect("write");
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).expect("mode");
@@ -45,7 +51,7 @@ fn path(path: &Path) -> &str {
     path.to_str().expect("path")
 }
 fn command(name: &str, args: &[(&str, &str)], flags: &[&str]) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_auths-gateway"));
+    let mut command = Command::new(gateway_binary());
     command.arg(name);
     for (key, value) in args {
         command.arg(key).arg(value);
@@ -56,6 +62,12 @@ fn command(name: &str, args: &[(&str, &str)], flags: &[&str]) -> Command {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     command
+}
+fn gateway_binary() -> PathBuf {
+    std::env::var_os("AUTHS_GATEWAY_OPERATOR_TEST_BINARY").map_or_else(
+        || PathBuf::from(env!("CARGO_BIN_EXE_auths-gateway")),
+        PathBuf::from,
+    )
 }
 fn cli(name: &str, args: &[(&str, &str)], flags: &[&str], input: Option<&[u8]>) -> Output {
     let mut child = command(name, args, flags).spawn().expect("CLI");
@@ -100,19 +112,51 @@ fn public(output: Output) -> Value {
     serde_json::from_slice(&success(output)).expect("public native JSON")
 }
 
+// Public synthetic provider identity; its presence in a caller fixture does not
+// supply native lineage. Public gateway outputs still must not reveal it.
+const CREATED_RESOURCE: &str = "recCREATED000000001";
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CreatedListing {
+    Zero,
+    Multiple,
+    Incomplete,
+    Unique,
+}
+
 struct Provider {
     port: u16,
     calls: Arc<Mutex<Vec<String>>>,
     stop: Arc<AtomicBool>,
     join: Option<JoinHandle<()>>,
     denied: Arc<std::sync::atomic::AtomicUsize>,
+    hold_write_reply: Arc<AtomicBool>,
+    write_applied: Arc<AtomicBool>,
 }
 impl Provider {
     fn start() -> Self {
         Self::configured(SECRET.to_vec(), false)
     }
     fn configured(secret: Vec<u8>, refuse_unauthorized: bool) -> Self {
+        Self::with_content(secret, refuse_unauthorized, CONTENT.to_vec())
+    }
+    fn with_content(secret: Vec<u8>, refuse_unauthorized: bool, content: Vec<u8>) -> Self {
+        Self::with_configuration(secret, refuse_unauthorized, content, None)
+    }
+    fn with_created_content(secret: Vec<u8>, content: Vec<u8>, listing: CreatedListing) -> Self {
+        Self::with_configuration(secret, true, content, Some(listing))
+    }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one bounded HTTP fixture router retains credential checks and independent transport witnesses together"
+    )]
+    fn with_configuration(
+        secret: Vec<u8>,
+        refuse_unauthorized: bool,
+        content: Vec<u8>,
+        creation: Option<CreatedListing>,
+    ) -> Self {
         let secret = zeroize::Zeroizing::new(secret);
+        let content = zeroize::Zeroizing::new(content);
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
         let port = listener.local_addr().expect("address").port();
         listener.set_nonblocking(true).expect("nonblocking");
@@ -122,6 +166,10 @@ impl Provider {
         let denied = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let refused = denied.clone();
         let finished = stop.clone();
+        let hold_write_reply = Arc::new(AtomicBool::new(false));
+        let hold_reply = hold_write_reply.clone();
+        let write_applied = Arc::new(AtomicBool::new(false));
+        let applied = write_applied.clone();
         let join = thread::spawn(move || {
             let mut record = json!({"fields":{"DemoStatus":"Pending"}});
             while !finished.load(Ordering::SeqCst) {
@@ -175,16 +223,64 @@ impl Provider {
                 captured.lock().expect("calls").push(line.clone());
                 let (media, response) = if line
                     == format!("GET /documents/{RECORD}?format=text%2Fplain HTTP/1.1")
-                {
-                    ("text/plain", CONTENT.to_vec())
-                } else if line
-                    == format!("PATCH /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1")
+                    || (creation == Some(CreatedListing::Unique)
+                        && applied.load(Ordering::SeqCst)
+                        && line
+                            == format!(
+                                "GET /documents/{CREATED_RESOURCE}?format=text%2Fplain HTTP/1.1"
+                            )) {
+                    ("text/plain", content.to_vec())
+                } else if (creation.is_none()
+                    && line
+                        == format!(
+                            "PATCH /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1"
+                        ))
+                    || (creation.is_some()
+                        && line == format!("POST /parents/{RECORD}/children HTTP/1.1"))
                 {
                     record = serde_json::from_slice(&body).expect("write JSON");
                     assert_eq!(record["fields"]["DemoStatus"], "Approved");
                     assert_eq!(record["fields"].as_object().expect("fields").len(), 2);
+                    assert_eq!(
+                        record.as_object().expect("write object").len(),
+                        if creation.is_some() { 2 } else { 1 }
+                    );
+                    if creation.is_some() {
+                        assert_eq!(record["parent_id"], RECORD);
+                    }
                     assert!(record["fields"]["auths_echo"].is_string());
+                    let held = hold_reply.load(Ordering::SeqCst);
+                    applied.store(true, Ordering::SeqCst);
+                    if held {
+                        // The double applied the exact write. Keep the response
+                        // unavailable while the test kills the real gateway.
+                        while hold_reply.load(Ordering::SeqCst) && !finished.load(Ordering::SeqCst)
+                        {
+                            thread::sleep(Duration::from_millis(5));
+                        }
+                        continue;
+                    }
                     ("application/json", body)
+                } else if let Some(listing) =
+                    creation.filter(|_| line == format!("GET /parents/{RECORD}/children HTTP/1.1"))
+                {
+                    assert!(
+                        applied.load(Ordering::SeqCst),
+                        "creation lookup must follow the actual write"
+                    );
+                    let item = json!({"id":CREATED_RESOURCE,"parent_id":record["parent_id"],"auths_echo":record["fields"]["auths_echo"]});
+                    let document = match listing {
+                        CreatedListing::Zero => json!({"records":[]}),
+                        CreatedListing::Multiple => json!({"records":[item.clone(),item]}),
+                        CreatedListing::Incomplete => {
+                            json!({"records":[item],"offset":"next-page"})
+                        }
+                        CreatedListing::Unique => json!({"records":[item]}),
+                    };
+                    (
+                        "application/json",
+                        serde_json::to_vec(&document).expect("created resource list"),
+                    )
                 } else if line
                     == format!("GET /v0/appTEST0000000001/tblTEST0000000001/{RECORD} HTTP/1.1")
                 {
@@ -209,6 +305,8 @@ impl Provider {
             stop,
             join: Some(join),
             denied,
+            hold_write_reply,
+            write_applied,
         }
     }
     fn authenticated(header: &str, secret: &[u8]) -> bool {
@@ -221,6 +319,23 @@ impl Provider {
     }
     fn calls(&self) -> Vec<String> {
         self.calls.lock().expect("calls").clone()
+    }
+    fn hold_write_response(&self) {
+        self.write_applied.store(false, Ordering::SeqCst);
+        self.hold_write_reply.store(true, Ordering::SeqCst);
+    }
+    fn wait_for_applied_write(&self) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !self.write_applied.load(Ordering::SeqCst) {
+            assert!(
+                Instant::now() < deadline,
+                "provider must apply the exact write before the gateway crash"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+    fn drop_write_response(&self) {
+        self.hold_write_reply.store(false, Ordering::SeqCst);
     }
 }
 impl Drop for Provider {
@@ -254,7 +369,7 @@ impl Daemon {
         .expect("daemon");
         let mut daemon = Self(child);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !socket.exists() {
+        while std::os::unix::net::UnixStream::connect(socket).is_err() {
             assert!(
                 daemon.0.try_wait().expect("daemon status").is_none(),
                 "daemon exited"

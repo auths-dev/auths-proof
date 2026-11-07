@@ -83,12 +83,22 @@ const fn is_binding_field(name: &str) -> bool {
 }
 
 /// An observation pointer: absolute, at most 128 bytes and eight tokens, and
-/// without the `~2` escape.
+/// with only RFC 6901 `~0` / `~1` escapes and no control characters.
 pub(super) fn valid_response_pointer(pointer: &str) -> bool {
-    pointer.starts_with('/')
-        && pointer.len() <= MAX_POINTER_BYTES
-        && pointer.split('/').skip(1).count() <= 8
-        && !pointer.contains("~2")
+    if !pointer.starts_with('/')
+        || pointer.len() > MAX_POINTER_BYTES
+        || pointer.split('/').skip(1).count() > 8
+        || pointer.chars().any(char::is_control)
+    {
+        return false;
+    }
+    let mut bytes = pointer.bytes();
+    while let Some(byte) = bytes.next() {
+        if byte == b'~' && !matches!(bytes.next(), Some(b'0' | b'1')) {
+            return false;
+        }
+    }
+    true
 }
 
 fn pointers_overlap(first: &str, second: &str) -> bool {
@@ -564,7 +574,9 @@ pub(super) fn validate_echo(
     if !valid_response_pointer(&echo.observe) {
         return Err(GatewayRecipeError::UnsafeTemplate);
     }
-    if pointers_overlap(&echo.observe, &observation.json_pointer) {
+    if observation.created_resource.is_none()
+        && pointers_overlap(&echo.observe, &observation.json_pointer)
+    {
         return Err(GatewayRecipeError::EchoConflict);
     }
     match (&echo.write, body) {
@@ -786,6 +798,31 @@ pub(super) fn validate_source(
     }
     if let Some(observation) = &source.observation {
         rules.observation(observation)?;
+        if let Some(selection) = &observation.created_resource
+            && (source
+                .echo
+                .as_ref()
+                .is_none_or(|echo| !selection.valid(&observation.json_pointer, &echo.observe))
+                || observation
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, PathSegment::ResponseField { .. }))
+                || !fields
+                    .get(&observation.expected_field)
+                    .is_some_and(|field| match field {
+                        FieldSchema::String { minimum, maximum } => {
+                            *minimum >= 1 && *maximum <= crate::resource_identity::MAX_HANDLE_BYTES
+                        }
+                        FieldSchema::Enum { variants } => variants
+                            .iter()
+                            .all(|value| crate::resource_identity::valid_handle(value)),
+                        _ => false,
+                    })
+                || !rules.consumed.body.contains(&observation.expected_field)
+                || source.preconditions.is_some())
+        {
+            return Err(GatewayRecipeError::UnsafeTemplate);
+        }
     }
     if let Some(echo) = &source.echo {
         let observation = source

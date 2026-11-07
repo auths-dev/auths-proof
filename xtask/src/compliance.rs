@@ -398,11 +398,7 @@ pub(crate) fn validate_compliance_evidence(package: &str, anchor: &str) -> Resul
         .and_then(|value| value.to_str())
         .ok_or_else(|| format!("compliance evidence {relative} has no extension"))?;
     let is_test = match extension {
-        "rs" => {
-            (contents.contains("#[test]") || contents.contains("#[tokio::test]"))
-                && (contents.contains(&format!("fn {marker}("))
-                    || contents.contains(&format!("fn {marker}<")))
-        }
+        "rs" => rust_test_anchor(&contents, marker),
         "js" | "cjs" | "mjs" | "ts" => contents.contains("test(") && contents.contains(marker),
         "py" => marker.starts_with("test_") && contents.contains(&format!("def {marker}(")),
         "go" => marker.starts_with("Test") && contents.contains(&format!("func {marker}(")),
@@ -414,6 +410,15 @@ pub(crate) fn validate_compliance_evidence(package: &str, anchor: &str) -> Resul
         ));
     }
     Ok(())
+}
+
+/// Source inventory anchors include helpers exercised by macro-generated tests.
+/// Compiled test registries and execution are checked by the owning test gates.
+fn rust_test_anchor(source: &str, marker: &str) -> bool {
+    (source.contains("#[test]")
+        || source.contains("#[tokio::test]")
+        || source.contains("#[tokio::test("))
+        && (source.contains(&format!("fn {marker}(")) || source.contains(&format!("fn {marker}<")))
 }
 
 pub(crate) fn discover_external_compliance_packages(
@@ -565,4 +570,28 @@ pub(crate) fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String
             .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
     }
     fs::write(path, bytes).map_err(|error| format!("could not write {}: {error}", path.display()))
+}
+
+#[cfg(test)]
+mod test_anchor_tests {
+    use super::rust_test_anchor;
+
+    #[test]
+    fn registered_compliance_evidence_has_executable_anchors() {
+        super::compliance_inventory().expect("registered compliance inventory");
+    }
+
+    #[test]
+    fn rust_evidence_supports_configured_tokio_tests_and_existing_helper_anchors() {
+        for source in [
+            "#[test] fn ordinary() {}",
+            "#[tokio::test] async fn ordinary() {}",
+            "#[tokio::test(flavor = \"multi_thread\", worker_threads = 2)] async fn ordinary() {}",
+            "fn ordinary() {} #[test] fn wrapper() { ordinary(); }",
+        ] {
+            assert!(rust_test_anchor(source, "ordinary"));
+            assert!(!rust_test_anchor(source, "absent"));
+        }
+        assert!(!rust_test_anchor("fn ordinary() {}", "ordinary"));
+    }
 }

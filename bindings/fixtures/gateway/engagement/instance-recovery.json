@@ -1,0 +1,51 @@
+{
+  "schema": "auths.instance-recovery-vectors/1",
+  "native_invalid_cases": [
+    "obsolete-schema",
+    "unknown-predecessor",
+    "root-predecessor",
+    "wrong-parent",
+    "skipped-generation",
+    "uncommissioned-holder",
+    "widened-reads",
+    "changed-ceiling",
+    "earlier-validity",
+    "later-expiry",
+    "widened-scope",
+    "old-control-grant",
+    "old-resource-grant",
+    "old-principal",
+    "zero-instance"
+  ],
+  "active_predecessor_refused": true,
+  "old_instance_remains_inactive": true,
+  "old_descendant_native_proof_refused": true,
+  "new_native_scope_proof_accepted": true,
+  "one_successor_per_predecessor": true,
+  "successor_chain": 2,
+  "original_capacity_origin": "2a7652c6af74cb6bae54aa94c34b4530c752dc82f561e752f269d26c915aab1e",
+  "retained_participants": 5,
+  "closed_lifecycle_decode_checked": true,
+  "obsolete_descriptor_refused": true,
+  "maximum_exact_generation_accepted": true,
+  "generation_wrap_to_one_refused": true,
+  "canonical_roundtrip": true,
+  "unwithdrawn_predecessor_decode_refused": true,
+  "scope": "native control, new holder acceptance, independent resource grants and pure retained tree; no store or transport assertion",
+  "not_established": [
+    "capacity-store-conservation",
+    "file-postgres-fences",
+    "installed-key-isolation",
+    "provider-effects",
+    "source-linked-formal",
+    "full-F12"
+  ],
+  "retained_chain_boundary": {
+    "accepted_successors": 14,
+    "retained_participants": 16,
+    "original_capacity_origin_every_prefix": true,
+    "old_native_proof_refused_every_prefix": true,
+    "next_commissioned_successor_refused_full": true,
+    "original_history_roundtrip": true
+  }
+}

@@ -53,3 +53,22 @@ Successful verification emits current controller and revocation-check claims,
 `origin-bound`, `user-verified` when the UV flag is present, and
 `hardware-attested` only when the local registration record establishes a
 named attestation level.
+
+Assurance interpretation revision 2 emits `user-verified` **without an
+observation timestamp**. The signed UV flag establishes user verification in the
+ceremony; it does not establish when the ceremony occurred. Verifier evaluation
+time, the registration observation time and a presenter's asserted signing time
+MUST NOT be substituted for ceremony time. Re-verifying identical evidence must
+not renew its age. The central assurance evaluator therefore refuses a
+maximum-age requirement on this undated claim, while an unaged UV requirement
+can still be satisfied.
+
+Other registration-derived claims retain the registration's `observed_at`.
+Revision 2 is reported as the adapter version and is committed by the adapter's
+configuration domain `webauthn-v1/assurance-v2`. The evidence bytes, principal
+method and signature suite identifiers are unchanged. Old verifier configuration
+commitments do not authorize the new interpretation.
+
+A future fresh-UV profile needs a trusted ceremony observation bound to the exact
+assertion/challenge and a replay-aware ceremony authority. Merely adding a
+caller-provided timestamp to this evidence would not establish that guarantee.

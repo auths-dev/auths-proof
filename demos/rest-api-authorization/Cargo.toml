@@ -19,7 +19,7 @@ auths-model.workspace = true
 auths-ports.workspace = true
 auths-profile-api.workspace = true
 auths-raw-key.workspace = true
-auths-records-api.workspace = true
+auths-records-api = { workspace = true, features = ["testkit"] }
 auths-registries.workspace = true
 auths-runtime.workspace = true
 auths-sdk.workspace = true

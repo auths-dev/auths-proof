@@ -183,14 +183,50 @@ Introduce one versioned canonical `EffectBinding` with an immutable `EffectId`. 
 
 Use tagged, versioned alternatives for protocol-specific facts. Do not represent validity with a large set of optional fields whose illegal combinations are interpreted differently by callers.
 
-The concrete native encoding is `auths.bound-effect/3`, with effect compiler
-`auths.gateway-effect-compiler/8`. Reservations use a closed window alternative:
-fixed epoch-aligned windows or the retained source effect's lifetime. Mutation
+The concrete native encoding is `auths.bound-effect/7`, with effect compiler
+`auths.gateway-effect-compiler/12`. Reservations use a closed window alternative:
+fixed epoch-aligned windows, the retained source effect's lifetime, or AP073's
+shared engagement/ancestor lifetime. AP073's complete immutable ancestry and
+planned typed charges are part of the binding and private review; decoding them
+is data validation. The common journal atomically persists all corresponding ancestor allocation
+references with direct mutation, content/recovery acquisition and disclosure
+claims and verifies the retained rows at entry. Prerequisite children retain the
+same approved parent effect and closed request membership witness, but charge
+their own declared ancestor read units. Mutation
 count/sum reservations retain fixed windows; recovery acquisitions declare
 separate acquisition-count and response-byte charges against one source. A
 source-lifetime bound must survive operation-ID changes, replay and restart.
 An encoded bound declares an obligation; only the journal's atomic admission
 and entry transitions can discharge it. Decoding never grants authority.
+
+The bound effect also declares an ordered `prerequisite_budgets` vector: each
+closed prerequisite index, full response-byte ceiling and typed ancestor read
+charges. The native compiler derives both this vector and the closed prerequisite
+request set. Each child validates membership in the parent's exact request,
+matches its byte ceiling and derives its distinct permanent replay key from the
+parent operation and index. Its read count and source/response allowance are
+reserved atomically with its own record under the current native fence. The typed
+acquisition state selects the prerequisite charges; a parent's write allocations
+cannot stand in for read allocations, and a child does not charge that write
+again. A later prerequisite failure or abandoned parent retains earlier read
+charges. No unverified application argument can add a prerequisite.
+
+AP073's `auths.effect-engagement-scope/3` binds content resource identity from
+the verified nested `resource_arguments`. Recovery and disclosure instead bind
+the resource from validated protected source provenance. Their current native
+proofs still authorize the exact separate read/release action. A source flow
+must match authority namespace/partition/generation, engagement/root, recipe,
+connection, service and resource; historical writer authority is not fresh
+reader/releaser authority. Scoped and unscoped provenance cannot be mixed.
+
+A scoped disclosure additionally binds the recipient's active enrolled ancestry,
+instance generation, exact registered channel and consented resource scope.
+Registered metadata never replaces live peer/key authentication. Participant
+disclosure count and actual projected byte reservations cover the union of the
+sender and recipient ancestor paths, counting a common ancestor once. These are
+exposure ceilings, including sending and receiving; recipient withdrawal prevents
+new grants, while unknown outcomes retain all reservations. Empty projections
+still reserve disclosure count even when their byte amount is zero.
 
 The replay key MUST NOT include the action/effect digest as its only differentiator: the same logical operation ID with changed binding is a conflict, not a fresh operation. Exact replays return existing state; they never mint another capability. A newly chosen operation ID cannot evade a signed approval's binding or the shared budget.
 
@@ -385,7 +421,7 @@ read proof/approval. Custody is checked for the exact staged reference before
 publication; independently stored custody and connection state are not claimed
 to be one atomic transaction.
 
-The concrete journal encoding is `auths.gateway-attempt/16`. Each prerequisite
+The concrete journal encoding is `auths.gateway-attempt/17`. Each prerequisite
 has a component replay key derived from the parent's logical operation key and
 its compiler ordinal, a permanent one-call/maximum-response-byte allocation,
 and a typed acquisition record retaining the parent's exact approval. A bounded

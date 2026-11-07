@@ -264,7 +264,7 @@ pub(super) async fn engine_disclose(
             .await?;
         Ok::<_, GatewaySubmitResult>((native, snapshot))
     };
-    let Some((mut stream, prepared)) = clock.complete(stream, prepare).await else {
+    let Some((mut stream, prepared)) = Box::pin(clock.complete(stream, prepare)).await else {
         return;
     };
     let (native, response) = match prepared {

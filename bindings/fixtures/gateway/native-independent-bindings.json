@@ -9,78 +9,78 @@
   "cases": [
     {
       "case": "actor",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "0ef44c858f71c0f218503776f0a0625dc9ed0da1078c810f1db6cf4dc6b0edf5",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "2e11513933583a16ed3019ac526ee392a3965551f04782e9163bdda3f72e340e",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "account",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "550aa34b98586d305ba6460a3fef835a85ba8aba1d9b82ca9cfcf2a6941bd5f1",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "a7059b5ee706e70fd76c08c736310931e1a7a74a91e041a96c12c619f22d9ffa",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "credential-generation",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "7b09c56d4170cd0269b93eccc90c32591194dafb37b30d48758baa55a1fa4215",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "e5cbfc2c52e2718a9ca4ffd40c635b5171109f883b8370353c78857f607ef316",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "partition",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "6a37cc9555f0a7bd66aa970b067d34cb9c76b8dbbca8fff33c558966629cb5f4",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "6c2e0dc29735d38e6062aa3b93acfaed6388348598b8d4fbd2fac27b8e257360",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "epoch",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "bc519b75d202987afd7a41859accb4edc37b67732e4e579148a41681c603921a",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "a155645f734ef4d6833ac340e65e4f5c5ca2b76fd6a7653ac9bba5a14cede868",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "operation",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "80e7fc02450cf8843cb5674eee84a5322dd1943170c6740c0e528f510e34d7a0",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "1d85538ca5577572df8520da7f06f6caeed30089952bc4bcbc8089f919f41d0e",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "resource",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "e5ec2ffe6fc79a4c4818878feb79938784824941fd4162a67ccc6ef0eb912f0b",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "5947ea8d9eab62a08596b26d0f78ceab1c39d245c51edd0d9d8c8e46478e2afc",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "body",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "954501ad2171f36c83ee7c4fcd057d255b38ee73cc065f813d24bd27684197a6",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "579629b1e3a3f4202b203b1b5da9c33c96bd424ba4f8dbdfa7d03b4cec4c46c7",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "header",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "063b0fc97864332f1743e96a435022b8fc676a4b77c0091f5cdf8c73c701e707",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "b6aa7e9f4641ee3660ca3c5f7776562ddc72ac365ebefffcdf055ac38b898bd8",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "destination",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "b8a37e3c7a309302c503b7783dfd076067cd55b2bfadb055e0f059328f2d8974",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "c8e7d172e2bcd3faeaed55aab82bcc745c54832644632eb4d6829c075ac7a097",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },
     {
       "case": "approver",
-      "baseline_effect": "490c1bd2e1ce3c3ebca07bbafba9da4f01cd91fd75fb8dc5775754f1b758b9af",
-      "changed_effect": "6c37e8766fd6c7d02a899408826256a518189fa914b1e81c65e3d894c06be2bb",
+      "baseline_effect": "f24fd873a2f43fed05eed5df5efe0d7625dad8c893a22984703e011084ce3f16",
+      "changed_effect": "38a9f25750a69acaff377b4c0fe707a1c873d135ec339bdb1f08596645561cf3",
       "old_exact_approval_refused": true,
       "fresh_native_authority_and_approval_accepted": true
     },

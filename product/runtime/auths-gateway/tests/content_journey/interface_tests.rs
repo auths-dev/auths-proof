@@ -69,7 +69,7 @@ fn envelope(input: &Approved) -> Value {
 fn case(name: &str, value: &Value) -> Value {
     json!({"case":name,"frame":serde_json::to_string(value).expect("frame")})
 }
-fn private_paths(root: &Path) -> Vec<PathBuf> {
+pub(super) fn private_paths(root: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for entry in std::fs::read_dir(root).expect("owned fixture directory") {
         let entry = entry.expect("entry");
@@ -544,6 +544,14 @@ fn run(distinct: bool) -> Value {
         case(
             "forged-ack",
             &json!({"schema":app::APP_DISCLOSURE_ACK_SCHEMA,"operation":"release","acknowledgement_b64":Base64UrlUnpadded::encode_string(b"{}")}),
+        ),
+        case(
+            "native-participant-control-without-installed-engagement",
+            &serde_json::from_slice::<Value>(
+                &std::fs::read(fixtures.join("engagement/control.json"))
+                    .expect("native control corpus"),
+            )
+            .expect("native control JSON")["file"]["enrollment_request"],
         ),
     ];
     let covered: BTreeSet<_> = calls

@@ -10,7 +10,8 @@
     "auths.gateway-content/1",
     "auths.gateway-disclose/1",
     "auths.gateway-content-history/1",
-    "auths.gateway-disclosure-acknowledge/1"
+    "auths.gateway-disclosure-acknowledge/1",
+    "auths.gateway-participant-control/1"
   ],
   "operator_commands": [
     "disable",

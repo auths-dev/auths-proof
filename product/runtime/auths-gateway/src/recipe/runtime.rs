@@ -159,6 +159,8 @@ pub(crate) struct ObservationTemplate {
     pub(crate) maximum_response_bytes: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) echo_pointer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) created_resource: Option<super::created_resource::Selection>,
 }
 
 impl ObservationTemplate {
@@ -206,6 +208,19 @@ impl ObservationTemplate {
             && self.expected.len() <= 8_192
             && self.maximum_response_bytes > 0
             && self.maximum_response_bytes <= 65_536
+            && self.created_resource.as_ref().is_none_or(|selection| {
+                !self.has_response_fields()
+                    && self
+                        .echo_pointer
+                        .as_deref()
+                        .is_some_and(|marker| selection.valid(&self.json_pointer, marker))
+                    && serde_json::from_str::<Value>(&self.expected)
+                        .ok()
+                        .and_then(|value| {
+                            value.as_str().map(crate::resource_identity::valid_handle)
+                        })
+                        .unwrap_or(false)
+            })
     }
 
     /// Reads every response-field value from a complete 2xx JSON write
@@ -296,6 +311,7 @@ impl ObservationTemplate {
             expected,
             maximum_response_bytes: self.maximum_response_bytes,
             echo_pointer: self.echo_pointer.clone(),
+            created_resource: self.created_resource.clone(),
         })
     }
 }
@@ -463,6 +479,7 @@ impl CompiledRecipe {
             expected,
             maximum_response_bytes: source.maximum_response_bytes,
             echo_pointer: self.source.echo.as_ref().map(|echo| echo.observe.clone()),
+            created_resource: source.created_resource.clone(),
         };
         if template.valid() {
             Ok(Some(template))

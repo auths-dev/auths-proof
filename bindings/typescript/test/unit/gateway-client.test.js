@@ -6,6 +6,40 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { GatewayClient, GatewayEndpoint, GatewayProtocolError } from "../../dist/gateway.js";
 
+test("native participant controls preserve evidence and historical outcomes", { skip: process.platform === "win32" }, async () => {
+  const corpus = JSON.parse(await readFile(new URL("../../../fixtures/gateway/engagement/control.json", import.meta.url), "utf8"));
+  const request = corpus.file.enrollment_request;
+  const evidence = new Uint8Array(Buffer.from(request.evidence_b64, "base64url"));
+  const directory = await mkdtemp(join(tmpdir(), "auths-control-"));
+  try {
+    for (const [index, item] of corpus.file.cases.entries()) {
+      const seen = [];
+      const reply = Buffer.from(JSON.stringify(item.response));
+      const path = join(directory, `control-${index}.sock`);
+      const server = createServer((socket) => {
+        let bytes = Buffer.alloc(0);
+        socket.on("data", (chunk) => {
+          bytes = Buffer.concat([bytes, chunk]);
+          if (bytes.length < 4 || bytes.length < bytes.readUInt32BE(0) + 4) return;
+          seen.push(JSON.parse(bytes.subarray(4, bytes.readUInt32BE(0) + 4).toString("utf8")));
+          const frame = Buffer.alloc(4 + reply.length);
+          frame.writeUInt32BE(reply.length, 0); reply.copy(frame, 4); socket.end(frame);
+        });
+      });
+      await new Promise((resolve) => server.listen(path, resolve));
+      try {
+        const result = await new GatewayClient(new GatewayEndpoint(path)).participantControl(evidence);
+        assert.deepEqual(Buffer.from(result), reply);
+        assert.deepEqual(seen, [request]);
+      } finally { await new Promise((resolve) => server.close(resolve)); }
+    }
+    const client = new GatewayClient(new GatewayEndpoint(join(directory, "not-opened.sock")));
+    for (const invalid of [new Uint8Array(), new Uint8Array(corpus.max_control_bytes + 1), "not-bytes"]) {
+      await assert.rejects(client.participantControl(invalid), TypeError);
+    }
+  } finally { await rm(directory, {recursive:true, force:true}); }
+});
+
 test("gateway client submits proof/action/exact approval and separates observed from effect", { skip: process.platform === "win32" }, async () => {
   const directory = await mkdtemp(join(tmpdir(), "auths-gateway-"));
   const path = join(directory, "app.sock");

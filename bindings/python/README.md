@@ -129,3 +129,19 @@ pre-entry history returns only the observation count and a hiding record
 commitment. No protected observation bytes or raw content-derived digests are
 returned. Operator-only `auths-gateway audit-export` completes private audit
 bundles; these are not application SDK results. Superseded schemas are rejected.
+
+## Native participant controls
+
+`await gateway.participant_control(evidence)` forwards canonical native
+`auths.engagement-control-evidence/1` bytes and returns native result bytes.
+Use the native `participant-evidence` command to prepare the bytes. The maximum
+is 6,290,432 bytes. The app route cannot bootstrap roots or supply trust, time,
+capacity or root pins. Native parent/child/resource verification and the existing
+configuration fence decide enrollment and withdrawal.
+
+A `recorded` revision is historical evidence, including after withdrawal or
+expiry. It never reactivates an agent, refreshes authority or creates an entry
+permit. If the reply is lost, resubmit exact control evidence to locate its
+original revision; no provider retry or content release follows. Protect private
+control evidence and audit exports; do not log them or expose them to models.
+

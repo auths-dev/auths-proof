@@ -5,6 +5,8 @@ on:
     paths:
       - "product/runtime/auths-lifecycle/**"
       - "product/runtime/auths-gateway/**"
+      - "product/integrations/auths-records-api/**"
+      - "demos/rest-api-authorization/**"
       - "product/stores/auths-stores/**"
       - "bindings/fixtures/gateway/**"
       - "qualification/reference/ap074_information_differential.py"
@@ -28,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup-rust-cache
         with:
@@ -40,6 +43,18 @@ jobs:
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: cargo test -p auths-stores --test postgres_lifecycle -- --ignored
+      - name: Run every registered gateway PostgreSQL case
+        env:
+          AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_SERVER_NAME: localhost
+        run: |
+          set -o pipefail
+          mkdir -p target
+          # Keep broad-family output separate: the independent AP074 verifier
+          # requires exactly one execution of each retained per-selector case.
+          cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --include-ignored postgres 2>&1 | tee target/ap073-postgresql-all.log
+          grep -Eq 'test result: ok\. [1-9][0-9]* passed; 0 failed; 0 ignored;' target/ap073-postgresql-all.log
       - name: Run gateway attempt-store conformance and hostile suites
         env:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
@@ -50,10 +65,10 @@ jobs:
           mkdir -p target
           {
           failures=0
-          cargo test -p auths-gateway --lib -- --ignored postgres || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --test content_journey -- --exact native_content_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_process_tests::native_file_process_capacity_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_process_tests::postgres_native_process_capacity_fixture_is_current || failures=$((failures + 1))
+          python3 qualification/reference/created_resource.py bindings/fixtures/gateway/engagement/creation-selection.json || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_crash_tests::native_file_process_crash_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --ignored --exact native_crash_tests::postgres_native_process_crash_fixture_is_current || failures=$((failures + 1))
           cargo test -p auths-gateway --features loopback-provider,testkit-harness --lib -- --exact native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current || failures=$((failures + 1))
@@ -102,6 +117,11 @@ jobs:
           cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres || failures=$((failures + 1))
           test "$failures" -eq 0
           } 2>&1 | tee target/ap074-native-adapter-evidence.log
+      - name: Verify native records external presentation corpus
+        run: |
+          set -o pipefail
+          cargo test --locked -p auths-records-api --features testkit --lib -- --exact presentation::external_authoring_tests::native_records_presentation_authoring_fixture_is_current 2>&1 | tee target/ap073-native-records-presentation.log
+          grep -Fq 'test result: ok. 1 passed; 0 failed; 0 ignored;' target/ap073-native-records-presentation.log
       - name: Run complete AP074 final hardening batch
         if: ${{ !cancelled() }}
         env:
@@ -123,6 +143,15 @@ jobs:
               failures=$((failures + 1))
             fi
           done <<'SELECTORS'
+          native_cross_recipe_tests::federation_tests::native_file_coordinated_federation_fixture_is_current
+          native_cross_recipe_tests::federation_tests::postgres_native_coordinated_federation_matrix
+          participant_enrollment::tests::recovery_tests::native_instance_recovery_fixture_is_current
+          observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::native_instance_recovery_store_fixture_is_current
+          observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::postgres_native_instance_recovery_store_matrix
+          native_cross_recipe_tests::native_file_cross_recipe_process_fixture_is_current
+          native_cross_recipe_tests::postgres_native_cross_recipe_process_matrix
+          observed_tests::effect_native_tests::engagement_tests::created_resource_tests::native_created_resource_recovery_fixture_is_current
+          observed_tests::effect_native_tests::engagement_tests::created_resource_tests::postgres_native_created_resource_recovery_matrix
           native_mutation_crash_tests::guarded_tests::native_file_guarded_mutation_crash_fixture_is_current
           native_mutation_crash_tests::guarded_tests::postgres_native_guarded_mutation_crash_fixture_is_current
           native_mutation_crash_tests::partial_upload_tests::native_file_partial_upload_fixture_is_current
@@ -195,6 +224,7 @@ jobs:
         with:
           name: ap074-information-differential-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            target/ap073-postgresql-all.log
             target/ap074-native-adapter-evidence.log
             target/ap074-independent-information-differential.json
           if-no-files-found: error

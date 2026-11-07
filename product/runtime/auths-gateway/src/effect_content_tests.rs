@@ -3,14 +3,14 @@
 use super::*;
 use crate::effect::{CONTENT_READ_TOOL, ContentReadTarget, compile_content_acquisition};
 
-fn declaration(projection: &Value) -> Value {
+pub(super) fn declaration(projection: &Value) -> Value {
     json!({"schema": "auths.gateway-content-read/1", "resource_field": "record_id",
         "path": [{"kind": "fixed", "value": "documents"}, {"kind": "field", "name": "record_id"}],
         "query": [{"name": "format", "value": "text/plain"}], "projection": projection,
         "maximum_response_bytes": 1024, "maximum_content_bytes": 64})
 }
 
-fn content_recipe(content: Value) -> Result<CompiledRecipe, crate::GatewayRecipeError> {
+pub(super) fn content_recipe(content: Value) -> Result<CompiledRecipe, crate::GatewayRecipeError> {
     let (source, lock) = h::recipe_sources(&json!({}), &Value::Null).expect("source/lock");
     let mut source: Value = serde_json::from_slice(&source).expect("source");
     source["content"] = content;
@@ -604,6 +604,7 @@ async fn native_content_journal_fixture_is_current() {
             observer: None,
             policy: policy.clone(),
             configuration: configuration.clone(),
+            engagement: None,
             connection: crate::entry::EntryConnection::Installed(Box::new(loaded.clone())),
             connection_key: crate::connection_key(record.provider_kind(), record.alias()),
             qualification: Arc::clone(&qualification),

@@ -63,6 +63,7 @@ pub(crate) struct InstalledEntry {
     pub(crate) observer: Option<PrincipalId>,
     pub(crate) policy: EffectPolicy,
     pub(crate) configuration: SharedConfiguration,
+    pub(crate) engagement: Option<crate::EngagementConfiguration>,
     pub(crate) connection: EntryConnection,
     pub(crate) connection_key: GatewayAttemptKey,
     pub(crate) qualification: Arc<crate::QualificationGate>,
@@ -71,6 +72,39 @@ pub(crate) struct InstalledEntry {
     pub(crate) started: Instant,
     #[cfg(unix)]
     pub(crate) commissioning: Option<crate::engine::commissioning::EntryAuthority>,
+}
+
+impl InstalledEntry {
+    fn enrollment(
+        &self,
+        snapshots: &[Option<Vec<u8>>],
+        now: u64,
+    ) -> Result<Option<crate::EngagementConfigurationSnapshot>, &'static str> {
+        let enrollment = match (self.policy.engagement(), &self.engagement) {
+            (None, None) => None,
+            (Some(policy), Some(controller)) => {
+                if crate::EngagementConfiguration::key_for_root(policy.root())
+                    .map_err(|_| "gateway.engagement.installation")?
+                    != controller.dependency_key()
+                {
+                    return Err("gateway.engagement.installation");
+                }
+                let snapshot = crate::EngagementConfiguration::decode_for_root(
+                    policy.root(),
+                    snapshots[2]
+                        .as_deref()
+                        .ok_or("gateway.engagement.state-unavailable")?,
+                )
+                .map_err(|_| "gateway.engagement.state-unavailable")?;
+                if snapshot.accepted_at() > now {
+                    return Err("gateway.engagement.clock-rollback");
+                }
+                Some(snapshot)
+            }
+            _ => return Err("gateway.engagement.installation"),
+        };
+        Ok(enrollment)
+    }
 }
 
 pub(crate) enum EntryValidation {
@@ -149,7 +183,10 @@ impl EntryValidation {
         }
     }
 
-    pub(crate) fn dependencies(&self) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
+    pub(crate) fn dependencies(
+        &self,
+        approved: &ApprovedEffect,
+    ) -> Vec<(GatewayRecordKind, GatewayAttemptKey)> {
         match self {
             Self::Installed(entry) => {
                 let mut keys = vec![
@@ -159,9 +196,18 @@ impl EntryValidation {
                         entry.configuration.key(),
                     ),
                 ];
+                if let Some(engagement) = &entry.engagement {
+                    keys.push((
+                        GatewayRecordKind::EffectConfiguration,
+                        engagement.dependency_key(),
+                    ));
+                }
                 #[cfg(unix)]
                 if let Some(authority) = &entry.commissioning {
                     keys.push((GatewayRecordKind::CommissioningBudget, authority.budget_key));
+                }
+                if let Some(lineage) = approved.effect().binding().created_lineage() {
+                    keys.extend(lineage.dependencies());
                 }
                 keys
             }
@@ -180,7 +226,7 @@ impl EntryValidation {
     ) -> Result<u64, &'static str> {
         match self {
             Self::Installed(entry) => {
-                if snapshots.len() != self.dependencies().len() {
+                if snapshots.len() != self.dependencies(approved).len() {
                     return Err("gateway.entry.dependencies-unavailable");
                 }
                 if !entry.connection.validate(
@@ -210,7 +256,7 @@ impl EntryValidation {
                     Some(authority) => authority.check(
                         &qualification,
                         snapshots
-                            .get(2)
+                            .get(2 + usize::from(entry.engagement.is_some()))
                             .and_then(Option::as_deref)
                             .ok_or("gateway.commissioning.registration-missing")?,
                     ),
@@ -218,15 +264,36 @@ impl EntryValidation {
                 }?;
                 #[cfg(not(unix))]
                 qualification.check()?;
+                let enrollment = entry.enrollment(snapshots, now)?;
+                let lineages = match approved.effect().binding().created_lineage() {
+                    None => Vec::new(),
+                    Some(lineage) => {
+                        let tail = snapshots
+                            .len()
+                            .checked_sub(3)
+                            .ok_or("gateway.engagement.created-history-unavailable")?;
+                        crate::store::revalidate_created_lineage(lineage, &snapshots[tail..])
+                            .map_err(|_| "gateway.engagement.created-history-unavailable")?;
+                        vec![lineage.clone()]
+                    }
+                };
                 approved
                     .validate_for_entry(
-                        &entry.policy.installation(
-                            &entry.recipe,
-                            &entry.trust,
-                            entry.connection.record(),
-                            entry.qualification.policy(),
-                            entry.configuration.candidate(),
-                        ),
+                        &entry
+                            .policy
+                            .installation(
+                                &entry.recipe,
+                                &entry.trust,
+                                entry.connection.record(),
+                                entry.qualification.policy(),
+                                entry.configuration.candidate(),
+                            )
+                            .with_enrollment(
+                                enrollment
+                                    .as_ref()
+                                    .map(crate::EngagementConfigurationSnapshot::tree),
+                            )
+                            .with_lineages(&lineages),
                         now,
                     )
                     .map_err(|_| "gateway.effect.authority-unavailable")?;
