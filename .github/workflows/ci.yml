@@ -563,8 +563,18 @@ jobs:
           compiler-cache: "false"
       - name: Install pinned Kani
         run: |
+          set -euo pipefail
           cargo install kani-verifier --version 0.67.0 --locked
-          cargo kani setup
+          bundle="${RUNNER_TEMP}/kani-0.67.0-x86_64-unknown-linux-gnu.tar.gz"
+          # Upstream setup invokes one curl without retries. Keep the same
+          # release and authenticate its bytes before local-bundle setup.
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            --connect-timeout 30 --max-time 300 --retry 5 --retry-all-errors --retry-delay 5 \
+            https://github.com/model-checking/kani/releases/download/kani-0.67.0/kani-0.67.0-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$bundle"
+          printf '%s  %s\n' 3b5f7afd3b51603ee720db7bc1bc4fe46b5a4f5d36daad9939c4b4c658b51ac0 "$bundle" \
+            | sha256sum --check --strict
+          cargo kani setup --use-local-bundle "$bundle"
           kani --version
       - name: Run every gated Kani harness
         env:
@@ -990,6 +1000,14 @@ jobs:
         if: failure()
         working-directory: demos/opentofu-plan
         run: docker compose logs --no-color
+      - name: Diagnose pinned local-provider initialization after failure
+        if: failure() && steps.build.outcome == 'success'
+        working-directory: demos/opentofu-plan
+        # A disposable container uses the exact built image and public local
+        # fixture. No apply, backend initialization or credential dump occurs.
+        run: |
+          docker compose run --rm --no-deps --entrypoint /usr/local/bin/tofu api \
+            -chdir=/workspace/opentofu init -backend=false -input=false -lockfile=readonly
       - name: Preserve exact image provenance
         if: always() && steps.build.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

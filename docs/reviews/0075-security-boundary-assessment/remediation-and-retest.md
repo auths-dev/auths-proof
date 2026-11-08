@@ -80,3 +80,25 @@ specific remaining composition premise, not a percentage.
 No production restore, credential provisioning or human recovery fix can be
 declared retested using only this simulation. AG01–AG04 remain visible in the
 final gate verdict.
+
+## Hosted qualification setup follow-up
+
+The `9ba04192` and `cb267735` cohorts fail before any Kani harness runs: upstream
+`cargo kani setup` invokes a single curl that received HTTP 504 and 503. The
+prepared repair keeps Kani 0.67.0, downloads its same Linux bundle with bounded
+retries, verifies SHA-256
+`3b5f7afd3b51603ee720db7bc1bc4fe46b5a4f5d36daad9939c4b4c658b51ac0`, then
+uses upstream's supported local-bundle setup. That checksum is published on the
+[pinned upstream release asset](https://github.com/model-checking/kani/releases/tag/kani-0.67.0).
+The proof command and every gated harness remain unchanged. This change is
+pending its hosted result; a retried download is not proof evidence.
+
+The repeated OpenTofu 503 has not been attributed to a product security defect.
+The native reference maps several planning failures to `EvidenceUnavailable`.
+Its cached image locks the local provider but removes the installed provider
+directory, so runtime initialization has an external dependency. The workflow
+adds a failure-only diagnostic in a disposable container from the exact built
+image: initialize the public local-provider fixture with `-backend=false` and
+the unchanged read-only lockfile. It performs no apply or credential dump.
+This probe can clarify dependency availability, but is not itself evidence of
+the original failure's cause or a repaired execution workflow.
