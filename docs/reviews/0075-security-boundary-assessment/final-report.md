@@ -34,6 +34,12 @@ The scope is finite and uses development custody plus loopback doubles. Existing
 tests remain supplemental implementation evidence. Read `findings.md` before
 using a passing row to support a release claim.
 
+The [dependency inventory](dependency-risk-inventory.md) also retains 15 open
+GitHub advisories. Selected-path feature/graph review did not establish their
+exploitation through the assessed gateway; affected alternative consumers and
+Python demo requirements remain open maintenance work. No whole-repository
+clean-advisory claim is made.
+
 ## Gate verdict
 
 | Gate | Verdict | Basis |
