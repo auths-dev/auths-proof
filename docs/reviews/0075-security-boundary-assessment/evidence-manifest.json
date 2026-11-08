@@ -156,5 +156,39 @@
     "prior_implementation_involvement": "AP073",
     "fresh_context_review": false,
     "human_independent_review": false
-  }
+  },
+  "hosted_qualification": [
+    {
+      "schema": "auths.security-assessment-hosted-qualification/1",
+      "revision": "cb267735d4402f5da4cb94fc0ac8d57f78fc5b44",
+      "repository_ci_run": 42472087867,
+      "stripe_run": 42472087860,
+      "authoritative_repository_gate": "success",
+      "clean_authoritative_lean": "success",
+      "installed_adversarial_job": "success",
+      "overall_ci": "failure",
+      "unresolved": [
+        "Kani setup HTTP 503 before harness execution",
+        "OpenTofu session construction HTTP 503; cause not established"
+      ],
+      "retained_artifact": {
+        "id": 13614486265,
+        "zip_sha256": "fc525bafb465c8b6b62261eb23660b79aa294fdfbcdab01dd2ac47a9590e7225",
+        "local_path": "target/security-assessment/hosted-cb267/evidence.zip"
+      },
+      "verified_package": {
+        "id": 13614625187,
+        "zip_sha256": "fd8cb48f4cb460fc331a50c1675bf3acf1b5fa8c8df7dad54d2398a0fbcb98cf",
+        "simulation_binary_sha256": "fd2b31c1fa304c44d89a56814c4b45f4d93ecbb879c160e6f56a4ffbf46e5233",
+        "both_new_campaign_reports_match_source_and_binary": true
+      },
+      "counts": {
+        "transport": 33,
+        "operational_drills": 3,
+        "reference": 23,
+        "baseline": 6
+      },
+      "qualification_scope": "same shipping source as assessed main; candidate-specific source-free package and real hosted observations; no production or independent-human claim"
+    }
+  ]
 }

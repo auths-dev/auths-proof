@@ -51,7 +51,7 @@ clean-advisory claim is made.
 | G05 Concurrency/revocation | Supported within tested scope | Independent file races and native file/TLS scenarios pass; finite schedules and participating-writer/storage assumptions remain. |
 | G06 Recovery/operations | Unverified in full | Lost-response exercise and native crash/ACK/restore cases pass; unresolved refund escalation, human usability and production restore/custody remain unmeasured. |
 | G07 Findings closure | No demonstrated critical/high defect | No product exploit established; assurance gaps AG01–AG04 prevent broader closure. This is not a vulnerability-absence claim. |
-| G08 Qualification | Pending final hosted verification | Exact-head checks must be inspected after the final assessment commit; prior authoritative repository gate passed, while the cohort has lab readiness and upstream download failures plus an OpenTofu 503 whose cause remains unresolved. |
+| G08 Qualification | Pending final hosted verification | At `cb267735`, authoritative repository CI, clean authoritative Lean and the installed assessment pass; overall CI fails on Kani's setup download and an OpenTofu 503. The prepared setup/diagnostic repair requires its own hosted result. |
 | G09 Evidence/claims | Supported for disclosed local report | Retained census/provenance/limitations and current prelaunch claims agree. Independent/production qualification remains unavailable. |
 
 “Supported within tested scope” is deliberately not a full gate pass. No internal
