@@ -111,6 +111,13 @@ def main():
         experiments.append({'name': name, 'path': 'evidence/' + name,
                             'sha256': digest(destination), 'target_revision': target,
                             'provenance': 'see reproduce.md and record-specific harness identity'})
+        if name in ['installed-stripe-boundary.json', 'baseline-comparison.json']:
+            experiments[-1]['executed_harness_revision'] = '9ba04192e332966ea7f7f173d6ad21c11a1ed779'
+        elif name == 'installed-stripe-reference.json':
+            experiments[-1]['executed_harness_revision'] = 'working tree derived from 9ba04192; corrected DNS launch'
+            experiments[-1]['harness_byte_snapshot_at_execution'] = 'not captured; narrower provenance than committed boundary campaign'
+        elif name == 'native-census.json':
+            experiments[-1]['executed_harness_sha256'] = '3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a'
     manifest['experiments'] = experiments
     manifest['assessment_tool_sha256'] = {
         path.name: digest(path) for path in sorted(Path(__file__).parent.glob('*')) if path.is_file()

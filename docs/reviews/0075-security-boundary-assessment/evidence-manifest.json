@@ -26,21 +26,25 @@
       "path": "evidence/installed-stripe-boundary.json",
       "sha256": "34b824fe328ab993c93e69f307220370df8c2ebd0902736a64e9c98c025c6aad",
       "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
-      "provenance": "see reproduce.md and record-specific harness identity"
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_revision": "9ba04192e332966ea7f7f173d6ad21c11a1ed779"
     },
     {
       "name": "baseline-comparison.json",
       "path": "evidence/baseline-comparison.json",
       "sha256": "481f6dc953420ad443413b9f23c8a3668c3e7d672a6e6e14c46cc3e7abe28d42",
       "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
-      "provenance": "see reproduce.md and record-specific harness identity"
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_revision": "9ba04192e332966ea7f7f173d6ad21c11a1ed779"
     },
     {
       "name": "installed-stripe-reference.json",
       "path": "evidence/installed-stripe-reference.json",
       "sha256": "96cc7623f5c31a113f767c4016a9a5f8951f3d79e0f74f95bb832247c779fd83",
       "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
-      "provenance": "see reproduce.md and record-specific harness identity"
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_revision": "working tree derived from 9ba04192; corrected DNS launch",
+      "harness_byte_snapshot_at_execution": "not captured; narrower provenance than committed boundary campaign"
     },
     {
       "name": "installed-delegation.json",
@@ -54,7 +58,8 @@
       "path": "evidence/native-census.json",
       "sha256": "4fa79523df053a4feb0fccde1618685a80744d2d5281f7a76d75630ef3fcc330",
       "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
-      "provenance": "see reproduce.md and record-specific harness identity"
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_sha256": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a"
     },
     {
       "name": "artifact-controls.json",
@@ -92,7 +97,7 @@
     "coverage.json": "77ee20b6fbffee4f5dd8d890f3ac557fc31957a2abea4b20c546a6f1706e3ca7",
     "inventory.json": "54a29e28f47ea1611ee395a1d8cbd91e2e01be256f83d03e0234d8fbecea7625",
     "native.py": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a",
-    "report.py": "929569b707a0f5060d9807b55a82e5aded9a8e1bad844d2c8b25ba4f391ba74b",
+    "report.py": "9d961baab043e4720c702cf0c5375ee8b9ffb84f75b71d0d7eae1a6ddb3e28a5",
     "stripe_probe.py": "05b75fc966e5f3338a4de8bcff48e19bf3d491283051e70326fd394257a3fc40",
     "test_report.py": "2cb35818ca851d0ce86c7a10e7d6fa178c54aa726f2c090f8eb04bdfbb3b5ccc",
     "test_validate.py": "40196956e0e543f3c8b8d199b82483808e3e3b5508cb07944d897c53a3d4031a",
