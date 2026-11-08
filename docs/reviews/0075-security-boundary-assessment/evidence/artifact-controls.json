@@ -1,0 +1,79 @@
+{
+  "schema": "auths.security-assessment-artifact-controls/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "cases": [
+    {
+      "id": "intact-control",
+      "status": "pass",
+      "expected_accept": true,
+      "actual_accept": true,
+      "reason": "verified payloads: 33",
+      "mutant_executed": false
+    },
+    {
+      "id": "outer-hash",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "GitHub artifact digest mismatch: stripe-package",
+      "mutant_executed": false
+    },
+    {
+      "id": "duplicate-zip",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "duplicate ZIP entry",
+      "mutant_executed": false
+    },
+    {
+      "id": "zip-traversal",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "unsafe archive path",
+      "mutant_executed": false
+    },
+    {
+      "id": "tar-link",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "unexpected tar root/type",
+      "mutant_executed": false
+    },
+    {
+      "id": "wrong-source",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "package source/schema/claim mismatch",
+      "mutant_executed": false
+    },
+    {
+      "id": "payload-hash",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "payload digest mismatch",
+      "mutant_executed": false
+    },
+    {
+      "id": "omitted-inventory",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "incomplete/duplicate payload manifest",
+      "mutant_executed": false
+    },
+    {
+      "id": "destination-link",
+      "status": "pass",
+      "expected_accept": false,
+      "actual_accept": false,
+      "reason": "symlink in extraction destination",
+      "mutant_executed": false
+    }
+  ],
+  "scope": "corruption/traversal/source/payload controls; GitHub producer remains trusted"
+}

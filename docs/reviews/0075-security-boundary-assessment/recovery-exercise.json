@@ -1,0 +1,73 @@
+{
+  "schema": "auths.security-assessment-recovery-exercise/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "execution": "actual installed package; scripted lab operator",
+  "source_case": "RECOVERY-unknown-restart-and-independent-read",
+  "provider_write_requests_in_exercise": 1,
+  "distinct_effects_in_exercise": 1,
+  "elapsed_seconds": 2.2220758760813624,
+  "exercise": {
+    "human_effort_measured": false,
+    "production_incident_frequency_measured": false,
+    "prohibited_action": "new refund or automatic retry to resolve uncertainty",
+    "role": "scripted trusted operator and authorized application",
+    "safe_next_action": "retain uncertain charge; use separately authorized evidence or escalate",
+    "steps": [
+      {
+        "elapsed_seconds": 0.5937614169670269,
+        "outcome": "unknown",
+        "step": "submit-lost-response",
+        "command_or_process_operation": [
+          "/opt/consumer/bin/python",
+          "/opt/demo/app.py",
+          "submit",
+          "--experiment",
+          "lost-response"
+        ]
+      },
+      {
+        "elapsed_seconds": 0.17542012501507998,
+        "outcome": "completed",
+        "step": "restart-gateway",
+        "command_or_process_operation": [
+          "SIGTERM owned gateway0 PID; wait",
+          "/opt/demo/bin/auths-gateway-simulation serve --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/app0.sock --loopback-provider <owned-double-port>"
+        ]
+      },
+      {
+        "elapsed_seconds": 0.3783387920120731,
+        "outcome": "unknown",
+        "step": "inspect-original-operation",
+        "command_or_process_operation": [
+          "/opt/consumer/bin/python",
+          "/opt/demo/app.py",
+          "submit",
+          "--experiment",
+          "lost-response"
+        ]
+      },
+      {
+        "elapsed_seconds": 1.073441292042844,
+        "outcome": "recovery-report",
+        "step": "independently-authorized-observation-of-known-source",
+        "command_or_process_operation": [
+          "/opt/consumer/bin/python",
+          "/opt/demo/app.py",
+          "submit",
+          "--experiment",
+          "recover-exact"
+        ]
+      }
+    ],
+    "unresolved_case": "lost response; no response-provided locator in retained source"
+  },
+  "limitations": [
+    "Initial operator drill uses graceful restart; actual SIGKILL matrices are separately selected native process tests.",
+    "Known-source observation is a different operation from the unresolved response-lost source.",
+    "Human effort, production incidence, physical power-loss and production provider durability are not measured."
+  ],
+  "command_provenance": "Derived from actually invoked Operator.application/restart at pinned source; dynamic PID/port deliberately placeholders. These strings were not captured as execve telemetry.",
+  "scenario_count": 1,
+  "operator_steps": 4,
+  "operator_role_transition": "trusted controller restart, then restricted application with separately authored recovery evidence"
+}

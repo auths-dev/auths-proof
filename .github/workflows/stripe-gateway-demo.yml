@@ -166,7 +166,10 @@ jobs:
           name: stripe-gateway-demo-package
           path: target/ap075-package
       - name: Verify evidence-census mutation controls
-        run: python3 -m unittest discover -s qualification/security_assessment -p test_validate.py
+        run: |
+          python3 -m unittest discover -s qualification/security_assessment -p 'test_*.py'
+          python3 qualification/security_assessment/report.py --verify \
+            --output docs/reviews/0075-security-boundary-assessment
       - name: Verify source-free package and build restricted laboratory
         run: |
           cd target/ap075-package
@@ -183,6 +186,7 @@ jobs:
           for suite in boundary reference; do
             mkdir -p "target/ap075-evidence/$suite"
             if ! docker run --rm --init --network none --cap-add NET_ADMIN \
+              --add-host api.stripe.com:1.1.1.1 \
               --security-opt no-new-privileges --memory 1g --cpus 2 --pids-limit 256 \
               --tmpfs /run:rw,nosuid,nodev,size=128m \
               -e AUTHS_ASSESSMENT_TARGET_SHA \

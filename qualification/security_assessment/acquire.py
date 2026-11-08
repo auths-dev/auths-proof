@@ -79,9 +79,9 @@ def acquire(manifest, destination):
         unpacked.mkdir(exist_ok=True)
         for name, (data, mode) in files.items():
             path = unpacked / name
-            path.parent.mkdir(parents=True, exist_ok=True)
             if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
                 raise ValueError('symlink in extraction destination')
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
             path.chmod(mode & 0o777)
         records.append({'key': item['key'], 'artifact_id': item['id'], 'run_id': item['run_id'],

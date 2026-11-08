@@ -8,6 +8,7 @@
 - **Assessor:** A capable agent operating in a fresh assessment context, with adversarial testing and repository access. Agent assessment does not establish independent human review, organizational independence or production qualification.
 - **Terms:** MUST and MUST NOT define acceptance requirements for this assessment. They are not claims that the implementation already satisfies them.
 - **Amended:** 8 November 2026: explicit semantic-complexity inventory, composed-invariant analysis and measured operational recovery; bounded baseline comparison remains separate from customer validation.
+- **Assessment record:** [Local investigation and unresolved gates](../reviews/0075-security-boundary-assessment/final-report.md). This record does not imply independent-assessment or production acceptance.
 
 ## 1. Objective and completion boundary
 

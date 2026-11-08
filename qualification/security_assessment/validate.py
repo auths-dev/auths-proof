@@ -6,6 +6,10 @@ from pathlib import Path
 
 
 def validate(boundary, comparison, inventory, expected_head):
+    if (inventory.get('schema') != 'auths.security-assessment-execution-inventory/1'
+            or len(inventory['stripe_probe_cases']) != len(set(inventory['stripe_probe_cases']))
+            or len(inventory['baseline_cases']) != len(set(inventory['baseline_cases']))):
+        raise ValueError('invalid or duplicated expected execution inventory')
     if (boundary.get('schema') != 'auths.security-assessment-stripe/1'
             or boundary.get('target_revision') != expected_head
             or boundary.get('attacker_uid') != 62004
@@ -21,7 +25,9 @@ def validate(boundary, comparison, inventory, expected_head):
            or row.get('backend') != 'file' for row in rows):
         raise ValueError('case failed or has wrong source/backend')
     positive = next(row for row in rows if row['id'] == inventory['positive_control'])
-    if positive.get('provider_write_requests') != 1 or positive.get('distinct_effects_in_interval') != 1:
+    if (type(positive.get('provider_write_requests')) is not int
+            or type(positive.get('distinct_effects_in_interval')) is not int
+            or positive['provider_write_requests'] != 1 or positive['distinct_effects_in_interval'] != 1):
         raise ValueError('positive control did not reach one effect')
     if comparison.get('schema') != 'auths.security-assessment-comparison/1':
         raise ValueError('missing baseline report')

@@ -8,6 +8,11 @@ agent never sees it. Afterwards, an auditor can re-verify each action offline.
 This repository is prelaunch and has not had an independent security review.
 See [Status](#status).
 
+The [AP075 assessment report](docs/reviews/0075-security-boundary-assessment/final-report.md)
+records a bounded agent-led investigation of main `ac5fcabe`, including actual
+installed-path attacks, limitations and unresolved independent-assessment gates.
+It does not change the production or independent-review status above.
+
 ## See it work
 
 Your agent may refund a Stripe payment only when two of your three managers

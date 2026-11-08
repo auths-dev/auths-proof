@@ -1,7 +1,7 @@
 {
   "schema": "auths.security-assessment-plan/1",
   "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
-  "phase": "mapped-before-execution",
+  "phase": "executed-and-dispositioned-with-explicit-gaps",
   "cases": [
     {
       "id": "SB01",
@@ -10,13 +10,29 @@
         "SC04"
       ],
       "required_family": "Exercise the real accepted refund with required independent approvers and bounded authority; independently observe its exact request and effect. This is the positive reference history.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "POSITIVE-exact-after-hostile-inputs",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::bounded_agent_needs_two_managers_and_stays_inside_its_bound",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::remote_approvals_from_any_two_managers_authorize",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB02",
@@ -24,13 +40,205 @@
         "SC01"
       ],
       "required_family": "Widen resource, audience, recipient, action, amount, time, delegation depth or composition; splice unrelated roots/engagements and substitute holder/instance identities. Refuse the invalid authority before prohibited effect or release.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::per_principal_bounds_admit_only_actions_inside_the_signer_bound",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::postgres_per_principal_bounds_admit_only_actions_inside_the_signer_bound",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::two_bounded_branches_in_one_composition_are_refused",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::acting_child_cannot_supply_its_own_exact_human_approval",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_incomplete_allocation_snapshot_cannot_grant_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_independent_adapters_cannot_double_spend_the_last_root_unit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_native_ancestor_admission_survives_replay_and_reopen",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_native_root_revocation_orders_before_claim_or_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_partial_ancestor_batch_io_failures_reopen_without_partial_admission",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_winner_after_history_lookup_reopens_without_a_second_charge",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::native_engagement_admission_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_incomplete_allocation_snapshot_cannot_grant_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_independent_adapters_cannot_double_spend_the_last_root_unit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_native_ancestor_admission_survives_replay_and_reopen",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_native_root_revocation_orders_before_claim_or_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_server_rejection_rolls_back_operation_and_all_ancestor_rows",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_winner_after_history_lookup_reopens_without_a_second_charge",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::control_transport_cap_fits_shared_frame_without_expanding_it",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::native_engagement_control_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::native_engagement_hierarchy_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::postgres_native_engine_controls_retain_original_revision_after_withdrawal_and_lost_ack",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::postgres_native_hierarchy_parent_withdrawal_denies_reserved_grandchild_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::created_resource_tests::creation_recipe_rejects_ambiguous_or_unbound_contracts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::created_resource_tests::native_created_resource_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::created_resource_tests::postgres_native_created_resource_recovery_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::decoded_scope_cannot_omit_ancestor_charges_or_invent_a_wider_ancestry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::delivery_tests::native_engagement_live_delivery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::delivery_tests::postgres_native_scoped_live_delivery_and_recovery",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::entry_snapshots_revalidate_current_enrollment",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::exact_scope_review_binds_executor_and_ancestry_with_shared_ancestor_keys",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::file_empty_native_content_still_reserves_disclosure_count",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::file_native_recovery_uses_current_reader_after_writer_withdrawal",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::native_engagement_information_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_current_recipient_withdrawal_prevents_information_reservation",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_empty_native_content_still_reserves_disclosure_count",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_native_information_scope_and_ancestor_accounting",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_native_recovery_uses_current_reader_after_writer_withdrawal",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::native_instance_recovery_store_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::postgres_native_instance_recovery_store_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::native_engagement_effect_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::native_scoped_effect_requires_exact_installed_root_tree_and_connection",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::prerequisite_tests::native_engagement_prerequisite_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::prerequisite_tests::postgres_native_prerequisite_read_charges_and_acknowledgements",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "AP073:gateway-protected-native-records",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB03",
@@ -39,13 +247,61 @@
         "SC06"
       ],
       "required_family": "Race siblings and recipes for the final shared capacity, including principal aliases and recovered successors. The retained original allowance cannot multiply.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:native_cross_recipe_tests::federation_tests::native_file_coordinated_federation_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_cross_recipe_tests::federation_tests::postgres_native_coordinated_federation_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_cross_recipe_tests::native_file_cross_recipe_process_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_cross_recipe_tests::postgres_native_cross_recipe_process_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::delegates_share_their_parent_counter",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_independent_adapters_cannot_double_spend_the_last_root_unit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_independent_adapters_cannot_double_spend_the_last_root_unit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::native_instance_recovery_store_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::postgres_native_instance_recovery_store_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:participant_enrollment::tests::recovery_tests::native_instance_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:commissioned-instance-recovery",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB04",
@@ -53,13 +309,129 @@
         "SC02"
       ],
       "required_family": "Submit self-trusting contexts, permissive configuration, obsolete roots, stale generations, untrusted profile locks and attacker-chosen evidence/status. Installed trusted requirements remain authoritative.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "IPC-extra-trusted_context",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-verifier_configuration",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-effect_policy",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-evaluation_time",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-provider_url",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-credential",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-namespace",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-operation_id",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-other-exact-approval",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-approval-over-bound",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-proof",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-schema",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-truncated-json",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-non-object",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-invalid-utf8",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-admin-schema-on-app",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:configuration::tests::file_configuration_changes_fence_stale_hosts_and_retain_revocations",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:configuration::tests::native_configuration_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:configuration::tests::postgres_configuration_changes_fence_stale_hosts_and_retain_revocations",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:effect::tests::installed_policy_is_canonical_bounded_and_never_defaults_authority",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::native_scoped_effect_requires_exact_installed_root_tree_and_connection",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::a_proof_cannot_lower_the_installed_threshold",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB05",
@@ -67,13 +439,125 @@
         "SC03"
       ],
       "required_family": "Change amount, currency, payment/account, recipient, resource, namespace, recipe, connection generation or required configuration after review/signing. Refuse substitution; compare the full outgoing security-relevant request with the approved effect.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "IPC-extra-trusted_context",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-verifier_configuration",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-effect_policy",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-evaluation_time",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-provider_url",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-credential",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-namespace",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-operation_id",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-other-exact-approval",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-approval-over-bound",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-proof",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-schema",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-truncated-json",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-non-object",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-invalid-utf8",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-admin-schema-on-app",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "POSITIVE-exact-after-hostile-inputs",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:binding::tests::descriptor_is_canonical_and_bound_to_compiled_recipe",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:effect::tests::every_binding_dimension_changes_identity_without_evading_replay_key",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::binding_boundary_tests::native_independent_binding_substitutions_require_new_approval",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::native_review_contract_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB06",
@@ -82,13 +566,33 @@
         "SC04"
       ],
       "required_family": "Exercise review omission, ambiguous rendering, alternate encodings and incomplete native presentations. A digest signature cannot stand in for required complete presentation. Record scripted consent separately from human presence.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:effect::tests::exact_approval_cannot_change_identity_signer_or_signed_event_time",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::effect_review_contract_is_complete_typed_and_recipe_bound",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::native_review_contract_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::review_document_is_v2_and_discloses_every_declaration",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB07",
@@ -96,13 +600,53 @@
         "SC04"
       ],
       "required_family": "Duplicate or alias approvers; forge signatures; use unauthorized, withdrawn, expired or wrong-action approvals; alter quorum selection and replay challenges. A corrected positive control must satisfy the same quorum path.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:engine::commissioning::tests::installed_submission_refuses_wrong_or_expired_exact_approval_before_custody",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::acting_child_cannot_supply_its_own_exact_human_approval",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::a_proof_cannot_lower_the_installed_threshold",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::a_quorum_after_its_window_is_refused_before_any_lease",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::a_quorum_still_authorizes_23_hours_after_approval_and_only_once",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::approval_quorum_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::approval_quorum_hostile_cases_admit_only_two_distinct_managers",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::remote_approvals_from_any_two_managers_authorize",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::the_action_and_every_statement_share_the_default_window",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB08",
@@ -112,13 +656,41 @@
         "SC07"
       ],
       "required_family": "Hold an operation across expiry and lock contention; change time around acquisition; replay stale WebAuthn/human evidence. Fresh evaluation must not renew the original event's lifetime.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:effect::tests::exact_approval_cannot_change_identity_signer_or_signed_event_time",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_dependency_tests::native_file_dependency_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_dependency_tests::postgres_native_dependency_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification::clock_tests::synchronization_marker_refuses_links_and_untrusted_write_permissions",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification::clock_tests::synchronization_marker_requires_a_recent_nonfuture_sample",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:quorum_tests::a_quorum_after_its_window_is_refused_before_any_lease",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB09",
@@ -127,13 +699,49 @@
         "SC12"
       ],
       "required_family": "From the actual attacker UID, probe environment, command line, permitted process metadata/memory access, descriptors, mounts, files, sockets, diagnostic endpoints, logs and support exports for lab secret canaries. Report effective access, not configured intentions.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "ISOLATION-files-memory-admin",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:pending_vectors::production::secret_debug_forms_are_redacted",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::an_archive_holds_digests_closed_states_codes_and_counts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::arbitrary_diagnostic_text_cannot_enter_the_archive",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::what_could_not_be_read_is_stated_and_the_listing_is_bounded",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:gateway-protected-native-records",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB10",
@@ -142,13 +750,37 @@
         "SC12"
       ],
       "required_family": "Attempt direct provider/custody/metadata access, alternate egress, proxying, redirects, alternate credentials, admin/reviewer impersonation and app-writable path/socket replacement. Exercise the documented containment boundary and identify alternate-token assumptions.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "ISOLATION-files-memory-admin",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "ISOLATION-provider-egress",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:admin::boundary_tests::admin_request_boundary_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:pending_vectors::production::submission_frames_cannot_select_custody",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:transport::tests::private_and_documentation_destinations_are_rejected",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB11",
@@ -157,13 +789,105 @@
         "SC05"
       ],
       "required_family": "Substitute the credential or account, a stale credential version, an overprivileged key or a changed provider payment state. Legitimate preflight reads may occur; the prohibited refund must not.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:binding::tests::api_key_injection_header_is_independently_operator_bound",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:binding::tests::descriptor_is_canonical_and_bound_to_compiled_recipe",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_join_needs_an_installed_record",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_prepared_rotation_changes_nothing_until_it_is_committed",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_record_that_changed_since_the_prepare_is_not_committed",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_repeated_revoke_finishes_the_credential_deletion",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_restored_store_below_the_host_floor_cannot_lease_after_restart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_rotation_failing_after_its_credential_write_is_discarded",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_second_install_never_replaces_the_record",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_superseded_generation_is_kept_for_the_retirement_delay",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::an_admin_change_commits_without_waiting_and_reports_the_drain",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::an_obsolete_record_is_refused_as_state",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::disable_and_revoke_need_no_free_credential_capacity",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::file_store_shares_the_connection_across_processes",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::interrupted_install_cleanup_requires_revocation_and_never_repairs_the_floor",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::postgres_restore_below_the_host_floor_cannot_lease_after_restart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::postgres_store_shares_the_connection_across_processes",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::readiness_and_emergency_stop_make_no_credential_lease",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::revocation_after_rotation_and_disable_deletes_every_generation",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::slot_sweep_refuses_untrusted_required_time_without_deleting_state",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::status_reports_the_last_slot_sweep",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB12",
@@ -171,13 +895,77 @@
         "SC05"
       ],
       "required_family": "Cross task, recipe, resource, recipient or disclosure-channel boundaries; request a wider projection; inspect public histories and errors. No unauthorized protected content is released.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::content_tests::native_content_compilation_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::content_tests::native_content_journal_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::delivery_tests::native_engagement_live_delivery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::delivery_tests::postgres_native_scoped_live_delivery_and_recovery",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::file_empty_native_content_still_reserves_disclosure_count",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::file_native_recovery_uses_current_reader_after_writer_withdrawal",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::native_engagement_information_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_current_recipient_withdrawal_prevents_information_reservation",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_empty_native_content_still_reserves_disclosure_count",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_native_information_scope_and_ancestor_accounting",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_native_recovery_uses_current_reader_after_writer_withdrawal",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "AP073:gateway-protected-native-records",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB13",
@@ -186,13 +974,61 @@
         "SC08"
       ],
       "required_family": "Concurrent duplicate submissions and distinct operations at count/sum boundaries, including zero, maximum, overflow and per-currency/window cases. Independently count effects and inspect complete durable allocations.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "RACE-24-independent-connections-two-gateways",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "RACE-distinct-operations-final-sum-capacity",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:bounds::tests::counter_domains_keep_count_and_sum_keys_apart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:bounds_aggregate_tests::file_store_passes_bounds_aggregate",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:bounds_aggregate_tests::postgres_store_passes_bounds_aggregate",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:bounds_aggregate_tests::recount_agrees_with_every_arrival_order",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_budget_tests::native_file_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_budget_tests::postgres_native_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_process_tests::native_file_process_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_process_tests::postgres_native_process_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:property_tests::relative_ceiling_agrees_with_floor_division",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB14",
@@ -201,13 +1037,61 @@
         "SC12"
       ],
       "required_family": "Inject file write/fsync/rename errors, SQL rollback/deadlock/commit-reply loss and acknowledgement loss. Demonstrate atomic admission or documented fail-closed fencing; ambiguous durable outcomes are not safe refunds of capacity.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_file_fault_tests::native_file_io_fault_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::postgres_native_mutation_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_postgres_commit_tests::postgres_native_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_postgres_fault_tests::postgres_native_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_partial_ancestor_batch_io_failures_reopen_without_partial_admission",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_ambiguous_claim_and_grant_acknowledgements_never_recharge_or_remint",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_server_rejection_rolls_back_operation_and_all_ancestor_rows",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB15",
@@ -215,13 +1099,57 @@
         "SC07"
       ],
       "required_family": "Use deterministic barriers to race ancestor withdrawal, recipe/connection/configuration change and final entry in both orders. Entry granted before withdrawal may finish; withdrawal committed before a later grant must block it.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "REVOCATION-connection-disable-before-new-entry",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:native_dependency_tests::native_file_dependency_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_dependency_tests::postgres_native_dependency_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::entry_tests::native_file_disclosure_entry_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::entry_tests::postgres_native_disclosure_entry_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_replay_tests::entry_tests::native_file_mutation_entry_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_replay_tests::entry_tests::postgres_native_mutation_entry_order_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_native_root_revocation_orders_before_claim_or_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_native_root_revocation_orders_before_claim_or_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::postgres_native_hierarchy_parent_withdrawal_denies_reserved_grandchild_entry",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB16",
@@ -229,13 +1157,153 @@
         "SC08"
       ],
       "required_family": "Replay the identical request and variants with a fresh challenge/approval, another executor, altered operation identity or old epoch; reopen retained terminal history. History retrieval cannot mint an entry capability.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "IPC-extra-trusted_context",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-verifier_configuration",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-effect_policy",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-evaluation_time",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-provider_url",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-credential",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-namespace",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-operation_id",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-other-exact-approval",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-approval-over-bound",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-proof",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-schema",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-truncated-json",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-non-object",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-invalid-utf8",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-admin-schema-on-app",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "RACE-24-independent-connections-two-gateways",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::epoch_tests::native_file_epoch_fence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::epoch_tests::postgres_native_epoch_fence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::native_file_information_retained_replay_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::postgres_native_information_retained_replay_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_replay_tests::native_file_mutation_retained_replay_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_replay_tests::postgres_native_mutation_retained_replay_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::file_winner_after_history_lookup_reopens_without_a_second_charge",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::admission_tests::postgres_winner_after_history_lookup_reopens_without_a_second_charge",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:store::entry_tests::file_grant_has_one_winner_and_no_restart_permit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:store::entry_tests::postgres_grant_has_one_winner_and_no_restart_permit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB17",
@@ -245,13 +1313,97 @@
         "SC09"
       ],
       "required_family": "Kill the gateway before reservation, after durable reservation, after acknowledgement and after minting entry but before observed delivery. Reopen real state in a fresh process and evaluate the contract for each actual reachable crash point.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:native_crash_tests::native_file_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_crash_tests::postgres_native_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::file_fault_tests::native_file_disclosure_io_fault_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_native_disclosure_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::window_capacity_tests::native_file_disclosure_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::window_capacity_tests::postgres_native_disclosure_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::guarded_tests::native_file_guarded_mutation_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::guarded_tests::postgres_native_guarded_mutation_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::partial_upload_tests::native_file_partial_upload_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::partial_upload_tests::postgres_native_partial_upload_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::postgres_native_mutation_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::file_fault_tests::native_file_mutation_io_fault_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::native_file_mutation_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::postgres_native_mutation_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_native_mutation_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB18",
@@ -259,13 +1411,125 @@
         "SC09"
       ],
       "required_family": "Let the provider apply a refund, then drop/truncate/delay its response and crash/restart the gateway. Independent provider evidence establishes the injected outcome; the gateway retains Unknown unless sufficient evidence supports a narrower statement, without a second mutation.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "RECOVERY-unknown-restart-and-independent-read",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:native_crash_tests::native_file_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_crash_tests::postgres_native_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::guarded_tests::native_file_guarded_mutation_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::guarded_tests::postgres_native_guarded_mutation_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::native_file_mutation_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::partial_upload_tests::native_file_partial_upload_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::partial_upload_tests::postgres_native_partial_upload_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::postgres_native_mutation_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::file_fault_tests::native_file_mutation_io_fault_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::native_file_mutation_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_batch_tests::postgres_native_mutation_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::postgres_native_mutation_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_mutation_crash_tests::window_capacity_tests::postgres_native_mutation_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::cost_tests::native_file_cost_measurements",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::cost_tests::postgres_native_cost_measurements",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::generated_history_tests::native_file_generated_concurrent_histories",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::generated_history_tests::postgres_native_generated_concurrent_histories",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::limits_tests::native_file_recovery_limits_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::limits_tests::postgres_native_recovery_limits_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::native_file_independent_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::postgres_native_independent_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:crash-after-provider-write",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB19",
@@ -274,13 +1538,65 @@
         "SC09"
       ],
       "required_family": "Retry while the original request is still running; deliver late responses and ACKs after timeout, withdrawal or restart. No second entry or unsafe release occurs.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "RECOVERY-unknown-restart-and-independent-read",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:app::tests::the_deadline_closes_the_connection_but_never_cancels_the_call",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::file_fault_tests::native_file_disclosure_io_fault_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_native_disclosure_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::window_capacity_tests::native_file_disclosure_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::window_capacity_tests::postgres_native_disclosure_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB20",
@@ -289,13 +1605,81 @@
         "SC09"
       ],
       "required_family": "Recover with missing, expired, wrong-resource or withdrawn read-only authority. Refuse unauthorized observation; valid observation does not authorize repeating the write.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "RECOVERY-unknown-restart-and-independent-read",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::cost_tests::native_file_cost_measurements",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::cost_tests::postgres_native_cost_measurements",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::generated_history_tests::native_file_generated_concurrent_histories",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::generated_history_tests::postgres_native_generated_concurrent_histories",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::limits_tests::native_file_recovery_limits_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::limits_tests::postgres_native_recovery_limits_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::native_file_independent_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::postgres_native_independent_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::file_native_recovery_uses_current_reader_after_writer_withdrawal",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::information_tests::postgres_native_recovery_uses_current_reader_after_writer_withdrawal",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB21",
@@ -304,13 +1688,45 @@
         "SC10"
       ],
       "required_family": "Vary provider idempotency behavior/retention, overwrite observed state, and produce misleading matches. Separate request acceptance, observed state, linkage and exclusive causation; never infer non-effect from a missing match.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "RECOVERY-unknown-restart-and-independent-read",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:echo_verify::tests::invalid_inputs_are_refused_with_their_codes",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:echo_verify::tests::match_mismatch_and_absent_each_have_their_code",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::history_tests::postgres_native_recovery_history_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::idempotency_is_opt_in_reviewed_and_digest_bound",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::read_back_links_only_an_exact_token_with_the_verified_value",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB22",
@@ -320,13 +1736,77 @@
         "SC09"
       ],
       "required_family": "Using existing created-resource/read paths, exercise zero, multiple, incomplete and unique recovery matches plus lost disclosure ACK. Preserve original lineage, current authority and accounting; no blind create retry or automatic redelivery.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::file_fault_tests::native_file_disclosure_io_fault_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_batch_tests::postgres_native_disclosure_partial_batch_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_commit_tests::postgres_native_disclosure_commit_reply_loss_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::postgres_native_disclosure_process_crash_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::window_capacity_tests::native_file_disclosure_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_disclosure_crash_tests::window_capacity_tests::postgres_native_disclosure_window_capacity_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::created_resource_tests::creation_recipe_rejects_ambiguous_or_unbound_contracts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::created_resource_tests::native_created_resource_recovery_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::created_resource_tests::postgres_native_created_resource_recovery_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::created_resource::tests::native_created_resource_selection_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:lost-create-zero-match",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "AP073:lost-create-multiple-matches",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "AP073:lost-create-incomplete-list",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "AP073:lost-create-unique-child",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB23",
@@ -336,13 +1816,53 @@
         "SC07"
       ],
       "required_family": "Withdraw/recover an instance, replay its descendants/approvals, and attempt capacity reset or old-key/grant translation. The supported successor contract retains original limits; unsupported lifecycle requests fail closed.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::control_transport_cap_fits_shared_frame_without_expanding_it",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::native_engagement_control_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::native_engagement_hierarchy_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::postgres_native_engine_controls_retain_original_revision_after_withdrawal_and_lost_ack",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::postgres_native_hierarchy_parent_withdrawal_denies_reserved_grandchild_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::entry_snapshots_revalidate_current_enrollment",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::native_instance_recovery_store_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::instance_recovery_tests::postgres_native_instance_recovery_store_matrix",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:commissioned-instance-recovery",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB24",
@@ -352,13 +1872,69 @@
         "SC12"
       ],
       "required_family": "Restore a coherent old store/configuration/epoch, present an independently authenticated newer checkpoint and test missing/untrusted checkpoint handling. Verify required quarantine/refusal; do not credit a store with authenticating its own freshness.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:commissioning_budget::tests::renewal_keeps_consumption_and_a_retained_floor_detects_restore_file",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_budget::tests::renewal_keeps_consumption_and_a_retained_floor_detects_restore_postgres",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_floor::tests::committed_floor_survives_restart_and_cannot_be_reset",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_floor::tests::concurrent_local_claims_never_decrease_the_witness",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_floor::tests::database_claim_without_witness_acknowledgement_stays_spent",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_floor::tests::database_restore_below_retained_witness_is_refused",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_floor::tests::runtime_never_creates_a_missing_floor",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:commissioning_floor::tests::unsafe_witness_paths_refuse_before_capacity_claim",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_restored_store_below_the_host_floor_cannot_lease_after_restart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::postgres_restore_below_the_host_floor_cannot_lease_after_restart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::epoch_tests::native_file_epoch_fence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::epoch_tests::postgres_native_epoch_fence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:participant_enrollment::tests::enrollment_tree_restores_revocations_and_rejects_changed_installation",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB25",
@@ -366,13 +1942,93 @@
         "SC10"
       ],
       "required_family": "Tamper, truncate, reorder, duplicate and splice exported evidence; substitute actions, outcomes, contexts and trusted roots; remove required records. The auditor refuses or reports inability to establish the claim, without adopting bundle-supplied trust.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "AUDIT-byte-substitution-under-independent-trust",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::audit_tests::audit_applies_the_account_scope_binding",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::audit_tests::audit_checks_the_pre_entry_observations",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::audit_tests::audit_flags_a_basis_that_does_not_admit_its_argument",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::audit_tests::audit_requires_the_counter_set_the_audit_derives",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::audit_tests::private_export_preserves_inputs_and_rejects_substituted_or_unbounded_evidence",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_detects_a_tampered_bundle",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_fails_a_valid_submission_refused_while_disabled",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_fails_an_admitted_entry_whose_outcome_was_removed",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_flags_an_over_admission_without_any_order",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_report_names_unverified_entries",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_reports_an_exhaustion_the_bundle_does_not_show",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_reproduces_every_gateway_decision",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_flags_a_duplicated_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_flags_misfiled_proofs",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_never_passes_an_altered_proof",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_reports_every_entry_unverified",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB26",
@@ -380,13 +2036,81 @@
         "SC10"
       ],
       "required_family": "Audit a known historical action after expiry/revocation with the required historical inputs. Historical validity cannot imply current eligibility. Test and document inability to prove export completeness where no independent anchor supplies it.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "AUDIT-byte-substitution-under-independent-trust",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_detects_a_tampered_bundle",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_fails_a_valid_submission_refused_while_disabled",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_fails_an_admitted_entry_whose_outcome_was_removed",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_flags_an_over_admission_without_any_order",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_report_names_unverified_entries",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_reports_an_exhaustion_the_bundle_does_not_show",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_reproduces_every_gateway_decision",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_flags_a_duplicated_entry",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_flags_misfiled_proofs",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_never_passes_an_altered_proof",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::bounds_tests::offline_audit_without_outcomes_reports_every_entry_unverified",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::engagement_tests::control_tests::postgres_native_engine_controls_retain_original_revision_after_withdrawal_and_lost_ack",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB27",
@@ -395,13 +2119,49 @@
         "SC11"
       ],
       "required_family": "Compare UI, SDK responses, CLI output and signed/private evidence for denied, reserved, entered, response-recorded, observed and unknown histories. No projection silently strengthens a claim or leaks protected facts.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:native_information_replay_tests::journal_tests::native_file_information_journal_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_information_replay_tests::journal_tests::postgres_native_information_journal_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::native_file_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::privacy_tests::postgres_native_public_mutation_evidence_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:scenario_tests::native_replay_projection_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::an_archive_holds_digests_closed_states_codes_and_counts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::arbitrary_diagnostic_text_cannot_enter_the_archive",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::what_could_not_be_read_is_stated_and_the_listing_is_bounded",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB28",
@@ -410,13 +2170,169 @@
         "SC11"
       ],
       "required_family": "Send malformed/noncanonical/truncated/oversized proof, action, frame, JSON/CBOR and binding inputs; exercise duplicate fields, numeric/encoding boundaries and work/depth limits. Obtain bounded, stable refusal without a parser bypass or unchecked native value.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "IPC-extra-trusted_context",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-verifier_configuration",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-effect_policy",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-evaluation_time",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-provider_url",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-credential",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-namespace",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-extra-operation_id",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-proof_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-action_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-changed-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-empty-approval_b64",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-other-exact-approval",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-approval-over-bound",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-proof",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-duplicate-schema",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-truncated-json",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-non-object",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-invalid-utf8",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "IPC-admin-schema-on-app",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "FRAME-empty",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "FRAME-over-bound",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "FRAME-incomplete",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:admin::boundary_tests::admin_request_boundary_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::content_tests::native_application_content_frame_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::a_response_the_peer_never_reads_ends_at_the_write_deadline",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::an_idle_connection_is_answered_at_the_frame_deadline",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::native_application_recovery_frame_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::observation_frame_is_closed_and_read_only",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::obsolete_missing_and_oversized_approval_frames_do_not_dispatch",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::the_deadline_closes_the_connection_but_never_cancels_the_call",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:effect::tests::reject_alternate_encodings_duplicates_and_unknown_versions",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::created_resource::tests::arbitrary_bounded_provider_bytes_cannot_panic",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:recipe::tests::hostile_recipe_corpus_fails_with_exact_codes",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "PORTABLE:go",
+          "kind": "specification-derived portable semantic verifier"
+        },
+        {
+          "case_id": "PORTABLE:typescript",
+          "kind": "specification-derived portable semantic verifier"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB29",
@@ -425,13 +2341,53 @@
         "SC11"
       ],
       "required_family": "Run installed Python/TypeScript/WASM and applicable independent verifier vectors against canonical, mutated and boundary inputs. Verify verdict/commitment/error-class agreement within each surface's actual supported contract.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:observed_tests::effect_native_tests::differential_tests::native_independent_mutation_differential_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:pending_vectors::recipes::recipe_v2_corpus_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:simulation_attestation::altered_reports_and_scope_are_refused",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:simulation_attestation::installed_python_live_report_verifies_under_the_native_signature_contract",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:simulation_attestation::installed_python_platform_refund_report_verifies_under_the_native_signature_contract",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "AP073:provider-response-retained",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "AP073:gateway-protected-native-records",
+          "kind": "existing installed multi-process journey"
+        },
+        {
+          "case_id": "PORTABLE:go",
+          "kind": "specification-derived portable semantic verifier"
+        },
+        {
+          "case_id": "PORTABLE:typescript",
+          "kind": "specification-derived portable semantic verifier"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB30",
@@ -441,13 +2397,69 @@
         "SC12"
       ],
       "required_family": "Tamper with package payloads, manifests, feature claims, executable pins or cached/generated evidence. Reject mismatched provenance; do not confuse a checksum with trusted origin or allow development/test features to justify shipping claims.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "NATIVE:qualification_tests::a_drifted_deployment_is_stale_under_the_same_release",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:semantic_closure::tests::a_gateway_build_contains_no_issuance_or_oracle",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:semantic_closure::tests::semantic_closure_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:simulation_attestation::altered_reports_and_scope_are_refused",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "ARTIFACT:intact-control",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:outer-hash",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:duplicate-zip",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:zip-traversal",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:tar-link",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:wrong-source",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:payload-hash",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:omitted-inventory",
+          "kind": "assessment acquisition mutation control"
+        },
+        {
+          "case_id": "ARTIFACT:destination-link",
+          "kind": "assessment acquisition mutation control"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB31",
@@ -457,13 +2469,169 @@
         "SC12"
       ],
       "required_family": "Exercise startup/enable without complete trust, custody, time or qualification; stale/future/writable sync markers; rotation/revocation; partial shutdown and restart. Verify the documented gate and retained dependency identities.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "REVOCATION-connection-disable-before-new-entry",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_join_needs_an_installed_record",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_prepared_rotation_changes_nothing_until_it_is_committed",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_record_that_changed_since_the_prepare_is_not_committed",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_repeated_revoke_finishes_the_credential_deletion",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_restored_store_below_the_host_floor_cannot_lease_after_restart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_rotation_failing_after_its_credential_write_is_discarded",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_second_install_never_replaces_the_record",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::a_superseded_generation_is_kept_for_the_retirement_delay",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::an_admin_change_commits_without_waiting_and_reports_the_drain",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::an_obsolete_record_is_refused_as_state",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::disable_and_revoke_need_no_free_credential_capacity",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::file_store_shares_the_connection_across_processes",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::interrupted_install_cleanup_requires_revocation_and_never_repairs_the_floor",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::postgres_restore_below_the_host_floor_cannot_lease_after_restart",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::postgres_store_shares_the_connection_across_processes",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::readiness_and_emergency_stop_make_no_credential_lease",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::revocation_after_rotation_and_disable_deletes_every_generation",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::slot_sweep_refuses_untrusted_required_time_without_deleting_state",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:engine::tests::administration::status_reports_the_last_slot_sweep",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification::clock_tests::synchronization_marker_refuses_links_and_untrusted_write_permissions",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification::clock_tests::synchronization_marker_requires_a_recent_nonfuture_sample",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::a_drifted_deployment_is_stale_under_the_same_release",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::an_engine_without_a_configured_gate_leases_nothing",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::every_frozen_verification_case_decides_the_gate",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::operator_bootstrap_qualification_simulation",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::production_never_accepts_the_optional_policy",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::the_gate_is_told_no_provider_name_and_runs_no_oracle",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::the_optional_policy_reports_and_never_refuses",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:qualification_tests::verify_simulation_reports",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:readiness::tests::an_absent_observer_is_reported_and_does_not_block",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:readiness::tests::closed_clock_readiness_has_two_distinct_tokens",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:readiness::tests::precondition_tokens_are_distinct",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:readiness::tests::readiness_is_the_conjunction_of_every_required_precondition",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:readiness::tests::retirement_delay_outlives_entered_transport",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:readiness::tests::the_projection_names_every_check_and_retains_precise_qualification_failure",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     },
     {
       "id": "SB32",
@@ -473,13 +2641,97 @@
         "SC12"
       ],
       "required_family": "Bound request floods, slow/trickling provider responses, oversized bodies and diagnostic work. Check deadlines and that untrusted load cannot bypass enforcement or expose admin/custody state; distinguish bounded denial of service from an authorization break.",
-      "execution_status": "planned",
+      "execution_status": "tested-with-limitations",
       "positive_control_required": true,
       "oracles": [
         "independent provider transcript/effects",
         "durable state and native evidence where applicable"
       ],
-      "variants": []
+      "variants": [
+        {
+          "case_id": "FRAME-empty",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "FRAME-over-bound",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "FRAME-incomplete",
+          "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "NATIVE:app::tests::a_response_the_peer_never_reads_ends_at_the_write_deadline",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::an_idle_connection_is_answered_at_the_frame_deadline",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::native_application_recovery_frame_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::observation_frame_is_closed_and_read_only",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::obsolete_missing_and_oversized_approval_frames_do_not_dispatch",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:app::tests::the_deadline_closes_the_connection_but_never_cancels_the_call",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:listener::tests::a_full_listener_closes_new_connections_while_a_separate_capacity_still_serves",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:listener::tests::a_refused_peer_never_takes_a_permit",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:listener::tests::accept_errors_back_off_and_the_listener_keeps_serving",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:listener::tests::check_socket_path_length_reports_the_figures",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:listener::tests::socket_path_limit_is_sun_path_less_its_nul",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:listener::tests::the_kernel_binds_the_longest_path",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::limits_tests::native_file_recovery_limits_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:native_recovery_actor_tests::limits_tests::postgres_native_recovery_limits_fixture_is_current",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::an_archive_holds_digests_closed_states_codes_and_counts",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::arbitrary_diagnostic_text_cannot_enter_the_archive",
+          "kind": "existing native regression freshly executed"
+        },
+        {
+          "case_id": "NATIVE:support::tests::what_could_not_be_read_is_stated_and_the_listing_is_bounded",
+          "kind": "existing native regression freshly executed"
+        }
+      ],
+      "coverage_claim": "Related concrete executions; not exhaustive establishment of every stated variant.",
+      "positive_control": "POSITIVE-exact-after-hostile-inputs plus existing paired native/journey controls",
+      "remaining_gaps": "findings.md; do not infer a passed release gate from this mapping"
     }
   ],
   "batches": [
@@ -489,32 +2741,64 @@
       "inventory": "qualification/security_assessment/inventory.json",
       "expected_cases": 33,
       "oracles": "provider transcript/effects, fresh native execution counters and restricted UID responses",
-      "status": "planned"
+      "status": "executed; see retained census and limitations"
     },
     {
       "id": "existing-stripe-reference",
       "source": "demos/stripe-gateway/selftest.py",
       "expected_cases": 23,
       "independence": "existing implementation test, supplemental only",
-      "status": "planned"
+      "status": "executed; see retained census and limitations"
     },
     {
       "id": "conventional-baseline",
       "source": "qualification/security_assessment/compare.py",
       "expected_cases": 6,
       "oracles": "same provider double effects, transactional SQLite state, real local HTTP ingress",
-      "status": "planned"
+      "status": "executed; see retained census and limitations"
     },
     {
       "id": "native-file-postgresql",
       "source": "actual compiled registry to be resolved before execution",
-      "status": "planned"
+      "status": "executed; see retained census and limitations"
     },
     {
       "id": "installed-ap073",
       "source": "pinned source-free native journey executable and installed SDKs",
       "expected_scenarios": 8,
-      "status": "planned"
+      "status": "executed; see retained census and limitations"
+    },
+    {
+      "id": "independent-portable-verifiers",
+      "families": [
+        "SB28",
+        "SB29"
+      ],
+      "implementations": [
+        "Go specification-derived semantic verifier",
+        "TypeScript specification-derived semantic verifier"
+      ],
+      "inputs": "core/fixtures/v1/manifest.json",
+      "native_reference": "actual native conformance and exact-head authoritative gate",
+      "status": "executed; see retained census and limitations",
+      "scope": "portable core supported contract, not gateway state or deployment"
+    },
+    {
+      "id": "artifact-corruption-controls",
+      "families": [
+        "SB30"
+      ],
+      "source": "qualification/security_assessment/artifact_probes.py",
+      "expected_cases": 9,
+      "positive_control": "intact-control",
+      "scope": "pinned package acquisition; mutants not executed; trusted manifest/GitHub producer remain premises",
+      "status": "executed; see retained census and limitations"
     }
-  ]
+  ],
+  "native_census": {
+    "registered": 473,
+    "selected": 454,
+    "excluded_worker_entrypoints": 19,
+    "tls_postgresql": 85
+  }
 }

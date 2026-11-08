@@ -71,6 +71,16 @@ class CensusControls(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check(comparison=value)
 
+    def test_wrong_inventory_version_and_duplicate_requirement_are_refused(self):
+        for mutation in ['version', 'duplicate']:
+            inventory = copy.deepcopy(self.inventory)
+            if mutation == 'version':
+                inventory['schema'] = 'unsupported'
+            else:
+                inventory['stripe_probe_cases'].append(inventory['stripe_probe_cases'][0])
+            with self.assertRaises(ValueError):
+                validate(self.boundary, self.comparison, inventory, self.head)
+
 
 if __name__ == '__main__':
     unittest.main()

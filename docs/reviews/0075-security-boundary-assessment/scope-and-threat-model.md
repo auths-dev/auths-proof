@@ -1,6 +1,7 @@
 # AP075 assessment scope and threat model
 
-Status: investigation in progress; no security-closure verdict.
+Status: local investigation retained; independent assessment and release closure
+remain incomplete. See `final-report.md` for the exact gate verdict.
 
 The target is main `ac5fcabe9c6300e46789b4e847bb1991f9f9d66f`, source tree
 `fe161d6d38957af071bb11a0a59224f3923e13e4`. The primary path is the existing
@@ -55,3 +56,19 @@ trial, customer demand or willingness to adopt can be inferred from scripted wor
 Release claims stay unverified until mapped cases and retained evidence support
 them. Missing prerequisites and indirect existing CI evidence cannot silently
 become passing independent results.
+
+## Executed topology distinction
+
+The independent installed Stripe campaign and installed AP073 journey execute
+Linux/amd64 source-free packages inside Docker Desktop's Linux VM. The 454-case
+supplemental native registry is a Darwin/arm64 test binary on the macOS host;
+its 85 PostgreSQL tests connect over actual TLS to the assessment-owned Linux
+PostgreSQL container. It is not a second 454-case Linux execution. The source
+tests are recompiled from the unchanged shipping source with
+`loopback-provider,testkit-harness`; no test allow oracle replaces installed-path
+authorization. Hosted CI supplies its own separate Linux evidence.
+
+The package binaries are GitHub-produced Linux artifacts; the native test binary,
+runner and raw log hashes have separate identities. Report assembly never treats
+those distinct builds as identical artifacts. The exact assessor model/runtime
+build identifier is not exposed; no version is inferred from a model-family name.

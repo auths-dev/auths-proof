@@ -1,5 +1,22 @@
 # Self-hosted claim ledger
 
+## Current AP075 assessment boundary — 8 November 2026
+
+The [AP075 report](../reviews/0075-security-boundary-assessment/final-report.md)
+retains bounded agent-led observations against main `ac5fcabe`. No shipping
+authorization/binding behavior changed. Its new installed-path probes and
+rerun native file/TLS tests support only their stated laboratory scope; the
+coordinating assessor previously worked on AP073. Fresh-context assessment,
+independent human review and production provider/custody qualification remain
+unestablished. This assessment does not upgrade the historical evidence below.
+
+The conventional comparison also passes its six basic scenarios, so this work
+does not establish unique commercial value for Auths. Unknown provider outcomes,
+export completeness and alternate-credential/host trust assumptions retain their
+documented limits. See the report's AG01–AG04 before using it as release evidence.
+
+## Historical and interface-specific evidence
+
 This ledger applies to application-owned MCP integrations, including the
 Airtable and Todoist field-lab demos. It is not a provider qualification.
 

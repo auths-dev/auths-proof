@@ -375,6 +375,8 @@ def main():
                   'binary_sha256': hashlib.sha256(operator.binary.read_bytes()).hexdigest(),
                   'build_kind': 'loopback simulation; original native enforcement',
                   'deployment': {'network_namespace': os.readlink('/proc/self/ns/net'),
+                                 'provider_dns_stub': [line for line in Path('/etc/hosts').read_text().splitlines()
+                                                       if 'api.stripe.com' in line],
                                  'uid_map': Path('/proc/self/uid_map').read_text().strip(),
                                  'cpu_max': Path('/sys/fs/cgroup/cpu.max').read_text().strip(),
                                  'memory_max': Path('/sys/fs/cgroup/memory.max').read_text().strip(),
@@ -389,6 +391,18 @@ def main():
                           'target_revision': TARGET}))
         if any(x['status'] == 'finding' for x in rows):
             raise SystemExit(1)
+    except Exception as failure:
+        if args.suite == 'reference':
+            doctor = subprocess.run([str(operator.binary), 'doctor', '--state-dir', '/run/demo/gateway0',
+                                     '--app-socket', '/run/demo/sockets/app0.sock',
+                                     '--app-uid', str(APP_UID), '--app-gid', str(APP_GID)],
+                                    capture_output=True, env=ENV, timeout=30)
+            readiness = json.loads(doctor.stdout) if doctor.stdout else {}
+            Path('/evidence/reference-failure.json').write_bytes(canonical({
+                'schema': 'auths.security-assessment-reference-failure/1', 'target_revision': TARGET,
+                'failure_class': type(failure).__name__, 'readiness': readiness,
+                'no_passing_reference_result': True}) + b'\n')
+        raise
     finally:
         operator.stop()
 
