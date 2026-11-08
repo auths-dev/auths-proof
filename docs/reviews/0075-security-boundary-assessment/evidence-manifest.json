@@ -1,0 +1,24 @@
+{
+  "schema": "auths.security-assessment-evidence/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "source_tree": "fe161d6d38957af071bb11a0a59224f3923e13e4",
+  "artifacts": [
+    {
+      "key": "stripe-package",
+      "id": 13551602737,
+      "run_id": 42317890524,
+      "sha256": "cadea9a6fd4c29a536e8eac1f5100119c9f2b801c89bd375f9c08fd0c8ecba9d",
+      "manifest_schema": "auths.stripe-gateway-demo-package/1",
+      "root": "stripe-gateway-demo"
+    },
+    {
+      "key": "airtable-package",
+      "id": 13551688742,
+      "run_id": 42317890393,
+      "sha256": "1a31634ac2c40820e768b30f0faebb6fe8c17e7036e3a82131a640b7c4343bf9",
+      "manifest_schema": "auths.airtable-gateway-demo-package/1",
+      "root": "airtable-gateway-demo"
+    }
+  ],
+  "experiments": []
+}

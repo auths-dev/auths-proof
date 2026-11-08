@@ -1,0 +1,520 @@
+{
+  "schema": "auths.security-assessment-plan/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "phase": "mapped-before-execution",
+  "cases": [
+    {
+      "id": "SB01",
+      "claims": [
+        "SC01",
+        "SC04"
+      ],
+      "required_family": "Exercise the real accepted refund with required independent approvers and bounded authority; independently observe its exact request and effect. This is the positive reference history.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB02",
+      "claims": [
+        "SC01"
+      ],
+      "required_family": "Widen resource, audience, recipient, action, amount, time, delegation depth or composition; splice unrelated roots/engagements and substitute holder/instance identities. Refuse the invalid authority before prohibited effect or release.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB03",
+      "claims": [
+        "SC01",
+        "SC06"
+      ],
+      "required_family": "Race siblings and recipes for the final shared capacity, including principal aliases and recovered successors. The retained original allowance cannot multiply.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB04",
+      "claims": [
+        "SC02"
+      ],
+      "required_family": "Submit self-trusting contexts, permissive configuration, obsolete roots, stale generations, untrusted profile locks and attacker-chosen evidence/status. Installed trusted requirements remain authoritative.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB05",
+      "claims": [
+        "SC03"
+      ],
+      "required_family": "Change amount, currency, payment/account, recipient, resource, namespace, recipe, connection generation or required configuration after review/signing. Refuse substitution; compare the full outgoing security-relevant request with the approved effect.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB06",
+      "claims": [
+        "SC03",
+        "SC04"
+      ],
+      "required_family": "Exercise review omission, ambiguous rendering, alternate encodings and incomplete native presentations. A digest signature cannot stand in for required complete presentation. Record scripted consent separately from human presence.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB07",
+      "claims": [
+        "SC04"
+      ],
+      "required_family": "Duplicate or alias approvers; forge signatures; use unauthorized, withdrawn, expired or wrong-action approvals; alter quorum selection and replay challenges. A corrected positive control must satisfy the same quorum path.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB08",
+      "claims": [
+        "SC02",
+        "SC04",
+        "SC07"
+      ],
+      "required_family": "Hold an operation across expiry and lock contention; change time around acquisition; replay stale WebAuthn/human evidence. Fresh evaluation must not renew the original event's lifetime.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB09",
+      "claims": [
+        "SC05",
+        "SC12"
+      ],
+      "required_family": "From the actual attacker UID, probe environment, command line, permitted process metadata/memory access, descriptors, mounts, files, sockets, diagnostic endpoints, logs and support exports for lab secret canaries. Report effective access, not configured intentions.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB10",
+      "claims": [
+        "SC05",
+        "SC12"
+      ],
+      "required_family": "Attempt direct provider/custody/metadata access, alternate egress, proxying, redirects, alternate credentials, admin/reviewer impersonation and app-writable path/socket replacement. Exercise the documented containment boundary and identify alternate-token assumptions.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB11",
+      "claims": [
+        "SC03",
+        "SC05"
+      ],
+      "required_family": "Substitute the credential or account, a stale credential version, an overprivileged key or a changed provider payment state. Legitimate preflight reads may occur; the prohibited refund must not.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB12",
+      "claims": [
+        "SC05"
+      ],
+      "required_family": "Cross task, recipe, resource, recipient or disclosure-channel boundaries; request a wider projection; inspect public histories and errors. No unauthorized protected content is released.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB13",
+      "claims": [
+        "SC06",
+        "SC08"
+      ],
+      "required_family": "Concurrent duplicate submissions and distinct operations at count/sum boundaries, including zero, maximum, overflow and per-currency/window cases. Independently count effects and inspect complete durable allocations.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB14",
+      "claims": [
+        "SC06",
+        "SC12"
+      ],
+      "required_family": "Inject file write/fsync/rename errors, SQL rollback/deadlock/commit-reply loss and acknowledgement loss. Demonstrate atomic admission or documented fail-closed fencing; ambiguous durable outcomes are not safe refunds of capacity.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB15",
+      "claims": [
+        "SC07"
+      ],
+      "required_family": "Use deterministic barriers to race ancestor withdrawal, recipe/connection/configuration change and final entry in both orders. Entry granted before withdrawal may finish; withdrawal committed before a later grant must block it.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB16",
+      "claims": [
+        "SC08"
+      ],
+      "required_family": "Replay the identical request and variants with a fresh challenge/approval, another executor, altered operation identity or old epoch; reopen retained terminal history. History retrieval cannot mint an entry capability.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB17",
+      "claims": [
+        "SC06",
+        "SC08",
+        "SC09"
+      ],
+      "required_family": "Kill the gateway before reservation, after durable reservation, after acknowledgement and after minting entry but before observed delivery. Reopen real state in a fresh process and evaluate the contract for each actual reachable crash point.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB18",
+      "claims": [
+        "SC09"
+      ],
+      "required_family": "Let the provider apply a refund, then drop/truncate/delay its response and crash/restart the gateway. Independent provider evidence establishes the injected outcome; the gateway retains Unknown unless sufficient evidence supports a narrower statement, without a second mutation.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB19",
+      "claims": [
+        "SC08",
+        "SC09"
+      ],
+      "required_family": "Retry while the original request is still running; deliver late responses and ACKs after timeout, withdrawal or restart. No second entry or unsafe release occurs.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB20",
+      "claims": [
+        "SC02",
+        "SC09"
+      ],
+      "required_family": "Recover with missing, expired, wrong-resource or withdrawn read-only authority. Refuse unauthorized observation; valid observation does not authorize repeating the write.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB21",
+      "claims": [
+        "SC09",
+        "SC10"
+      ],
+      "required_family": "Vary provider idempotency behavior/retention, overwrite observed state, and produce misleading matches. Separate request acceptance, observed state, linkage and exclusive causation; never infer non-effect from a missing match.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB22",
+      "claims": [
+        "SC01",
+        "SC05",
+        "SC09"
+      ],
+      "required_family": "Using existing created-resource/read paths, exercise zero, multiple, incomplete and unique recovery matches plus lost disclosure ACK. Preserve original lineage, current authority and accounting; no blind create retry or automatic redelivery.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB23",
+      "claims": [
+        "SC01",
+        "SC06",
+        "SC07"
+      ],
+      "required_family": "Withdraw/recover an instance, replay its descendants/approvals, and attempt capacity reset or old-key/grant translation. The supported successor contract retains original limits; unsupported lifecycle requests fail closed.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB24",
+      "claims": [
+        "SC02",
+        "SC07",
+        "SC12"
+      ],
+      "required_family": "Restore a coherent old store/configuration/epoch, present an independently authenticated newer checkpoint and test missing/untrusted checkpoint handling. Verify required quarantine/refusal; do not credit a store with authenticating its own freshness.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB25",
+      "claims": [
+        "SC10"
+      ],
+      "required_family": "Tamper, truncate, reorder, duplicate and splice exported evidence; substitute actions, outcomes, contexts and trusted roots; remove required records. The auditor refuses or reports inability to establish the claim, without adopting bundle-supplied trust.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB26",
+      "claims": [
+        "SC10"
+      ],
+      "required_family": "Audit a known historical action after expiry/revocation with the required historical inputs. Historical validity cannot imply current eligibility. Test and document inability to prove export completeness where no independent anchor supplies it.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB27",
+      "claims": [
+        "SC10",
+        "SC11"
+      ],
+      "required_family": "Compare UI, SDK responses, CLI output and signed/private evidence for denied, reserved, entered, response-recorded, observed and unknown histories. No projection silently strengthens a claim or leaks protected facts.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB28",
+      "claims": [
+        "SC02",
+        "SC11"
+      ],
+      "required_family": "Send malformed/noncanonical/truncated/oversized proof, action, frame, JSON/CBOR and binding inputs; exercise duplicate fields, numeric/encoding boundaries and work/depth limits. Obtain bounded, stable refusal without a parser bypass or unchecked native value.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB29",
+      "claims": [
+        "SC03",
+        "SC11"
+      ],
+      "required_family": "Run installed Python/TypeScript/WASM and applicable independent verifier vectors against canonical, mutated and boundary inputs. Verify verdict/commitment/error-class agreement within each surface's actual supported contract.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB30",
+      "claims": [
+        "SC05",
+        "SC11",
+        "SC12"
+      ],
+      "required_family": "Tamper with package payloads, manifests, feature claims, executable pins or cached/generated evidence. Reject mismatched provenance; do not confuse a checksum with trusted origin or allow development/test features to justify shipping claims.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB31",
+      "claims": [
+        "SC02",
+        "SC07",
+        "SC12"
+      ],
+      "required_family": "Exercise startup/enable without complete trust, custody, time or qualification; stale/future/writable sync markers; rotation/revocation; partial shutdown and restart. Verify the documented gate and retained dependency identities.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    },
+    {
+      "id": "SB32",
+      "claims": [
+        "SC05",
+        "SC11",
+        "SC12"
+      ],
+      "required_family": "Bound request floods, slow/trickling provider responses, oversized bodies and diagnostic work. Check deadlines and that untrusted load cannot bypass enforcement or expose admin/custody state; distinguish bounded denial of service from an authorization break.",
+      "execution_status": "planned",
+      "positive_control_required": true,
+      "oracles": [
+        "independent provider transcript/effects",
+        "durable state and native evidence where applicable"
+      ],
+      "variants": []
+    }
+  ],
+  "batches": [
+    {
+      "id": "installed-stripe-boundary",
+      "source": "qualification/security_assessment/stripe_probe.py",
+      "inventory": "qualification/security_assessment/inventory.json",
+      "expected_cases": 33,
+      "oracles": "provider transcript/effects, fresh native execution counters and restricted UID responses",
+      "status": "planned"
+    },
+    {
+      "id": "existing-stripe-reference",
+      "source": "demos/stripe-gateway/selftest.py",
+      "expected_cases": 23,
+      "independence": "existing implementation test, supplemental only",
+      "status": "planned"
+    },
+    {
+      "id": "conventional-baseline",
+      "source": "qualification/security_assessment/compare.py",
+      "expected_cases": 6,
+      "oracles": "same provider double effects, transactional SQLite state, real local HTTP ingress",
+      "status": "planned"
+    },
+    {
+      "id": "native-file-postgresql",
+      "source": "actual compiled registry to be resolved before execution",
+      "status": "planned"
+    },
+    {
+      "id": "installed-ap073",
+      "source": "pinned source-free native journey executable and installed SDKs",
+      "expected_scenarios": 8,
+      "status": "planned"
+    }
+  ]
+}

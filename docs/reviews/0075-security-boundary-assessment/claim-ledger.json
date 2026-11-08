@@ -1,0 +1,138 @@
+{
+  "schema": "auths.security-assessment-claims/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "claims": [
+    {
+      "id": "SC01",
+      "name": "Authority",
+      "question": "Can a participant widen authority, combine unrelated grants, substitute an identity or resource, escape scope, or reset an ancestor limit?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC02",
+      "name": "Trusted inputs",
+      "question": "Can hostile input select weaker trust, policy, verifier configuration, evidence, clock or an obsolete installation?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC03",
+      "name": "Exact effect",
+      "question": "Does the provider request follow only verified canonical inputs and the exact approved compiled effect?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC04",
+      "name": "Approval",
+      "question": "Are quorum identities distinct, authorized, signature-valid, action-bound and fresh at the required boundary? Is presentation complete?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC05",
+      "name": "Confidentiality",
+      "question": "Can the attacker obtain provider/signing credentials, protected content or unauthorized disclosure through any reachable interface?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC06",
+      "name": "Conservation",
+      "question": "Do concurrency and failures preserve the applicable count, sum, ancestor, task and operation allocations without partial admission?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC07",
+      "name": "Revocation",
+      "question": "Do all participating writers and entry paths obey the stated revocation/configuration linearization rule?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC08",
+      "name": "Replay",
+      "question": "Can replay, aliasing, another executor, restart, a fresh challenge or retained history produce unauthorized new entry?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC09",
+      "name": "Recovery",
+      "question": "Do uncertain outcomes retain conservative accounting and require separate current read authority, without blind write retry or redelivery?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC10",
+      "name": "Evidence",
+      "question": "Can an auditor reproduce the authorization under independent trust and distinguish the actual strength of execution evidence?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC11",
+      "name": "Input and artifact integrity",
+      "question": "Do malformed/bounded inputs and installed bindings preserve the native contract, and do assessed artifacts match their claimed source/features?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    },
+    {
+      "id": "SC12",
+      "name": "Deployment and operations",
+      "question": "Do effective isolation, provisioning, time, storage, rotation and restoration satisfy the advertised trust model?",
+      "status": "unverified",
+      "evidence": [],
+      "gaps": [
+        "Independent case execution pending"
+      ],
+      "release_blocking": true
+    }
+  ]
+}
