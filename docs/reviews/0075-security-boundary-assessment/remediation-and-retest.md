@@ -90,8 +90,10 @@ retries, verifies SHA-256
 `3b5f7afd3b51603ee720db7bc1bc4fe46b5a4f5d36daad9939c4b4c658b51ac0`, then
 uses upstream's supported local-bundle setup. That checksum is published on the
 [pinned upstream release asset](https://github.com/model-checking/kani/releases/tag/kani-0.67.0).
-The proof command and every gated harness remain unchanged. This change is
-pending its hosted result; a retried download is not proof evidence.
+The proof command and every gated harness remain unchanged. At `c459b53c`,
+the complete hosted Kani job passes, including its actual gated harnesses
+([run 42476655627, job 128720877208](https://github.com/auths-dev/auths-proof/actions/runs/42476655627/job/128720877208)).
+A successful installer alone would not establish that result.
 
 The repeated OpenTofu 503 has not been attributed to a product security defect.
 The native reference maps several planning failures to `EvidenceUnavailable`.
