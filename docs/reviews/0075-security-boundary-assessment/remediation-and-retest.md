@@ -112,3 +112,28 @@ The canonical generator updates the coupled inventory. This is a reviewed
 release-tooling identity change, not a protocol/provider semantic change or a
 waiver of the freeze gate. This failure prevented the new Kani setup from running
 in that cohort.
+
+At `c459b53c`, preflight and the checksum-verified Kani installer pass. The OpenTofu
+diagnostic independently reproduces a timeout obtaining `hashicorp/local 2.9.0`
+authentication checksums from GitHub in the exact built image. This supports the
+runtime dependency-availability explanation; it does not establish a gateway
+authorization defect.
+
+The prepared repair assembles the configuration's pinned provider packages in
+the demo image's `terraform.d/plugins` filesystem mirror. Build-time lock and
+mirror commands retain provider checksum verification and use bounded retries.
+The original version constraints, lockfile, native environment clearing and real
+fault/recovery tests remain. The CI positive control runs initialization with no
+network and an empty inherited environment, in the same working directory as the
+native process. This matters because `-chdir` does not relocate OpenTofu's
+implicit mirror search from its launch directory. A plugin cache alone would
+still permit registry metadata queries.
+
+Primary behavior references are OpenTofu's
+[filesystem mirror rules](https://opentofu.org/docs/cli/config/config-file/#implied-local-mirror-directories)
+and [mirror command](https://opentofu.org/docs/cli/commands/providers/mirror/),
+corroborated against `cmd/tofu/provider_source.go` at upstream `v1.12.5`.
+The gateway and reference Rust executor do not gain an environment/configuration
+override. This additional CI qualification condition advances only the release
+evolution identity 88 → 89 and inventory/public-surface metadata 438 → 439.
+The provider-image change is pending its actual offline and live-contract results.

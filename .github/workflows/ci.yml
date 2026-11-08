@@ -979,6 +979,12 @@ jobs:
           mkdir -p target/ci
           docker image inspect --format '{{.Id}}' auths-opentofu-demo:ci | tee target/ci/opentofu-image-digest.txt
           echo "BuildKit digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify pinned provider initialization without network or inherited configuration
+        run: |
+          docker run --rm --network none --workdir /workspace/opentofu \
+            --entrypoint /usr/bin/env auths-opentofu-demo:ci \
+            -i TF_IN_AUTOMATION=1 TF_INPUT=0 /usr/local/bin/tofu \
+            init -backend=false -input=false -lockfile=readonly
       - name: Install browser test dependencies
         working-directory: demos/opentofu-plan
         run: |
@@ -1006,8 +1012,9 @@ jobs:
         # A disposable container uses the exact built image and public local
         # fixture. No apply, backend initialization or credential dump occurs.
         run: |
-          docker compose run --rm --no-deps --entrypoint /usr/local/bin/tofu api \
-            -chdir=/workspace/opentofu init -backend=false -input=false -lockfile=readonly
+          docker compose run --rm --no-deps --workdir /workspace/opentofu \
+            --entrypoint /usr/local/bin/tofu api \
+            init -backend=false -input=false -lockfile=readonly
       - name: Preserve exact image provenance
         if: always() && steps.build.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

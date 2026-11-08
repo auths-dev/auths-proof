@@ -9,16 +9,27 @@ ARG TOFU_VERSION=1.12.5
 ARG TOFU_ZIP_SHA256=dade9650e6b74fc7a8b986bd8717497d32f9e09cf82e479afef4977fa3085536
 ARG OPENTOFU_SANDBOX=local
 COPY demos/opentofu-plan/sandbox/${OPENTOFU_SANDBOX}/main.tf /opt/auths/opentofu/main.tf
+# Assemble a lock-verified implicit filesystem mirror in the actual working
+# directory. Native process execution clears inherited CLI configuration.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates curl unzip \
     && curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+      --connect-timeout 30 --max-time 300 --retry 5 --retry-all-errors --retry-delay 5 \
       "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_amd64.zip" \
       --output /tmp/tofu.zip \
     && printf '%s  %s\n' "${TOFU_ZIP_SHA256}" /tmp/tofu.zip | sha256sum --check --strict \
     && unzip /tmp/tofu.zip -d /usr/local/bin \
     && /usr/local/bin/tofu version \
     && cd /opt/auths/opentofu \
-    && /usr/local/bin/tofu providers lock -platform=linux_amd64 \
+    && auths_provider_mirror_ready=false \
+    && for attempt in 1 2 3; do \
+         if TF_REGISTRY_CLIENT_TIMEOUT=120 /usr/local/bin/tofu providers lock -platform=linux_amd64 \
+           && TF_REGISTRY_CLIENT_TIMEOUT=120 /usr/local/bin/tofu providers mirror -platform=linux_amd64 terraform.d/plugins; then \
+           auths_provider_mirror_ready=true; break; \
+         fi; \
+         if [ "$attempt" -lt 3 ]; then sleep 5; fi; \
+       done \
+    && [ "$auths_provider_mirror_ready" = true ] \
     && rm -rf /opt/auths/opentofu/.terraform \
     && rm -rf /tmp/tofu.zip /var/lib/apt/lists/*
 
