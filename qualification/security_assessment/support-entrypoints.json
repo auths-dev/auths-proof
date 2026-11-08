@@ -1,0 +1,110 @@
+{
+  "schema": "auths.security-assessment-native-support/1",
+  "entries": [
+    {
+      "id": "native_crash_tests::native_crash_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_cross_recipe_tests::native_cross_recipe_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_dependency_tests::native_dependency_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_disclosure_crash_tests::file_fault_tests::native_disclosure_file_fault_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_disclosure_crash_tests::native_disclosure_crash_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_disclosure_crash_tests::postgres_batch_tests::native_disclosure_postgres_batch_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_disclosure_crash_tests::postgres_commit_tests::native_disclosure_postgres_commit_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_disclosure_crash_tests::window_capacity_tests::native_disclosure_window_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_file_fault_tests::native_file_fault_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_information_replay_tests::entry_tests::native_disclosure_entry_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_mutation_crash_tests::native_mutation_crash_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_mutation_crash_tests::window_capacity_tests::file_fault_tests::native_mutation_file_fault_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_mutation_crash_tests::window_capacity_tests::native_mutation_window_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_mutation_crash_tests::window_capacity_tests::postgres_commit_tests::native_mutation_postgres_commit_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_mutation_replay_tests::entry_tests::native_mutation_entry_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_postgres_commit_tests::native_postgres_commit_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_process_tests::native_capacity_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_recovery_actor_tests::generated_history_tests::native_generated_history_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "native_recovery_actor_tests::native_recovery_actor_peer",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    },
+    {
+      "id": "qualification_tests::verify_simulation_reports",
+      "kind": "external-fixture-consumer",
+      "reason": "Requires AUTHS_QUALIFICATION_SIMULATION_OUTPUT with reports/attestations for both families; absent in this native batch."
+    },
+    {
+      "id": "scenario_tests::conformance_child_process",
+      "kind": "child-worker",
+      "reason": "Invoked by a configured parent; direct clean-environment execution returns without exercising the scenario."
+    }
+  ]
+}

@@ -88,7 +88,7 @@ review-comprehension trial occurred.
 Required action: the fresh assessor should identify and independently expand
 the highest-risk uncovered variants, especially validly signed lineage/origin
 substitution, TLS-store composition and recovery/projection ambiguity. Retain
-the exact execution census. Do not convert 454 passing selectors into an
+the exact execution census. Do not convert 452 passing selectors into an
 independent proof of the complete boundary. The bounded local review is useful
 evidence; it is insufficient for the broader independent-release claim.
 
@@ -99,6 +99,7 @@ evidence; it is insufficient for the broader independent-release claim.
 | AT01 | A networkless container cannot resolve `api.stripe.com` for the native doctor's transport-construction check; the existing reference fails before execution. | Add an explicit public-address DNS construction stub while retaining `--network none` and per-UID egress denial. Corrected installed reference: 23 cases. This supplies no real Stripe/DNS/TLS evidence. |
 | AT02 | PostgreSQL configured as host IP `127.0.0.1` while expected TLS identity is `localhost` is refused by `product/stores/auths-stores/src/lifecycle.rs:1002`. | Correct the lab connection host to the expected DNS identity. Do not weaken identity checking. All 85 selected TLS PostgreSQL scenarios then execute successfully. |
 | AT03 | macOS `/var` symlink ancestry causes the intact acquisition-control fixture to be rejected. | Canonicalize the assessment-owned temporary root before constructing variants; preserve rejection of links inside extraction. Nine controls pass, including the intact positive. No corrupt package was accepted. |
+| AT04 | The first native wrapper excluded only `_peer` names. `scenario_tests.rs:2409` also contains a child helper, while `qualification_tests.rs:145` contains a report verifier; both return successfully without their required input. The initial 454-pass count overstates substantive execution by two. | Preserve the original census, correct those two observations to `not-run`, and use a source-reviewed central support inventory: 20 child helpers and one external-fixture consumer. Corrected substantive count is 452, including the same 85 PostgreSQL scenarios. A green named result alone is insufficient. |
 
 These setup failures were preserved before corrections in private local logs,
 as described in `remediation-and-retest.md`. None is represented as an Auths

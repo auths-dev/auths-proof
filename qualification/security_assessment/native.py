@@ -15,6 +15,22 @@ import subprocess
 import time
 
 
+def select(names, support):
+    entries = support['entries']
+    support_names = [row['id'] for row in entries]
+    if (support['schema'] != 'auths.security-assessment-native-support/1'
+            or len(support_names) != len(set(support_names))
+            or not set(support_names) <= set(names)
+            or any(row['kind'] not in ['child-worker', 'external-fixture-consumer'] for row in entries)):
+        raise ValueError('support inventory differs from actual compiled registry')
+    workers = [row['id'] for row in entries if row['kind'] == 'child-worker']
+    consumers = [row['id'] for row in entries if row['kind'] == 'external-fixture-consumer']
+    selected = [name for name in names if name not in support_names]
+    if not selected or len(names) != len(set(names)):
+        raise ValueError('invalid compiled registry')
+    return selected, workers, consumers
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--registry', type=Path, required=True)
@@ -25,10 +41,8 @@ def main():
     fixture = json.loads(args.postgres_fixture.read_text())
     binary = Path(registry['binary'])
     names = registry['registered_tests']
-    workers = [name for name in names if name.endswith('_peer')]
-    selected = [name for name in names if name not in workers]
-    if not selected or len(names) != len(set(names)):
-        raise ValueError('invalid compiled registry')
+    support = json.loads(Path(__file__).with_name('support-entrypoints.json').read_text())
+    selected, workers, consumers = select(names, support)
     # Do not inherit fixture-update flags, child-peer commands or host credentials.
     environment = {name: os.environ[name] for name in ['PATH', 'HOME', 'TMPDIR'] if name in os.environ}
     environment.update({'AUTHS_POSTGRES_URL': 'host=localhost port=' + str(fixture['port'])
@@ -37,7 +51,8 @@ def main():
                         'AUTHS_POSTGRES_SERVER_NAME': 'localhost'})
     args.output.mkdir(parents=True, exist_ok=True)
     plan = {'schema': 'auths.security-assessment-native-selection/1', 'selected': selected,
-            'excluded_worker_entrypoints': workers, 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
+            'excluded_worker_entrypoints': workers, 'unconfigured_fixture_consumers': consumers,
+            'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
             'source': registry['target_source'], 'harness_revision': registry['harness_revision'],
             'assurance_scope': 'fresh execution of existing native tests; not independent attack discovery'}
     (args.output / 'selection.json').write_text(json.dumps(plan, indent=2) + '\n')

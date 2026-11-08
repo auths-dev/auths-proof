@@ -56,10 +56,17 @@
     {
       "name": "native-census.json",
       "path": "evidence/native-census.json",
-      "sha256": "4fa79523df053a4feb0fccde1618685a80744d2d5281f7a76d75630ef3fcc330",
+      "sha256": "eaf76356ee3d71a424b35bd6d498c50bcd20439525ff3fc2dbd0bb2959af4f1c",
       "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
       "provenance": "see reproduce.md and record-specific harness identity",
       "executed_harness_sha256": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a"
+    },
+    {
+      "name": "native-before-support-audit.json",
+      "path": "evidence/native-before-support-audit.json",
+      "sha256": "4fa79523df053a4feb0fccde1618685a80744d2d5281f7a76d75630ef3fcc330",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
     },
     {
       "name": "artifact-controls.json",
@@ -96,9 +103,11 @@
     "compare.py": "d2a8254debae9e2b0db051c296c80ad5d0e3048975f1cebbe53a1032f87a20b4",
     "coverage.json": "77ee20b6fbffee4f5dd8d890f3ac557fc31957a2abea4b20c546a6f1706e3ca7",
     "inventory.json": "54a29e28f47ea1611ee395a1d8cbd91e2e01be256f83d03e0234d8fbecea7625",
-    "native.py": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a",
-    "report.py": "9d961baab043e4720c702cf0c5375ee8b9ffb84f75b71d0d7eae1a6ddb3e28a5",
+    "native.py": "bc48d70a01c8b9c6a8938067597ac5f73343ffe8d5c23ec6d00ff5b1059d904e",
+    "report.py": "4d1e7a8127dbe0b29451ab29dd13e466f21f7178da133e54f6aafcfd75500706",
     "stripe_probe.py": "05b75fc966e5f3338a4de8bcff48e19bf3d491283051e70326fd394257a3fc40",
+    "support-entrypoints.json": "fd8d3cb1f16c8d864fdc5167b8a891bbfe7d277dac354b05d0399b0c45471788",
+    "test_native.py": "ea9cad3f01159cd313ab8f69127328d0279a5a44136d973d89a1d16837e2589c",
     "test_report.py": "2cb35818ca851d0ce86c7a10e7d6fa178c54aa726f2c090f8eb04bdfbb3b5ccc",
     "test_validate.py": "40196956e0e543f3c8b8d199b82483808e3e3b5508cb07944d897c53a3d4031a",
     "validate.py": "7667463e0019a18613a83df57ea548bda26be865a1c9a79add75dfc51e4ad642"

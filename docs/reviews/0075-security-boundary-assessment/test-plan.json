@@ -2601,10 +2601,6 @@
           "kind": "existing native regression freshly executed"
         },
         {
-          "case_id": "NATIVE:qualification_tests::verify_simulation_reports",
-          "kind": "existing native regression freshly executed"
-        },
-        {
           "case_id": "NATIVE:readiness::tests::an_absent_observer_is_reported_and_does_not_block",
           "kind": "existing native regression freshly executed"
         },
@@ -2797,8 +2793,9 @@
   ],
   "native_census": {
     "registered": 473,
-    "selected": 454,
-    "excluded_worker_entrypoints": 19,
+    "selected": 452,
+    "excluded_worker_entrypoints": 20,
+    "unconfigured_fixture_consumers": 1,
     "tls_postgresql": 85
   }
 }

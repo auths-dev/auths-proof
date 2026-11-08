@@ -97,7 +97,14 @@ python3 qualification/security_assessment/native.py \
   --output target/security-assessment/evidence/native
 ```
 
-Every selected test must have one successful named final execution with zero
+Use `support-entrypoints.json` to separate 20 child workers and the unconfigured
+report consumer from the 452 substantive scenarios. A `_peer` suffix is not a
+complete inventory: the original wrapper missed a child helper with a different
+name and a report verifier that returns when its input directory is absent. The
+retained initial census and corrected `not-run` records make that overcount
+visible. Do not count an early successful return as a property.
+
+Every selected substantive test must have one successful named final execution with zero
 ignored cases. The runner supplies the actual three PostgreSQL variables and
 does not inherit peer-command or fixture-update flags. Raw per-case logs stay
 private; hashes and outcomes are retained. Missing fixture/registry files are

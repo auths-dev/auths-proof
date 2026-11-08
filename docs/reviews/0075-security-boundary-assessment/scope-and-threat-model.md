@@ -60,10 +60,10 @@ become passing independent results.
 ## Executed topology distinction
 
 The independent installed Stripe campaign and installed AP073 journey execute
-Linux/amd64 source-free packages inside Docker Desktop's Linux VM. The 454-case
+Linux/amd64 source-free packages inside Docker Desktop's Linux VM. The 452-case
 supplemental native registry is a Darwin/arm64 test binary on the macOS host;
 its 85 PostgreSQL tests connect over actual TLS to the assessment-owned Linux
-PostgreSQL container. It is not a second 454-case Linux execution. The source
+PostgreSQL container. It is not a second 452-case Linux execution. The source
 tests are recompiled from the unchanged shipping source with
 `loopback-provider,testkit-harness`; no test allow oracle replaces installed-path
 authorization. Hosted CI supplies its own separate Linux evidence.

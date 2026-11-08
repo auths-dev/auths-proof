@@ -8,8 +8,9 @@ The code changes are the assessment lab, evidence validation and hosted wiring.
 | Failure | Preserved initial evidence | Corrected evidence |
 | --- | --- | --- |
 | Reference transport readiness without DNS | `target/ap075-reference.log`; hosted Stripe job 128696627033, run 42468637050 | `target/ap075-reference-corrected.log`; retained 23-case reference census |
-| TLS identity mismatch in lab DSN | `target/security-assessment/evidence/native-invalid-tls-initial/`; `target/ap075-native-results.log` | Retained native census: 454 exact selectors, including 85 actual configured TLS PostgreSQL scenarios |
+| TLS identity mismatch in lab DSN | `target/security-assessment/evidence/native-invalid-tls-initial/`; `target/ap075-native-results.log` | Retained native census: 452 exact selectors, including 85 actual configured TLS PostgreSQL scenarios |
 | Intact corruption-control rejected through macOS temporary-root ancestry | `target/security-assessment/evidence/artifact-controls-macos-root-initial.json`; `target/ap075-artifact-controls.log` | Retained nine-case artifact controls; no mutant executed |
+| Two successful no-op native support cases overcounted | Retained `evidence/native-before-support-audit.json`; source `scenario_tests.rs:2409` and `qualification_tests.rs:145` | Central explicit support inventory; retained corrected census keeps the two original observations as `not-run`. Remaining 452 substantive results are unchanged, not invented reruns. |
 
 Initial logs are private local evidence, not guaranteed permanent hosted artifacts.
 Their absence elsewhere must not be concealed. Public corrected results and
@@ -22,7 +23,9 @@ requirements and integer positive-effect counts. Five unit-test methods exercise
 missing/duplicate/wrong-source/backend cases, absent positive effects and invented
 production/customer claims. Four further retained-report controls detect altered
 bytes, missing/duplicate result rows and wrong-source/missing-family claims.
-These nine test methods are controls on evidence quality, not nine security
+One additional selection-control method rejects unsupported inventory kinds,
+duplicate support entries and missing registered helpers. These ten test methods
+are controls on evidence quality, not ten security
 properties of the product.
 
 ## Keep the security owners centralized

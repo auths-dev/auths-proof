@@ -47,6 +47,7 @@ def verify_bundle(output):
     native = json.loads((retained / 'native-census.json').read_text())
     expected = {x['id'] for x in boundary['cases']}
     expected.update('NATIVE:' + x['id'] for x in native['results'])
+    expected.update('NATIVE:' + x['id'] for x in native.get('unconfigured_observations', []))
     expected.update('AP073:' + x['case'] for x in json.loads((retained / 'installed-delegation.json').read_text())['cases'])
     expected.update('REFERENCE:' + str(i).zfill(2) + ':' + x['case'] for i, x in
                     enumerate(json.loads((retained / 'installed-stripe-reference.json').read_text())['cases']))
@@ -99,6 +100,7 @@ def main():
         'installed-stripe-reference.json': 'reference/simulation.json',
         'installed-delegation.json': 'ap073/installed-delegation.json',
         'native-census.json': 'native/results.json',
+        'native-before-support-audit.json': 'native/results-before-support-audit.json',
         'artifact-controls.json': 'artifact-controls.json',
         'go-semantic.jsonl': 'go-semantic.jsonl',
         'typescript-semantic.jsonl': 'typescript-semantic.jsonl',
@@ -165,6 +167,12 @@ def main():
             ['Existing implementation assertions are supplemental, not independent attack discovery.',
              'Backend label identifies selected PostgreSQL tests; remaining tests include pure and file tests.',
              'Raw per-case logs are private local artifacts identified by retained hashes.'])
+    for row in native.get('unconfigured_observations', []):
+        add('NATIVE:' + row['id'], [], 'unconfigured support execution; not security evidence', row,
+            'evidence/native-census.json#unconfigured_observations/' + row['id'],
+            '<pinned-native-test-binary> --include-ignored --exact ' + row['id']
+            + ' --test-threads=2 --nocapture', 'unconfigured support',
+            ['Initial wrapper misclassified an early successful return. Corrected to not-run; not counted as a scenario.'])
     delegation = json.loads((retained / 'installed-delegation.json').read_text())
     if len(delegation['cases']) != 8 or len({x['case'] for x in delegation['cases']}) != 8:
         raise ValueError('installed delegation census mismatch')
@@ -220,8 +228,10 @@ def main():
     plan['phase'] = 'executed-and-dispositioned-with-explicit-gaps'
     for batch in plan['batches']:
         batch['status'] = 'executed; see retained census and limitations'
-    plan['native_census'] = {'registered': len(selected) + len(native['selection']['excluded_worker_entrypoints']),
+    plan['native_census'] = {'registered': len(selected) + len(native['selection']['excluded_worker_entrypoints'])
+                            + len(native['selection'].get('unconfigured_fixture_consumers', [])),
                             'selected': len(selected), 'excluded_worker_entrypoints': len(native['selection']['excluded_worker_entrypoints']),
+                            'unconfigured_fixture_consumers': len(native['selection'].get('unconfigured_fixture_consumers', [])),
                             'tls_postgresql': sum(x['backend'] == 'tls-postgresql' for x in native['results'])}
     write(output / 'test-plan.json', plan)
     identifiers = [x['id'] for x in records]

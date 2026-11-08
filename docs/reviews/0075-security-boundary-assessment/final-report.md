@@ -17,7 +17,7 @@ audit, customer trial, real Stripe call or production custody ceremony occurred.
 | --- | --- |
 | New installed-path campaign | 33 cases pass with restricted Linux UID 62004, native verifier/approval/entry, independent provider transcript/effects and file state. |
 | Existing installed Stripe reference | 23 cases pass after correcting the lab DNS prerequisite. Scripted reviewer consent; no human-presence claim. |
-| Existing compiled native registry | 454 exact selectors pass; 85 use configured TLS PostgreSQL. Nineteen dedicated peer worker entrypoints excluded from property counts; parent scenarios invoke their workers. |
+| Existing compiled native registry | 452 exact selectors pass; 85 use configured TLS PostgreSQL. Twenty dedicated child-worker entrypoints and one unconfigured report consumer are excluded from property counts; parent scenarios invoke their workers. |
 | Installed multi-hop journey | Eight scenarios pass with distinct UIDs, five or six process-held keys, zero private-key export to the orchestrator, zero replay writes/redeliveries and retained successor capacity origin. |
 | Independent Go and TypeScript | Each semantically checks 323 portable corpus vectors without mismatched fields. Not a stateful gateway or end-to-end theorem. |
 | Acquisition controls | Intact positive accepted; eight corruption/path/source variants rejected; mutants not executed. |

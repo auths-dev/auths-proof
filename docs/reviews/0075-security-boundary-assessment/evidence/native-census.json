@@ -366,7 +366,6 @@
       "qualification_tests::production_never_accepts_the_optional_policy",
       "qualification_tests::the_gate_is_told_no_provider_name_and_runs_no_oracle",
       "qualification_tests::the_optional_policy_reports_and_never_refuses",
-      "qualification_tests::verify_simulation_reports",
       "quorum_tests::a_proof_cannot_lower_the_installed_threshold",
       "quorum_tests::a_quorum_after_its_window_is_refused_before_any_lease",
       "quorum_tests::a_quorum_still_authorizes_23_hours_after_approval_and_only_once",
@@ -419,7 +418,6 @@
       "scenario_tests::a_lost_claim_resends_the_same_idempotency_key",
       "scenario_tests::admission_reports_retention_and_pre_entry_before_the_observer_check",
       "scenario_tests::attempt_scenarios_v3_drive_the_counting_provider",
-      "scenario_tests::conformance_child_process",
       "scenario_tests::file_store_passes_attempt_store_conformance",
       "scenario_tests::native_replay_projection_fixture_is_current",
       "scenario_tests::postgres_attempt_scenarios_v3_drive_the_counting_provider",
@@ -477,12 +475,16 @@
       "native_postgres_commit_tests::native_postgres_commit_peer",
       "native_process_tests::native_capacity_peer",
       "native_recovery_actor_tests::generated_history_tests::native_generated_history_peer",
-      "native_recovery_actor_tests::native_recovery_actor_peer"
+      "native_recovery_actor_tests::native_recovery_actor_peer",
+      "scenario_tests::conformance_child_process"
     ],
     "binary_sha256": "f8d5bbcc2af2162a51b4744645768f20dd5c46d3759a5f35a41ecb8d06573720",
     "source": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
     "harness_revision": "9ba04192e332966ea7f7f173d6ad21c11a1ed779",
-    "assurance_scope": "fresh execution of existing native tests; not independent attack discovery"
+    "assurance_scope": "fresh execution of existing native tests; not independent attack discovery",
+    "unconfigured_fixture_consumers": [
+      "qualification_tests::verify_simulation_reports"
+    ]
   },
   "results": [
     {
@@ -3753,15 +3755,6 @@
       "log_sha256": "9ccf236031ea75e4c0bbb49dd28053a0d4395947e7dc056474c3842ff4196fce"
     },
     {
-      "id": "qualification_tests::verify_simulation_reports",
-      "status": "pass",
-      "returncode": 0,
-      "backend": "file-or-pure-native",
-      "elapsed_seconds": 0.011604833183810115,
-      "log": "363.log",
-      "log_sha256": "efcf7074fc1b460b62d6dd8b6bb180748ec4324d39fbe385543bbca28cf83ac7"
-    },
-    {
       "id": "quorum_tests::a_proof_cannot_lower_the_installed_threshold",
       "status": "pass",
       "returncode": 0,
@@ -4230,15 +4223,6 @@
       "log_sha256": "6cfcd1b6d57fd25eb9d6735f9f9ca98b3c67a5740358e68efbf03bf02c06276d"
     },
     {
-      "id": "scenario_tests::conformance_child_process",
-      "status": "pass",
-      "returncode": 0,
-      "backend": "file-or-pure-native",
-      "elapsed_seconds": 0.012613957980647683,
-      "log": "416.log",
-      "log_sha256": "61ac319a40de260c6ad90dd5b003e7d2b1c19bc8f066d15e652553ccf40a67fb"
-    },
-    {
       "id": "scenario_tests::file_store_passes_attempt_store_conformance",
       "status": "pass",
       "returncode": 0,
@@ -4570,6 +4554,39 @@
       "elapsed_seconds": 0.12577104102820158,
       "log": "453.log",
       "log_sha256": "a0ab54aa7ef2bd5c9d1a27aab0a52ebd82348d2b17fca1fcc0fca9c1a179d37c"
+    }
+  ],
+  "support_audit": {
+    "schema": "auths.security-assessment-native-census-correction/1",
+    "original_results_sha256": "4fa79523df053a4feb0fccde1618685a80744d2d5281f7a76d75630ef3fcc330",
+    "original_recorded_passes": 454,
+    "corrected_substantive_passes": 452,
+    "reason": "Two named successful executions returned early because their external fixture/parent specification was absent. No implementation test rerun or result fabricated."
+  },
+  "unconfigured_observations": [
+    {
+      "id": "qualification_tests::verify_simulation_reports",
+      "status": "not-run",
+      "returncode": 0,
+      "backend": "file-or-pure-native",
+      "elapsed_seconds": 0.011604833183810115,
+      "log": "363.log",
+      "log_sha256": "efcf7074fc1b460b62d6dd8b6bb180748ec4324d39fbe385543bbca28cf83ac7",
+      "original_harness_status": "pass",
+      "classification": "external-fixture-consumer",
+      "reason": "Named execution succeeded without configured scenario; excluded from substantive passes."
+    },
+    {
+      "id": "scenario_tests::conformance_child_process",
+      "status": "not-run",
+      "returncode": 0,
+      "backend": "file-or-pure-native",
+      "elapsed_seconds": 0.012613957980647683,
+      "log": "416.log",
+      "log_sha256": "61ac319a40de260c6ad90dd5b003e7d2b1c19bc8f066d15e652553ccf40a67fb",
+      "original_harness_status": "pass",
+      "classification": "child-worker",
+      "reason": "Named execution succeeded without configured scenario; excluded from substantive passes."
     }
   ]
 }

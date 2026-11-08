@@ -30,7 +30,7 @@ These are semantic groups, not a count of all functions or a normalized score.
    contract analysis would weaken separation. This is a proposal, not a discovered
    authorization bypass or implemented protocol change.
 2. **Make the execution census distinguish support workers.** The compiled
-   gateway registry contains 19 dedicated child-peer entrypoints. Their normal
+   gateway registry contains 20 dedicated child-worker entrypoints plus one unconfigured report consumer. Their normal
    no-environment return is not a property test. The assessment excludes them
    from scenario counts while parent process tests exercise them in context.
 3. **Validate lab prerequisites once.** An incorrect TLS host/name pairing caused
