@@ -5,6 +5,26 @@ import json
 from pathlib import Path
 
 
+def validate_operations(value, inventory, head, binary):
+    rows = value.get('cases', [])
+    ids = [row['id'] for row in rows]
+    if (value.get('schema') != 'auths.security-assessment-operations/1'
+            or value.get('target_revision') != head or value.get('binary_sha256') != binary
+            or value.get('native_policy_replaced') is not False
+            or value.get('production_qualification') is not False
+            or value.get('attacker_uid') != 62004 or value.get('backend') != 'file'
+            or len(inventory['operations_cases']) != len(set(inventory['operations_cases']))
+            or len(ids) != len(set(ids)) or set(ids) != set(inventory['operations_cases'])):
+        raise ValueError('operational evidence inventory/source/boundary mismatch')
+    if any(row.get('status') != 'pass' or row.get('target_revision') != head
+           or type(row.get('provider_write_requests')) is not int
+           or type(row.get('distinct_effects_in_interval')) is not int
+           or row['provider_write_requests'] != 1 or row.get('distinct_effects_in_interval') != 1
+           for row in rows):
+        raise ValueError('operational drill failed or lacks one independently observed effect')
+    return len(rows)
+
+
 def validate(boundary, comparison, inventory, expected_head):
     if (inventory.get('schema') != 'auths.security-assessment-execution-inventory/1'
             or len(inventory['stripe_probe_cases']) != len(set(inventory['stripe_probe_cases']))
@@ -46,12 +66,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--boundary', type=Path, required=True)
     parser.add_argument('--comparison', type=Path, required=True)
+    parser.add_argument('--operations', type=Path, required=True)
     parser.add_argument('--inventory', type=Path, default=Path(__file__).with_name('inventory.json'))
     parser.add_argument('--head', required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    report = validate(json.loads(args.boundary.read_text()), json.loads(args.comparison.read_text()),
-                      json.loads(args.inventory.read_text()), args.head)
+    boundary = json.loads(args.boundary.read_text())
+    inventory = json.loads(args.inventory.read_text())
+    report = validate(boundary, json.loads(args.comparison.read_text()), inventory, args.head)
+    report['operational_drills'] = validate_operations(json.loads(args.operations.read_text()),
+                                                     inventory, args.head, boundary['binary_sha256'])
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
 

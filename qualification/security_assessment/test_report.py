@@ -21,7 +21,7 @@ class RetainedReportControls(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_intact_report(self):
-        self.assertEqual(verify_bundle(self.root)['case_records'], 535)
+        self.assertEqual(verify_bundle(self.root)['case_records'], 538)
 
     def test_missing_or_duplicate_result(self):
         path = self.root / 'case-results.jsonl'

@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import shutil
 
-from validate import validate
+from validate import validate, validate_operations
 
 
 def digest(path):
@@ -43,9 +43,13 @@ def verify_bundle(output):
     retained = output / 'evidence'
     boundary = json.loads((retained / 'installed-stripe-boundary.json').read_text())
     baseline = json.loads((retained / 'baseline-comparison.json').read_text())
-    validate(boundary, baseline, json.loads(Path(__file__).with_name('inventory.json').read_text()), target)
+    inventory = json.loads(Path(__file__).with_name('inventory.json').read_text())
+    validate(boundary, baseline, inventory, target)
+    operations = json.loads((retained / 'operations.json').read_text())
+    validate_operations(operations, inventory, target, boundary['binary_sha256'])
     native = json.loads((retained / 'native-census.json').read_text())
     expected = {x['id'] for x in boundary['cases']}
+    expected.update(x['id'] for x in operations['cases'])
     expected.update('NATIVE:' + x['id'] for x in native['results'])
     expected.update('NATIVE:' + x['id'] for x in native.get('unconfigured_observations', []))
     expected.update('AP073:' + x['case'] for x in json.loads((retained / 'installed-delegation.json').read_text())['cases'])
@@ -97,6 +101,7 @@ def main():
     copies = {
         'installed-stripe-boundary.json': 'boundary/independent-stripe.json',
         'baseline-comparison.json': 'comparison/baseline-comparison.json',
+        'operations.json': 'operations/operations.json',
         'installed-stripe-reference.json': 'reference/simulation.json',
         'installed-delegation.json': 'ap073/installed-delegation.json',
         'native-census.json': 'native/results.json',
@@ -151,6 +156,12 @@ def main():
             ['Synthetic loopback provider; trusted lab controller; finite schedules.',
              'A changed signed byte is not a valid widened delegation.',
              'Positive control fully checks amount/payment; double enforces fixed contract headers/path.'])
+    for row in json.loads((retained / 'operations.json').read_text())['cases']:
+        add(row['id'], row['families'], 'new installed operational fault drill', row,
+            'evidence/operations.json#' + row['id'], 'operations.py', 'file',
+            ['Single-forward HTTP intermediary schedules responses; native enforcement remains intact.',
+             'Scripted operator timing, not human usability or physical-power-loss evidence.'])
+        records[-1]['positive_control'] = 'OPS-positive-through-scheduled-intermediary'
     native = json.loads((retained / 'native-census.json').read_text())
     selected = native['selection']['selected']
     if len(selected) != len(set(selected)) or {x['id'] for x in native['results']} != set(selected):

@@ -22,6 +22,10 @@
           "kind": "new independent transport/effect observation"
         },
         {
+          "case_id": "OPS-positive-through-scheduled-intermediary",
+          "kind": "new installed operational fault drill"
+        },
+        {
           "case_id": "NATIVE:observed_tests::bounds_tests::bounded_agent_needs_two_managers_and_stays_inside_its_bound",
           "kind": "existing native regression freshly executed"
         },
@@ -1321,6 +1325,10 @@
       ],
       "variants": [
         {
+          "case_id": "OPS-sigkill-after-provider-apply-before-response",
+          "kind": "new installed operational fault drill"
+        },
+        {
           "case_id": "NATIVE:native_crash_tests::native_file_process_crash_fixture_is_current",
           "kind": "existing native regression freshly executed"
         },
@@ -1421,6 +1429,18 @@
         {
           "case_id": "RECOVERY-unknown-restart-and-independent-read",
           "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "OPS-positive-through-scheduled-intermediary",
+          "kind": "new installed operational fault drill"
+        },
+        {
+          "case_id": "OPS-sigkill-after-provider-apply-before-response",
+          "kind": "new installed operational fault drill"
+        },
+        {
+          "case_id": "OPS-late-provider-response-after-caller-disconnect",
+          "kind": "new installed operational fault drill"
         },
         {
           "case_id": "NATIVE:native_crash_tests::native_file_process_crash_fixture_is_current",
@@ -1548,6 +1568,14 @@
         {
           "case_id": "RECOVERY-unknown-restart-and-independent-read",
           "kind": "new independent transport/effect observation"
+        },
+        {
+          "case_id": "OPS-sigkill-after-provider-apply-before-response",
+          "kind": "new installed operational fault drill"
+        },
+        {
+          "case_id": "OPS-late-provider-response-after-caller-disconnect",
+          "kind": "new installed operational fault drill"
         },
         {
           "case_id": "NATIVE:app::tests::the_deadline_closes_the_connection_but_never_cancels_the_call",
@@ -2789,6 +2817,20 @@
       "positive_control": "intact-control",
       "scope": "pinned package acquisition; mutants not executed; trusted manifest/GitHub producer remain premises",
       "status": "executed; see retained census and limitations"
+    },
+    {
+      "id": "installed-operational-faults",
+      "source": "qualification/security_assessment/operations.py",
+      "families": [
+        "SB01",
+        "SB17",
+        "SB18",
+        "SB19"
+      ],
+      "expected_cases": 3,
+      "positive_control": "OPS-positive-through-scheduled-intermediary",
+      "status": "executed; see retained census and limitations",
+      "scope": "single-forward intermediary controls response timing; actual installed native enforcement and provider effects; no production or human-effort claim"
     }
   ],
   "native_census": {

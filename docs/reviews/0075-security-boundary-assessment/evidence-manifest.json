@@ -38,6 +38,13 @@
       "executed_harness_revision": "9ba04192e332966ea7f7f173d6ad21c11a1ed779"
     },
     {
+      "name": "operations.json",
+      "path": "evidence/operations.json",
+      "sha256": "472601921cb744900834cab250e0181c047e490810c27ed895bbbee8b2388c41",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    },
+    {
       "name": "installed-stripe-reference.json",
       "path": "evidence/installed-stripe-reference.json",
       "sha256": "96cc7623f5c31a113f767c4016a9a5f8951f3d79e0f74f95bb832247c779fd83",
@@ -102,15 +109,17 @@
     "baseline.py": "0e0b500feaaaacae6759e64bf18fb7beef0fe4fad448e1f3b295aaff7e400f04",
     "compare.py": "d2a8254debae9e2b0db051c296c80ad5d0e3048975f1cebbe53a1032f87a20b4",
     "coverage.json": "77ee20b6fbffee4f5dd8d890f3ac557fc31957a2abea4b20c546a6f1706e3ca7",
-    "inventory.json": "54a29e28f47ea1611ee395a1d8cbd91e2e01be256f83d03e0234d8fbecea7625",
+    "inventory.json": "b84b7d54edd305cf1fa9da8e3d261935241c397f2baa1c2fb9a04ffba6e58edf",
     "native.py": "bc48d70a01c8b9c6a8938067597ac5f73343ffe8d5c23ec6d00ff5b1059d904e",
-    "report.py": "4d1e7a8127dbe0b29451ab29dd13e466f21f7178da133e54f6aafcfd75500706",
+    "operations.py": "7ef39caeb48365d4657e0137ff5ada5813e449e0842a40311943d533ff2adc60",
+    "report.py": "d7d853ef1a1893b5901dfa19682bdb9203b55345e4234a8ba5a787ce7bf1797d",
     "stripe_probe.py": "05b75fc966e5f3338a4de8bcff48e19bf3d491283051e70326fd394257a3fc40",
     "support-entrypoints.json": "fd8d3cb1f16c8d864fdc5167b8a891bbfe7d277dac354b05d0399b0c45471788",
     "test_native.py": "ea9cad3f01159cd313ab8f69127328d0279a5a44136d973d89a1d16837e2589c",
-    "test_report.py": "2cb35818ca851d0ce86c7a10e7d6fa178c54aa726f2c090f8eb04bdfbb3b5ccc",
+    "test_operations.py": "71c3db4f425b703d520e9e227e2f772e567617bd6ac782a640bf77efcff1878b",
+    "test_report.py": "de2c8292c5b970e591e10b7ae86c442474b269eb89edc8ca23bffb5d84c2d936",
     "test_validate.py": "40196956e0e543f3c8b8d199b82483808e3e3b5508cb07944d897c53a3d4031a",
-    "validate.py": "7667463e0019a18613a83df57ea548bda26be865a1c9a79add75dfc51e4ad642"
+    "validate.py": "b0dd94fbc781feb95b7d28f99cfe7ac43e276d46c045f97db4455f9c98e6dc4b"
   },
   "native_runner_executed_sha256": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a",
   "native_host": {

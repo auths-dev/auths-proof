@@ -36,6 +36,11 @@
     "REVOCATION-connection-disable-before-new-entry"
   ],
   "positive_control": "POSITIVE-exact-after-hostile-inputs",
+  "operations_cases": [
+    "OPS-positive-through-scheduled-intermediary",
+    "OPS-sigkill-after-provider-apply-before-response",
+    "OPS-late-provider-response-after-caller-disconnect"
+  ],
   "baseline_cases": [
     "parameter-substitution",
     "duplicate-approver",

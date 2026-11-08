@@ -62,12 +62,381 @@
     "unresolved_case": "lost response; no response-provided locator in retained source"
   },
   "limitations": [
-    "Initial operator drill uses graceful restart; actual SIGKILL matrices are separately selected native process tests.",
+    "Initial four-step exercise uses graceful restart; added installed-path SIGKILL-after-apply and caller-disconnect/late-response drills independently exercise actual processes.",
     "Known-source observation is a different operation from the unresolved response-lost source.",
     "Human effort, production incidence, physical power-loss and production provider durability are not measured."
   ],
   "command_provenance": "Derived from actually invoked Operator.application/restart at pinned source; dynamic PID/port deliberately placeholders. These strings were not captured as execve telemetry.",
   "scenario_count": 1,
   "operator_steps": 4,
-  "operator_role_transition": "trusted controller restart, then restricted application with separately authored recovery evidence"
+  "operator_role_transition": "trusted controller restart, then restricted application with separately authored recovery evidence",
+  "installed_operational_drills": {
+    "attacker_uid": 62004,
+    "backend": "file",
+    "binary_sha256": "fd2b31c1fa304c44d89a56814c4b45f4d93ecbb879c160e6f56a4ffbf46e5233",
+    "cases": [
+      {
+        "backend": "file",
+        "distinct_effects_in_interval": 1,
+        "elapsed_seconds": 0.5567051670514047,
+        "error": null,
+        "families": [
+          "SB01",
+          "SB18"
+        ],
+        "id": "OPS-positive-through-scheduled-intermediary",
+        "interface": "installed Python/raw Unix IPC",
+        "observed": {
+          "intermediary_preserves_native_positive": true,
+          "outcome": "response-recorded"
+        },
+        "provider_reads": 4,
+        "provider_write_requests": 1,
+        "schema": "auths.security-assessment-case/1",
+        "status": "pass",
+        "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f"
+      },
+      {
+        "backend": "file",
+        "distinct_effects_in_interval": 1,
+        "elapsed_seconds": 0.807033667108044,
+        "error": null,
+        "families": [
+          "SB17",
+          "SB18",
+          "SB19"
+        ],
+        "id": "OPS-sigkill-after-provider-apply-before-response",
+        "interface": "installed Python/raw Unix IPC",
+        "observed": {
+          "after_restart": "unknown",
+          "human_effort_measured": false,
+          "initial_transport": {
+            "closed": "EOFError",
+            "elapsed_seconds": 0.22031466593034565
+          },
+          "kill_after_independently_observed_apply": true,
+          "prohibited_action": "repeat mutation to resolve uncertainty",
+          "role": "trusted controller kills/restarts; restricted UID submits",
+          "safe_next_action": "retain charge; separately authorize evidence or escalate",
+          "steps": [
+            {
+              "command": "SIGKILL owned gateway0 PID; wait",
+              "elapsed_seconds": 0.0014927079901099205
+            },
+            {
+              "command": "serve --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/app0.sock --loopback-provider <owned-port>",
+              "elapsed_seconds": 0.15735162503551692
+            }
+          ]
+        },
+        "provider_reads": 4,
+        "provider_write_requests": 1,
+        "schema": "auths.security-assessment-case/1",
+        "status": "pass",
+        "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f"
+      },
+      {
+        "backend": "file",
+        "distinct_effects_in_interval": 1,
+        "elapsed_seconds": 7.391284710960463,
+        "error": null,
+        "families": [
+          "SB18",
+          "SB19"
+        ],
+        "id": "OPS-late-provider-response-after-caller-disconnect",
+        "interface": "installed Python/raw Unix IPC",
+        "observed": {
+          "caller_disconnected": true,
+          "command": "restricted raw submit; wait for disconnect; release owned provider response; inspect same operation",
+          "human_effort_measured": false,
+          "inspection_commands": 1,
+          "late_response_retained": true,
+          "prohibited_action": "create another operation to retry this effect",
+          "role": "restricted caller; trusted fault scheduler",
+          "safe_next_action": "inspect retained response; separately authorize read if needed"
+        },
+        "provider_reads": 4,
+        "provider_write_requests": 1,
+        "schema": "auths.security-assessment-case/1",
+        "status": "pass",
+        "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f"
+      }
+    ],
+    "human_trial": false,
+    "intermediary": "single-forward HTTP; controlled response timing; no upstream retries",
+    "native_policy_replaced": false,
+    "production_qualification": false,
+    "schema": "auths.security-assessment-operations/1",
+    "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f"
+  },
+  "supplemental_operator_api_histories": [
+    {
+      "id": "late-disclosure-ack",
+      "kind": "existing native operator/recipient API history freshly executed",
+      "selector": "native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current",
+      "command": "<pinned-native-test-binary> --include-ignored --exact native_disclosure_crash_tests::native_file_disclosure_process_crash_fixture_is_current --test-threads=2 --nocapture",
+      "elapsed_seconds": 15.785742667037994,
+      "role": "trusted scripted native operator and recipient under documented fixture assumptions",
+      "positive_control": "paired valid/current histories inside the selected source test",
+      "trusted_evidence": "bindings/fixtures/gateway/native-disclosure-process-crash-file.json",
+      "fixture_sha256": "5dd60c38c48c3db2985292af293d43f4ae545861ddbe2ba4dd786fbdaf478627",
+      "safe_next_action": "retain spent disclosure capacity; accept only correctly bound acknowledgement; do not automatically redeliver",
+      "prohibited_action": "renew spent capacity or repeat external effect/disclosure to eliminate uncertainty",
+      "status": "pass",
+      "limitations": [
+        "Native API scripted procedure, not an unfamiliar operator shell/runbook or production restore trial.",
+        "Actual selected test compares its generated observations with this canonical fixture."
+      ],
+      "observed_example": {
+        "pause": "after-delivery-before-ack",
+        "current_gate": "current",
+        "sigkill_gateway": true,
+        "sigkill_recipient": true,
+        "original_recipient": {
+          "received_full": true,
+          "bytes": 21
+        },
+        "after_reopen": {
+          "revision": 2,
+          "stage": "unknown",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 21,
+          "policy_count_counters": 1,
+          "policy_byte_counters": 1
+        },
+        "continued_only_after_fresh_authorization": false,
+        "late_ack": {
+          "revision": 3,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 21,
+          "policy_count_counters": 1,
+          "policy_byte_counters": 1
+        },
+        "substituted_ack_fields_and_signature_refused": 10,
+        "final_history": {
+          "revision": 3,
+          "stage": "acknowledged",
+          "reserved_deliveries": 1,
+          "reserved_bytes": 21,
+          "policy_count_counters": 1,
+          "policy_byte_counters": 1
+        },
+        "provider_reads": 1,
+        "source_allocation_calls": 1,
+        "source_allocation_bytes": 1024,
+        "disclosure_allocation_calls": 1,
+        "disclosure_allocation_bytes": 21,
+        "native_policy_count_slots": 1,
+        "native_policy_sum_bytes": 21,
+        "original_inputs_and_source_journal_unchanged": true,
+        "replays_do_not_authenticate_or_redeliver": true,
+        "late_ack_and_exact_ack_replay_preserve_charges": true
+      }
+    },
+    {
+      "id": "stale-recovery-evidence",
+      "kind": "existing native operator/recipient API history freshly executed",
+      "selector": "native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current",
+      "command": "<pinned-native-test-binary> --include-ignored --exact native_recovery_actor_tests::history_tests::native_file_recovery_history_fixture_is_current --test-threads=2 --nocapture",
+      "elapsed_seconds": 17.148474500048906,
+      "role": "trusted scripted native operator and recipient under documented fixture assumptions",
+      "positive_control": "paired valid/current histories inside the selected source test",
+      "trusted_evidence": "bindings/fixtures/gateway/native-recovery-history-file.json",
+      "fixture_sha256": "c661cee982e8deb30bb0356133886e3d712d2cb74b11147733d6fdc4080e0705",
+      "safe_next_action": "inspect retained report; stale new evidence cannot strengthen the source; separately authorize a new bounded acquisition if warranted",
+      "prohibited_action": "renew spent capacity or repeat external effect/disclosure to eliminate uncertainty",
+      "status": "pass",
+      "limitations": [
+        "Native API scripted procedure, not an unfamiliar operator shell/runbook or production restore trial.",
+        "Actual selected test compares its generated observations with this canonical fixture."
+      ],
+      "observed_example": {
+        "case": "linked-response",
+        "first": {
+          "schema": "auths.gateway-recovery/2",
+          "source": {
+            "stage": "observed-by-provider",
+            "revision": 4,
+            "response_status": null,
+            "observation_match": null,
+            "provider_linked": true,
+            "recovery_received_at": 1790000001
+          },
+          "acquisition": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 125,
+            "response_version_ok": true
+          },
+          "disposition": "recorded",
+          "budget": {
+            "retained_attempts": 1,
+            "maximum_attempts": 16,
+            "maximum_response_bytes": 16384,
+            "retained_response_bytes": 16384,
+            "maximum_total_response_bytes": 262144,
+            "maximum_transport_seconds": 15,
+            "maximum_total_transport_seconds": 240,
+            "maximum_evidence_age_seconds": 30
+          },
+          "escalation": "none",
+          "next_actions": [
+            "inspect-retained-evidence"
+          ],
+          "acquisition_received_at": 1790000001
+        },
+        "expired": {
+          "schema": "auths.gateway-recovery/2",
+          "source": {
+            "stage": "observed-by-provider",
+            "revision": 4,
+            "response_status": null,
+            "observation_match": null,
+            "provider_linked": true,
+            "recovery_received_at": 1790000001
+          },
+          "acquisition": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 125,
+            "response_version_ok": true
+          },
+          "disposition": "already-recorded",
+          "budget": {
+            "retained_attempts": 1,
+            "maximum_attempts": 16,
+            "maximum_response_bytes": 16384,
+            "retained_response_bytes": 16384,
+            "maximum_total_response_bytes": 262144,
+            "maximum_transport_seconds": 15,
+            "maximum_total_transport_seconds": 240,
+            "maximum_evidence_age_seconds": 30
+          },
+          "escalation": "none",
+          "next_actions": [
+            "inspect-retained-evidence"
+          ],
+          "acquisition_received_at": 1790000001
+        },
+        "withdrawn": {
+          "schema": "auths.gateway-recovery/2",
+          "source": {
+            "stage": "observed-by-provider",
+            "revision": 4,
+            "response_status": null,
+            "observation_match": null,
+            "provider_linked": true,
+            "recovery_received_at": 1790000001
+          },
+          "acquisition": {
+            "revision": 3,
+            "stage": "response-recorded",
+            "reserved_calls": 1,
+            "reserved_bytes": 16384,
+            "policy_count_counters": 0,
+            "policy_byte_counters": 0,
+            "response_status": 200,
+            "response_bytes": 125,
+            "response_version_ok": true
+          },
+          "disposition": "already-recorded",
+          "budget": {
+            "retained_attempts": 1,
+            "maximum_attempts": 16,
+            "maximum_response_bytes": 16384,
+            "retained_response_bytes": 16384,
+            "maximum_total_response_bytes": 262144,
+            "maximum_transport_seconds": 15,
+            "maximum_total_transport_seconds": 240,
+            "maximum_evidence_age_seconds": 30
+          },
+          "escalation": "none",
+          "next_actions": [
+            "inspect-retained-evidence"
+          ],
+          "acquisition_received_at": 1790000001
+        },
+        "unavailable_store": [
+          {
+            "outcome": "indeterminate",
+            "code": "gateway.attempt.state-unavailable"
+          },
+          {
+            "outcome": "indeterminate",
+            "code": "gateway.recovery.unavailable"
+          }
+        ],
+        "original_attribution_and_charges_preserved": true,
+        "receipt_time_never_refreshed": true,
+        "expired_and_withdrawn_new_read_refused": true,
+        "altered_inputs_source_or_approval_refused": true,
+        "retained_rows_and_no_io_after_expiry_withdrawal_or_disable": true,
+        "elapsed_timeout_checked_against_native_deadline": false
+      }
+    },
+    {
+      "id": "restored-epoch-and-independent-floor",
+      "kind": "existing native operator/recipient API history freshly executed",
+      "selector": "native_information_replay_tests::epoch_tests::native_file_epoch_fence_fixture_is_current",
+      "command": "<pinned-native-test-binary> --include-ignored --exact native_information_replay_tests::epoch_tests::native_file_epoch_fence_fixture_is_current --test-threads=2 --nocapture",
+      "elapsed_seconds": 0.5393620000686496,
+      "role": "trusted scripted native operator and recipient under documented fixture assumptions",
+      "positive_control": "paired valid/current histories inside the selected source test",
+      "trusted_evidence": "bindings/fixtures/gateway/native-epoch-fence-file.json",
+      "fixture_sha256": "ac02ce078edb72146c04807e018ef773f63ba6fc3a4d223d5e7f6ad5878da250",
+      "safe_next_action": "keep stale or floor-inconsistent state quarantined; independently establish continuity before enabling",
+      "prohibited_action": "renew spent capacity or repeat external effect/disclosure to eliminate uncertainty",
+      "status": "pass",
+      "limitations": [
+        "Native API scripted procedure, not an unfamiliar operator shell/runbook or production restore trial.",
+        "Actual selected test compares its generated observations with this canonical fixture."
+      ],
+      "observed_example": {
+        "current_generation": 2,
+        "current_positive_provider_reads": 1,
+        "cases": [
+          {
+            "case": "older-connection",
+            "refused_before_custody_and_entry": true,
+            "attempts_unchanged": true
+          },
+          {
+            "case": "same-generation-substitution",
+            "refused_before_custody_and_entry": true,
+            "attempts_unchanged": true
+          },
+          {
+            "case": "missing-floor",
+            "refused_before_custody_and_entry": true,
+            "attempts_unchanged": true
+          },
+          {
+            "case": "malformed-floor",
+            "refused_before_custody_and_entry": true,
+            "attempts_unchanged": true
+          },
+          {
+            "case": "obsolete-floor",
+            "refused_before_custody_and_entry": true,
+            "attempts_unchanged": true
+          }
+        ],
+        "premise": "host-local independent floor survives database backup/restore",
+        "excluded": "rollback of both the complete store and every independent floor"
+      }
+    }
+  ]
 }

@@ -55,6 +55,7 @@ For the final census:
 python3 qualification/security_assessment/validate.py \
   --boundary target/security-assessment/evidence/boundary/independent-stripe.json \
   --comparison target/security-assessment/evidence/comparison/baseline-comparison.json \
+  --operations target/security-assessment/evidence/operations/operations.json \
   --head ac5fcabe9c6300e46789b4e847bb1991f9f9d66f \
   --output target/security-assessment/evidence/census.json
 ```
@@ -66,6 +67,18 @@ PostgreSQL comparison, source review or external human assessment by itself.
 The inventory and census validator refuse absent/duplicate cases, wrong source
 or backend, a missing successful provider-reaching control and fabricated market
 claims. Mutation controls test those evidence rules; they are not product tests.
+
+The three additional operational drills run `/assessment/operations.py` in a
+fresh container with the boundary suite's isolation options and a separate
+`operations` output directory. A single-forward HTTP intermediary holds the
+actual double's successful response after apply. One test kills/restarts the
+gateway; another lets the restricted caller disconnect before releasing the
+response. The intermediary never retries upstream or replaces native checks.
+Use the provider-reaching intermediary positive control to validate this setup.
+The recorded three case intervals are about 0.557, 0.807 and 7.391 seconds;
+fixture/image preparation is outside those intervals. Native late-ACK,
+stale-evidence and retained-floor histories are separately identified in
+`recovery-exercise.json`; they are scripted API evidence, not human measurements.
 
 Preserve source, image and input/output digests with results. Cleanup is limited
 to assessment-owned stopped containers and lab images after retaining required

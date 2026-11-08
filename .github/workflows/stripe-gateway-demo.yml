@@ -183,8 +183,12 @@ jobs:
         run: |
           mkdir -p target/ap075-evidence
           failures=0
-          for suite in boundary reference; do
+          for suite in boundary reference operations; do
             mkdir -p "target/ap075-evidence/$suite"
+            driver=(/assessment/stripe_probe.py --suite "$suite")
+            if [[ "$suite" == operations ]]; then
+              driver=(/assessment/operations.py)
+            fi
             if ! docker run --rm --init --network none --cap-add NET_ADMIN \
               --add-host api.stripe.com:1.1.1.1 \
               --security-opt no-new-privileges --memory 1g --cpus 2 --pids-limit 256 \
@@ -192,7 +196,7 @@ jobs:
               -e AUTHS_ASSESSMENT_TARGET_SHA \
               -v "$GITHUB_WORKSPACE/qualification/security_assessment:/assessment:ro" \
               -v "$GITHUB_WORKSPACE/target/ap075-evidence/$suite:/evidence" \
-              auths-ap075-stripe /assessment/stripe_probe.py --suite "$suite"; then
+              auths-ap075-stripe "${driver[@]}"; then
               failures=$((failures + 1))
             fi
           done
@@ -207,6 +211,7 @@ jobs:
           if ! python3 qualification/security_assessment/validate.py \
             --boundary target/ap075-evidence/boundary/independent-stripe.json \
             --comparison target/ap075-evidence/comparison/baseline-comparison.json \
+            --operations target/ap075-evidence/operations/operations.json \
             --head "$AUTHS_ASSESSMENT_TARGET_SHA" --output target/ap075-evidence/census.json; then
             failures=$((failures + 1))
           fi

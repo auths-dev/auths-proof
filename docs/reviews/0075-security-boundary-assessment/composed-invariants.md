@@ -69,6 +69,10 @@ Acquisition and disclosure have distinct typed grants and source bindings.
 
 The new campaign independently observes one applied refund with a lost response,
 then restarts the gateway and observes Unknown with no additional provider I/O.
+An additional installed drill holds the provider's successful response after
+independently observed apply, SIGKILLs the actual gateway, restarts it and observes
+Unknown without provider replay. A second delayed response arrives after caller
+disconnect and is retained without a duplicate write.
 Separately authorized observation of a known source produces a recovery report
 without a mutation. Twenty-four concurrent duplicate requests also produce one
 provider entry and converge to retained response history.

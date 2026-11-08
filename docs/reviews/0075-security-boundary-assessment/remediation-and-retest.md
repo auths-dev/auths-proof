@@ -24,8 +24,10 @@ missing/duplicate/wrong-source/backend cases, absent positive effects and invent
 production/customer claims. Four further retained-report controls detect altered
 bytes, missing/duplicate result rows and wrong-source/missing-family claims.
 One additional selection-control method rejects unsupported inventory kinds,
-duplicate support entries and missing registered helpers. These ten test methods
-are controls on evidence quality, not ten security
+duplicate support entries and missing registered helpers. Operational-census
+mutation controls reject missing/duplicated/failed drills, extra effects and
+wrong source/binary identities. These eleven test methods
+are controls on evidence quality, not eleven security
 properties of the product.
 
 ## Keep the security owners centralized

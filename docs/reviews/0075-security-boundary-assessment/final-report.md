@@ -16,6 +16,7 @@ audit, customer trial, real Stripe call or production custody ceremony occurred.
 | Evidence | Actual scope and result |
 | --- | --- |
 | New installed-path campaign | 33 cases pass with restricted Linux UID 62004, native verifier/approval/entry, independent provider transcript/effects and file state. |
+| New installed operational faults | Three cases pass: provider-reaching intermediary control, SIGKILL after provider apply but before response, and late provider response after caller disconnect. Each produces one independently observed effect without replay I/O. |
 | Existing installed Stripe reference | 23 cases pass after correcting the lab DNS prerequisite. Scripted reviewer consent; no human-presence claim. |
 | Existing compiled native registry | 452 exact selectors pass; 85 use configured TLS PostgreSQL. Twenty dedicated child-worker entrypoints and one unconfigured report consumer are excluded from property counts; parent scenarios invoke their workers. |
 | Installed multi-hop journey | Eight scenarios pass with distinct UIDs, five or six process-held keys, zero private-key export to the orchestrator, zero replay writes/redeliveries and retained successor capacity origin. |
@@ -44,7 +45,7 @@ using a passing row to support a release claim.
 | G05 Concurrency/revocation | Supported within tested scope | Independent file races and native file/TLS scenarios pass; finite schedules and participating-writer/storage assumptions remain. |
 | G06 Recovery/operations | Unverified in full | Lost-response exercise and native crash/ACK/restore cases pass; unresolved refund escalation, human usability and production restore/custody remain unmeasured. |
 | G07 Findings closure | No demonstrated critical/high defect | No product exploit established; assurance gaps AG01–AG04 prevent broader closure. This is not a vulnerability-absence claim. |
-| G08 Qualification | Pending final hosted verification | Exact-head checks must be inspected after the final assessment commit; prior head has lab readiness and upstream download failures plus unrelated live-demo failure. |
+| G08 Qualification | Pending final hosted verification | Exact-head checks must be inspected after the final assessment commit; prior authoritative repository gate passed, while the cohort has lab readiness and upstream download failures plus an OpenTofu 503 whose cause remains unresolved. |
 | G09 Evidence/claims | Supported for disclosed local report | Retained census/provenance/limitations and current prelaunch claims agree. Independent/production qualification remains unavailable. |
 
 “Supported within tested scope” is deliberately not a full gate pass. No internal
