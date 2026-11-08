@@ -148,3 +148,31 @@ installation against the built lockfile, not a separate provider-signature or
 production-qualification claim. Final application-image and live recovery
 contracts remain required in hosted CI. The evidence validator authenticates
 this supplemental artifact without counting it as another gateway security case.
+
+### Provider fixture distribution before and after
+
+This changes the existing image-build boundary. It adds no runtime execution
+owner, provider version or native configuration escape hatch.
+
+```mermaid
+flowchart LR
+  A[Session request] --> B[Existing cleared-environment executor]
+  B --> C[Provider initialization]
+  C --> D[Registry and GitHub checksum requests]
+  D -->|Timeout| E[Evidence unavailable: HTTP 503]
+```
+
+```mermaid
+flowchart LR
+  A[Existing image build] --> B[Verify locked provider packages]
+  B --> C[Provider mirror inside image]
+  D[Session request] --> E[Same cleared-environment executor]
+  E --> F[Initialize from mirror with unchanged lockfile]
+  C --> F
+  F --> G[Existing saved-plan and recovery checks]
+  C --> H[CI initialization with network disabled]
+```
+
+The observed local dependency-stage result supports the mirror path. Successful
+final-image initialization and the complete live contract are still separate
+required results.
