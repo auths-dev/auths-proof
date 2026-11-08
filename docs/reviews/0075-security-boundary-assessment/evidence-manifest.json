@@ -112,12 +112,12 @@
     "inventory.json": "b84b7d54edd305cf1fa9da8e3d261935241c397f2baa1c2fb9a04ffba6e58edf",
     "native.py": "bc48d70a01c8b9c6a8938067597ac5f73343ffe8d5c23ec6d00ff5b1059d904e",
     "operations.py": "7ef39caeb48365d4657e0137ff5ada5813e449e0842a40311943d533ff2adc60",
-    "report.py": "d7d853ef1a1893b5901dfa19682bdb9203b55345e4234a8ba5a787ce7bf1797d",
+    "report.py": "fcd73ff5ef2beda4823d5ffd8b96337ec14db360259b4849f80e531749b35776",
     "stripe_probe.py": "05b75fc966e5f3338a4de8bcff48e19bf3d491283051e70326fd394257a3fc40",
     "support-entrypoints.json": "fd8d3cb1f16c8d864fdc5167b8a891bbfe7d277dac354b05d0399b0c45471788",
     "test_native.py": "ea9cad3f01159cd313ab8f69127328d0279a5a44136d973d89a1d16837e2589c",
     "test_operations.py": "71c3db4f425b703d520e9e227e2f772e567617bd6ac782a640bf77efcff1878b",
-    "test_report.py": "de2c8292c5b970e591e10b7ae86c442474b269eb89edc8ca23bffb5d84c2d936",
+    "test_report.py": "539982ec263d00b0258fa0727b6913af0bc00113963ad3ef6f8412fdcf4f2a38",
     "test_validate.py": "40196956e0e543f3c8b8d199b82483808e3e3b5508cb07944d897c53a3d4031a",
     "validate.py": "b0dd94fbc781feb95b7d28f99cfe7ac43e276d46c045f97db4455f9c98e6dc4b"
   },
@@ -189,6 +189,15 @@
         "baseline": 6
       },
       "qualification_scope": "same shipping source as assessed main; candidate-specific source-free package and real hosted observations; no production or independent-human claim"
+    }
+  ],
+  "qualification_experiments": [
+    {
+      "id": "QF-opentofu-offline-provider",
+      "path": "evidence/opentofu-offline-provider.json",
+      "sha256": "4235a29cc1399f2eacfff1c5ae1f2aa272ccafb16a95ad8d1858be38668f62f3",
+      "source_revision": "acf470037425a9d16c357058e151e33ecf66317c",
+      "scope": "supplemental qualification dependency check; not a gateway security case"
     }
   ]
 }

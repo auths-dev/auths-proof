@@ -24,10 +24,11 @@ def write(path, value):
 def verify_bundle(output):
     manifest = json.loads((output / 'evidence-manifest.json').read_text())
     target = manifest['target_revision']
-    names = [x['path'] for x in manifest['experiments']]
+    artifacts = manifest['experiments'] + manifest.get('qualification_experiments', [])
+    names = [x['path'] for x in artifacts]
     if not names or len(names) != len(set(names)):
         raise ValueError('missing or duplicate evidence inventory')
-    for item in manifest['experiments']:
+    for item in artifacts:
         path = Path(item['path'])
         if path.is_absolute() or '..' in path.parts or digest(output / path) != item['sha256']:
             raise ValueError('retained evidence digest/path mismatch')

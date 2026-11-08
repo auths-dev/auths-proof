@@ -137,3 +137,14 @@ The gateway and reference Rust executor do not gain an environment/configuration
 override. This additional CI qualification condition advances only the release
 evolution identity 88 → 89 and inventory/public-surface metadata 438 → 439.
 The provider-image change is pending its actual offline and live-contract results.
+
+The local dependency-stage image then builds successfully. On that actual
+Linux/amd64 stage, `env -i` initialization with `--network none`, backend disabled
+and the lockfile read-only succeeds in 1.441 seconds. The command, image ID and
+log hash are retained in `evidence/opentofu-offline-provider.json`. This is the
+root-owned dependency stage; it is not evidence of final service-UID isolation.
+The filesystem installation reports `unauthenticated`; the result establishes
+installation against the built lockfile, not a separate provider-signature or
+production-qualification claim. Final application-image and live recovery
+contracts remain required in hosted CI. The evidence validator authenticates
+this supplemental artifact without counting it as another gateway security case.

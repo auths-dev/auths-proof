@@ -32,10 +32,13 @@ class RetainedReportControls(unittest.TestCase):
                 verify_bundle(self.root)
 
     def test_changed_retained_bytes(self):
-        path = self.root / 'evidence/installed-stripe-boundary.json'
-        path.write_bytes(path.read_bytes() + b' ')
-        with self.assertRaises(ValueError):
-            verify_bundle(self.root)
+        for name in ['installed-stripe-boundary.json', 'opentofu-offline-provider.json']:
+            path = self.root / 'evidence' / name
+            original = path.read_bytes()
+            path.write_bytes(original + b' ')
+            with self.subTest(artifact=name), self.assertRaises(ValueError):
+                verify_bundle(self.root)
+            path.write_bytes(original)
 
     def test_missing_family_and_wrong_claim_source(self):
         path = self.root / 'test-plan.json'
