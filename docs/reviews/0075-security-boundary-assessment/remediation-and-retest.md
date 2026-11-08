@@ -102,3 +102,13 @@ image: initialize the public local-provider fixture with `-backend=false` and
 the unchanged read-only lockfile. It performs no apply or credential dump.
 This probe can clarify dependency availability, but is not itself evidence of
 the original failure's cause or a repaired execution workflow.
+
+The `e20e59be` preflight rejects that workflow change because the release
+evolution contract's frozen owner includes `.github/workflows/ci.yml`. The setup
+change deliberately strengthens release-tool artifact integrity and adds bounded
+diagnostics, so `auths.release.evolution-contract` advances 87 → 88, the inventory
+freeze 437 → 438 and its release-metadata public-surface identity 437 → 438.
+The canonical generator updates the coupled inventory. This is a reviewed
+release-tooling identity change, not a protocol/provider semantic change or a
+waiver of the freeze gate. This failure prevented the new Kani setup from running
+in that cohort.
