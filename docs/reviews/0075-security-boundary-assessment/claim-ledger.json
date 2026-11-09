@@ -1,0 +1,416 @@
+{
+  "schema": "auths.security-assessment-claims/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "claims": [
+    {
+      "id": "SC01",
+      "name": "Authority",
+      "question": "Can a participant widen authority, combine unrelated grants, substitute an identity or resource, escape scope, or reset an ancestor limit?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB01",
+            "SB02",
+            "SB03",
+            "SB23"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Fresh independent valid-lineage/origin attack derivation remains required; finite tests are not arbitrary-chain proof.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "core/crates/auths-verifier/src/lib.rs:966",
+        "product/runtime/auths-gateway/src/effect/engagement.rs:360",
+        "product/runtime/auths-gateway/src/entry.rs:221"
+      ],
+      "assumptions": [
+        "Cryptographic integrity, installed root/enrollment, correct ancestry/capacity-origin derivation and participating writers."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC02",
+      "name": "Trusted inputs",
+      "question": "Can hostile input select weaker trust, policy, verifier configuration, evidence, clock or an obsolete installation?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB04",
+            "SB08",
+            "SB24",
+            "SB31"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Actual production trust, time producer and checkpoint custody unassessed.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/app.rs",
+        "product/runtime/auths-gateway/src/entry.rs:221",
+        "product/runtime/auths-gateway/src/qualification.rs:135"
+      ],
+      "assumptions": [
+        "Operator-selected trust/configuration and protected time/qualification inputs."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC03",
+      "name": "Exact effect",
+      "question": "Does the provider request follow only verified canonical inputs and the exact approved compiled effect?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB05",
+            "SB06"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "No real Stripe qualification; full security-relevant request semantics are bounded by the fixed synthetic provider contract.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/effect.rs",
+        "product/runtime/auths-gateway/src/submit.rs:891",
+        "product/runtime/auths-gateway/src/recipe.rs"
+      ],
+      "assumptions": [
+        "Canonical decoding, commitment integrity, closed compiler and truthful reviewed provider contract."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC04",
+      "name": "Approval",
+      "question": "Are quorum identities distinct, authorized, signature-valid, action-bound and fresh at the required boundary? Is presentation complete?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB01",
+            "SB06",
+            "SB07",
+            "SB08"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Scripted consent does not demonstrate human presence, comprehension or acceptable approval burden.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "core/crates/auths-verifier/src/lib.rs:966",
+        "product/runtime/auths-gateway/src/effect.rs",
+        "product/runtime/auths-gateway/src/entry.rs:221"
+      ],
+      "assumptions": [
+        "Independent approver key custody, installed quorum and current exact-effect approval."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC05",
+      "name": "Confidentiality",
+      "question": "Can the attacker obtain provider/signing credentials, protected content or unauthorized disclosure through any reachable interface?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB09",
+            "SB10",
+            "SB11",
+            "SB12"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Only actual lab access probes and supplemental content tests; production provisioning and every diagnostic surface unassessed.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/app.rs",
+        "product/runtime/auths-gateway/src/transport.rs",
+        "product/runtime/auths-gateway/src/support.rs"
+      ],
+      "assumptions": [
+        "Correct OS identity/mount/egress isolation, no alternate agent-held credential, trusted root/controller and custody."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC06",
+      "name": "Conservation",
+      "question": "Do concurrency and failures preserve the applicable count, sum, ancestor, task and operation allocations without partial admission?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB03",
+            "SB13",
+            "SB14"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Finite concurrent histories do not prove all schedules or real hardware durability.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/store/engagement.rs:235",
+        "product/runtime/auths-gateway/src/store/engagement.rs:266",
+        "product/runtime/auths-gateway/src/effect/engagement.rs:371"
+      ],
+      "assumptions": [
+        "Complete dependency set and append-only allocations, correct units/origins, atomic file/SQL adapters and no untrusted coherent rollback."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC07",
+      "name": "Revocation",
+      "question": "Do all participating writers and entry paths obey the stated revocation/configuration linearization rule?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB15",
+            "SB23",
+            "SB24",
+            "SB31"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Direct privileged store/provider writers and production restoration are outside the tested containment claim.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/entry.rs:221",
+        "product/runtime/auths-gateway/src/store.rs:2991",
+        "product/runtime/auths-gateway/src/configuration.rs"
+      ],
+      "assumptions": [
+        "Every participating writer uses the same dependency fence; committed-before-grant ordering, not cancel-after-grant semantics."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC08",
+      "name": "Replay",
+      "question": "Can replay, aliasing, another executor, restart, a fresh challenge or retained history produce unauthorized new entry?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB13",
+            "SB16",
+            "SB17",
+            "SB19"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "No universal exactly-once provider-effect or physical-power-loss claim.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/store.rs:2991",
+        "product/runtime/auths-gateway/src/submit.rs:891",
+        "product/runtime/auths-gateway-kernel/src/order.rs"
+      ],
+      "assumptions": [
+        "Durable state/acknowledgement fidelity, one-use permit custody, correct retained history and independent rollback protection."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC09",
+      "name": "Recovery",
+      "question": "Do uncertain outcomes retain conservative accounting and require separate current read authority, without blind write retry or redelivery?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB17",
+            "SB18",
+            "SB19",
+            "SB20",
+            "SB21",
+            "SB22"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Response-lost refund locator may be unavailable; measured known-source read is not resolution of that source. Human escalation not tested.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/submit.rs",
+        "product/runtime/auths-gateway/src/store.rs",
+        "product/runtime/auths-gateway/src/recipe/created_resource.rs"
+      ],
+      "assumptions": [
+        "Provider read contract and separate current recovery/read authority; uncertain charges remain retained."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC10",
+      "name": "Evidence",
+      "question": "Can an auditor reproduce the authorization under independent trust and distinguish the actual strength of execution evidence?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB25",
+            "SB26",
+            "SB27"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Export completeness and exclusive real-world causation not established without independent witnesses/provider evidence.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/audit.rs",
+        "product/runtime/auths-gateway/src/effect.rs",
+        "product/runtime/auths-gateway/src/support.rs"
+      ],
+      "assumptions": [
+        "Auditor supplies independently trusted anchors and required historical context; signatures authenticate recorded statements, not complete world history."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC11",
+      "name": "Input and artifact integrity",
+      "question": "Do malformed/bounded inputs and installed bindings preserve the native contract, and do assessed artifacts match their claimed source/features?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB28",
+            "SB29",
+            "SB30"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "323 portable vectors do not establish every ABI/WASM input or stateful cross-language equivalence.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "product/runtime/auths-gateway/src/app.rs",
+        "bindings/independent/go",
+        "bindings/independent/typescript",
+        "qualification/security_assessment/acquire.py"
+      ],
+      "assumptions": [
+        "Trusted pinned producer, payload hashes, vetted native primitives and actual supported language contract."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    },
+    {
+      "id": "SC12",
+      "name": "Deployment and operations",
+      "question": "Do effective isolation, provisioning, time, storage, rotation and restoration satisfy the advertised trust model?",
+      "status": "supported-within-tested-scope; broader claim unverified",
+      "evidence": [
+        {
+          "families": [
+            "SB09",
+            "SB10",
+            "SB14",
+            "SB24",
+            "SB30",
+            "SB31",
+            "SB32"
+          ],
+          "results": "case-results.jsonl",
+          "mapping": "test-plan.json",
+          "scope": "Read evidence_kind; existing regressions are supplemental."
+        }
+      ],
+      "gaps": [
+        "Production key lifecycle, power loss, real account behavior and unfamiliar operator recovery remain unverified.",
+        "AG01: fresh assessment context absent."
+      ],
+      "release_blocking": true,
+      "enforcement_paths": [
+        "deployment/gateway",
+        "docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md",
+        "product/runtime/auths-gateway/src/qualification.rs:135",
+        "product/stores/auths-stores/src/lifecycle.rs:1002"
+      ],
+      "assumptions": [
+        "Trusted host/kernel, protected deployment inputs and external freshness checkpoint, actual durable store/provider assumptions."
+      ],
+      "disposition": "Retain prelaunch limitations; do not promote to independent or production qualification.",
+      "verification_technique": "Source trace, new installed-path independent effect/access observations and mapped exact native/installed regressions; no end-to-end theorem."
+    }
+  ]
+}

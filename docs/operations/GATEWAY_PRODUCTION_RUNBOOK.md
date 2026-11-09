@@ -276,8 +276,13 @@ does not borrow the writer's authority. New evidence must be no older than 30
 seconds at the journal fence. Stale, missing or inconclusive evidence leaves the
 source unresolved and charged. A repeated recorded fact is history with its
 original timestamp. No recovery command authorizes another mutation send.
-Retain only native redacted reports in support evidence. The complete installed
-AP074 recovery journey and fault evidence remain under implementation.
+Retain only native redacted reports in support evidence.
+The AP075 local assessment reruns the existing native AP074 recovery/fault
+scenarios and an installed lost-response exercise. See
+[the assessment report](../reviews/0075-security-boundary-assessment/final-report.md)
+for exact source, backend and scope. A response-lost source can remain unresolved;
+an observation of another known source does not reconcile it. Human escalation,
+production custody and independently reviewed restoration remain separate gates.
 
 ## Rolling upgrade
 

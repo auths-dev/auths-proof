@@ -8,6 +8,7 @@ on:
       - 'bindings/typescript/**'
       - 'bindings/wasm/**'
       - 'qualification/reference/**'
+      - 'qualification/security_assessment/**'
       - 'qualification/simulation/live/stripe-platform/**'
       - 'product/**'
       - 'core/**'
@@ -148,4 +149,77 @@ jobs:
           name: stripe-gateway-demo-evidence
           path: evidence/
           if-no-files-found: warn
+          retention-days: 30
+
+  adversarial-assessment:
+    name: adversarial transport and baseline experiments
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: stripe-gateway-demo-package
+          path: target/ap075-package
+      - name: Verify evidence-census mutation controls
+        run: |
+          python3 -m unittest discover -s qualification/security_assessment -p 'test_*.py'
+          python3 qualification/security_assessment/report.py --verify \
+            --output docs/reviews/0075-security-boundary-assessment
+      - name: Verify source-free package and build restricted laboratory
+        run: |
+          cd target/ap075-package
+          sha256sum -c stripe-gateway-demo.tgz.sha256
+          tar xzf stripe-gateway-demo.tgz
+          docker build -f "$GITHUB_WORKSPACE/qualification/security_assessment/Dockerfile" \
+            -t auths-ap075-stripe stripe-gateway-demo
+      - name: Execute actual restricted-UID attacks and conventional baseline
+        env:
+          AUTHS_ASSESSMENT_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p target/ap075-evidence
+          failures=0
+          for suite in boundary reference operations; do
+            mkdir -p "target/ap075-evidence/$suite"
+            driver=(/assessment/stripe_probe.py --suite "$suite")
+            if [[ "$suite" == operations ]]; then
+              driver=(/assessment/operations.py)
+            fi
+            if ! docker run --rm --init --network none --cap-add NET_ADMIN \
+              --add-host api.stripe.com:1.1.1.1 \
+              --security-opt no-new-privileges --memory 1g --cpus 2 --pids-limit 256 \
+              --tmpfs /run:rw,nosuid,nodev,size=128m \
+              -e AUTHS_ASSESSMENT_TARGET_SHA \
+              -v "$GITHUB_WORKSPACE/qualification/security_assessment:/assessment:ro" \
+              -v "$GITHUB_WORKSPACE/target/ap075-evidence/$suite:/evidence" \
+              auths-ap075-stripe "${driver[@]}"; then
+              failures=$((failures + 1))
+            fi
+          done
+          mkdir -p target/ap075-evidence/comparison
+          if ! docker run --rm --init --network none --security-opt no-new-privileges \
+            --memory 512m --cpus 2 --pids-limit 128 \
+            -v "$GITHUB_WORKSPACE/qualification/security_assessment:/assessment:ro" \
+            -v "$GITHUB_WORKSPACE/target/ap075-evidence/comparison:/evidence" \
+            auths-ap075-stripe /assessment/compare.py; then
+            failures=$((failures + 1))
+          fi
+          if ! python3 qualification/security_assessment/validate.py \
+            --boundary target/ap075-evidence/boundary/independent-stripe.json \
+            --comparison target/ap075-evidence/comparison/baseline-comparison.json \
+            --operations target/ap075-evidence/operations/operations.json \
+            --head "$AUTHS_ASSESSMENT_TARGET_SHA" --output target/ap075-evidence/census.json; then
+            failures=$((failures + 1))
+          fi
+          exit "$failures"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ap075-adversarial-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ap075-evidence/
+          if-no-files-found: error
           retention-days: 30

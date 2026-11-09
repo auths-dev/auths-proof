@@ -1,0 +1,333 @@
+{
+  "schema": "auths.security-assessment-dependency-triage/1",
+  "observed_date": "2026-11-08",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "scope": "Selected Stripe gateway, separate from full-monorepo advisory closure",
+  "observations": [
+    {
+      "ghsa": "GHSA-6f2x-v7q7-m7m5",
+      "manifest": "Cargo.lock",
+      "number": 17,
+      "package": {
+        "ecosystem": "rust",
+        "name": "hickory-resolver"
+      },
+      "patched": {
+        "identifier": "0.26.2"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "medium",
+      "state": "open",
+      "summary": "hickory-resolver follows irrelevant CNAME records",
+      "vulnerable": ">= 0.25.0, < 0.26.2",
+      "advisory_url": "https://github.com/advisories/GHSA-6f2x-v7q7-m7m5",
+      "selected_gateway_disposition": "Not in auths-gateway dependency graph; present through iroh/iroh-dns/iroh-relay in exchange and demo consumers.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-6w6g-hm98-mhgm",
+      "manifest": "Cargo.lock",
+      "number": 16,
+      "package": {
+        "ecosystem": "rust",
+        "name": "hickory-resolver"
+      },
+      "patched": {
+        "identifier": "0.26.2"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "hickory-resolver: Unbounded TC-retry loop in `NameServerPool::try_send` (resource-exhaustion DoS)",
+      "vulnerable": ">= 0.26.0-beta.1, < 0.26.2",
+      "advisory_url": "https://github.com/advisories/GHSA-6w6g-hm98-mhgm",
+      "selected_gateway_disposition": "Not in auths-gateway dependency graph; present through iroh/iroh-dns/iroh-relay in exchange and demo consumers.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-5j98-2g5x-46v6",
+      "manifest": "Cargo.lock",
+      "number": 15,
+      "package": {
+        "ecosystem": "rust",
+        "name": "hickory-resolver"
+      },
+      "patched": {
+        "identifier": "0.26.2"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "hickory-resolver: Resolver::lookup() and Resolver::lookup_ip() APIs obscure DNSSEC validation failures",
+      "vulnerable": "< 0.26.2",
+      "advisory_url": "https://github.com/advisories/GHSA-5j98-2g5x-46v6",
+      "selected_gateway_disposition": "Not in auths-gateway dependency graph; present through iroh/iroh-dns/iroh-relay in exchange and demo consumers.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-c9xm-49cp-xcr9",
+      "manifest": "Cargo.lock",
+      "number": 14,
+      "package": {
+        "ecosystem": "rust",
+        "name": "rmcp"
+      },
+      "patched": {
+        "identifier": "2.0.0"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "medium",
+      "state": "open",
+      "summary": "rmcp OAuth client fetches server-controlled resource_metadata URLs",
+      "vulnerable": "< 2.0.0",
+      "advisory_url": "https://github.com/advisories/GHSA-c9xm-49cp-xcr9",
+      "selected_gateway_disposition": "Package is present through auths-profile-mcp; OAuth and Streamable HTTP client/server features affected by these alerts are not enabled. Only server/transport-async-rw observed; profile consumes CallToolRequestParams. No gateway exploit established.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-jwv3-5hgf-82ww",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 13,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "49.0.0"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "python-cryptography: Duplicate self-signed intermediates can cause exponential path-building",
+      "vulnerable": ">= 42.0.0, < 49.0.0",
+      "advisory_url": "https://github.com/advisories/GHSA-jwv3-5hgf-82ww",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-m2h6-j472-rp4c",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 12,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "49.0.0"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "medium",
+      "state": "open",
+      "summary": "python-cryptography verifier accepts wildcard DNS names allowing escape from permittedSubtrees",
+      "vulnerable": ">= 45.0.0, < 49.0.0",
+      "advisory_url": "https://github.com/advisories/GHSA-m2h6-j472-rp4c",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-g6cj-pr64-35w5",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 9,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "50.0.0"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "cryptography: PKCS#7 EnvelopedData decryption exposes a Bleichenbacher oracle through distinguishable errors and timing",
+      "vulnerable": ">= 44.0.0, < 50.0.0",
+      "advisory_url": "https://github.com/advisories/GHSA-g6cj-pr64-35w5",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-537c-gmf6-5ccf",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 8,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "48.0.1"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "Vulnerable OpenSSL included in cryptography wheels",
+      "vulnerable": ">= 0.5.0, < 48.0.1",
+      "advisory_url": "https://github.com/advisories/GHSA-537c-gmf6-5ccf",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-6w46-j5rx-g56g",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 7,
+      "package": {
+        "ecosystem": "pip",
+        "name": "pytest"
+      },
+      "patched": {
+        "identifier": "9.0.3"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "medium",
+      "state": "open",
+      "summary": "pytest has vulnerable tmpdir handling",
+      "vulnerable": "< 9.0.3",
+      "advisory_url": "https://github.com/advisories/GHSA-6w46-j5rx-g56g",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-p423-j2cm-9vmq",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 6,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "46.0.7"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "medium",
+      "state": "open",
+      "summary": "Cryptography vulnerable to buffer overflow if non-contiguous buffers were passed to APIs",
+      "vulnerable": ">= 45.0.0, < 46.0.7",
+      "advisory_url": "https://github.com/advisories/GHSA-p423-j2cm-9vmq",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-m959-cc7f-wv43",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 5,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "46.0.6"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "low",
+      "state": "open",
+      "summary": "cryptography has incomplete DNS name constraint enforcement on peer names",
+      "vulnerable": "< 46.0.6",
+      "advisory_url": "https://github.com/advisories/GHSA-m959-cc7f-wv43",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-r6ph-v2qm-q3c2",
+      "manifest": "demos/cross-company-incident-response/agent-service/requirements.txt",
+      "number": 4,
+      "package": {
+        "ecosystem": "pip",
+        "name": "cryptography"
+      },
+      "patched": {
+        "identifier": "46.0.5"
+      },
+      "relationship": "direct",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "cryptography Vulnerable to a Subgroup Attack Due to Missing Subgroup Validation for SECT Curves",
+      "vulnerable": "<= 46.0.4",
+      "advisory_url": "https://github.com/advisories/GHSA-r6ph-v2qm-q3c2",
+      "selected_gateway_disposition": "Pinned in another demo service requirements file; absent from selected Auths wheel project dependencies. No claim that the other service is unaffected.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-9g45-5xwm-f3wc",
+      "manifest": "Cargo.lock",
+      "number": 3,
+      "package": {
+        "ecosystem": "rust",
+        "name": "rmcp"
+      },
+      "patched": {
+        "identifier": "2.1.0"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "medium",
+      "state": "open",
+      "summary": "RMCP: Custom HTTP headers leak to cross-origin redirect targets",
+      "vulnerable": "< 2.1.0",
+      "advisory_url": "https://github.com/advisories/GHSA-9g45-5xwm-f3wc",
+      "selected_gateway_disposition": "Package is present through auths-profile-mcp; OAuth and Streamable HTTP client/server features affected by these alerts are not enabled. Only server/transport-async-rw observed; profile consumes CallToolRequestParams. No gateway exploit established.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-9pj6-vhgr-3mwh",
+      "manifest": "Cargo.lock",
+      "number": 2,
+      "package": {
+        "ecosystem": "rust",
+        "name": "rmcp"
+      },
+      "patched": {
+        "identifier": "2.0.0"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "RMCP: Unauthenticated permanent session-table leak in rmcp Streamable HTTP server transport leads to remote denial-of-service",
+      "vulnerable": "< 2.0.0",
+      "advisory_url": "https://github.com/advisories/GHSA-9pj6-vhgr-3mwh",
+      "selected_gateway_disposition": "Package is present through auths-profile-mcp; OAuth and Streamable HTTP client/server features affected by these alerts are not enabled. Only server/transport-async-rw observed; profile consumes CallToolRequestParams. No gateway exploit established.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    },
+    {
+      "ghsa": "GHSA-33f5-2c5q-wgwj",
+      "manifest": "Cargo.lock",
+      "number": 1,
+      "package": {
+        "ecosystem": "rust",
+        "name": "rmcp"
+      },
+      "patched": {
+        "identifier": "2.0.0"
+      },
+      "relationship": "unknown",
+      "scope": "runtime",
+      "severity": "high",
+      "state": "open",
+      "summary": "RMCP: Missing Resource Field Validation in OAuth Protected Resource Metadata Discovery",
+      "vulnerable": "< 2.0.0",
+      "advisory_url": "https://github.com/advisories/GHSA-33f5-2c5q-wgwj",
+      "selected_gateway_disposition": "Package is present through auths-profile-mcp; OAuth and Streamable HTTP client/server features affected by these alerts are not enabled. Only server/transport-async-rw observed; profile consumes CallToolRequestParams. No gateway exploit established.",
+      "global_remediation_status": "open; not dismissed or fixed by AP075"
+    }
+  ],
+  "gateway_graph_commands": [
+    "cargo tree --locked -p auths-gateway -i hickory-resolver",
+    "cargo tree --locked -p auths-gateway -e features -i rmcp",
+    "cargo tree --locked --workspace -i hickory-resolver"
+  ],
+  "limitations": [
+    "Feature-scoped source/graph review, not an exploit test of each advisory.",
+    "CI cargo-deny/RustSec evidence does not prove the GHSA/Python alert inventory is empty.",
+    "Enabling features or changing consumers invalidates this selected-path applicability assessment."
+  ]
+}

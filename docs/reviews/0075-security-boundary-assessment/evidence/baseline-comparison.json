@@ -1,0 +1,96 @@
+{
+  "schema": "auths.security-assessment-comparison/1",
+  "baseline_cases": [
+    {
+      "case": "parameter-substitution",
+      "status": "pass",
+      "result": {
+        "outcome": "denied"
+      },
+      "elapsed_seconds": 0.004429834079928696,
+      "applied_effects": 0,
+      "accounting": {
+        "count": 0,
+        "amount": 0
+      }
+    },
+    {
+      "case": "duplicate-approver",
+      "status": "pass",
+      "result": {
+        "outcome": "denied"
+      },
+      "elapsed_seconds": 0.006430292036384344,
+      "applied_effects": 0,
+      "accounting": {
+        "count": 0,
+        "amount": 0
+      }
+    },
+    {
+      "case": "final-capacity-race",
+      "status": "pass",
+      "result": {
+        "contenders": 16,
+        "outcome": "one-effect-within-capacity"
+      },
+      "elapsed_seconds": 0.051573541946709156,
+      "applied_effects": 1,
+      "accounting": {
+        "count": 1,
+        "amount": 1000
+      }
+    },
+    {
+      "case": "response-loss-replay",
+      "status": "pass",
+      "result": {
+        "outcome": "unknown"
+      },
+      "elapsed_seconds": 0.005604292033240199,
+      "applied_effects": 1,
+      "accounting": {
+        "count": 1,
+        "amount": 1000
+      }
+    },
+    {
+      "case": "revocation-before-entry",
+      "status": "pass",
+      "result": {
+        "outcome": "denied"
+      },
+      "elapsed_seconds": 0.0039514589589089155,
+      "applied_effects": 0,
+      "accounting": {
+        "count": 0,
+        "amount": 0
+      }
+    },
+    {
+      "case": "exact-approved-positive",
+      "status": "pass",
+      "result": {
+        "outcome": "response-recorded"
+      },
+      "elapsed_seconds": 0.005157875013537705,
+      "applied_effects": 1,
+      "accounting": {
+        "count": 1,
+        "amount": 1000
+      }
+    }
+  ],
+  "baseline": "lab HS256 scoped identity + exact approval records + transactional SQLite + idempotency",
+  "is_oauth_deployment": false,
+  "production_security_assessed": false,
+  "no_auths_authorization_code_used": true,
+  "not_implemented": [
+    "delegated authority chains/ancestor identity",
+    "portable public-key authorization/effect evidence",
+    "multi-host admission",
+    "native independent recovery proof"
+  ],
+  "commercial_demand_validated": false,
+  "interpretation": "Basic exact approval, transactional limits and conservative replay are achievable with conventional mechanisms; no uniqueness or market advantage follows."
+}

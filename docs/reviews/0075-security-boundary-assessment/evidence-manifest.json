@@ -1,0 +1,203 @@
+{
+  "schema": "auths.security-assessment-evidence/1",
+  "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+  "source_tree": "fe161d6d38957af071bb11a0a59224f3923e13e4",
+  "artifacts": [
+    {
+      "key": "stripe-package",
+      "id": 13551602737,
+      "run_id": 42317890524,
+      "sha256": "cadea9a6fd4c29a536e8eac1f5100119c9f2b801c89bd375f9c08fd0c8ecba9d",
+      "manifest_schema": "auths.stripe-gateway-demo-package/1",
+      "root": "stripe-gateway-demo"
+    },
+    {
+      "key": "airtable-package",
+      "id": 13551688742,
+      "run_id": 42317890393,
+      "sha256": "1a31634ac2c40820e768b30f0faebb6fe8c17e7036e3a82131a640b7c4343bf9",
+      "manifest_schema": "auths.airtable-gateway-demo-package/1",
+      "root": "airtable-gateway-demo"
+    }
+  ],
+  "experiments": [
+    {
+      "name": "installed-stripe-boundary.json",
+      "path": "evidence/installed-stripe-boundary.json",
+      "sha256": "34b824fe328ab993c93e69f307220370df8c2ebd0902736a64e9c98c025c6aad",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_revision": "9ba04192e332966ea7f7f173d6ad21c11a1ed779"
+    },
+    {
+      "name": "baseline-comparison.json",
+      "path": "evidence/baseline-comparison.json",
+      "sha256": "481f6dc953420ad443413b9f23c8a3668c3e7d672a6e6e14c46cc3e7abe28d42",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_revision": "9ba04192e332966ea7f7f173d6ad21c11a1ed779"
+    },
+    {
+      "name": "operations.json",
+      "path": "evidence/operations.json",
+      "sha256": "472601921cb744900834cab250e0181c047e490810c27ed895bbbee8b2388c41",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    },
+    {
+      "name": "installed-stripe-reference.json",
+      "path": "evidence/installed-stripe-reference.json",
+      "sha256": "96cc7623f5c31a113f767c4016a9a5f8951f3d79e0f74f95bb832247c779fd83",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_revision": "working tree derived from 9ba04192; corrected DNS launch",
+      "harness_byte_snapshot_at_execution": "not captured; narrower provenance than committed boundary campaign"
+    },
+    {
+      "name": "installed-delegation.json",
+      "path": "evidence/installed-delegation.json",
+      "sha256": "713ca2c8063577369c4a1b7ed54249f2fd58c84a853249fbdb789dcfb7aee685",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    },
+    {
+      "name": "native-census.json",
+      "path": "evidence/native-census.json",
+      "sha256": "eaf76356ee3d71a424b35bd6d498c50bcd20439525ff3fc2dbd0bb2959af4f1c",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity",
+      "executed_harness_sha256": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a"
+    },
+    {
+      "name": "native-before-support-audit.json",
+      "path": "evidence/native-before-support-audit.json",
+      "sha256": "4fa79523df053a4feb0fccde1618685a80744d2d5281f7a76d75630ef3fcc330",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    },
+    {
+      "name": "artifact-controls.json",
+      "path": "evidence/artifact-controls.json",
+      "sha256": "042fd94b3721f79ca999bbf14b9805e0a9b8d04136e5bc77ba6b10b589221b00",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    },
+    {
+      "name": "go-semantic.jsonl",
+      "path": "evidence/go-semantic.jsonl",
+      "sha256": "b69ab672795f695c98c1fac123c8178b865e25a2313f30c06344426aee09e22e",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    },
+    {
+      "name": "typescript-semantic.jsonl",
+      "path": "evidence/typescript-semantic.jsonl",
+      "sha256": "a852870f4c54b00b79c97810570105893579ad598fd142b77fb2cc0bb8f39543",
+      "target_revision": "ac5fcabe9c6300e46789b4e847bb1991f9f9d66f",
+      "provenance": "see reproduce.md and record-specific harness identity"
+    }
+  ],
+  "acquisition": {
+    "path": "target/security-assessment/inputs/acquisition.json",
+    "sha256": "0fc10e8117fef076bde6d8b45f0b0282de8e4e23bacb94237963927774492b81",
+    "private_local_artifact": true
+  },
+  "assessment_tool_sha256": {
+    "Dockerfile": "8ac0ba0ed614309f13ba648d741363ae2f48062e9687a2fa70feed9fcf5c635f",
+    "acquire.py": "504e5cd21726a540ba52f4c9e0bad59a6aa0b1aeb56452de39f8f3a2d1c70c09",
+    "artifact_probes.py": "b12ff8a2241b47e2dc953ff55bc246be7774c38cbd5f0f245cd12a9506804e53",
+    "baseline.py": "0e0b500feaaaacae6759e64bf18fb7beef0fe4fad448e1f3b295aaff7e400f04",
+    "compare.py": "d2a8254debae9e2b0db051c296c80ad5d0e3048975f1cebbe53a1032f87a20b4",
+    "coverage.json": "77ee20b6fbffee4f5dd8d890f3ac557fc31957a2abea4b20c546a6f1706e3ca7",
+    "inventory.json": "b84b7d54edd305cf1fa9da8e3d261935241c397f2baa1c2fb9a04ffba6e58edf",
+    "native.py": "bc48d70a01c8b9c6a8938067597ac5f73343ffe8d5c23ec6d00ff5b1059d904e",
+    "operations.py": "7ef39caeb48365d4657e0137ff5ada5813e449e0842a40311943d533ff2adc60",
+    "report.py": "fcd73ff5ef2beda4823d5ffd8b96337ec14db360259b4849f80e531749b35776",
+    "stripe_probe.py": "05b75fc966e5f3338a4de8bcff48e19bf3d491283051e70326fd394257a3fc40",
+    "support-entrypoints.json": "fd8d3cb1f16c8d864fdc5167b8a891bbfe7d277dac354b05d0399b0c45471788",
+    "test_native.py": "ea9cad3f01159cd313ab8f69127328d0279a5a44136d973d89a1d16837e2589c",
+    "test_operations.py": "71c3db4f425b703d520e9e227e2f772e567617bd6ac782a640bf77efcff1878b",
+    "test_report.py": "539982ec263d00b0258fa0727b6913af0bc00113963ad3ef6f8412fdcf4f2a38",
+    "test_validate.py": "40196956e0e543f3c8b8d199b82483808e3e3b5508cb07944d897c53a3d4031a",
+    "validate.py": "b0dd94fbc781feb95b7d28f99cfe7ac43e276d46c045f97db4455f9c98e6dc4b"
+  },
+  "native_runner_executed_sha256": "3e7013756d6b67d193ab86c297c11680751de8fe2c55dd62256e16e4c880a70a",
+  "native_host": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "binary_format": "Mach-O 64-bit arm64",
+    "tls_postgresql": "17.10-bookworm Linux container; loopback listener; expected TLS identity localhost",
+    "physical_power_loss_tested": false
+  },
+  "native_registry": {
+    "path": "target/security-assessment/native-registry.json",
+    "sha256": "b250b9b412c676f3519311073094e03c74266bb20c79b3e48ec5b1b8fd047c91",
+    "compiled_features": [
+      "loopback-provider",
+      "testkit-harness"
+    ],
+    "shipping_source_diff_from_target": false
+  },
+  "images": [
+    {
+      "tag": "auths-ap075-stripe:ac5fcabe",
+      "image_id": "sha256:2a5607e7a51659ce01774a7df1a2fd90bc2e49b29c33ec819d0247aaedf85d35",
+      "platform": "linux/amd64"
+    },
+    {
+      "tag": "auths-ap075-airtable:ac5fcabe",
+      "image_id": "sha256:ec2cdf2c54563c924b4f11712c4836378b4c8c61a88b774925a45c9f77135ce8",
+      "platform": "linux/amd64"
+    }
+  ],
+  "assessor": {
+    "kind": "Codex agent",
+    "exact_model_runtime_build": "not exposed",
+    "prior_implementation_involvement": "AP073",
+    "fresh_context_review": false,
+    "human_independent_review": false
+  },
+  "hosted_qualification": [
+    {
+      "schema": "auths.security-assessment-hosted-qualification/1",
+      "revision": "cb267735d4402f5da4cb94fc0ac8d57f78fc5b44",
+      "repository_ci_run": 42472087867,
+      "stripe_run": 42472087860,
+      "authoritative_repository_gate": "success",
+      "clean_authoritative_lean": "success",
+      "installed_adversarial_job": "success",
+      "overall_ci": "failure",
+      "unresolved": [
+        "Kani setup HTTP 503 before harness execution",
+        "OpenTofu session construction HTTP 503; cause not established"
+      ],
+      "retained_artifact": {
+        "id": 13614486265,
+        "zip_sha256": "fc525bafb465c8b6b62261eb23660b79aa294fdfbcdab01dd2ac47a9590e7225",
+        "local_path": "target/security-assessment/hosted-cb267/evidence.zip"
+      },
+      "verified_package": {
+        "id": 13614625187,
+        "zip_sha256": "fd8cb48f4cb460fc331a50c1675bf3acf1b5fa8c8df7dad54d2398a0fbcb98cf",
+        "simulation_binary_sha256": "fd2b31c1fa304c44d89a56814c4b45f4d93ecbb879c160e6f56a4ffbf46e5233",
+        "both_new_campaign_reports_match_source_and_binary": true
+      },
+      "counts": {
+        "transport": 33,
+        "operational_drills": 3,
+        "reference": 23,
+        "baseline": 6
+      },
+      "qualification_scope": "same shipping source as assessed main; candidate-specific source-free package and real hosted observations; no production or independent-human claim"
+    }
+  ],
+  "qualification_experiments": [
+    {
+      "id": "QF-opentofu-offline-provider",
+      "path": "evidence/opentofu-offline-provider.json",
+      "sha256": "4235a29cc1399f2eacfff1c5ae1f2aa272ccafb16a95ad8d1858be38668f62f3",
+      "source_revision": "acf470037425a9d16c357058e151e33ecf66317c",
+      "scope": "supplemental qualification dependency check; not a gateway security case"
+    }
+  ]
+}
