@@ -18,6 +18,9 @@ from typing import (
     cast as _cast,
 )
 
+from ._resource_lifecycle import ResourceLifecycle as _ResourceLifecycle, own_adapter as _own_adapter
+from typing import Optional as _Optional
+
 from ._public import (
     auths_error as _auths_error,
     error_info as _error_info,
@@ -159,12 +162,18 @@ class BoundedTransport(_Protocol):
 
 
 class _HttpTransport:
+    cleanup_retry = "idempotent"
     contract: _Literal["bounded-byte-transport/2"] = "bounded-byte-transport/2"
 
     def __init__(self, token: str) -> None:
         self._token = token
+        self._lifecycle = _ResourceLifecycle(opened=True)
+        async def release(_: bool) -> None:
+            self._token = ""
+        self._lifecycle.own(self, release, retry="idempotent")
 
     async def send(self, request: TransportRequest) -> TransportResponse:
+        self._lifecycle.assert_open()
         remaining = max(
             0.001, (request.deadline_unix_ms - int(_time.time() * 1000)) / 1000
         )
@@ -193,10 +202,10 @@ class _HttpTransport:
                     response.status, response.headers.get_content_type(), body
                 )
 
-        return await _asyncio.to_thread(send)
+        return await self._lifecycle.run(lambda: _asyncio.to_thread(send))
 
-    async def aclose(self) -> None:
-        return None
+    async def aclose(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.close(timeout=timeout)
 
 
 class _NoRedirect(_urlrequest.HTTPRedirectHandler):
@@ -245,27 +254,30 @@ class RemoteVerifier:
             seconds,
             maximum,
         )
-        self._state = "new"
+        self._lifecycle = _ResourceLifecycle()
+        if self._owns:
+            _own_adapter(self._lifecycle, self._transport)
+
+    async def open(self, *, timeout: _Optional[float] = None) -> "RemoteVerifier":
+        async def initialize() -> None:
+            return None
+        await self._lifecycle.open(initialize, timeout=timeout)
+        return self
 
     async def __aenter__(self) -> "RemoteVerifier":
-        if self._state != "new":
-            raise RuntimeError("auths client is not open")
-        self._state = "open"
-        return self
+        return await self.open()
 
     async def __aexit__(self, *exc: object) -> None:
         await self.aclose()
 
-    async def aclose(self) -> None:
-        if self._state == "closed":
-            return
-        self._state = "closed"
-        if self._owns:
-            await self._transport.aclose()
+    async def aclose(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.close(timeout=timeout)
+
+    async def retry_cleanup(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.retry_cleanup(timeout=timeout)
 
     async def verify(self, input: VerificationInput, /) -> VerificationResult:
-        if self._state != "open":
-            raise RuntimeError("auths client is not open")
+        self._lifecycle.assert_open()
         correlation = f"auths-{_time.time_ns():x}"
         digest = bytes.fromhex(_runtime_info().error_registry_digest)
         body = _encode(
@@ -289,7 +301,7 @@ class RemoteVerifier:
         )
         try:
             response = await _asyncio.wait_for(
-                self._transport.send(request), self._timeout
+                self._lifecycle.run(lambda: self._transport.send(request)), self._timeout
             )
         except _asyncio.TimeoutError:
             raise _auths_error("remote.timeout")

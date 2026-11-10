@@ -89,7 +89,6 @@ export async function delegateAttachedAgent<P extends Profile>(
       signed.signedObject.fill(0);
     }
   } catch (error) {
-    await cleanupChildSigner(options.signer);
     if (error instanceof AuthsWorkflowError) throw error;
     throw new AuthsWorkflowError(
       "invalid-delegation",
@@ -493,13 +492,4 @@ function invalidAuthority(): AuthsWorkflowError {
     "invalid-delegation",
     "child authority request is malformed or outside workflow bounds",
   );
-}
-
-async function cleanupChildSigner(signer: Signer): Promise<void> {
-  if (signer.dispose === undefined) return;
-  try {
-    await signer.dispose();
-  } catch {
-    // Preserve the original fail-closed delegation error.
-  }
 }

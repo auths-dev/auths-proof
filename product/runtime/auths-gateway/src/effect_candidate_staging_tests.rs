@@ -130,6 +130,7 @@ async fn installation_histories(
                 recipe,
                 &shared,
                 &*credentials,
+                &crate::CredentialJournal::new(root.clone()),
                 |_| panic!("unapproved draft must not run"),
                 draft.connection_id(),
                 SecretBytes::new(

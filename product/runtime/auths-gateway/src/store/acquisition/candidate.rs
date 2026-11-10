@@ -20,6 +20,18 @@ pub enum CandidatePublication {
     AlreadyCurrent,
 }
 
+/// Read-only, advisory candidate state. Only publication's existing native fence
+/// can commit a connection; observing Ready never creates an entry capability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CandidateRecoveryState {
+    ChecksIncomplete,
+    ChecksRefused,
+    ReadyForPublication,
+    Published,
+    Superseded,
+}
+
 struct PublicationTarget {
     plan: crate::effect::CandidatePlan,
     capacity: super::SourceCapacity,
@@ -74,7 +86,156 @@ impl PublicationTarget {
 type PublicationDecision<'a> =
     dyn FnMut(&[Option<Vec<u8>>]) -> Result<Vec<u8>, GatewayAttemptError> + 'a;
 
+struct PublicationValidation<'a> {
+    approved: &'a ApprovedEffect,
+    validation: &'a crate::entry::EntryValidation,
+    plan: &'a crate::effect::CandidatePlan,
+    root: &'a Record<AcquisitionState>,
+    root_bytes: &'a [u8],
+    key: super::GatewayAttemptKey,
+    kind: super::PrerequisiteKind,
+    native_indices: &'a [usize],
+    native_end: usize,
+    authorization_started_at: u64,
+}
+
+impl PublicationValidation<'_> {
+    /// The same guards serve advisory inspection and fenced publication.
+    /// Inspection never weakens or replaces the latter's snapshot boundary.
+    fn check(&self, snapshots: &[Option<Vec<u8>>]) -> Result<(), GatewayAttemptError> {
+        if snapshots.len() < self.native_end || snapshots[1].as_deref() != Some(self.root_bytes) {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        let slot = self
+            .root
+            .state
+            .allocation
+            .ok_or(GatewayAttemptError::InvalidTransition)?;
+        if !self
+            .plan
+            .source_matches(snapshots[0].as_deref())
+            .map_err(|_| GatewayAttemptError::Corrupt)?
+            .0
+            || snapshots[2].as_deref()
+                != Some(canonical(&allocation(&self.root.state.plan, self.key, slot)?)?.as_slice())
+        {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let now = self
+            .validation
+            .validate(
+                self.approved,
+                &select_snapshots(snapshots, self.native_indices)?,
+                self.authorization_started_at,
+            )
+            .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+        let prerequisites = self
+            .approved
+            .prerequisite_plans()
+            .map_err(|_| GatewayAttemptError::Corrupt)?;
+        let acquired = validate_prerequisites(
+            self.key,
+            self.approved.effect().binding(),
+            &prerequisites,
+            &snapshots[self.native_end..],
+            now,
+        )?;
+        let primary = self.root.response_evidence(self.kind, now)?;
+        self.validation
+            .validate_candidate_evidence(self.approved, &acquired, &primary, now)
+            .map_err(|_| GatewayAttemptError::InvalidTransition)
+    }
+}
+
 impl GatewayAttempts {
+    pub(crate) async fn inspect_candidate(
+        &self,
+        approved: Arc<ApprovedEffect>,
+        validation: crate::entry::EntryValidation,
+        authorization_started_at: u64,
+    ) -> Result<CandidateRecoveryState, GatewayAttemptError> {
+        if !self.policy.contains(approved.effect().binding()) {
+            return Err(GatewayAttemptError::BindingConflict);
+        }
+        let PublicationTarget {
+            plan,
+            capacity,
+            replacement,
+            kind,
+            connection_key,
+            key,
+            ..
+        } = PublicationTarget::new(&approved, self)?;
+        let store = Arc::clone(&self.store);
+        blocking(move || {
+            let current = store.load(GatewayRecordKind::Connection, &connection_key)?;
+            if current.as_deref() == Some(replacement.as_slice()) {
+                return Ok(CandidateRecoveryState::Published);
+            }
+            if !plan
+                .source_matches(current.as_deref())
+                .map_err(|_| GatewayAttemptError::Corrupt)?
+                .0
+            {
+                return Ok(CandidateRecoveryState::Superseded);
+            }
+            let Some(root_bytes) = store.load(GatewayRecordKind::Attempt, &key)? else {
+                return Ok(CandidateRecoveryState::ChecksIncomplete);
+            };
+            let root: Record<AcquisitionState> = decode_as(&root_bytes)?;
+            if root.state.plan != AcquisitionPlan::Candidate(plan.clone())
+                || root.validate_header()? != *approved.effect().binding()
+            {
+                return Err(GatewayAttemptError::BindingConflict);
+            }
+            if matches!(root.state.phase, super::AcquisitionPhase::NotEntered { .. }) {
+                return Ok(CandidateRecoveryState::ChecksRefused);
+            }
+            let Some(slot) = root.state.allocation else {
+                return Ok(CandidateRecoveryState::ChecksIncomplete);
+            };
+            let mut keys = vec![
+                (GatewayRecordKind::Connection, connection_key),
+                (GatewayRecordKind::Attempt, key),
+                (
+                    GatewayRecordKind::EffectAllocation,
+                    capacity::allocation_key(&capacity, slot),
+                ),
+            ];
+            let native_indices =
+                append_dependencies(&mut keys, &validation.dependencies(&approved));
+            let native_end = keys.len();
+            let prerequisites = approved
+                .prerequisite_plans()
+                .map_err(|_| GatewayAttemptError::Corrupt)?;
+            keys.extend(prerequisite_dependencies(key, &prerequisites)?);
+            let snapshots = keys
+                .iter()
+                .map(|(kind, key)| store.load(*kind, key))
+                .collect::<Result<Vec<_>, _>>()?;
+            let check = PublicationValidation {
+                approved: &approved,
+                validation: &validation,
+                plan: &plan,
+                root: &root,
+                root_bytes: &root_bytes,
+                key,
+                kind,
+                native_indices: &native_indices,
+                native_end,
+                authorization_started_at,
+            };
+            match check.check(&snapshots) {
+                Ok(()) => Ok(CandidateRecoveryState::ReadyForPublication),
+                Err(GatewayAttemptError::InvalidTransition) => {
+                    Ok(CandidateRecoveryState::ChecksIncomplete)
+                }
+                Err(error) => Err(error),
+            }
+        })
+        .await
+    }
+
     /// No public/application route may call this as a substitute for operator
     /// publication authority. The native read proof authorizes only its reads.
     pub(crate) async fn publish_candidate(
@@ -146,36 +307,26 @@ impl GatewayAttempts {
                     disposition = CandidatePublication::AlreadyCurrent;
                     return Ok(replacement.clone());
                 }
-                if !plan
-                    .source_matches(snapshots[0].as_deref())
-                    .map_err(|_| GatewayAttemptError::Corrupt)?
-                    .0
-                    || snapshots[2].as_deref()
-                        != Some(canonical(&allocation(&root.state.plan, key, slot)?)?.as_slice())
-                {
-                    return Err(GatewayAttemptError::BindingConflict);
-                }
-                let now = validation
-                    .validate(
-                        &approved,
-                        &select_snapshots(snapshots, &native_indices)?,
-                        authorization_started_at,
-                    )
-                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
-                let acquired = validate_prerequisites(
+                PublicationValidation {
+                    approved: &approved,
+                    validation: &validation,
+                    plan: &plan,
+                    root: &root,
+                    root_bytes: &root_bytes,
                     key,
-                    approved.effect().binding(),
-                    &prerequisites,
-                    &snapshots[native_end..],
-                    now,
-                )?;
-                let primary = root.response_evidence(kind, now)?;
-                validation
-                    .validate_candidate_evidence(&approved, &acquired, &primary, now)
-                    .map_err(|_| GatewayAttemptError::InvalidTransition)?;
+                    kind,
+                    native_indices: &native_indices,
+                    native_end,
+                    authorization_started_at,
+                }
+                .check(snapshots)?;
                 Ok(replacement.clone())
             };
-            if publish_connection(&*store, &keys, &replacement, is_first, &mut decide)? {
+            crate::admin_fault::boundary("candidate-publication.before-native-commit");
+            let already_current =
+                publish_connection(&*store, &keys, &replacement, is_first, &mut decide)?;
+            crate::admin_fault::boundary("candidate-publication.after-native-ack");
+            if already_current {
                 return Ok(CandidatePublication::AlreadyCurrent);
             }
             Ok(disposition)

@@ -1,4 +1,4 @@
-import { AuthsWorkflowError } from "./errors.js";
+import { AuthsWorkflowError } from "../internal/operation-errors.js";
 import { boundedIdentifier } from "./internal/orchestrator.js";
 import type { TrustedContextProvider, TrustedContextSourceOptions } from "./contracts.js";
 

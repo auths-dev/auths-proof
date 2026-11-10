@@ -1,3 +1,5 @@
+import { ResourceLifecycle, openResource, type LifecycleWaitOptions } from "../../internal/resource-lifecycle.js";
+export type { LifecycleWaitOptions } from "../../internal/resource-lifecycle.js";
 import type {
   AuthorizedResult,
   DeniedResult,
@@ -22,8 +24,8 @@ export {
   type ProviderFailureKind,
   type RetryClass,
   type WorkflowErrorCode,
-} from "../errors.js";
-import { AuthsWorkflowError, ProviderOperationError } from "../errors.js";
+} from "../../internal/operation-errors.js";
+import { AuthsWorkflowError, ProviderOperationError } from "../../internal/operation-errors.js";
 
 const MAX_IDENTIFIER_BYTES = 128;
 const DIGEST_BYTES = 32;
@@ -94,6 +96,7 @@ interface ClientResources {
   readonly correlationId: () => string;
 }
 
+const clientLifecycles = new WeakMap<AuthsClient, ResourceLifecycle>();
 const clientResources = new WeakMap<AuthsClient, ClientResources>();
 const CLIENT_TOKEN: unique symbol = Symbol("auths-workflow-client");
 let mintAuthsClient: (
@@ -104,12 +107,13 @@ let mintAuthsClient: (
   trustedContext: Uint8Array,
   telemetry: TelemetryPort | undefined,
   correlationId: () => string,
+  lifecycle: ResourceLifecycle,
 ) => AuthsClient;
 
 export class AuthsClient implements AsyncDisposable {
   readonly #identity: AgentIdentity;
   readonly #trustedAuthority: TrustedAuthoritySnapshot;
-  #disposed = false;
+
 
   private constructor(
     token: typeof CLIENT_TOKEN,
@@ -120,10 +124,13 @@ export class AuthsClient implements AsyncDisposable {
     trustedContext: Uint8Array,
     telemetry: TelemetryPort | undefined,
     correlationId: () => string,
+    lifecycle: ResourceLifecycle,
   ) {
     if (token !== CLIENT_TOKEN) {
       throw new TypeError("sealed Auths workflow client");
     }
+    clientLifecycles.set(this, lifecycle);
+    if (signer.dispose !== undefined) lifecycle.own(signer, () => signer.dispose!(), signer.cleanupRetry ?? "unsafe", 10);
     this.#identity = identity;
     this.#trustedAuthority = trustedAuthority;
     clientResources.set(this, {
@@ -136,6 +143,11 @@ export class AuthsClient implements AsyncDisposable {
       telemetry,
       correlationId,
     });
+    lifecycle.own(this, async () => {
+      const resources = clientResources.get(this);
+      resources?.trustedContext.fill(0);
+      clientResources.delete(this);
+    }, "idempotent", 20);
   }
 
   private static create(
@@ -147,6 +159,7 @@ export class AuthsClient implements AsyncDisposable {
     trustedContext: Uint8Array,
     telemetry: TelemetryPort | undefined,
     correlationId: () => string,
+    lifecycle: ResourceLifecycle,
   ): AuthsClient {
     if (token !== CLIENT_TOKEN) {
       throw new TypeError("sealed Auths workflow client");
@@ -160,6 +173,7 @@ export class AuthsClient implements AsyncDisposable {
       trustedContext,
       telemetry,
       correlationId,
+      lifecycle,
     );
   }
 
@@ -172,6 +186,7 @@ export class AuthsClient implements AsyncDisposable {
       trustedContext,
       telemetry,
       correlationId,
+      lifecycle,
     ) =>
       AuthsClient.create(
         CLIENT_TOKEN,
@@ -182,11 +197,12 @@ export class AuthsClient implements AsyncDisposable {
         trustedContext,
         telemetry,
         correlationId,
+        lifecycle,
       );
   }
 
   get disposed(): boolean {
-    return this.#disposed;
+    return !clientLifecycles.get(this)!.isOpen;
   }
 
   get identity(): AgentIdentity {
@@ -197,47 +213,21 @@ export class AuthsClient implements AsyncDisposable {
     return copyTrustedAuthoritySnapshot(this.#trustedAuthority);
   }
 
-  assertActive(): void {
-    if (this.#disposed) {
-      throw new AuthsWorkflowError("disposed", "Auths client is disposed");
-    }
+  assertActive(): void { clientLifecycles.get(this)!.assertOpen(); }
+
+  async attachAgent<P extends Profile>(options: AttachAgentOptions<P>): Promise<AttachedAgent<P>> {
+    return clientLifecycles.get(this)!.publish(
+      () => attachAgent(this, options),
+      (agent, retry) => retry ? agent.retryCleanup() : agent.dispose(), options, "idempotent",
+    );
   }
 
-  async attachAgent<P extends Profile>(
-    options: AttachAgentOptions<P>,
-  ): Promise<AttachedAgent<P>> {
-    return attachAgent(this, options);
+  dispose(options: LifecycleWaitOptions = {}): Promise<void> {
+    return clientLifecycles.get(this)!.close(options);
   }
 
-  async dispose(): Promise<void> {
-    if (this.#disposed) return;
-    this.#disposed = true;
-    const resources = clientResources.get(this);
-    let cleanupFailed = false;
-    if (resources !== undefined) {
-      for (const agent of Array.from(resources.attachedAgents)) {
-        try {
-          await agent.dispose();
-        } catch {
-          cleanupFailed = true;
-        }
-      }
-    }
-    if (resources?.signer.dispose !== undefined) {
-      try {
-        await resources.signer.dispose();
-      } catch {
-        cleanupFailed = true;
-      }
-    }
-    resources?.trustedContext.fill(0);
-    clientResources.delete(this);
-    if (cleanupFailed) {
-      throw new AuthsWorkflowError(
-        "signer-failed",
-        "one or more signer providers failed during cleanup",
-      );
-    }
+  retryCleanup(options: LifecycleWaitOptions = {}): Promise<void> {
+    return clientLifecycles.get(this)!.retryCleanup(options);
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -308,7 +298,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
   readonly #identity: AgentIdentity;
   readonly #profile: P;
   readonly #authority: EffectiveAuthoritySummary;
-  #disposed = false;
+  readonly #lifecycle = new ResourceLifecycle();
 
   private constructor(
     token: typeof ATTACHED_AGENT_TOKEN,
@@ -345,6 +335,19 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     clientResources
       .get(client)
       ?.attachedAgents.add(this as AttachedAgent<Profile>);
+    clientLifecycles.get(client)!.own(this, (retry) => retry ? this.retryCleanup() : this.dispose(), "idempotent");
+    if (ownsSigner && signer.dispose !== undefined) this.#lifecycle.own(signer, () => signer.dispose!(), signer.cleanupRetry ?? "unsafe", 10);
+    this.#lifecycle.own(this, async () => {
+      const resources = attachedAgentResources.get(this as AttachedAgent<Profile>);
+      resources?.signedGrant.fill(0);
+      resources?.grantStatement.fill(0);
+      for (const material of resources?.grantChain ?? []) {
+        material.signedGrant.fill(0);
+        for (const evidence of material.evidence) evidence.bytes.fill(0);
+      }
+      attachedAgentResources.delete(this as AttachedAgent<Profile>);
+      clientResources.get(client)?.attachedAgents.delete(this as AttachedAgent<Profile>);
+    }, "idempotent", 20);
   }
 
   private static create<P extends Profile>(
@@ -421,7 +424,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
   }
 
   get disposed(): boolean {
-    return this.#disposed;
+    return !this.#lifecycle.isOpen;
   }
 
   get delegation(): DelegationReview | undefined {
@@ -432,21 +435,36 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
 
   async delegate(options: DelegationOptions<P>): Promise<AttachedAgent<P>> {
     this.assertActive();
-    const { delegateAttachedAgent } = await import(
-      "../../internal/delegation.js"
-    );
-    return delegateAttachedAgent(this, options);
+    const signer = options.signer;
+    const snapshot = { ...options, signer, authority: structuredClone(options.authority),
+      ...(options.profile === undefined ? {} : { profile: copyProfile(options.profile) as P }) };
+    const client = attachedAgentResources.get(this as AttachedAgent<Profile>)!.client;
+    const owner = clientLifecycles.get(client)!;
+    return this.#use(() => owner.publish(async () => {
+      if (signer.dispose !== undefined) owner.own(signer, () => signer.dispose!(), signer.cleanupRetry ?? "unsafe", 10);
+      try {
+        const { delegateAttachedAgent } = await import("../../internal/delegation.js");
+        const child = await delegateAttachedAgent(this, snapshot);
+        owner.transfer(signer);
+        return child;
+      } finally {
+        await owner.disposeOwned(signer);
+      }
+    }, (agent, retry) => retry ? agent.retryCleanup() : agent.dispose(), options, "idempotent"));
   }
 
   async reviewDelegation(options: DelegationOptions<P>): Promise<DelegationReview> {
+    return this.#use(async () => {
     this.assertActive();
     const { reviewDelegation } = await import("../../internal/delegation.js");
     return reviewDelegation(this, options);
+    });
   }
 
   async authorize(
     action: P["__action"],
   ): Promise<AuthorizationResult<NonNullable<P["__command"]>>> {
+    return this.#use(async () => {
     this.assertActive();
     const runtime = profileRuntimeFor(this.#profile);
     if (runtime === undefined) {
@@ -459,12 +477,14 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
       this as AttachedAgent<Profile>,
       action,
     ) as Promise<AuthorizationResult<NonNullable<P["__command"]>>>;
+    });
   }
 
   async authorizePlan(
     plan: ProfilePlan<NonNullable<P["__action"]>>,
     options: Readonly<{ approvalProvider?: ApprovalProvider }> = {},
   ): Promise<PlanAuthorizationResult<NonNullable<P["__command"]>>> {
+    return this.#use(async () => {
     this.assertActive();
     const actions = actionsForPlan(plan, this.#profile);
     const memberCommitments = memberCommitmentsForPlan(plan, this.#profile);
@@ -531,46 +551,23 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     } finally {
       await session.dispose();
     }
+    });
   }
 
   assertActive(): void {
-    const resources = attachedAgentResources.get(
-      this as AttachedAgent<Profile>,
-    );
-    if (this.#disposed || resources === undefined) {
-      throw new AuthsWorkflowError("disposed", "attached agent is disposed");
-    }
+    this.#lifecycle.assertOpen();
+    const resources = attachedAgentResources.get(this as AttachedAgent<Profile>);
+    if (resources === undefined) throw new AuthsWorkflowError("disposed", "attached agent is disposed");
     resources.client.assertActive();
   }
 
-  async dispose(): Promise<void> {
-    if (this.#disposed) return;
-    this.#disposed = true;
-    const resources = attachedAgentResources.get(
-      this as AttachedAgent<Profile>,
-    );
-    attachedAgentResources.delete(this as AttachedAgent<Profile>);
-    if (resources !== undefined) {
-      clientResources
-        .get(resources.client)
-        ?.attachedAgents.delete(this as AttachedAgent<Profile>);
-    }
-    resources?.signedGrant.fill(0);
-    resources?.grantStatement.fill(0);
-    for (const material of resources?.grantChain ?? []) {
-      material.signedGrant.fill(0);
-      for (const evidence of material.evidence) evidence.bytes.fill(0);
-    }
-    if (resources?.ownsSigner && resources.signer.dispose !== undefined) {
-      try {
-        await resources.signer.dispose();
-      } catch {
-        throw new AuthsWorkflowError(
-          "signer-failed",
-          "child signer provider cleanup failed",
-        );
-      }
-    }
+  dispose(options: LifecycleWaitOptions = {}): Promise<void> { return this.#lifecycle.close(options); }
+  retryCleanup(options: LifecycleWaitOptions = {}): Promise<void> { return this.#lifecycle.retryCleanup(options); }
+
+  #use<T>(operation: () => Promise<T>): Promise<T> {
+    this.assertActive();
+    const client = attachedAgentResources.get(this as AttachedAgent<Profile>)!.client;
+    return clientLifecycles.get(client)!.run(() => this.#lifecycle.run(operation));
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -586,17 +583,28 @@ function stripPlanCommand<Command>(
   return Object.freeze(verification);
 }
 
-export interface LoadWorkflowOptions {
+export interface LoadWorkflowOptions extends LifecycleWaitOptions {
   readonly signer: Signer;
   readonly trustedAuthority: TrustedAuthority;
   readonly telemetry?: TelemetryPort;
   readonly correlationId?: () => string;
 }
 
-export async function createWorkflowClient(
-  options: LoadWorkflowOptions,
-  engine: WorkflowWasmEngine,
-): Promise<AuthsClient> {
+export function createWorkflowClient(options: LoadWorkflowOptions, engine: WorkflowWasmEngine | Promise<WorkflowWasmEngine> | (() => Promise<WorkflowWasmEngine>)): Promise<AuthsClient> {
+  return openResource(async (lifecycle) => {
+    const signer = options.signer;
+    validateSignerShape(signer);
+    if (signer.dispose !== undefined) lifecycle.own(signer, () => signer.dispose!(), signer.cleanupRetry ?? "unsafe", 10);
+    const authority = copyTrustedAuthority(options.trustedAuthority);
+    const snapshot: LoadWorkflowOptions = {
+      ...options, signer,
+      trustedAuthority: { ...authority, context: options.trustedAuthority.context },
+    };
+    return initializeWorkflowClient(snapshot, typeof engine === "function" ? await engine() : await engine, lifecycle);
+  }, options);
+}
+
+async function initializeWorkflowClient(options: LoadWorkflowOptions, engine: WorkflowWasmEngine, lifecycle: ResourceLifecycle): Promise<AuthsClient> {
   validateSignerShape(options.signer);
   let trustedAuthority: TrustedAuthoritySnapshot;
   let trustedContext: Uint8Array;
@@ -678,7 +686,6 @@ export async function createWorkflowClient(
       );
     }
   } catch (error) {
-    await cleanupAfterFailedLoad(options.signer);
     if (error instanceof AuthsWorkflowError) throw error;
     throw new AuthsWorkflowError(
       "invalid-provider",
@@ -706,9 +713,9 @@ export async function createWorkflowClient(
       trustedContext,
       options.telemetry,
       options.correlationId ?? workflowCorrelationId,
+      lifecycle,
     );
   } catch (error) {
-    await cleanupAfterFailedLoad(options.signer);
     if (error instanceof AuthsWorkflowError) throw error;
     throw new AuthsWorkflowError(
       "invalid-principal",
@@ -1028,14 +1035,7 @@ function validateSignerShape(signer: Signer): void {
   boundedIdentifier(signer.kind, "signer kind");
 }
 
-async function cleanupAfterFailedLoad(signer: Signer): Promise<void> {
-  if (signer.dispose === undefined) return;
-  try {
-    await signer.dispose();
-  } catch {
-    // Preserve the fail-closed construction error and do not expose provider data.
-  }
-}
+
 
 let workflowCorrelationSequence = 0;
 

@@ -8319,9 +8319,7 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": [
-        "server"
-      ]
+      "features": []
     },
     {
       "source": "auths-profile-mcp",

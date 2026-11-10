@@ -1,4 +1,4 @@
-import { AuthsWorkflowError } from "../workflow/errors.js";
+import { AuthsWorkflowError } from "./operation-errors.js";
 
 const snapshots = new WeakMap<object, Uint8Array>();
 

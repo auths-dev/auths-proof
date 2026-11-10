@@ -277,3 +277,24 @@ test("disposing the parent client invalidates attached agents", async () => {
   );
   await attached.dispose();
 });
+
+for (const event of ["close", "cancel"]) test(`AP076 attachment racing ${event} retains the root until provider settlement`, async () => {
+  let enter, complete;
+  const entered = new Promise((resolve) => { enter = resolve; });
+  const returned = new Promise((resolve) => { complete = resolve; });
+  const { client, source, counters } = await fixture({ provider: {
+    loadSignedGrant() { enter(); return returned; },
+  } });
+  const controller = new AbortController();
+  const attachment = client.attachAgent({ name: "pending-agent", profile: PROFILE, authority: source,
+    approval: approval(), signal: controller.signal });
+  await entered;
+  const rejected = assert.rejects(attachment, (error) => error.code === "disposed");
+  let closing;
+  if (event === "close") closing = client.dispose(); else controller.abort();
+  await rejected;
+  assert.equal(counters.disposals, 0);
+  complete({ signedGrant: signedRootGrant(), evidence: [] });
+  await (closing ?? client.dispose());
+  assert.equal(counters.disposals, 1);
+});

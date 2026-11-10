@@ -309,7 +309,69 @@ intentional result of a dependency update. Do not regenerate them gratuitously.
 - Comments should record non-obvious invariants and design decisions, not
   narrate implementation steps.
 
+
+### Explicit state ownership
+
+No implicit state machines are allowed in new or changed workflows. If legal
+next operations depend on history, identify one authoritative state owner and
+enforce its named states, events, guards, required payloads, and transitions.
+This includes asynchronous resource ownership, authorization, concurrency,
+external effects, and durable recovery.
+
+Do not distribute a lifecycle across unrelated flags, optional fields,
+callback-local variables, filesystem markers, or duplicate status records.
+Independent facts may remain booleans and actual absence may remain optional.
+Compact two-state or consuming representations are valid when their named
+transition contract is enforced in one place and hides no consequential
+pending, closing, failed, or uncertain state. Replacing flags with an enum
+without fixing transition ownership does not satisfy this rule.
+
+Claim pending-operation ownership before external I/O or an await. Bind each
+completion to that operation; recheck guards that may change while waiting.
+Snapshot mutable decision inputs into owner-controlled memory before pending
+admission; pass separate copies to external code and validate completions
+against the retained snapshot. Readonly fields and shallow freezing do not
+establish byte ownership. Specify exact bound fields and ownership transfers.
+
+Define what each competing or reentrant caller receives: rejection, a shared
+operation result, or a new operation. Distinguish cancellation/deadlines of an
+individual waiter from cancellation/deadlines of the owned operation. Define
+late-completion, cleanup failure/retry, and resource-publication behavior.
+A terminal flag must not stand in for unfinished cleanup, and an error or
+cancellation must not be treated as proof of non-effect.
+
+Keep one semantic authority for each managed transition. Extend the existing
+kernel, journal, or resource owner; do not add a parallel executor, recovery
+ledger, or universal lifecycle framework. Persist necessary recovery facts
+through the existing durable boundary and derive status from those facts.
+Preserve provider/domain distinctions and the abstraction extraction gates.
+
+Every change to such a workflow must document its states and ownership boundary
+and add deterministic evidence for relevant competing events and failures.
+Durable changes require applicable crash/restart and adapter evidence. Review
+phase-specific payloads and invalid transitions, not just the happy path.
+Before changing a recovery protocol, finish its command/transition tables,
+competing-writer results, durable acknowledgement/synchronization ordering,
+and interruption matrix. Naming those as future design tasks is insufficient.
+Follow AP-SPEC-076 for the initial remediation inventory and acceptance gates.
+
 ## Testing and handoff
+
+### Stateful change review
+
+The PR description or linked spec must answer:
+
+1. What history changes the legality of the next operation, and who owns it?
+2. What orders competing/reentrant events, what identifies a completion, and
+   which result does each caller observe?
+3. What data/capability is required by each phase, who can construct it, and
+   which mutable inputs are copied before crossing an asynchronous boundary?
+4. How do waiter cancellation and operation cancellation differ? What happens
+   on timeout, stale completion, late resource creation, and partial cleanup/retry?
+5. Where is durable success acknowledged, which synchronization/commit facts
+   support it, and what happens on repeated commands, competing writers, lost
+   acknowledgements, and restart immediately after acknowledged success?
+6. Which exact tests exercise those schedules and preserve effect/receipt truth?
 
 ### Batch test and assurance hardening
 

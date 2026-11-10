@@ -63,6 +63,8 @@ export interface ControlEvidence {
 }
 
 export interface Signer {
+  /** Declares that repeating a failed dispose is safe. Absence forbids automatic repetition. */
+  readonly cleanupRetry?: "idempotent";
   readonly kind: string;
   readonly lifecycle: SignerLifecycle;
   publicIdentity(): Promise<PrincipalDescriptor>;
@@ -100,8 +102,13 @@ export interface ApprovalResponse {
   readonly decision: "approved" | "rejected";
 }
 
+/** Cancellation of the exact approval operation; never part of its signed bytes. */
+export interface ApprovalOperationContext {
+  readonly signal: AbortSignal;
+}
+
 export interface ApprovalProvider {
-  approve(request: ApprovalRequest): Promise<ApprovalResponse>;
+  approve(request: ApprovalRequest, context: ApprovalOperationContext): Promise<ApprovalResponse>;
 }
 
 export interface ApprovalConfiguration {
@@ -257,6 +264,8 @@ export interface EffectiveAuthoritySummary {
 }
 
 export interface AttachAgentOptions<P extends Profile> {
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
   readonly name: string;
   readonly profile: P;
   readonly authority: SignedGrantSource;
@@ -295,6 +304,8 @@ export interface DelegatedAuthorityRequest {
 }
 
 export interface DelegationOptions<P extends Profile> {
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
   readonly name: string;
   readonly authority: DelegatedAuthorityRequest;
   readonly signer: Signer;

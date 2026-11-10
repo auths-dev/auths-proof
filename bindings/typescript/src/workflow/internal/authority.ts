@@ -1,4 +1,4 @@
-import { AuthsWorkflowError } from "../errors.js";
+import { AuthsWorkflowError } from "../../internal/operation-errors.js";
 import type {
   DelegationReview,
   EffectiveAuthoritySummary,

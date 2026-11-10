@@ -44,6 +44,7 @@ from ._product_errors import (
     ProviderOperationError,
 )
 from ._observability import AuthsEvent, Telemetry
+from ._resource_lifecycle import ResourceLifecycle, own_adapter
 
 SignerLifecycle = Literal["durable", "ephemeral"]
 SigningObjectKind = Literal["grant", "action", "principal-status", "grant-status"]
@@ -659,6 +660,7 @@ class _SigningCoordinator:
         required_approval: ApprovalPolicyReference,
         expires_at: int,
         display: Sequence[ReviewField],
+        cancelled: Callable[[], bool] = lambda: False,
     ) -> _SignedTransaction:
         if self._consumed:
             raise AuthsWorkflowError(
@@ -691,6 +693,8 @@ class _SigningCoordinator:
                 "invalid-provider", "native authoring rejected the signing transaction"
             ) from None
         try:
+            if cancelled():
+                raise AuthsWorkflowError("disposed", "delegation caller cancelled")
             approval_response = await _call_approval(
                 approval.provider,
                 ApprovalRequest(
@@ -727,6 +731,8 @@ class _SigningCoordinator:
                     "approval-rejected",
                     "approval provider rejected the signing transaction",
                 )
+            if cancelled():
+                raise AuthsWorkflowError("disposed", "delegation caller cancelled")
             signing_response = await _call_signer(
                 signer,
                 SigningRequest(
@@ -793,8 +799,13 @@ class AuthsClient:
         self._telemetry = telemetry
         self._identity: Optional[AgentIdentity] = None
         self._agents: Set[AttachedAgent] = set()
-        self._open = False
-        self._closed = False
+        self._lifecycle = ResourceLifecycle()
+        own_adapter(self._lifecycle, signer, order=10)
+        async def release(_: bool) -> None:
+            self._identity = None
+            self._agents.clear()
+            self._emit("auths.client.close", "client", "cleanup", "succeeded")
+        self._lifecycle.own(self, release, retry="idempotent", order=20)
 
     @property
     def identity(self) -> AgentIdentity:
@@ -816,41 +827,39 @@ class AuthsClient:
 
     @property
     def closed(self) -> bool:
-        return self._closed
+        return self._lifecycle.is_closed
 
-    async def open(self) -> AuthsClient:
-        if self._closed:
-            raise AuthsWorkflowError("disposed", "Auths client is disposed")
-        if self._open:
-            return self
+    async def open(self, *, timeout: Optional[float] = None) -> AuthsClient:
+        await self._lifecycle.open(self._initialize, timeout=timeout,
+            opened=lambda: self._emit("auths.client.open", "client", "open", "succeeded"))
+        return self
+
+    async def _initialize(self) -> None:
         try:
-            try:
-                validate_trusted_authority(
-                    self._configured_authority.context,
-                    self._configured_authority.root_principal,
-                )
-            except (TypeError, ValueError):
-                raise AuthsWorkflowError(
-                    "invalid-trusted-authority",
-                    "trusted authority does not bind the configured root and verifier",
-                ) from None
-            descriptor = await _call_public_identity(self._signer, "signer")
-            self._identity = AgentIdentity(
-                principal=descriptor,
-                signer_kind=_bounded_identifier(self._signer.kind, "signer kind"),
-                signer_lifecycle=_signer_lifecycle(self._signer.lifecycle),
+            validate_trusted_authority(
+                self._configured_authority.context,
+                self._configured_authority.root_principal,
             )
-            self._open = True
-            self._emit("auths.client.open", "client", "open", "succeeded")
-            return self
-        except asyncio.CancelledError:
-            await self._close_after_failed_open()
-            raise
-        except Exception:
-            await self._close_after_failed_open()
-            raise
+        except (TypeError, ValueError):
+            raise AuthsWorkflowError(
+                "invalid-trusted-authority",
+                "trusted authority does not bind the configured root and verifier",
+            ) from None
+        descriptor = await _call_public_identity(self._signer, "signer")
+        self._identity = AgentIdentity(
+            principal=descriptor,
+            signer_kind=_bounded_identifier(self._signer.kind, "signer kind"),
+            signer_lifecycle=_signer_lifecycle(self._signer.lifecycle),
+        )
 
-    async def attach_agent(
+    async def attach_agent(self, *, name: str, profile: Profile, authority: SignedGrantInput,
+                           approval: ApprovalConfiguration, timeout: Optional[float] = None) -> AttachedAgent:
+        return await self._lifecycle.publish(
+            lambda: self._attach_agent(name=name, profile=profile, authority=authority, approval=approval),
+            lambda agent, retry: agent.retry_cleanup() if retry else agent.aclose(),
+            timeout=timeout, retry="idempotent")
+
+    async def _attach_agent(
         self,
         *,
         name: str,
@@ -870,6 +879,7 @@ class AuthsClient:
                 "approval-policy-mismatch",
                 "attach approval policy does not match the trusted authority",
             )
+        identity = self.identity
         material = await _load_signed_grant(
             authority,
             SignedGrantLoadRequest(
@@ -879,7 +889,7 @@ class AuthsClient:
                     else "direct"
                 ),
                 authority_id=self._configured_authority.authority_id,
-                subject=self.identity.principal.principal,
+                subject=identity.principal.principal,
                 profile=profile,
             ),
         )
@@ -891,7 +901,7 @@ class AuthsClient:
             bound = validate_root_authority(
                 material.signed_grant,
                 self._configured_authority.root_principal,
-                self.identity.principal,
+                identity.principal,
                 profile.id,
                 profile.version,
             )
@@ -903,7 +913,7 @@ class AuthsClient:
         agent = AttachedAgent._create(
             client=self,
             name=name,
-            identity=self.identity,
+            identity=identity,
             profile=profile,
             authority=bound,
             approval=approval,
@@ -922,24 +932,11 @@ class AuthsClient:
         )
         return agent
 
-    async def aclose(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        self._open = False
-        failed = False
-        for agent in tuple(self._agents):
-            if not await agent._close(suppress_errors=True):
-                failed = True
-        self._agents.clear()
-        if not await _close_signer(self._signer):
-            failed = True
-        self._identity = None
-        if failed:
-            raise AuthsWorkflowError(
-                "cleanup-failed", "one or more signer providers failed during cleanup"
-            )
-        self._emit("auths.client.close", "client", "cleanup", "succeeded")
+    async def aclose(self, *, timeout: Optional[float] = None) -> None:
+        await self._lifecycle.close(timeout=timeout)
+
+    async def retry_cleanup(self, *, timeout: Optional[float] = None) -> None:
+        await self._lifecycle.retry_cleanup(timeout=timeout)
 
     def _emit(
         self,
@@ -965,15 +962,8 @@ class AuthsClient:
         except Exception:
             return
 
-    async def _close_after_failed_open(self) -> None:
-        self._closed = True
-        self._open = False
-        self._identity = None
-        await _close_signer(self._signer)
-
     def _assert_open(self) -> None:
-        if self._closed or not self._open:
-            raise AuthsWorkflowError("disposed", "Auths client is not open")
+        self._lifecycle.assert_open()
 
     async def __aenter__(self) -> AuthsClient:
         return await self.open()
@@ -1024,7 +1014,14 @@ class AttachedAgent:
         self._owns_signer = owns_signer
         self._grant_chain: Tuple[SignedGrantMaterial, ...] = grant_chain
         self._delegation = delegation
-        self._closed = False
+        self._lifecycle = ResourceLifecycle(opened=True)
+        client._lifecycle.own(self, lambda retry: self.retry_cleanup() if retry else self.aclose(), retry="idempotent")
+        if owns_signer:
+            own_adapter(self._lifecycle, signer, order=10)
+        async def release(_: bool) -> None:
+            self._grant_chain = ()
+            self._client._agents.discard(self)
+        self._lifecycle.own(self, release, retry="idempotent", order=20)
 
     @classmethod
     def _create(
@@ -1082,14 +1079,36 @@ class AttachedAgent:
 
     @property
     def closed(self) -> bool:
-        return self._closed
+        return self._lifecycle.is_closed
 
-    async def delegate(
+    async def delegate(self, *, name: str, authority: DelegatedAuthority, signer: Signer,
+                       timeout: Optional[float] = None) -> AttachedAgent:
+        self._assert_active()
+        cancelled = asyncio.Event()
+        async def acquire() -> AttachedAgent:
+            own_adapter(self._client._lifecycle, signer, order=10)
+            try:
+                child = await self._lifecycle.run(lambda: self._delegate(
+                    name=name, authority=authority, signer=signer, cancelled=cancelled))
+                self._client._lifecycle.transfer(signer)
+                return child
+            finally:
+                await self._client._lifecycle.dispose_owned(signer)
+        try:
+            return await self._client._lifecycle.publish(acquire,
+                lambda agent, retry: agent.retry_cleanup() if retry else agent.aclose(),
+                timeout=timeout, retry="idempotent")
+        except BaseException:
+            cancelled.set()
+            raise
+
+    async def _delegate(
         self,
         *,
         name: str,
         authority: DelegatedAuthority,
         signer: Signer,
+        cancelled: asyncio.Event,
     ) -> AttachedAgent:
         self._assert_active()
         name = _agent_name(name)
@@ -1097,9 +1116,10 @@ class AttachedAgent:
             raise TypeError("authority must be a DelegatedAuthority")
         _validate_signer(signer)
         child_identity: Optional[AgentIdentity] = None
-        transferred = False
         try:
             descriptor = await _call_public_identity(signer, "child signer")
+            if cancelled.is_set():
+                raise AuthsWorkflowError("disposed", "delegation caller cancelled")
             child_identity = AgentIdentity(
                 principal=descriptor,
                 signer_kind=_bounded_identifier(signer.kind, "signer kind"),
@@ -1149,6 +1169,7 @@ class AttachedAgent:
                 required_approval=self._client._configured_authority.required_approval,
                 expires_at=expires_at,
                 display=_delegation_display(name, self, child_identity, review),
+                cancelled=cancelled.is_set,
             )
             try:
                 bound = bind_delegated_authority(
@@ -1178,36 +1199,19 @@ class AttachedAgent:
                 delegation=review,
             )
             self._client._agents.add(child)
-            transferred = True
+            self._client._lifecycle.transfer(signer)
             return child
         except asyncio.CancelledError:
             raise
-        finally:
-            if not transferred:
-                await _close_signer(signer)
 
-    async def aclose(self) -> None:
-        if not await self._close(suppress_errors=False):
-            raise AuthsWorkflowError(
-                "cleanup-failed", "child signer provider cleanup failed"
-            )
+    async def aclose(self, *, timeout: Optional[float] = None) -> None:
+        await self._lifecycle.close(timeout=timeout)
 
-    async def _close(self, *, suppress_errors: bool) -> bool:
-        if self._closed:
-            return True
-        self._closed = True
-        self._client._agents.discard(self)
-        successful = True
-        if self._owns_signer:
-            successful = await _close_signer(self._signer)
-        self._grant_chain = ()
-        if not successful and not suppress_errors:
-            return False
-        return successful
+    async def retry_cleanup(self, *, timeout: Optional[float] = None) -> None:
+        await self._lifecycle.retry_cleanup(timeout=timeout)
 
     def _assert_active(self) -> None:
-        if self._closed:
-            raise AuthsWorkflowError("disposed", "attached agent is disposed")
+        self._lifecycle.assert_open()
         self._client._assert_open()
 
     async def __aenter__(self) -> AttachedAgent:
@@ -1391,16 +1395,6 @@ async def _load_signed_grant(
         )
     return material
 
-
-async def _close_signer(signer: Signer) -> bool:
-    try:
-        operation = signer.aclose()
-        await asyncio.shield(operation)
-        return True
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        return False
 
 
 def _validate_signer(signer: Signer) -> None:

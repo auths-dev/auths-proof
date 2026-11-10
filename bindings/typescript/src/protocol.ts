@@ -1,3 +1,4 @@
+import { ResourceLifecycle, openResource, type LifecycleWaitOptions } from "./internal/resource-lifecycle.js";
 import type { VerificationInput, VerificationResult } from "./verify.js";
 import { authsErrorFromIssue } from "./product-errors.js";
 import { issue } from "./internal/issues.js";
@@ -18,17 +19,20 @@ export interface BoundedTransportRequest {
 }
 export interface BoundedTransportResponse { readonly status: number; readonly mediaType: string; readonly body: Uint8Array }
 export interface BoundedTransport extends AsyncDisposable {
+  readonly cleanupRetry?: "idempotent";
   readonly contract: "bounded-byte-transport/2";
   send(request: BoundedTransportRequest): Promise<BoundedTransportResponse>;
-  close(): Promise<void>;
+  close(options?: LifecycleWaitOptions): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
 }
 export interface RemoteVerifier extends AsyncDisposable {
   verify(input: VerificationInput & Readonly<{ signal?: AbortSignal }>): Promise<VerificationResult>;
-  close(): Promise<void>;
+  close(options?: LifecycleWaitOptions): Promise<void>;
+  retryCleanup(options?: LifecycleWaitOptions): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
 }
 interface RemoteVerifierCommonOptions {
+  readonly signal?: AbortSignal;
   readonly endpoint: string | URL;
   readonly timeoutMs?: number;
   readonly maximumResponseBytes?: number;
@@ -46,27 +50,31 @@ export async function connectRemoteVerifier(options: RemoteVerifierOptions): Pro
   const injected = "transport" in options && options.transport !== undefined;
   const transport = injected ? options.transport : builtinTransport(options.accessToken);
   const owned = injected ? options.transportOwnership === "owned" : true;
-  return new RemoteVerifierImpl(endpoint, timeoutMs, maximumResponseBytes, transport, owned);
+  return openResource(async (owner) => new RemoteVerifierImpl(endpoint, timeoutMs, maximumResponseBytes, transport, owned, owner), options);
 }
 
 class RemoteVerifierImpl implements RemoteVerifier {
-  #state: "open" | "closing" | "closed" = "open";
+  readonly #lifecycle: ResourceLifecycle;
   readonly #endpoint: URL;
   readonly #timeoutMs: number;
   readonly #maximumResponseBytes: number;
   readonly #transport: BoundedTransport;
-  readonly #owned: boolean;
 
-  constructor(endpoint: URL, timeoutMs: number, maximumResponseBytes: number, transport: BoundedTransport, owned: boolean) {
+  constructor(endpoint: URL, timeoutMs: number, maximumResponseBytes: number, transport: BoundedTransport, owned: boolean, lifecycle: ResourceLifecycle) {
+    this.#lifecycle = lifecycle;
+    if (owned) lifecycle.own(transport, () => transport.close(), transport.cleanupRetry ?? "unsafe");
     this.#endpoint = endpoint;
     this.#timeoutMs = timeoutMs;
     this.#maximumResponseBytes = maximumResponseBytes;
     this.#transport = transport;
-    this.#owned = owned;
   }
 
   async verify(input: VerificationInput & Readonly<{ signal?: AbortSignal }>): Promise<VerificationResult> {
-    if (this.#state !== "open") throw new TypeError("Auths remote verifier is not open");
+    return this.#lifecycle.run(() => this.#verify({ ...input, proof: input.proof.slice(), action: input.action.slice(), trustedContext: input.trustedContext.slice() }));
+  }
+
+  async #verify(input: VerificationInput & Readonly<{ signal?: AbortSignal }>): Promise<VerificationResult> {
+    if (input.signal?.aborted) throw authsErrorFromIssue(issue("remote.timeout", { causes: ["cancelled"] }));
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(new DOMException("Auths verification timed out", "TimeoutError")), this.#timeoutMs);
     const abort = () => controller.abort(input.signal?.reason);
@@ -99,22 +107,19 @@ class RemoteVerifierImpl implements RemoteVerifier {
     }
   }
 
-  async close(): Promise<void> {
-    if (this.#state === "closed") return;
-    this.#state = "closing";
-    if (this.#owned) await this.#transport.close();
-    this.#state = "closed";
-  }
+  close(options: LifecycleWaitOptions = {}): Promise<void> { return this.#lifecycle.close(options); }
+  retryCleanup(options: LifecycleWaitOptions = {}): Promise<void> { return this.#lifecycle.retryCleanup(options); }
   async [Symbol.asyncDispose](): Promise<void> { await this.close(); }
 }
 
 function builtinTransport(accessToken: string): BoundedTransport {
   if (typeof accessToken !== "string" || accessToken.length < 1 || accessToken.length > 8192 || /[\u0000-\u001f\u007f]/u.test(accessToken)) throw new TypeError("invalid Auths access token");
-  let closed = false;
+  const lifecycle = new ResourceLifecycle();
   return {
     contract: "bounded-byte-transport/2",
+    cleanupRetry: "idempotent",
     async send(request) {
-      if (closed) throw new TypeError("transport is closed");
+      return lifecycle.run(async () => {
       const response = await fetch(request.url, {
         method: request.method,
         redirect: "error",
@@ -127,9 +132,10 @@ function builtinTransport(accessToken: string): BoundedTransport {
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.length > request.maximumResponseBytes) throw new RangeError("remote response exceeds bound");
       return Object.freeze({ status: response.status, mediaType: response.headers.get("content-type") ?? "", body: bytes });
+      });
     },
-    async close() { closed = true; },
-    async [Symbol.asyncDispose]() { closed = true; },
+    close(options = {}) { return lifecycle.close(options); },
+    async [Symbol.asyncDispose]() { await lifecycle.close(); },
   };
 }
 

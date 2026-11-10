@@ -1,5 +1,5 @@
 import { type Profile } from "./workflow.js";
-import { AuthsWorkflowError } from "./workflow/errors.js";
+import { AuthsWorkflowError } from "./internal/operation-errors.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
 const PLAN_TOKEN: unique symbol = Symbol("auths-profile-plan");

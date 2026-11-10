@@ -7,7 +7,7 @@
 At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `ac052be07bf5d42e8b136ee8c1e0cf94f0cc3253f24c787165acc5b8607e3781` over the 89 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `d8d179e4f9d824f6630441cc32ad4b656dd35afffe7231cf8523e7023ae4812c` over the 89 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5`. Figures computed under a different role table are not comparable.
@@ -52,7 +52,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,031 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,353 | 1,289 (11.4%) | 856 (7.5%) | 1,289 (11.4%) |
 | verifier-core | 785 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,802 | 907 (10.3%) | 558 (6.3%) | 907 (10.3%) |
-| translated-crates | 1,146 | 213 (18.6%) | 70 (6.1%) | 213 (18.6%) | 10,738 | 2,497 (23.3%) | 1,027 (9.6%) | 2,497 (23.3%) |
+| translated-crates | 1,148 | 213 (18.6%) | 70 (6.1%) | 213 (18.6%) | 10,756 | 2,497 (23.2%) | 1,027 (9.5%) | 2,497 (23.2%) |
 | verifier-closure | 1,083 | 86 (7.9%) | 41 (3.8%) | 86 (7.9%) | 13,762 | 907 (6.6%) | 558 (4.1%) | 907 (6.6%) |
 | decision-nontrivial | 443 | 81 (18.3%) | 44 (9.9%) | 81 (18.3%) | 9,589 | 1,202 (12.5%) | 820 (8.6%) | 1,202 (12.5%) |
 

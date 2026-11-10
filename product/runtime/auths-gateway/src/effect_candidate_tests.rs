@@ -887,6 +887,21 @@ async fn candidate_journal(
             let before_publish = store
                 .load(crate::GatewayRecordKind::Connection, &connection_key)
                 .expect("before");
+            let inspection = reopened
+                .inspect_candidate(Arc::clone(approved), validation(), publish_time)
+                .await;
+            if case == "publish-success" {
+                assert_eq!(
+                    inspection.expect("read-only readiness"),
+                    crate::CandidateRecoveryState::ReadyForPublication
+                );
+                assert_eq!(
+                    store
+                        .load(crate::GatewayRecordKind::Connection, &connection_key)
+                        .expect("inspection did not publish"),
+                    before_publish
+                );
+            }
             let result = reopened
                 .publish_candidate(Arc::clone(approved), validation(), publish_time)
                 .await;
@@ -901,6 +916,13 @@ async fn candidate_journal(
                         .load(crate::GatewayRecordKind::Connection, &connection_key)
                         .expect("after"),
                     Some(bytes.clone())
+                );
+                assert_eq!(
+                    reopened
+                        .inspect_candidate(Arc::clone(approved), validation(), publish_time)
+                        .await
+                        .expect("published inspection"),
+                    crate::CandidateRecoveryState::Published
                 );
                 // Losing the caller's acknowledgement cannot cause provider I/O,
                 // reallocation or evidence renewal on the next explicit action.

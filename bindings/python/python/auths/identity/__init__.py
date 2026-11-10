@@ -15,6 +15,7 @@ from .._native import (
     validate_raw_key_identity_v2 as _validate_raw_key,
     verify_ed25519_preimage_v1 as _verify_ed25519,
 )
+from .._resource_lifecycle import ResourceLifecycle as _ResourceLifecycle, own_adapter as _own_adapter
 from .._public import ErrorInfo as _ErrorInfo, error_info as _error_info
 
 _IdentityT = _TypeVar("_IdentityT")
@@ -129,34 +130,37 @@ class IdentityClient:
         if len(self._methods) != len(methods) or len(self._authenticators) != len(authenticators):
             raise ValueError("duplicate identity adapter")
         self._owns = owns_adapters
-        self._state = "new"
+        # Adapter registration completes synchronously; there is no pending
+        # initializer. Construction publishes Open, including codec-only use.
+        self._lifecycle = _ResourceLifecycle(opened=True)
+        if owns_adapters:
+            for value in (*self._methods.values(), *self._authenticators.values()):
+                _own_adapter(self._lifecycle, value)
+
+    async def open(self, *, timeout: _Optional[float] = None) -> "IdentityClient":
+        async def initialize() -> None:
+            return None
+        await self._lifecycle.open(initialize, timeout=timeout)
+        return self
 
     async def __aenter__(self) -> "IdentityClient":
-        if self._state != "new":
-            raise RuntimeError("auths client is not open")
-        self._state = "open"
-        return self
+        return await self.open()
 
     async def __aexit__(self, *exc: object) -> None:
         await self.aclose()
 
-    async def aclose(self) -> None:
-        if self._state == "closed":
-            return
-        self._state = "closing"
-        if self._owns:
-            for value in (*self._methods.values(), *self._authenticators.values()):
-                close = getattr(value, "aclose", None)
-                if close is not None:
-                    await close()
-        self._state = "closed"
+    async def aclose(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.close(timeout=timeout)
+
+    async def retry_cleanup(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.retry_cleanup(timeout=timeout)
 
     def _open(self) -> None:
-        if self._state != "open":
-            raise RuntimeError("auths client is not open")
+        self._lifecycle.assert_open()
 
     def decode(self, packet: bytes, /) -> IdentityResult[DecodedIdentity]:
         from .adapters import DecodedIdentityRecord, VerificationMaterial, VerificationRelationship
+        self._open()
         try:
             raw = _decode_descriptor(bytes(packet))
             relationships = tuple(
@@ -185,7 +189,7 @@ class IdentityClient:
                 now = int(_time.time())
                 record = ResolvedIdentityRecord(identity._record.method_id, identity._record.identity_id, identity._record.method_material, identity._record.relationships, ResolutionEvidence("packet", now, now + 300, ("self-contained",)))
             else:
-                result = await _asyncio.wait_for(method.resolve(identity._record), _seconds(timeout))
+                result = await _asyncio.wait_for(self._lifecycle.run(lambda: method.resolve(identity._record)), _seconds(timeout))
                 if not isinstance(result, AdapterOk):
                     return _adapter_result(result, "resolve")
                 successful = _cast(AdapterOk[ResolvedIdentityRecord], result)
@@ -212,7 +216,7 @@ class IdentityClient:
                     for material in relationship.verification_material:
                         _validate_raw_key(identity.method_id, identity.identity_id, relationship.suite_id, material.bytes)
             else:
-                result = await _asyncio.wait_for(method.validate(identity._record), _seconds(timeout))
+                result = await _asyncio.wait_for(self._lifecycle.run(lambda: method.validate(identity._record)), _seconds(timeout))
                 if not isinstance(result, AdapterOk):
                     return _adapter_result(result, "validate")
             return IdentityOk("ok", ValidatedIdentity(_TOKEN, identity._packet, identity._record))
@@ -235,7 +239,7 @@ class IdentityClient:
                     return IdentityRejected("rejected", _error_info("identity.method-unsupported"))
                 _verify_ed25519(relationship.verification_material[0].bytes, preimage, bytes(signature))
             else:
-                result = await _asyncio.wait_for(authenticator.verify(relationship=relationship, preimage=preimage, signature=bytes(signature)), _seconds(timeout))
+                result = await _asyncio.wait_for(self._lifecycle.run(lambda: authenticator.verify(relationship=relationship, preimage=preimage, signature=bytes(signature))), _seconds(timeout))
                 if not isinstance(result, AdapterOk):
                     return _adapter_result(result, "authenticate")
             return IdentityOk("ok", AuthenticatedIdentityMessage(_TOKEN, identity, relationship_id, bytes(message)))

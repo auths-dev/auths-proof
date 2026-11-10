@@ -459,10 +459,10 @@ test("the transaction binding comes from the core, not from the binding", async 
     approval: {
       policy: fixture.options.approval.policy,
       provider: {
-        async approve(approvalRequest) {
+        async approve(approvalRequest, context) {
           seen.approval = approvalRequest.transactionDigest.slice();
           seen.ids.push(approvalRequest.requestId);
-          return fixture.options.approval.provider.approve(approvalRequest);
+          return fixture.options.approval.provider.approve(approvalRequest, context);
         },
       },
     },
@@ -484,4 +484,44 @@ test("the transaction binding comes from the core, not from the binding", async 
   assert.deepEqual(seen.signer, stated);
   assert.deepEqual(result.transactionDigest, stated);
   assert.deepEqual(seen.ids, [statedRequestId, statedRequestId]);
+});
+
+test("AP076 workflow close callers share a single owned destructor", async () => {
+  let enter, complete;
+  const entered = new Promise((resolve) => { enter = resolve; });
+  const released = new Promise((resolve) => { complete = resolve; });
+  let calls = 0;
+  const client = await loadAuths({ signer: {
+    kind: "lifecycle-test", lifecycle: "ephemeral", publicIdentity: async () => descriptor(),
+    async sign() { throw new Error("not used"); },
+    async dispose() { calls++; enter(); await released; },
+  }, trustedAuthority: { authorityId: "local.test-root", rootPrincipal: ROOT,
+    verifierConfiguration: await packagedConfiguration(), context: contextSource(), requiredApproval: policy() } });
+  const controller = new AbortController();
+  const first = client.dispose({ signal: controller.signal });
+  await entered;
+  const second = client.dispose();
+  const rejected = assert.rejects(first, (error) => error.code === "disposed");
+  controller.abort(); await rejected;
+  assert.equal(client.disposed, true); assert.equal(calls, 1);
+  complete(); await second; await client.dispose(); assert.equal(calls, 1);
+});
+
+
+test("AP076 a cancelled workflow factory retains and cleans its late signer result", async () => {
+  let enter, complete, cleaned;
+  const entered = new Promise((resolve) => { enter = resolve; });
+  const returned = new Promise((resolve) => { complete = resolve; });
+  const disposed = new Promise((resolve) => { cleaned = resolve; });
+  let calls = 0; const caller = new AbortController();
+  const opening = loadAuths({ signal: caller.signal, signer: {
+    kind: "factory-lifecycle-test", lifecycle: "ephemeral",
+    async publicIdentity() { enter(); return returned; }, async sign() { throw new Error("unused"); },
+    async dispose() { calls++; cleaned(); },
+  }, trustedAuthority: { authorityId: "local.test-root", rootPrincipal: ROOT,
+    verifierConfiguration: await packagedConfiguration(), context: contextSource(), requiredApproval: policy() } });
+  await entered;
+  const rejected = assert.rejects(opening, (error) => error.code === "disposed");
+  caller.abort(); await rejected; assert.equal(calls, 0);
+  complete(descriptor()); await disposed; assert.equal(calls, 1);
 });

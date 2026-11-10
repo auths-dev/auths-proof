@@ -401,6 +401,48 @@ impl<I: AcquisitionIo> Drop for InFlight<'_, I> {
     }
 }
 
+/// Consumer payloads follow the translated order machine. Only an acknowledged
+/// grant can construct `EntryGranted`; only that variant contains a write permit.
+/// The kernel still decides the next action; these values cannot grant entry.
+enum SubmissionPhase<L> {
+    Unverified,
+    Verified {
+        approved: std::sync::Arc<ApprovedEffect>,
+        stage: Box<ClaimedPhase<L>>,
+    },
+}
+
+enum ClaimedPhase<L> {
+    Unclaimed,
+    Claimed(ClaimedGatewayAttempt),
+    Leased {
+        claim: ClaimedGatewayAttempt,
+        lease: L,
+    },
+    EntryGranted {
+        claim: ClaimedGatewayAttempt,
+        lease: L,
+        permit: Box<crate::store::ProviderEntryPermit>,
+    },
+    Response {
+        claim: ClaimedGatewayAttempt,
+        response: WrittenResponse,
+    },
+    Unknown {
+        claim: ClaimedGatewayAttempt,
+    },
+    // A consumed/failed transition retains no capability. The durable journal
+    // remains authoritative when an acknowledgement was lost.
+    Unavailable,
+}
+
+struct WrittenResponse {
+    status: u16,
+    digest: [u8; 32],
+    body: Vec<u8>,
+    version_ok: bool,
+}
+
 /// What one run has learned so far.
 struct Run<'a, I: SubmitIo> {
     cx: &'a SubmitContext<'a>,
@@ -408,13 +450,9 @@ struct Run<'a, I: SubmitIo> {
     guard: Option<GuardChecks>,
     ceiling: Option<CeilingCheck>,
     evaluated_at: u64,
-    verified: Option<std::sync::Arc<ApprovedEffect>>,
+    phase: SubmissionPhase<I::Lease>,
     selected: Vec<SelectedRequirement>,
-    claim: Option<ClaimedGatewayAttempt>,
-    permit: Option<crate::store::ProviderEntryPermit>,
-    lease: Option<I::Lease>,
     pre_entry: GatewayPreEntry,
-    written: Option<(u16, [u8; 32], Vec<u8>, bool)>,
     refusal: Option<&'static str>,
     result: Option<GatewaySubmitResult>,
     unresolved_prerequisite: Option<PrerequisiteKind>,
@@ -429,17 +467,56 @@ impl<'a, I: SubmitIo> Run<'a, I> {
             guard: cx.recipe.guard_checks(),
             ceiling: cx.recipe.ceiling_check(),
             evaluated_at: 0,
-            verified: None,
+            phase: SubmissionPhase::Unverified,
             selected: Vec::new(),
-            claim: None,
-            permit: None,
-            lease: None,
             pre_entry: GatewayPreEntry::default(),
-            written: None,
             refusal: None,
             result: None,
             unresolved_prerequisite: None,
             in_flight: None,
+        }
+    }
+
+    fn approved(&self) -> Option<&std::sync::Arc<ApprovedEffect>> {
+        match &self.phase {
+            SubmissionPhase::Verified { approved, .. } => Some(approved),
+            SubmissionPhase::Unverified => None,
+        }
+    }
+
+    fn stage(&self) -> Option<&ClaimedPhase<I::Lease>> {
+        match &self.phase {
+            SubmissionPhase::Verified { stage, .. } => Some(stage),
+            SubmissionPhase::Unverified => None,
+        }
+    }
+
+    fn take_stage(&mut self) -> Option<ClaimedPhase<I::Lease>> {
+        match &mut self.phase {
+            SubmissionPhase::Verified { stage, .. } => {
+                Some(std::mem::replace(stage.as_mut(), ClaimedPhase::Unavailable))
+            }
+            SubmissionPhase::Unverified => None,
+        }
+    }
+
+    fn set_stage(&mut self, next: ClaimedPhase<I::Lease>) {
+        if let SubmissionPhase::Verified { stage, .. } = &mut self.phase {
+            **stage = next;
+        }
+    }
+
+    fn lease(&self) -> Option<&I::Lease> {
+        match self.stage() {
+            Some(ClaimedPhase::Leased { lease, .. }) => Some(lease),
+            _ => None,
+        }
+    }
+
+    fn take_pre_entry_claim(&mut self) -> Option<ClaimedGatewayAttempt> {
+        match self.take_stage()? {
+            ClaimedPhase::Claimed(claim) | ClaimedPhase::Leased { claim, .. } => Some(claim),
+            _ => None,
         }
     }
 
@@ -492,7 +569,11 @@ impl<I: SubmitIo> Run<'_, I> {
             SubmitAction::Verify => SubmitEvent::Verification(self.verify()),
             SubmitAction::Admit => SubmitEvent::Admission(self.admit()),
             SubmitAction::BindScope => {
-                let bound = match self.verified.as_deref().and_then(ApprovedEffect::command) {
+                let bound = match self
+                    .approved()
+                    .map(std::sync::Arc::as_ref)
+                    .and_then(ApprovedEffect::command)
+                {
                     Some(verified) => self.io.bind_scope(verified),
                     None => Err("gateway.attempt.unavailable"),
                 };
@@ -519,10 +600,18 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Reload(self.io.reload().await)
             }
             SubmitAction::Lease => {
-                self.lease = self.io.lease().await;
-                SubmitEvent::Lease(self.lease.is_some())
+                let Some(ClaimedPhase::Claimed(claim)) = self.take_stage() else {
+                    return SubmitEvent::Lease(false);
+                };
+                if let Some(lease) = self.io.lease().await {
+                    self.set_stage(ClaimedPhase::Leased { claim, lease });
+                    SubmitEvent::Lease(true)
+                } else {
+                    self.set_stage(ClaimedPhase::Claimed(claim));
+                    SubmitEvent::Lease(false)
+                }
             }
-            SubmitAction::CheckPrefix => SubmitEvent::Prefix(match (&self.guard, &self.lease) {
+            SubmitAction::CheckPrefix => SubmitEvent::Prefix(match (&self.guard, self.lease()) {
                 (None, Some(_)) => true,
                 (Some(guard), Some(lease)) => self.io.secret_admitted(lease, guard),
                 (_, None) => false,
@@ -533,16 +622,19 @@ impl<I: SubmitIo> Run<'_, I> {
             }
             SubmitAction::PreEntryRead => SubmitEvent::PreEntry(self.pre_entry_read().await),
             SubmitAction::CeilingRead => SubmitEvent::Ceiling(self.ceiling_read().await),
-            SubmitAction::RecordCheckpoint => SubmitEvent::Recorded(match self.claim.take() {
-                Some(claim) => match claim.record_checkpoint(&self.pre_entry).await {
+            SubmitAction::RecordCheckpoint => {
+                let Some(ClaimedPhase::Leased { claim, lease }) = self.take_stage() else {
+                    return SubmitEvent::Recorded(false);
+                };
+                let recorded = match claim.record_checkpoint(&self.pre_entry).await {
                     Ok(claim) => {
-                        self.claim = Some(claim);
+                        self.set_stage(ClaimedPhase::Leased { claim, lease });
                         true
                     }
                     Err(_) => false,
-                },
-                None => false,
-            }),
+                };
+                SubmitEvent::Recorded(recorded)
+            }
             SubmitAction::CheckDeadline => SubmitEvent::Deadline(
                 self.io.within_entry_deadline(self.evaluated_at) && self.revalidate(),
             ),
@@ -554,9 +646,9 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Response(recorded)
             }
             SubmitAction::RecordUnknown => {
-                let recorded = match self.claim.take() {
-                    Some(claim) => claim.record_unknown().await.is_ok(),
-                    None => false,
+                let recorded = match self.take_stage() {
+                    Some(ClaimedPhase::Unknown { claim }) => claim.record_unknown().await.is_ok(),
+                    _ => false,
                 };
                 self.in_flight = None;
                 SubmitEvent::Recorded(recorded)
@@ -571,7 +663,7 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     fn revalidate(&mut self) -> bool {
-        let (Some(effect), Some(now)) = (self.verified.as_ref(), self.io.clock()) else {
+        let (Some(effect), Some(now)) = (self.approved(), self.io.clock()) else {
             self.refuse_before_claim(not_entered("gateway.verify.clock-unavailable"));
             return false;
         };
@@ -619,7 +711,10 @@ impl<I: SubmitIo> Run<'_, I> {
                 argument
             }
         };
-        self.verified = Some(std::sync::Arc::new(approved));
+        self.phase = SubmissionPhase::Verified {
+            approved: std::sync::Arc::new(approved),
+            stage: Box::new(ClaimedPhase::Unclaimed),
+        };
         Verification::Authorized { argument }
     }
 
@@ -627,7 +722,11 @@ impl<I: SubmitIo> Run<'_, I> {
     /// observer check; nothing is stored. The first failing check's code is
     /// the one reported.
     fn admit(&mut self) -> bool {
-        let Some(verified) = self.verified.as_deref().and_then(ApprovedEffect::command) else {
+        let Some(verified) = self
+            .approved()
+            .map(std::sync::Arc::as_ref)
+            .and_then(ApprovedEffect::command)
+        else {
             return false;
         };
         if let Some(retention) = self.cx.recipe.idempotency_retention()
@@ -681,7 +780,7 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn claim(&mut self) -> ClaimResult {
-        let Some(approved) = self.verified.as_ref() else {
+        let Some(approved) = self.approved() else {
             return ClaimResult::Unavailable;
         };
         let Ok(validation) = self.io.entry_validation() else {
@@ -694,7 +793,7 @@ impl<I: SubmitIo> Run<'_, I> {
             .await
         {
             Ok(BoundedClaim::Claimed(claim)) => {
-                self.claim = Some(*claim);
+                self.set_stage(ClaimedPhase::Claimed(*claim));
                 ClaimResult::Reserved
             }
             Ok(BoundedClaim::Exhausted(code)) => {
@@ -719,7 +818,7 @@ impl<I: SubmitIo> Run<'_, I> {
     /// A replay or unacknowledged grant only loads the exact bound journal.
     /// It never leases credentials or acquires provider evidence.
     async fn stored_result(&self) -> GatewaySubmitResult {
-        let Some(approved) = self.verified.as_deref() else {
+        let Some(approved) = self.approved().map(std::sync::Arc::as_ref) else {
             return unavailable_state();
         };
         match self.cx.attempts.read_effect(approved).await {
@@ -734,10 +833,10 @@ impl<I: SubmitIo> Run<'_, I> {
     ) -> Option<crate::store::PrerequisiteResponse> {
         acquire_prerequisite(
             self.cx.attempts,
-            self.verified.as_ref()?,
+            self.approved()?,
             kind,
             self.io,
-            self.lease.as_ref()?,
+            self.lease()?,
         )
         .await
     }
@@ -786,7 +885,9 @@ impl<I: SubmitIo> Run<'_, I> {
 
     async fn pre_entry_read(&mut self) -> PreEntryResult {
         let (Some(verified), Some(observer), Some(pointers)) = (
-            self.verified.as_deref().and_then(ApprovedEffect::command),
+            self.approved()
+                .map(std::sync::Arc::as_ref)
+                .and_then(ApprovedEffect::command),
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
         ) else {
@@ -825,7 +926,9 @@ impl<I: SubmitIo> Run<'_, I> {
 
     async fn ceiling_read(&mut self) -> CeilingRead {
         let (Some(verified), Some(ceiling)) = (
-            self.verified.as_deref().and_then(ApprovedEffect::command),
+            self.approved()
+                .map(std::sync::Arc::as_ref)
+                .and_then(ApprovedEffect::command),
             &self.ceiling,
         ) else {
             return CeilingRead::Unavailable;
@@ -859,18 +962,18 @@ impl<I: SubmitIo> Run<'_, I> {
         let Ok(validation) = self.io.entry_validation() else {
             return false;
         };
-        let Some(approved) = &self.verified else {
+        let Some(approved) = self.approved().cloned() else {
             return false;
         };
         let Some(entry_started) = self.io.clock() else {
             return false;
         };
-        let Some(claim) = self.claim.take() else {
+        let Some(ClaimedPhase::Leased { claim, lease }) = self.take_stage() else {
             return false;
         };
         let Ok((claim, permit)) = claim
             .grant_entry(
-                std::sync::Arc::clone(approved),
+                std::sync::Arc::clone(&approved),
                 validation,
                 entry_started,
                 &self.pre_entry,
@@ -883,37 +986,67 @@ impl<I: SubmitIo> Run<'_, I> {
             self.result = Some(self.stored_result().await);
             return false;
         };
-        self.claim = Some(claim);
-        self.permit = Some(permit);
+        self.set_stage(ClaimedPhase::EntryGranted {
+            claim,
+            lease,
+            permit: Box::new(permit),
+        });
         true
     }
 
     async fn send(&mut self) -> WriteResult {
-        let (Some(lease), Some(permit)) = (&self.lease, self.permit.take()) else {
+        let Some(ClaimedPhase::EntryGranted {
+            claim,
+            lease,
+            permit,
+        }) = self.take_stage()
+        else {
+            // An impossible action/payload combination is explicitly fail closed.
+            // In particular, it never manufactures a permit or calls transport.
             return WriteResult::Unknown;
         };
-        match self.io.write(lease, permit).await {
-            Err(_) | Ok(WriteTransportOutcome::Unknown) => WriteResult::Unknown,
+        match self.io.write(&lease, *permit).await {
+            Err(_) | Ok(WriteTransportOutcome::Unknown) => {
+                self.set_stage(ClaimedPhase::Unknown { claim });
+                WriteResult::Unknown
+            }
             Ok(WriteTransportOutcome::ResponseRecorded {
                 status,
                 digest,
                 body,
                 version_ok,
             }) => {
-                self.written = Some((status, digest, body, version_ok));
+                self.set_stage(ClaimedPhase::Response {
+                    claim,
+                    response: WrittenResponse {
+                        status,
+                        digest,
+                        body,
+                        version_ok,
+                    },
+                });
                 WriteResult::Response
             }
         }
     }
 
     async fn record_response(&mut self) -> ResponseRecord {
-        let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) = (
-            self.claim.take(),
-            self.written.take(),
-            self.verified.as_deref().and_then(ApprovedEffect::command),
-        ) else {
+        let Some(ClaimedPhase::Response { claim, response }) = self.take_stage() else {
             return ResponseRecord::Failed;
         };
+        let Some(verified) = self
+            .approved()
+            .map(std::sync::Arc::as_ref)
+            .and_then(ApprovedEffect::command)
+        else {
+            return ResponseRecord::Failed;
+        };
+        let WrittenResponse {
+            status,
+            digest,
+            body,
+            version_ok,
+        } = response;
         let locator = verified
             .request
             .observation_template()
@@ -936,7 +1069,7 @@ impl<I: SubmitIo> Run<'_, I> {
             self.result = Some(self.stored_result().await);
             return false;
         }
-        let Some(claim) = self.claim.take() else {
+        let Some(claim) = self.take_pre_entry_claim() else {
             return false;
         };
         let code = match refusal {
