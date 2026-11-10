@@ -4,7 +4,7 @@ import type {
   ApprovalRequest,
   ApprovalResponse,
 } from "../workflow/contracts.js";
-import { ProviderOperationError } from "../workflow/errors.js";
+import { ProviderOperationError } from "./operation-errors.js";
 
 /** Decision bytes must belong to this isolate, never concurrently shared memory. */
 export function approvalBytes(value: Uint8Array): Uint8Array {

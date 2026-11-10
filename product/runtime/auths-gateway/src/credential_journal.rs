@@ -322,10 +322,10 @@ impl CredentialJournal {
             .as_file()
             .set_permissions(fs::Permissions::from_mode(0o600))
             .map_err(|_| CODE)?;
-        pending
-            .write_all(&bytes)
-            .and_then(|()| pending.as_file().sync_all())
-            .map_err(|_| CODE)?;
+        crate::admin_fault::boundary("credential-journal.before-file-write");
+        pending.write_all(&bytes).map_err(|_| CODE)?;
+        crate::admin_fault::boundary("credential-journal.after-file-content");
+        pending.as_file().sync_all().map_err(|_| CODE)?;
         crate::admin_fault::boundary("credential-journal.after-file-sync");
         pending.persist(path).map_err(|_| CODE)?;
         crate::admin_fault::boundary("credential-journal.after-replacement");

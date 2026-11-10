@@ -24,8 +24,8 @@ export {
   type ProviderFailureKind,
   type RetryClass,
   type WorkflowErrorCode,
-} from "../errors.js";
-import { AuthsWorkflowError, ProviderOperationError } from "../errors.js";
+} from "../../internal/operation-errors.js";
+import { AuthsWorkflowError, ProviderOperationError } from "../../internal/operation-errors.js";
 
 const MAX_IDENTIFIER_BYTES = 128;
 const DIGEST_BYTES = 32;

@@ -130,7 +130,9 @@ class IdentityClient:
         if len(self._methods) != len(methods) or len(self._authenticators) != len(authenticators):
             raise ValueError("duplicate identity adapter")
         self._owns = owns_adapters
-        self._lifecycle = _ResourceLifecycle()
+        # Adapter registration completes synchronously; there is no pending
+        # initializer. Construction publishes Open, including codec-only use.
+        self._lifecycle = _ResourceLifecycle(opened=True)
         if owns_adapters:
             for value in (*self._methods.values(), *self._authenticators.values()):
                 _own_adapter(self._lifecycle, value)

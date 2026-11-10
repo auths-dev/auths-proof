@@ -9,6 +9,8 @@ An exposed closed/disposed property reports that admission has stopped. Await
 close/dispose to learn whether owned cleanup finished successfully; a stopped
 client may still retain active work or failed cleanup. Python constructors
 retain their owner synchronously; concurrent `open()` waiters share that owner.
+Identity construction completes registration synchronously and returns `Open`;
+its synchronous decoder is immediately usable. Closing still stops admission.
 
 TypeScript factories, workflow attachment/delegation and close/dispose accept
 `{ signal?, timeoutMs? }`. Python open, attach_agent, delegate and aclose accept

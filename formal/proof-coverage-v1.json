@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5",
-  "inputs_sha256": "ac052be07bf5d42e8b136ee8c1e0cf94f0cc3253f24c787165acc5b8607e3781",
+  "inputs_sha256": "4349e6cd8fce763ce6f387b1fb627aff3f81f5c9986424edb809a529c0f8e092",
   "inputs": {
     "Cargo.toml": "sha256:ccc17deac72da945940a9ab4be2ce27628c056b977d19429bc1679b19fae30f3",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -84,7 +84,7 @@
     "product/policy/auths-bounded-policy/src/lib.rs": "sha256:76a18638b810e62e594d6e951504679305ce21841388e0c282ad51cd7841b91c",
     "product/policy/auths-bounded-policy/src/receipt.rs": "sha256:3b9eae82f349956d3e7f29b57b254bff5ce67cc703e6cf43445ce2827676d1ad",
     "product/policy/auths-bounded-policy/src/registry.rs": "sha256:4e251ea5833559841f8ee0bd9b66c0c01c39fa5e3a21720a19c4e8adbfcb99d0",
-    "product/runtime/auths-connections/src/credential.rs": "sha256:7e6fbca8911d5c0c1baddf35572236d419566dd6e3fcbbdfda77c8dd114dbcad",
+    "product/runtime/auths-connections/src/credential.rs": "sha256:22bc7de6bcab7cebebb64edf6423d59b6493b78dca65b9da62749e3171217762",
     "product/runtime/auths-connections/src/kernel.rs": "sha256:a456af19526ef7b19278551fd8d97606b6e7aa5a195e70bdd85d1e0786090ce8",
     "product/runtime/auths-connections/src/lib.rs": "sha256:79209249a0acba0e854d9937255ea0e30a9a6f8e1c2baad77ab83646d392de22",
     "product/runtime/auths-connections/src/model.rs": "sha256:de34a089cac9702acb889b7602b3e4732306c9e61029ec892582b7e02b73fc77",
@@ -245,33 +245,33 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1146,
-      "span_lines": 10758,
-      "code_lines": 10738,
+      "functions": 1148,
+      "span_lines": 10776,
+      "code_lines": 10756,
       "by_level": {
         "translated": {
           "functions": 213,
-          "function_share": 0.1859,
+          "function_share": 0.1855,
           "span_lines": 2508,
-          "span_line_share": 0.2331,
+          "span_line_share": 0.2327,
           "code_lines": 2497,
-          "code_line_share": 0.2325
+          "code_line_share": 0.2321
         },
         "direct": {
           "functions": 70,
-          "function_share": 0.0611,
+          "function_share": 0.061,
           "span_lines": 1038,
-          "span_line_share": 0.0965,
+          "span_line_share": 0.0963,
           "code_lines": 1027,
-          "code_line_share": 0.0956
+          "code_line_share": 0.0955
         },
         "closure": {
           "functions": 213,
-          "function_share": 0.1859,
+          "function_share": 0.1855,
           "span_lines": 2508,
-          "span_line_share": 0.2331,
+          "span_line_share": 0.2327,
           "code_lines": 2497,
-          "code_line_share": 0.2325
+          "code_line_share": 0.2321
         }
       }
     },
@@ -548,8 +548,8 @@
       "refined_closure_code_lines": 182
     },
     "product/runtime/auths-connections": {
-      "decision_functions": 157,
-      "decision_code_lines": 1965,
+      "decision_functions": 159,
+      "decision_code_lines": 1983,
       "translated": 5,
       "refined_closure": 5,
       "refined_closure_code_lines": 51

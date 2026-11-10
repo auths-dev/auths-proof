@@ -1,4 +1,4 @@
-import { AuthsWorkflowError } from "../workflow/errors.js";
+import { AuthsWorkflowError } from "./operation-errors.js";
 
 /** Per-caller cancellation is separate from ownership of an asynchronous task. */
 export interface LifecycleWaitOptions {

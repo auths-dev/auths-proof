@@ -134,6 +134,18 @@ longer after restart; this is an explicit operational cost, not an ambiguity.
 
 ## 5. Qualification transition and durability order
 
+Private file construction uses the reserved `.auths-pending-` namespace until
+atomic publication to the official name. These unpublished temporaries carry no
+accepted input or authority. Bundle readers exclude this namespace while still
+bounding the total directory inventory. Under `qualification.lock`, staging
+removes only reserved temporary regular files belonging to this UID, with private
+permissions and one link, then synchronizes their directories. Other entries
+are never deleted by temporary cleanup; unsafe reserved-file metadata fails
+closed. Official retained inputs are compared exactly
+and never removed to restage. Interruption during this temporary cleanup is
+idempotently recoverable by the same explicit import. An incomplete retained
+bundle still requires its original complete authenticated source bundle.
+
 The closed projection is `Empty`, `Staged`, `FloorsAdvanced`, `CurrentPublished`,
 `RetiredCleanupPending`, or `Unavailable`. Read verification of actual files and
 retained/native floors supplies the state; no marker grants authority.
@@ -221,6 +233,7 @@ binding/floors, custody generations, journal obligations and command outcome.
 | Each exact custody revoke and reply | Note retained until acknowledged exact deletion; lost reply remains incomplete and safe exact retry only. |
 | Each journal note removal and synchronization | Confirmed removal stays removed after success; ambiguity reloads journal and retains conservative uncertainty. |
 | Every qualification `.next` file/subdirectory/parent synchronization | Old accepted configuration remains or fails closed; staged incomplete input cannot advance floors. Re-import exact complete bundle. |
+| Reserved unpublished temporary cleanup and directory synchronization | No accepted input is removed. Repeat the same complete import under the qualification lock; unsafe temporary metadata quarantines. |
 | Native qualification floor commit/reply, then verifier-memory replacement/sync | Retain `.next`; reload/reconcile upward. Old bundle cannot qualify below either floor. |
 | Remove old `.previous` and parent sync | Current must already be verified; interruption cannot trigger rollback. |
 | Current-to-previous rename and parent sync | Missing current is unavailable; explicit recovery uses verified `.next`, never assumes previous is current. |

@@ -1470,11 +1470,15 @@ mod unix {
         let _ = point;
     }
 
+    const PENDING_PRIVATE_PREFIX: &str = ".auths-pending-";
+
     fn private_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
         let parent = path.parent().ok_or("gateway.state.invalid-path")?;
         admin_boundary("private-file.before-create");
-        let mut pending =
-            tempfile::NamedTempFile::new_in(parent).map_err(|_| "gateway.state.write-failed")?;
+        let mut pending = tempfile::Builder::new()
+            .prefix(PENDING_PRIVATE_PREFIX)
+            .tempfile_in(parent)
+            .map_err(|_| "gateway.state.write-failed")?;
         pending
             .as_file()
             .set_permissions(fs::Permissions::from_mode(0o600))
@@ -1966,6 +1970,8 @@ mod unix {
         paths.sort();
         paths
             .iter()
+            // Unpublished transaction temporaries are never signed inputs.
+            .filter(|path| !pending_private_path(path))
             .map(|path| read_bounded(path, maximum).map_err(|_| CODE))
             .collect()
     }
@@ -2371,6 +2377,44 @@ mod unix {
         sync_qualification_directory(directory.parent().ok_or(CODE)?)
     }
 
+    fn pending_private_path(path: &Path) -> bool {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(PENDING_PRIVATE_PREFIX))
+    }
+
+    /// Called under qualification.lock, so no live staging writer owns these
+    /// unpublished files. Official retained inputs never use this namespace.
+    fn remove_pending_qualification_files(directory: &Path) -> Result<(), Failure> {
+        const CODE: &str = "gateway.qualification.unavailable";
+        let entries =
+            fs::read_dir(directory).map_err(|error| Failure::at(CODE, directory, error))?;
+        for (index, entry) in entries.enumerate() {
+            if index >= MAX_INDEX_ENTRIES {
+                return Err(CODE.into());
+            }
+            let path = entry
+                .map_err(|error| Failure::at(CODE, directory, error))?
+                .path();
+            if !pending_private_path(&path) {
+                continue;
+            }
+            let metadata =
+                fs::symlink_metadata(&path).map_err(|error| Failure::at(CODE, &path, error))?;
+            if !metadata.is_file()
+                || metadata.permissions().mode() & 0o077 != 0
+                || metadata.uid() != rustix::process::geteuid().as_raw()
+                || metadata.nlink() != 1
+            {
+                return Err(CODE.into());
+            }
+            admin_boundary("qualification.before-pending-file-cleanup");
+            fs::remove_file(&path).map_err(|error| Failure::at(CODE, &path, error))?;
+            admin_boundary("qualification.after-pending-file-cleanup");
+        }
+        sync_qualification_directory(directory)
+    }
+
     fn stage_qualification(
         state_dir: &Path,
         prepared: PreparedQualification,
@@ -2401,6 +2445,13 @@ mod unix {
                     ));
                 }
             }
+        }
+        for directory in [
+            &staged,
+            &staged.join(RELEASE_RECORDS_DIRECTORY),
+            &staged.join(RELEASE_ATTESTATIONS_DIRECTORY),
+        ] {
+            remove_pending_qualification_files(directory)?;
         }
         let bundle = &prepared.bundle;
         retain_private_file(
@@ -5026,8 +5077,10 @@ mod unix {
     /// Atomically replaces an owner-only state file.
     fn replace_private_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
         let parent = path.parent().ok_or("gateway.state.invalid-path")?;
-        let mut pending =
-            tempfile::NamedTempFile::new_in(parent).map_err(|_| "gateway.state.write-failed")?;
+        let mut pending = tempfile::Builder::new()
+            .prefix(PENDING_PRIVATE_PREFIX)
+            .tempfile_in(parent)
+            .map_err(|_| "gateway.state.write-failed")?;
         pending
             .as_file()
             .set_permissions(fs::Permissions::from_mode(0o600))

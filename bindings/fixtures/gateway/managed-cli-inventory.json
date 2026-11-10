@@ -1159,6 +1159,11 @@
           "required": false
         },
         {
+          "name": "resume",
+          "long": "resume",
+          "required": false
+        },
+        {
           "name": "state_dir",
           "long": "state-dir",
           "required": true
@@ -1451,6 +1456,21 @@
       ]
     },
     {
+      "command": "qualification-recover",
+      "arguments": [
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
       "command": "qualification-status",
       "arguments": [
         {
@@ -1547,6 +1567,41 @@
           "name": "source_operation",
           "long": "source-operation",
           "required": true
+        },
+        {
+          "name": "state_dir",
+          "long": "state-dir",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "recovery-status",
+      "arguments": [
+        {
+          "name": "action",
+          "long": "action",
+          "required": false
+        },
+        {
+          "name": "approval",
+          "long": "approval",
+          "required": false
+        },
+        {
+          "name": "candidate",
+          "long": "candidate",
+          "required": false
+        },
+        {
+          "name": "help",
+          "long": "help",
+          "required": false
+        },
+        {
+          "name": "proof",
+          "long": "proof",
+          "required": false
         },
         {
           "name": "state_dir",

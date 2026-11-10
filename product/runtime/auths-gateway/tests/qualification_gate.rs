@@ -567,6 +567,20 @@ mod ap076_recovery {
         serde_json::from_slice(&tuple.stdout).expect("tuple")
     }
 
+    fn seed_unpublished_qualification_temporary(state: &Path) {
+        let staged = state.join("qualification.next");
+        let records = staged.join(auths_recipe_qualification::RELEASE_RECORDS_DIRECTORY);
+        fs::create_dir_all(&records).expect("interrupted staging directories");
+        for directory in [&staged, &records] {
+            fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
+                .expect("private staging");
+        }
+        let temporary = records.join(".auths-pending-interrupted");
+        fs::write(&temporary, b"").expect("unpublished partial write");
+        fs::set_permissions(temporary, fs::Permissions::from_mode(0o600))
+            .expect("private temporary");
+    }
+
     #[test]
     fn qualification_first_import_and_replacement_survive_every_boundary_and_repeat() {
         let at = now();
@@ -590,6 +604,7 @@ mod ap076_recovery {
                     .success()
                 );
             }
+            seed_unpublished_qualification_temporary(&trace_state);
             let bundle = if replacement { &successor } else { &original };
             bundle
                 .write_to(&trace_root.join("release"))
@@ -626,6 +641,7 @@ mod ap076_recovery {
                             .success()
                     );
                 }
+                seed_unpublished_qualification_temporary(&state);
                 bundle
                     .write_to(&root.join("release"))
                     .expect("candidate bundle");

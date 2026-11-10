@@ -125,19 +125,23 @@ impl GenerationFloor {
             record_sha256: digest,
         })
         .map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.before-file-write");
         let mut pending = tempfile::NamedTempFile::new_in(&self.directory).map_err(|_| ())?;
         pending
             .as_file()
             .set_permissions(fs::Permissions::from_mode(0o600))
             .map_err(|_| ())?;
-        pending
-            .write_all(&bytes)
-            .and_then(|()| pending.as_file().sync_all())
-            .map_err(|_| ())?;
+        pending.write_all(&bytes).map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.after-file-content");
+        pending.as_file().sync_all().map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.after-file-sync");
         pending.persist(path).map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.after-replacement");
         File::open(&self.directory)
             .and_then(|dir| dir.sync_all())
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.after-parent-sync");
+        Ok(())
     }
 
     #[cfg(not(unix))]

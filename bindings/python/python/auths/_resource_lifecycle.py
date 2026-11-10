@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import math
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, Generic, Literal, Optional, Protocol, Set, TypeVar, Union, cast
+from typing import Awaitable, Callable, Dict, Literal, Optional, Protocol, Set, TypeVar, Union, cast
 
 from ._product_errors import AuthsWorkflowError, CauseCategory
 
@@ -88,8 +88,7 @@ async def _wait(task: Awaitable[T], timeout: Optional[float], timing: LifecycleT
     try:
         return await result
     finally:
-        if timer is not None:
-            timer.cancel()
+        timer.cancel()
         shielded.remove_done_callback(settled)
         if shielded.done() and not shielded.cancelled():
             shielded.exception()
@@ -199,7 +198,11 @@ class ResourceLifecycle:
             await self._attempt(*pair)
 
     def _work(self, operation: Callable[[], Awaitable[T]]) -> asyncio.Task[T]:
+        # Even an eager task factory cannot enter foreign code before this
+        # owner retains the task. The gate is released only after registration.
+        admitted: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         async def owned() -> T:
+            await admitted
             return await operation()
         task = asyncio.create_task(owned())
         retained = cast("asyncio.Task[object]", task)
@@ -209,6 +212,7 @@ class ResourceLifecycle:
             if not value.cancelled():
                 value.exception()
         task.add_done_callback(settled)
+        admitted.set_result(None)
         return task
 
     async def open(self, initialize: Callable[[], Awaitable[None]], *, timeout: Optional[float] = None,
@@ -354,7 +358,12 @@ class ResourceLifecycle:
                 # No new admissions after Closing. Acquisitions register late resources
                 # before releasing their tokens, so every obligation is visible here.
                 while self._active:
-                    await asyncio.gather(*tuple(self._active), return_exceptions=True)
+                    # Python 3.12 gather can return synchronously for completed
+                    # tasks, before their queued removal callbacks have run.
+                    # Prune those tokens explicitly instead of starving the loop.
+                    self._active.difference_update(task for task in tuple(self._active) if task.done())
+                    if self._active:
+                        await asyncio.gather(*tuple(self._active), return_exceptions=True)
                 for resource, obligation in sorted(tuple(self._obligations.values()), key=lambda pair: pair[1].order):
                     if obligation.state == "pending" or (retry and obligation.retry == "idempotent"):
                         await self._attempt(resource, obligation, retry)
@@ -387,7 +396,9 @@ def own_adapter(owner: ResourceLifecycle, adapter: object, *, order: int = 0) ->
     close = getattr(adapter, "aclose", None)
     if not callable(close):
         raise TypeError("owned adapter must implement aclose")
-    retry_operation = getattr(adapter, "retry_cleanup", None)
+    close_operation = cast(Callable[[], Awaitable[None]], close)
+    candidate = getattr(adapter, "retry_cleanup", None)
+    retry_operation = cast(Callable[[], Awaitable[None]], candidate) if callable(candidate) else None
     async def cleanup(retry: bool) -> None:
-        await (retry_operation() if retry and retry_operation is not None else close())
+        await (retry_operation() if retry and retry_operation is not None else close_operation())
     owner.own(adapter, cleanup, retry="idempotent" if getattr(adapter, "cleanup_retry", None) == "idempotent" else "unsafe", order=order)

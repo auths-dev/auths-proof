@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Awaitable, Callable, Optional
 
 import pytest
 
@@ -41,6 +41,12 @@ ROOT = Principal("key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs")
 PARENT = Principal("key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E")
 CHILD = Principal("key:sha256:8C7PrA0wN6L7dI7ZmbYVYnR1Q21dzCq6FjDEHNt58fA")
 PROFILE = Profile("auths.mcp", 1)
+
+
+async def _bounded_scenario(operation: Awaitable[None]) -> None:
+    # A missing completion is a test failure, never an unbounded CI allocation.
+    # Assertions still use controlled events and the injected lifecycle clock.
+    await asyncio.wait_for(operation, timeout=10)
 
 
 class ApprovalDouble:
@@ -240,7 +246,7 @@ def test_attach_and_delegate_use_native_authority_without_protocol_bytes() -> No
         assert parent_signer.sign_calls == 1
         assert child_signer.sign_calls == 0
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_attach_loads_only_typed_signed_grant_material() -> None:
@@ -269,7 +275,7 @@ def test_attach_loads_only_typed_signed_grant_material() -> None:
             assert source.calls == 1
             await parent.aclose()
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 @pytest.mark.parametrize(
@@ -350,7 +356,7 @@ def test_every_exposed_authority_dimension_fails_before_approval_when_widened(
             assert parent_signer.sign_calls == 0
             assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_action_widening_fails_before_approval() -> None:
@@ -384,7 +390,7 @@ def test_action_widening_fails_before_approval() -> None:
             assert provider.calls == 0
             assert parent_signer.sign_calls == 0
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_approval_substitution_never_calls_the_parent_signer() -> None:
@@ -420,7 +426,7 @@ def test_approval_substitution_never_calls_the_parent_signer() -> None:
             assert parent_signer.sign_calls == 0
             assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_approval_fields_cannot_outlive_their_native_commitment() -> None:
@@ -441,7 +447,7 @@ def test_approval_fields_cannot_outlive_their_native_commitment() -> None:
             assert provider.calls == 0
             assert child_signer.close_calls == 0
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 @pytest.mark.parametrize("substitution", ["request", "policy", "decision"])
@@ -501,7 +507,7 @@ def test_every_approval_binding_field_fails_closed(substitution: str) -> None:
             assert parent_signer.sign_calls == 0
             assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_signer_substitution_cannot_complete_the_child_grant() -> None:
@@ -533,7 +539,7 @@ def test_signer_substitution_cannot_complete_the_child_grant() -> None:
             assert parent_signer.sign_calls == 1
             assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 @pytest.mark.parametrize(
@@ -587,7 +593,7 @@ def test_every_signer_binding_field_fails_closed(substitution: str) -> None:
             assert parent_signer.sign_calls == 1
             assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_provider_errors_are_typed_and_sanitized() -> None:
@@ -620,7 +626,7 @@ def test_provider_errors_are_typed_and_sanitized() -> None:
             assert raised.value.code in registry_codes()
             assert "credential" not in str(raised.value)
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_cancellation_closes_the_partial_child_and_produces_no_signature() -> None:
@@ -661,7 +667,7 @@ def test_cancellation_closes_the_partial_child_and_produces_no_signature() -> No
             assert child_signer.close_calls == 1
             assert parent_signer.sign_calls == 0
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_cancellation_during_child_identity_disposes_the_child_signer() -> None:
@@ -699,7 +705,7 @@ def test_cancellation_during_child_identity_disposes_the_child_signer() -> None:
             assert child_signer.close_calls == 1
             assert parent_signer.sign_calls == 0
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_cancellation_during_parent_signing_disposes_the_child_signer() -> None:
@@ -736,7 +742,7 @@ def test_cancellation_during_parent_signing_disposes_the_child_signer() -> None:
             await client.aclose()
             assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_client_cleanup_is_idempotent_for_root_and_child_signers() -> None:
@@ -762,7 +768,7 @@ def test_client_cleanup_is_idempotent_for_root_and_child_signers() -> None:
         assert parent_signer.close_calls == 1
         assert child_signer.close_calls == 1
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_native_transaction_is_single_use_across_approval_and_signature() -> None:
@@ -923,4 +929,4 @@ def test_provider_failure_kinds_survive_without_arbitrary_causes() -> None:
             assert raised.value.code == WORKFLOW_REASON_CODES["approval-failed"]
             assert raised.value.code in registry_codes()
 
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))

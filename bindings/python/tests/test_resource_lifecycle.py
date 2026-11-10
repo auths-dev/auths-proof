@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Awaitable
 
 import pytest
 
@@ -9,6 +10,12 @@ from auths._resource_lifecycle import (
     ResourceLifecycle, Open, Closing, ClosingOverdue, Closed, CleanupFailed, CleanupFailure,
 )
 from auths._product_errors import AuthsWorkflowError
+
+
+async def _bounded_scenario(operation: Awaitable[None]) -> None:
+    # A missing completion is a test failure, never an unbounded CI allocation.
+    # Assertions still use controlled events and the injected lifecycle clock.
+    await asyncio.wait_for(operation, timeout=10)
 
 
 class ManualTimer:
@@ -69,7 +76,7 @@ def test_shared_open_waiter_cancellation_and_no_reopening() -> None:
         await owner.close()
         with pytest.raises(AuthsWorkflowError):
             await owner.open(initialize)
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_close_invalidates_opening_and_retains_late_acquisition() -> None:
@@ -93,7 +100,7 @@ def test_close_invalidates_opening_and_retains_late_acquisition() -> None:
         gate.set()
         await closing
         assert isinstance(owner.state, Closed) and calls == 1
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_shared_close_does_not_destroy_active_resources_or_cancel_other_waiters() -> None:
@@ -125,7 +132,7 @@ def test_shared_close_does_not_destroy_active_resources_or_cancel_other_waiters(
         await destroyed.wait()
         await owner.close()
         assert calls == 1
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_open_failure_preserves_original_and_attempts_independent_cleanup() -> None:
@@ -156,7 +163,7 @@ def test_open_failure_preserves_original_and_attempts_independent_cleanup() -> N
         assert calls == ["failed", "success"] and isinstance(owner.state, CleanupFailed)
         with pytest.raises(AuthsWorkflowError):
             await owner.open(no_init)
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_explicit_retry_shares_generation_and_skips_successful_and_unsafe_obligations() -> None:
@@ -190,7 +197,7 @@ def test_explicit_retry_shares_generation_and_skips_successful_and_unsafe_obliga
         outcomes = await asyncio.gather(retry, ordinary, other, return_exceptions=True)
         assert all(isinstance(value, CleanupFailure) for value in outcomes)
         assert counts == [2, 1, 1]
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_generation_deadline_retains_unfinished_cleanup_and_late_success() -> None:
@@ -223,7 +230,7 @@ def test_generation_deadline_retains_unfinished_cleanup_and_late_success() -> No
         await owner._cleanup
         await owner.close()
         assert isinstance(owner.state, Closed) and not clock.jobs
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 @pytest.mark.parametrize("event", ["close", "cancel", "publish-first"])
@@ -264,7 +271,7 @@ def test_attachment_publication_ownership(event: str) -> None:
             else:
                 await owner.close()
         assert calls == 1 and isinstance(owner.state, Closed)
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_invalid_timeouts_do_not_begin_lifecycle_work() -> None:
@@ -276,7 +283,7 @@ def test_invalid_timeouts_do_not_begin_lifecycle_work() -> None:
             with pytest.raises(ValueError):
                 await owner.close(timeout=value)
         await owner.close()
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 @pytest.mark.parametrize("kind", ["identity", "remote"])
@@ -319,7 +326,7 @@ def test_public_adapter_cleanup_ownership_and_safe_retry(kind: str, owned: bool)
             await client.aclose()
             assert first.calls == second.calls == 0
         await client.aclose()
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_open_waiter_timeouts_detach_one_and_then_all_without_reinitializing() -> None:
@@ -347,7 +354,7 @@ def test_open_waiter_timeouts_detach_one_and_then_all_without_reinitializing() -
         await owner.open(initialize)
         assert calls == 1 and owner.is_open
         await owner.close()
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_active_operation_outlives_shutdown_deadline_before_zeroization() -> None:
@@ -377,7 +384,7 @@ def test_active_operation_outlives_shutdown_deadline_before_zeroization() -> Non
         assert owner._cleanup is not None
         await owner._cleanup
         assert material == b"\x00" * 5 and isinstance(owner.state, Closed)
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_attachment_timeout_keeps_late_child_owned_until_cleanup() -> None:
@@ -404,7 +411,7 @@ def test_attachment_timeout_keeps_late_child_owned_until_cleanup() -> None:
         await cleaned.wait()
         await owner.close()
         assert calls == 1
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
 
 
 def test_late_cleanup_failure_settles_overdue_owner_before_explicit_safe_retry() -> None:
@@ -435,4 +442,43 @@ def test_late_cleanup_failure_settles_overdue_owner_before_explicit_safe_retry()
         assert calls == 1
         await owner.retry_cleanup()
         assert isinstance(owner.state, Closed) and calls == 2
-    asyncio.run(scenario())
+    asyncio.run(_bounded_scenario(scenario()))
+
+
+def test_eager_tasks_cannot_enter_foreign_code_before_ownership() -> None:
+    factory = getattr(asyncio, "eager_task_factory", None)
+    if factory is None:
+        pytest.skip("eager task factories start in Python 3.12")
+
+    async def scenario() -> None:
+        owner = ResourceLifecycle(opened=True)
+        entered, gate = asyncio.Event(), asyncio.Event()
+        destroyed = False
+        closing = None
+        async def destroy(_: bool) -> None:
+            nonlocal destroyed
+            destroyed = True
+        async def operation() -> str:
+            nonlocal closing
+            closing = asyncio.create_task(owner.close())
+            entered.set()
+            assert not destroyed
+            await gate.wait()
+            return "settled"
+        owner.own(object(), destroy)
+        loop = asyncio.get_running_loop()
+        previous = loop.get_task_factory()
+        loop.set_task_factory(factory)
+        try:
+            active = asyncio.create_task(owner.run(operation))
+            await entered.wait()
+            assert not destroyed
+            gate.set()
+            assert await active == "settled"
+            assert closing is not None
+            await closing
+            assert destroyed and isinstance(owner.state, Closed)
+        finally:
+            loop.set_task_factory(previous)
+
+    asyncio.run(_bounded_scenario(scenario()))

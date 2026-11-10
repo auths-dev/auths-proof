@@ -52,3 +52,22 @@ def test_authored_raw_key_identity_uses_the_canonical_descriptor_preimage(
 def test_development_recipient_seed_refuses_invalid_import(seed: object) -> None:
     with pytest.raises(ValueError, match="must be 32 bytes"):
         development_ed25519_identity_key(seed)  # type: ignore[arg-type]
+
+
+def test_synchronous_identity_construction_is_open_and_close_stops_admission() -> None:
+    from auths._product_errors import AuthsWorkflowError
+
+    async def scenario() -> None:
+        key = development_ed25519_identity_key(bytes([31]) * 32)
+        identity = create_raw_key_ed25519_identity(key.public_key)
+        client = raw_key_ed25519()
+        decoded = client.decode(identity.to_bytes())
+        assert isinstance(decoded, IdentityOk)
+        assert await client.open() is client
+        await client.aclose()
+        with pytest.raises(AuthsWorkflowError):
+            client.decode(identity.to_bytes())
+        with pytest.raises(AuthsWorkflowError):
+            await client.open()
+
+    asyncio.run(scenario())

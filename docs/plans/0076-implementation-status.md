@@ -9,15 +9,19 @@ Branch: `codex/explicit-state-ownership-spec`.
 
 ## Current authoritative status
 
-Draft [PR #217](https://github.com/auths-dev/auths-proof/pull/217) contains the
-initial approval/exporter batch at `35c6bd628a712c45e53aefec1995674ea94535da`.
-Initial hosted verification exposed a Rust lint failure and approval mismatch
-error projection regression. These are collected for the final repair batch.
-The complete candidate implementation and regression batch is now written.
-The two initial hosted failures have source repairs. Final review, generated
-artifacts and bounded reproductions of the failed checks are in progress;
-no completed-head CI success or merge is claimed. No intermediate revision has
-been pushed while writing the remaining code.
+[PR #217](https://github.com/auths-dev/auths-proof/pull/217) contains the complete
+candidate implementation at `0045219ed61ca5790b9fe1510bec212cda81d260` and a
+collected repair batch. The initial approval/exporter cohort exposed lint and
+error-projection failures. The completed-source cohort additionally exposed the
+identity-only dependency closure, synchronous Python construction, Python 3.12
+cleanup scheduling, strict typing, and a stale proof-coverage measurement. Each
+has a concrete repair; final completed-head checks and merge remain required.
+
+No intermediate revision was pushed while writing the implementation. Hosted
+checks on `0045219e` passed gateway isolation, operator packaging, SDK recipes,
+recipe qualification, both maintained provider demos and the configured TLS
+PostgreSQL cohort. The stalled Python workflow was cancelled rather than left
+running; the repair reproduces and fixes its Python 3.12 scheduler behavior.
 
 | Requirements | Implementation / test owner | Evidence disposition |
 | --- | --- | --- |
@@ -44,8 +48,22 @@ focused workflow/adapter/lifecycle regression batch (45 tests), and the new
 installed-package lifecycle/adapter checks (23 tests). WASM and binding vectors
 were rebuilt as prerequisites. The gateway semantic closure, TypeScript public
 declarations and semantic freeze are regenerated using their maintained
-constructors. These local results do not replace completed-head hosted evidence;
-Python runtime and native durable interruption results are not claimed here.
+constructors. The collected repair additionally passes all 57 TypeScript package
+tests and the complete Python 3.12 source suite (460 passed, 11 existing skips),
+with Python lint and strict typing. The Python reproduction uses a short local
+temporary path for macOS Unix sockets. Async lifecycle/workflow tests have an
+outer diagnostic bound, and the hosted Python suite has an explicit step budget.
+The bounded gateway run exposed an outdated CLI inventory and unpublished
+qualification temporaries after process termination. Their complete repair batch
+passes the inventory constructor and all six qualification tests, including the
+full first/replacement interruption matrix, seeded orphan cleanup and competing
+imports. The file-store conformance case initially hit its deadline during the
+parallel filesystem batch; its unchanged internal process race passes when run
+without unrelated test load. Other gateway targets passed in that diagnostic
+batch. No assertion or production deadline was relaxed. Journal/floor content,
+file-sync, replacement and parent-sync points are included in the termination
+trace. These results do not replace completed-head hosted evidence; acceptance
+remains tied to the exact completed-head checks below.
 
 ## Concrete evidence owners
 

@@ -8,7 +8,7 @@ import {
   type ReviewField,
   copyPolicy,
 } from "./workflow.js";
-import { AuthsWorkflowError, ProviderOperationError } from "./workflow/errors.js";
+import { AuthsWorkflowError, ProviderOperationError } from "./internal/operation-errors.js";
 import { approvalBytes, approvalResponse, callApproval, captureApprovalContext, checkApprovalSignal, equalApprovalBytes, snapshotApproval } from "./internal/approval-operation.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
