@@ -79,13 +79,17 @@ impl McpToolCall {
     ///
     /// # Errors
     ///
-    /// Returns [`ProfileError::UnsupportedMcpExtension`] for task or metadata
-    /// extensions and a typed validation error for other invalid fields.
+    /// Returns [`ProfileError::UnsupportedMcpExtension`] for metadata or
+    /// continuation state, including empty extension payloads. This converter
+    /// supports immediate calls only, with no continuation or task authority.
     pub fn from_rmcp(
         service: impl Into<String>,
         request: CallToolRequestParams,
     ) -> Result<Self, ProfileError> {
-        if request.meta.is_some() || request.task.is_some() {
+        if request.meta.is_some()
+            || request.input_responses.is_some()
+            || request.request_state.is_some()
+        {
             return Err(ProfileError::UnsupportedMcpExtension);
         }
         Self::new(
@@ -552,7 +556,9 @@ impl fmt::Display for ProfileError {
             Self::NonCanonical => "MCP call is not RFC 8785 canonical JSON",
             Self::Canonicalization => "failed to canonicalize MCP call",
             Self::UnsupportedProfile => "unsupported MCP action profile",
-            Self::UnsupportedMcpExtension => "MCP metadata and tasks are not supported in V1",
+            Self::UnsupportedMcpExtension => {
+                "MCP metadata and continuation requests are not supported"
+            }
             Self::InvalidService => "invalid MCP service identifier",
             Self::InvalidToolName => "invalid MCP tool name",
             Self::InvalidPermission => "invalid MCP Auths permission mapping",
@@ -579,7 +585,31 @@ mod tests {
             "mcp://reports/tools/read_report"
         );
         let encoded = call.canonical_bytes().unwrap();
+        assert_eq!(encoded, br#"{"arguments":{"name":"q3"},"name":"read_report","profile":"auths.mcp","profile_version":2,"service":"reports"}"#);
         assert_eq!(McpToolCall::from_canonical_bytes(&encoded).unwrap(), call);
+    }
+
+    #[test]
+    fn rmcp_continuation_and_metadata_presence_cannot_become_an_immediate_call() {
+        for extension in [
+            serde_json::json!({"_meta": {}}),
+            serde_json::json!({"_meta": {"io.modelcontextprotocol/tasks": {"ttl": 30000}}}),
+            serde_json::json!({"inputResponses": {}}),
+            serde_json::json!({"inputResponses": {"request-1": {"answer": "approved"}}}),
+            serde_json::json!({"requestState": ""}),
+            serde_json::json!({"requestState": "opaque-state"}),
+            serde_json::json!({"inputResponses": {}, "requestState": "opaque-state"}),
+        ] {
+            let mut request = extension.as_object().unwrap().clone();
+            request.insert("name".to_owned(), Value::String("read_report".to_owned()));
+            request.insert("arguments".to_owned(), serde_json::json!({"name": "q3"}));
+            let request: CallToolRequestParams =
+                serde_json::from_value(Value::Object(request)).unwrap();
+            assert_eq!(
+                McpToolCall::from_rmcp("reports", request),
+                Err(ProfileError::UnsupportedMcpExtension)
+            );
+        }
     }
 
     #[test]

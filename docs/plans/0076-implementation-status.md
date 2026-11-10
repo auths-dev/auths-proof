@@ -70,6 +70,19 @@ matrix remains required on the completed hosted head. These results do not
 replace completed-head hosted evidence; acceptance remains tied to the exact
 completed-head checks below.
 
+
+The `4a8ba4d9` cohort passed every supporting SDK, demo, isolation, operator and
+TLS PostgreSQL workflow. Its repository gate identified two further roots: the
+new rmcp advisory and a managed-interface fixture still listing the old CLI.
+The [dependency repair](0076-dependency-repair.md) directly upgrades the official
+model dependency, removes unused server features and rejects all newly exposed
+continuation fields. Dependency policy, 23 profile tests, WebAssembly compile and
+workspace/all-target/all-feature Clippy pass locally. The managed-interface
+constructor now records the two recovery help entries; its execution passes.
+Architecture, gateway closure, proof measurement and semantic records are
+regenerated atomically. The completed-head required CI remains the acceptance
+boundary, including the full qualification interruption matrix.
+
 ## Concrete evidence owners
 
 Paths in this section are relative to the repository root. Each owner is a

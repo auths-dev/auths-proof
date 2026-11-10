@@ -528,6 +528,10 @@
         "help_accessible": true
       },
       {
+        "command": "qualification-recover",
+        "help_accessible": true
+      },
+      {
         "command": "qualification-status",
         "help_accessible": true
       },
@@ -541,6 +545,10 @@
       },
       {
         "command": "recovery-record",
+        "help_accessible": true
+      },
+      {
+        "command": "recovery-status",
         "help_accessible": true
       },
       {
