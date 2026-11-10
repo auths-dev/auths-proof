@@ -539,6 +539,65 @@ mod ap076_recovery {
         }
     }
 
+    #[test]
+    fn installation_replay_acknowledges_floor_sync_after_restart() {
+        let (_trace_directory, trace_root) = private_root();
+        let trace_state = trace_root.join("state");
+        assert!(install(&trace_root, &trace_state, &[]).status.success());
+        let trace = run(
+            install_command(&trace_root, &trace_state, &["--resume"])
+                .env("AUTHS_TEST_ADMIN_TRACE", "1"),
+            b"synthetic-token\n",
+        );
+        assert!(trace.status.success(), "{}", text(&trace.stderr));
+        let points = boundaries(&trace);
+        let replay: Vec<_> = points
+            .iter()
+            .enumerate()
+            .filter(|(_, point)| point.contains("generation-floor.") && point.contains("replay"))
+            .collect();
+        for suffix in [
+            "before-replay-sync",
+            "after-replay-file-sync",
+            "after-replay-parent-sync",
+        ] {
+            assert!(
+                replay.iter().any(|(_, point)| point.ends_with(suffix)),
+                "missing replay barrier: {suffix}"
+            );
+        }
+        for (index, point) in replay {
+            let (_directory, root) = private_root();
+            let state = root.join("state");
+            assert!(install(&root, &state, &[]).status.success());
+            let interrupted = run(
+                install_command(&root, &state, &["--resume"])
+                    .env("AUTHS_TEST_ADMIN_INTERRUPT_AT", (index + 1).to_string()),
+                b"synthetic-token\n",
+            );
+            assert_eq!(
+                interrupted.status.code(),
+                Some(79),
+                "{point}: {}",
+                text(&interrupted.stderr)
+            );
+            let resumed = install(&root, &state, &["--resume"]);
+            assert!(
+                resumed.status.success(),
+                "{point}: {}",
+                text(&resumed.stderr)
+            );
+            let (first, facts) = report(&state);
+            assert!(first.status.success(), "{point}: {}", text(&first.stderr));
+            let (second, restarted) = report(&state);
+            assert!(second.status.success());
+            assert_eq!(
+                restarted, facts,
+                "acknowledged replay must survive restart: {point}"
+            );
+        }
+    }
+
     fn qualified_install(root: &Path, state: &Path, release: &TestRelease) -> QualificationTuple {
         let trust_root = root.join("root.json");
         fs::write(&trust_root, release.pinned().canonical_bytes()).expect("root");

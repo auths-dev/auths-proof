@@ -52,6 +52,8 @@ impl GenerationFloor {
     /// Accepts an equal or newer exact record, durably recording a newer one
     /// before it can authorize a lease. A missing floor refuses; a
     /// malformed, inaccessible, older or substituted floor fails closed.
+    /// An equal accepted record re-synchronizes its file and parent directory
+    /// before acknowledging success, including a prior lost acknowledgement.
     ///
     /// # Errors
     /// Returns `gateway.connection.restore-rollback`; no secret is leased.
@@ -89,16 +91,14 @@ impl GenerationFloor {
                     return Err(());
                 }
                 let mut bytes = Vec::new();
-                OpenOptions::new()
+                let file = OpenOptions::new()
                     .read(true)
                     .custom_flags(i32::from_ne_bytes(
                         rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
                     ))
                     .open(&path)
-                    .map_err(|_| ())?
-                    .take(1025)
-                    .read_to_end(&mut bytes)
                     .map_err(|_| ())?;
+                (&file).take(1025).read_to_end(&mut bytes).map_err(|_| ())?;
                 if bytes.len() > 1024 {
                     return Err(());
                 }
@@ -110,7 +110,7 @@ impl GenerationFloor {
                 }
                 if old.generation == record.generation() {
                     return if old.record_sha256 == digest {
-                        Ok(())
+                        self.synchronize_accepted(&file)
                     } else {
                         Err(())
                     };
@@ -141,6 +141,20 @@ impl GenerationFloor {
             .and_then(|dir| dir.sync_all())
             .map_err(|_| ())?;
         crate::admin_fault::boundary("generation-floor.after-parent-sync");
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn synchronize_accepted(&self, file: &File) -> Result<(), ()> {
+        // A replay can observe a previous replacement whose directory sync was
+        // never acknowledged. Its own success must establish both barriers.
+        crate::admin_fault::boundary("generation-floor.before-replay-sync");
+        file.sync_all().map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.after-replay-file-sync");
+        File::open(&self.directory)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|_| ())?;
+        crate::admin_fault::boundary("generation-floor.after-replay-parent-sync");
         Ok(())
     }
 

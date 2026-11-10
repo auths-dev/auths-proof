@@ -62,8 +62,13 @@ parallel filesystem batch; its unchanged internal process race passes when run
 without unrelated test load. Other gateway targets passed in that diagnostic
 batch. No assertion or production deadline was relaxed. Journal/floor content,
 file-sync, replacement and parent-sync points are included in the termination
-trace. These results do not replace completed-head hosted evidence; acceptance
-remains tied to the exact completed-head checks below.
+trace. The final acknowledgement repair also passes the candidate interruption
+fixture, installation recovery/replay and qualification construction/concurrency
+checks, plus gateway Clippy. Its replay test checks both file and parent-directory
+synchronization before a new acknowledgement. The full qualification import
+matrix remains required on the completed hosted head. These results do not
+replace completed-head hosted evidence; acceptance remains tied to the exact
+completed-head checks below.
 
 ## Concrete evidence owners
 
@@ -79,6 +84,7 @@ candidate until the completed revision passes its hosted gate.
 | Factory abandonment and attachment publication racing shutdown | TypeScript workflow `test/integration/workflow/{client,attach}.test.js`, packed lifecycle contract and Python `tests/test_workflow.py`: late resources stay owned, no late publication or premature signer destruction. |
 | Submission, journal phase payloads, commands, receipts and counters | Gateway `src/store/mutation_phase_tests.rs` plus existing mutation/native-generated-history, recovery, fault, receipt and file/TLS PostgreSQL tests. Canonical wire projection is retained; illegal field combinations reject. |
 | Draft, retained inputs, manifest, journal and installation custody/native/floor boundaries | Gateway `tests/qualification_gate.rs::ap076_recovery::installation_recovers_or_explicitly_quarantines_every_interruption_boundary`: trace each boundary, terminate the process, resume exact identity or explicitly quarantine unknown custody creation; repeated status and restart. |
+| Acknowledging an exact generation-floor replay after an interrupted prior write | Same module's `installation_replay_acknowledges_floor_sync_after_restart`: interrupt before/after replay synchronization, resume exact inputs and immediately restart. Matching bytes alone never substitute for synchronization acknowledgement. |
 | Read-bearing first installation, custody/floor and proposal publication | Gateway `tests/candidate_cli.rs::candidate_installation_fault_matrix`, invoked by the existing first-installation fixture: staging never publishes a native connection; exact replay preserves draft/proposal identity. |
 | Candidate acquisition/publication guards, competing operations and lost native acknowledgements | Gateway `src/effect_candidate_tests.rs`, `src/effect_candidate_staging_tests.rs`, native file/TLS PostgreSQL candidate/fault histories: status uses the same guards, native publication retains its existing revision/fence authority. |
 | Mutation/deletion write-ahead phases and competing claims | Gateway `src/credential_journal.rs` tests: reopen pending creation/deletion, refuse contradictory transitions and retain unacknowledged obligations. |

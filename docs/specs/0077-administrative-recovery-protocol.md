@@ -225,7 +225,7 @@ binding/floors, custody generations, journal obligations and command outcome.
 | Manifest rename/write and parent sync | Manifest alone is configured-unpublished. Native/custody inspection decides; no success inferred from presence. |
 | Journal initialization/register replacement, file sync and parent sync | Custody mutation starts only after durable note acknowledgement; partial journal is unavailable. |
 | Custody install/replace/confirm and lost reply | Exact note remains. Resume compares commitment; conflicting custody is never overwritten. |
-| Candidate floor commit/acknowledgement | Reload floor; no generation rollback or fabricated candidate publication. |
+| Candidate floor commit/acknowledgement | Reload floor; exact replay synchronizes the accepted file and parent directory before its own acknowledgement. No generation rollback or fabricated candidate publication. |
 | Proposal write/sync and parent sync | Same candidate is recoverable or exact restaging reproduces it; different existing output conflicts. |
 | Candidate acquisition entry/result commits and lost replies | Existing native one-use/unknown rules; status/publish never re-enters reads. |
 | Native connection publication CAS, commit and reply | Reload/replay exact publication. Successful acknowledgement survives restart; ambiguity never creates another entry permit. |
