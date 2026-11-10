@@ -9,6 +9,7 @@ export {
   SignedGrantSource,
   TrustedContextSource,
   type AgentIdentity,
+  type ApprovalOperationContext,
   type ApprovalConfiguration,
   type ApprovalExecutionSummary,
   type ApprovalMode,

@@ -1,4 +1,5 @@
 export {
+  type ApprovalOperationContext,
   type ApprovalConfiguration,
   type ApprovalMode,
   type ApprovalPolicy,

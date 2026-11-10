@@ -1,3 +1,4 @@
+import { callApproval } from "./approval-operation.js";
 import {
   AuthsWorkflowError,
   ProviderOperationError,
@@ -128,6 +129,7 @@ export class WasmSigningAdapter implements NativeSigningAdapter {
 }
 
 export interface SigningTransactionOptions {
+  readonly signal?: AbortSignal;
   readonly objectKind: SigningObjectKind;
   readonly unsignedObject: Uint8Array;
   readonly principal: PrincipalDescriptor;
@@ -298,14 +300,14 @@ async function approveExact(
 ): Promise<void> {
   let response;
   try {
-    response = await options.approval.provider.approve({
+    response = await callApproval(options.approval.provider, {
       requestId,
       objectKind: options.objectKind,
       transactionDigest: transactionDigest.slice(),
       policy: copyPolicy(policy),
       expiresAt: options.expiresAt,
       display: copyDisplay(display),
-    });
+    }, { signal: options.signal ?? new AbortController().signal });
   } catch (error) {
     if (error instanceof ProviderOperationError) {
       const code =

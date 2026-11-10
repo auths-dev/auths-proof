@@ -459,10 +459,10 @@ test("the transaction binding comes from the core, not from the binding", async 
     approval: {
       policy: fixture.options.approval.policy,
       provider: {
-        async approve(approvalRequest) {
+        async approve(approvalRequest, context) {
           seen.approval = approvalRequest.transactionDigest.slice();
           seen.ids.push(approvalRequest.requestId);
-          return fixture.options.approval.provider.approve(approvalRequest);
+          return fixture.options.approval.provider.approve(approvalRequest, context);
         },
       },
     },

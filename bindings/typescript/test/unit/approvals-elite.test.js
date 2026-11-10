@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { approvalPolicy, noApproval, thresholdApproval } from "../../dist/approvals.js";
 
+const context = { signal: new AbortController().signal };
+
 const request = {
   requestId: "request-1",
   objectKind: "action",
@@ -18,18 +20,18 @@ const request = {
 test("approval policies cover optional, risk, and threshold compositions", async () => {
   assert.equal((await approvalPolicy.none()).mode, "none");
   assert.equal((await approvalPolicy.riskBased()).mode, "risk-based");
-  assert.equal((await noApproval.approve(request)).decision, "approved");
+  assert.equal((await noApproval.approve(request, context)).decision, "approved");
   const provider = (decision) => ({
     async approve(candidate) { return { ...candidate, policy: candidate.policy, decision }; },
   });
   assert.equal((await thresholdApproval({
     threshold: 2,
     providers: [provider("approved"), provider("approved"), provider("rejected")],
-  }).approve(request)).decision, "approved");
+  }).approve(request, context)).decision, "approved");
   assert.equal((await thresholdApproval({
     threshold: 3,
     providers: [provider("approved"), provider("approved"), provider("rejected")],
-  }).approve(request)).decision, "rejected");
+  }).approve(request, context)).decision, "rejected");
   const duplicate = provider("approved");
   assert.throws(() => thresholdApproval({ threshold: 2, providers: [duplicate, duplicate] }), /invalid/);
   const isolated = thresholdApproval({
@@ -46,5 +48,5 @@ test("approval policies cover optional, risk, and threshold compositions", async
       } },
     ],
   });
-  assert.equal((await isolated.approve(request)).decision, "approved");
+  assert.equal((await isolated.approve(request, context)).decision, "approved");
 });

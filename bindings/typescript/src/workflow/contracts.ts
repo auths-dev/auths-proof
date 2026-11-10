@@ -100,8 +100,13 @@ export interface ApprovalResponse {
   readonly decision: "approved" | "rejected";
 }
 
+/** Cancellation of the exact approval operation; never part of its signed bytes. */
+export interface ApprovalOperationContext {
+  readonly signal: AbortSignal;
+}
+
 export interface ApprovalProvider {
-  approve(request: ApprovalRequest): Promise<ApprovalResponse>;
+  approve(request: ApprovalRequest, context: ApprovalOperationContext): Promise<ApprovalResponse>;
 }
 
 export interface ApprovalConfiguration {

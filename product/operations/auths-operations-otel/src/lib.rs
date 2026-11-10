@@ -7,12 +7,12 @@ use auths_operations::{
     OperationalReasonCode, OperationalStage, OperationalSubsystem,
 };
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     fmt::Write as _,
     sync::{Arc, Mutex},
 };
 
-const MAX_BUFFER_CAPACITY: usize = 65_536;
+pub(crate) const MAX_BUFFER_CAPACITY: usize = 65_536;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BackpressurePolicy {
@@ -32,6 +32,9 @@ pub trait OtlpTransport: Send + Sync {
     /// # Errors
     ///
     /// Returns unavailable when the destination does not accept the batch.
+    ///
+    /// Direct recursive flush is refused. An implementation must not wait for
+    /// another thread to flush the same exporter: that creates a dependency cycle.
     fn export(&self, events: &[OperationalEventV2]) -> Result<(), ExportError>;
 }
 
@@ -43,107 +46,8 @@ pub struct ExporterStatus {
     pub ready: bool,
 }
 
-struct ExportState {
-    buffer: VecDeque<OperationalEventV2>,
-    dropped: u64,
-    export_failures: u64,
-}
-
-pub struct BoundedOtlpExporter<T> {
-    transport: T,
-    capacity: usize,
-    policy: BackpressurePolicy,
-    state: Mutex<ExportState>,
-}
-
-impl<T: OtlpTransport> BoundedOtlpExporter<T> {
-    /// Creates an exporter with a bounded in-memory queue.
-    ///
-    /// # Errors
-    ///
-    /// Returns invalid-configuration when capacity is zero or exceeds the
-    /// hard queue bound.
-    pub fn new(
-        transport: T,
-        capacity: usize,
-        policy: BackpressurePolicy,
-    ) -> Result<Self, ExportError> {
-        if capacity == 0 || capacity > MAX_BUFFER_CAPACITY {
-            return Err(ExportError::InvalidConfiguration);
-        }
-        Ok(Self {
-            transport,
-            capacity,
-            policy,
-            state: Mutex::new(ExportState {
-                buffer: VecDeque::with_capacity(capacity),
-                dropped: 0,
-                export_failures: 0,
-            }),
-        })
-    }
-
-    /// Exports every currently buffered event as one batch.
-    ///
-    /// # Errors
-    ///
-    /// Returns unavailable when the buffer lock or destination is unavailable.
-    pub fn flush(&self) -> Result<(), ExportError> {
-        let batch = {
-            let Ok(state) = self.state.lock() else {
-                return Err(ExportError::Unavailable);
-            };
-            state.buffer.iter().cloned().collect::<Vec<_>>()
-        };
-        if batch.is_empty() {
-            return Ok(());
-        }
-        if let Err(error) = self.transport.export(&batch) {
-            if let Ok(mut state) = self.state.lock() {
-                state.export_failures = state.export_failures.saturating_add(1);
-            }
-            return Err(error);
-        }
-        if let Ok(mut state) = self.state.lock() {
-            for _ in 0..batch.len().min(state.buffer.len()) {
-                state.buffer.pop_front();
-            }
-        }
-        Ok(())
-    }
-
-    #[must_use]
-    pub fn status(&self) -> ExporterStatus {
-        self.state.lock().map_or(
-            ExporterStatus {
-                buffered: self.capacity,
-                dropped: 0,
-                export_failures: 1,
-                ready: false,
-            },
-            |state| ExporterStatus {
-                buffered: state.buffer.len(),
-                dropped: state.dropped,
-                export_failures: state.export_failures,
-                ready: self.policy == BackpressurePolicy::DropNewest
-                    || state.buffer.len() < self.capacity,
-            },
-        )
-    }
-}
-
-impl<T: OtlpTransport> EventSink for BoundedOtlpExporter<T> {
-    fn record(&self, event: &OperationalEventV2) {
-        let Ok(mut state) = self.state.lock() else {
-            return;
-        };
-        if state.buffer.len() == self.capacity {
-            state.dropped = state.dropped.saturating_add(1);
-            return;
-        }
-        state.buffer.push_back(event.clone());
-    }
-}
+mod exporter;
+pub use exporter::BoundedOtlpExporter;
 
 pub struct CombinedSink<T> {
     otlp: Arc<BoundedOtlpExporter<T>>,

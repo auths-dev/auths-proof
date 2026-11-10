@@ -215,7 +215,7 @@ async function liveWithdrawalAttack(): Promise<Json> {
     policy: policy.reference,
     expiresAt: BigInt(Math.floor(Date.now() / 1000) + 60),
     display: [],
-  });
+  }, { signal: new AbortController().signal });
   await session.dispose();
   try {
     await session.providerFor(1, second).approve({
@@ -225,7 +225,7 @@ async function liveWithdrawalAttack(): Promise<Json> {
       policy: policy.reference,
       expiresAt: BigInt(Math.floor(Date.now() / 1000) + 60),
       display: [],
-    });
+    }, { signal: new AbortController().signal });
     return { attack: "withdraw-approval", blocked: false, code: "unexpected-authorized" };
   } catch (error) {
     return { attack: "withdraw-approval", blocked: true, stage: "approval", code: "approval-cancelled", detail: (error as Error).message, evidence: { completedSteps: ["firewall-eu-west-2"], unresolved: ["cache-eu-west-2"], sdk: "TypeScript BoundedApprovalSession" } };
