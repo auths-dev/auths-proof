@@ -846,9 +846,9 @@ mod disclosure;
 mod engagement;
 pub use acquisition::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
-    ContentProjectionStatus, GatewayRecoveryReport, RecoveryBudget, RecoveryDisposition,
-    RecoveryEscalation, RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts,
-    ReservedAcquisition, RetainedContent,
+    CandidateRecoveryState, ContentProjectionStatus, GatewayRecoveryReport, RecoveryBudget,
+    RecoveryDisposition, RecoveryEscalation, RecoveryNextAction, RecoverySnapshot,
+    RecoverySourceFacts, ReservedAcquisition, RetainedContent,
 };
 pub(crate) use acquisition::{AcquisitionEntryPermit, AcquisitionRequest, PrerequisiteResponse};
 #[cfg(unix)]
@@ -887,9 +887,135 @@ impl JournalProtocol for MutationState {
     }
 }
 
+/// Mutation ownership is closed. The wire projection below is not a lifecycle
+/// owner: decoding constructs one of these payload-bearing phases or fails.
+#[derive(Clone)]
+struct MutationState {
+    counters: Vec<CounterWire>,
+    phase: MutationPhase,
+    observation_plan: Option<ObservationTemplate>,
+    pre_entry: Option<PreEntryWire>,
+}
+
+#[derive(Clone)]
+struct MutationResponse {
+    status: u16,
+    digest: String,
+    locator: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Clone, Copy)]
+enum MutationReading {
+    Match,
+    Mismatch,
+    EchoMismatch,
+}
+
+#[derive(Clone)]
+enum MutationPhase {
+    Reserved,
+    EntryGranted,
+    NotEntered {
+        refusal: String,
+    },
+    Unknown,
+    ResponseRecorded {
+        response: MutationResponse,
+    },
+    Observed {
+        response: MutationResponse,
+        reading: MutationReading,
+        recovery: Option<acquisition::RecoveryEvidenceLink>,
+    },
+    ObservedByProvider {
+        response: Option<MutationResponse>,
+        evidence: EvidenceWire,
+        recovery: Option<acquisition::RecoveryEvidenceLink>,
+        created_resource: Option<String>,
+    },
+}
+
+impl MutationState {
+    const fn stage(&self) -> GatewayAttemptStage {
+        match self.phase {
+            MutationPhase::Reserved => GatewayAttemptStage::Reserved,
+            MutationPhase::EntryGranted => GatewayAttemptStage::EntryGranted,
+            MutationPhase::NotEntered { .. } => GatewayAttemptStage::NotEntered,
+            MutationPhase::Unknown => GatewayAttemptStage::Unknown,
+            MutationPhase::ResponseRecorded { .. } => GatewayAttemptStage::ResponseRecorded,
+            MutationPhase::Observed { .. } => GatewayAttemptStage::Observed,
+            MutationPhase::ObservedByProvider { .. } => GatewayAttemptStage::ObservedByProvider,
+        }
+    }
+    fn response(&self) -> Option<&MutationResponse> {
+        match &self.phase {
+            MutationPhase::ResponseRecorded { response }
+            | MutationPhase::Observed { response, .. } => Some(response),
+            MutationPhase::ObservedByProvider { response, .. } => response.as_ref(),
+            _ => None,
+        }
+    }
+    fn refusal(&self) -> Option<&String> {
+        match &self.phase {
+            MutationPhase::NotEntered { refusal } => Some(refusal),
+            _ => None,
+        }
+    }
+    fn response_status(&self) -> Option<u16> {
+        self.response().map(|response| response.status)
+    }
+    fn response_digest(&self) -> Option<&str> {
+        self.response().map(|response| response.digest.as_str())
+    }
+    fn response_locator(&self) -> Option<&BTreeMap<String, String>> {
+        self.response()
+            .and_then(|response| response.locator.as_ref())
+    }
+    const fn observation_match(&self) -> Option<bool> {
+        match self.phase {
+            MutationPhase::Observed {
+                reading: MutationReading::Match,
+                ..
+            } => Some(true),
+            MutationPhase::Observed { .. } => Some(false),
+            _ => None,
+        }
+    }
+    const fn observation_fact(&self) -> Option<GatewayObservationFact> {
+        match self.phase {
+            MutationPhase::Observed {
+                reading: MutationReading::EchoMismatch,
+                ..
+            } => Some(GatewayObservationFact::EchoMismatch),
+            _ => None,
+        }
+    }
+    fn provider_evidence(&self) -> Option<&EvidenceWire> {
+        match &self.phase {
+            MutationPhase::ObservedByProvider { evidence, .. } => Some(evidence),
+            _ => None,
+        }
+    }
+    fn recovery_evidence(&self) -> Option<&acquisition::RecoveryEvidenceLink> {
+        match &self.phase {
+            MutationPhase::Observed { recovery, .. }
+            | MutationPhase::ObservedByProvider { recovery, .. } => recovery.as_ref(),
+            _ => None,
+        }
+    }
+    fn created_resource(&self) -> Option<&String> {
+        match &self.phase {
+            MutationPhase::ObservedByProvider {
+                created_resource, ..
+            } => created_resource.as_ref(),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct MutationState {
+struct MutationWire {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     counters: Vec<CounterWire>,
     stage: GatewayAttemptStage,
@@ -917,6 +1043,139 @@ struct MutationState {
     created_resource: Option<String>,
 }
 
+impl Serialize for MutationState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        // Preserve the current single canonical wire contract; DTO optionals
+        // describe untrusted field presence, never shipping transition ownership.
+        MutationWire {
+            counters: self.counters.clone(),
+            stage: self.stage(),
+            refusal: self.refusal().cloned(),
+            response_status: self.response_status(),
+            response_digest: self.response_digest().map(str::to_owned),
+            response_locator: self.response_locator().cloned(),
+            observation_plan: self.observation_plan.clone(),
+            observation_match: self.observation_match(),
+            observation_fact: self.observation_fact(),
+            provider_evidence: self.provider_evidence().cloned(),
+            pre_entry: self.pre_entry.clone(),
+            recovery_evidence: self.recovery_evidence().cloned(),
+            created_resource: self.created_resource().cloned(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for MutationState {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = MutationWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl MutationState {
+    fn from_wire(wire: MutationWire) -> Result<Self, &'static str> {
+        let MutationWire {
+            counters,
+            stage,
+            refusal,
+            response_status,
+            response_digest,
+            response_locator,
+            observation_plan,
+            observation_match,
+            observation_fact,
+            provider_evidence,
+            pre_entry,
+            recovery_evidence,
+            created_resource,
+        } = wire;
+        let response = match (response_status, response_digest) {
+            (Some(status), Some(digest)) => Some(MutationResponse {
+                status,
+                digest,
+                locator: response_locator,
+            }),
+            (None, None) if response_locator.is_none() => None,
+            _ => return Err("invalid mutation response payload"),
+        };
+        let reading = match (observation_match, observation_fact) {
+            (None, None) => None,
+            (Some(true), None) => Some(MutationReading::Match),
+            (Some(false), None) => Some(MutationReading::Mismatch),
+            (Some(false), Some(GatewayObservationFact::EchoMismatch)) => {
+                Some(MutationReading::EchoMismatch)
+            }
+            _ => return Err("invalid mutation observation payload"),
+        };
+        let phase = match (
+            stage,
+            refusal,
+            response,
+            reading,
+            provider_evidence,
+            recovery_evidence,
+            created_resource,
+        ) {
+            (GatewayAttemptStage::Reserved, None, None, None, None, None, None) => {
+                MutationPhase::Reserved
+            }
+            (GatewayAttemptStage::EntryGranted, None, None, None, None, None, None) => {
+                MutationPhase::EntryGranted
+            }
+            (GatewayAttemptStage::Unknown, None, None, None, None, None, None) => {
+                MutationPhase::Unknown
+            }
+            (GatewayAttemptStage::NotEntered, Some(refusal), None, None, None, None, None) => {
+                MutationPhase::NotEntered { refusal }
+            }
+            (
+                GatewayAttemptStage::ResponseRecorded,
+                None,
+                Some(response),
+                None,
+                None,
+                None,
+                None,
+            ) => MutationPhase::ResponseRecorded { response },
+            (
+                GatewayAttemptStage::Observed,
+                None,
+                Some(response),
+                Some(reading),
+                None,
+                recovery,
+                None,
+            ) => MutationPhase::Observed {
+                response,
+                reading,
+                recovery,
+            },
+            (
+                GatewayAttemptStage::ObservedByProvider,
+                None,
+                response,
+                None,
+                Some(evidence),
+                recovery,
+                created_resource,
+            ) => MutationPhase::ObservedByProvider {
+                response,
+                evidence,
+                recovery,
+                created_resource,
+            },
+            _ => return Err("payload does not belong to mutation phase"),
+        };
+        Ok(Self {
+            counters,
+            phase,
+            observation_plan,
+            pre_entry,
+        })
+    }
+}
+
 /// Emits canonical-but-inconsistent bytes for the native corruption test. No
 /// shipping caller may replace a selected identity independently of evidence.
 #[cfg(test)]
@@ -925,7 +1184,13 @@ pub(crate) fn fixture_created_resource_substitution(
     handle: &str,
 ) -> Result<Vec<u8>, GatewayAttemptError> {
     let mut record: Record = decode(bytes)?;
-    record.state.created_resource = Some(handle.into());
+    let MutationPhase::ObservedByProvider {
+        created_resource, ..
+    } = &mut record.state.phase
+    else {
+        return Err(GatewayAttemptError::InvalidTransition);
+    };
+    *created_resource = Some(handle.into());
     canonical(&record)
 }
 
@@ -1007,7 +1272,7 @@ impl Record {
     }
 
     fn recovery_target(&self) -> Result<crate::effect::RecoveryReadTarget, GatewayAttemptError> {
-        let stage_resolvable = match self.state.stage {
+        let stage_resolvable = match self.state.stage() {
             GatewayAttemptStage::EntryGranted
             | GatewayAttemptStage::Unknown
             | GatewayAttemptStage::ResponseRecorded => true,
@@ -1063,14 +1328,17 @@ impl Record {
 
     /// The projection the translated transition rule inspects.
     fn view(&self) -> Result<AttemptView, GatewayAttemptError> {
-        let reading = match (self.state.observation_match, self.state.observation_fact) {
+        let reading = match (
+            self.state.observation_match(),
+            self.state.observation_fact(),
+        ) {
             (None, None) => Reading::None,
             (Some(true), None) => Reading::Match,
             (Some(false), None) => Reading::Mismatch,
             (Some(false), Some(GatewayObservationFact::EchoMismatch)) => Reading::EchoMismatch,
             (Some(true) | None, Some(_)) => return Err(GatewayAttemptError::Corrupt),
         };
-        let response = match (self.state.response_status, &self.state.response_digest) {
+        let response = match (self.state.response_status(), &self.state.response_digest()) {
             (None, None) => Vec::new(),
             (Some(status), Some(digest)) => canonical(&(status, digest))?,
             _ => return Err(GatewayAttemptError::Corrupt),
@@ -1099,8 +1367,8 @@ impl Record {
                 engagement_allocations: &self.engagement_allocations,
                 observation_plan: self.state.observation_plan.as_ref(),
             })?,
-            stage: self.state.stage.kernel(),
-            refusal: self.state.refusal.is_some(),
+            stage: self.state.stage().kernel(),
+            refusal: self.state.refusal().is_some(),
             pre_entry: self
                 .state
                 .pre_entry
@@ -1112,13 +1380,12 @@ impl Record {
             acknowledgement: Vec::new(),
             locator: self
                 .state
-                .response_locator
-                .as_ref()
+                .response_locator()
                 .map(canonical)
                 .transpose()?
                 .unwrap_or_default(),
             reading,
-            evidence: self.state.provider_evidence.is_some(),
+            evidence: self.state.provider_evidence().is_some(),
             observation: self.state.observation_plan.is_some(),
             link: self.link(),
         })
@@ -1130,7 +1397,7 @@ impl Record {
         self.state
             .observation_plan
             .as_ref()?
-            .request(self.state.response_locator.as_ref())
+            .request(self.state.response_locator())
     }
 
     fn validate_reservations(
@@ -1152,7 +1419,7 @@ impl Record {
     }
 
     fn locator_valid(&self) -> bool {
-        match (&self.state.response_locator, &self.state.observation_plan) {
+        match (self.state.response_locator(), &self.state.observation_plan) {
             (None, _) => true,
             (Some(_), None) => false,
             (Some(locator), Some(plan)) => {
@@ -1172,17 +1439,17 @@ impl Record {
             .observation_plan
             .as_ref()
             .is_some_and(|plan| plan.created_resource.is_some());
-        match &self.state.created_resource {
-            None => !declared || self.state.stage != GatewayAttemptStage::ObservedByProvider,
+        match self.state.created_resource() {
+            None => !declared || self.state.stage() != GatewayAttemptStage::ObservedByProvider,
             Some(handle) => {
                 if !declared
                     || !crate::resource_identity::valid_handle(handle)
-                    || self.state.stage != GatewayAttemptStage::ObservedByProvider
-                    || self.state.recovery_evidence.is_none()
+                    || self.state.stage() != GatewayAttemptStage::ObservedByProvider
+                    || self.state.recovery_evidence().is_none()
                 {
                     return false;
                 }
-                let Some(evidence) = &self.state.provider_evidence else {
+                let Some(evidence) = self.state.provider_evidence() else {
                     return false;
                 };
                 if evidence.evidence_b64.len() > (MAX_EVIDENCE_BYTES / 3 + 1) * 4 {
@@ -1212,7 +1479,7 @@ impl Record {
                 .nonce
                 .bytes()
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            || !self.state.refusal.as_deref().is_none_or(valid_code)
+            || !self.state.refusal().is_none_or(|code| valid_code(code))
             || !self
                 .state
                 .observation_plan
@@ -1230,23 +1497,18 @@ impl Record {
             .map_err(|_| GatewayAttemptError::Corrupt)?;
         let action_commitment = digest_bytes(&self.action_commitment)?;
         let recipe_digest = digest_bytes(&self.recipe_digest)?;
-        let response_digest = self
-            .state
-            .response_digest
-            .as_deref()
-            .map(digest_bytes)
-            .transpose()?;
+        let response_digest = self.state.response_digest().map(digest_bytes).transpose()?;
         if self
             .state
-            .response_status
+            .response_status()
             .is_some_and(|status| !(100..=599).contains(&status))
         {
             return Err(GatewayAttemptError::Corrupt);
         }
-        if let Some(link) = &self.state.recovery_evidence {
+        if let Some(link) = self.state.recovery_evidence() {
             link.validate(self)?;
         }
-        let provider_evidence = match &self.state.provider_evidence {
+        let provider_evidence = match self.state.provider_evidence() {
             Some(wire) => {
                 let locator = self
                     .observation_request()
@@ -1276,25 +1538,25 @@ impl Record {
             action_commitment,
             recipe_digest,
             evaluated_at: self.evaluated_at,
-            stage: if recovered && self.state.stage == GatewayAttemptStage::EntryGranted {
+            stage: if recovered && self.state.stage() == GatewayAttemptStage::EntryGranted {
                 GatewayAttemptStage::Unknown
             } else {
-                self.state.stage
+                self.state.stage()
             },
-            refusal: self.state.refusal.clone(),
+            refusal: self.state.refusal().cloned(),
             counters: self.counters()?,
-            response_status: self.state.response_status,
+            response_status: self.state.response_status(),
             response_digest,
-            response_locator: self.state.response_locator.clone(),
-            observation_match: self.state.observation_match,
-            observation_fact: self.state.observation_fact,
+            response_locator: self.state.response_locator().cloned(),
+            observation_match: self.state.observation_match(),
+            observation_fact: self.state.observation_fact(),
             provider_evidence,
             public_evidence_commitment,
             public_effect_reference: self.public_commitment(b"action", &action_commitment)?,
             public_recipe_reference: self.public_commitment(b"recipe", &recipe_digest)?,
             public_record_commitment: self.record_commitment()?,
             pre_entry,
-            recovery_evidence: self.state.recovery_evidence.clone(),
+            recovery_evidence: self.state.recovery_evidence().cloned(),
         })
     }
 }
@@ -2577,17 +2839,8 @@ fn claim_record(
         evaluated_at,
         MutationState {
             counters: Vec::new(),
-            stage: GatewayAttemptStage::Reserved,
-            refusal: None,
-            response_status: None,
-            response_digest: None,
-            response_locator: None,
+            phase: MutationPhase::Reserved,
             observation_plan: request.observation_template().cloned(),
-            observation_match: None,
-            observation_fact: None,
-            provider_evidence: None,
-            recovery_evidence: None,
-            created_resource: None,
             pre_entry: None,
         },
     );
@@ -2831,7 +3084,7 @@ impl GatewayAttempts {
             .ok_or(GatewayAttemptError::Unavailable)?;
         record.snapshot(true)?;
         if record.recipe_digest != hex::encode(recipe_digest)
-            || !transition::requires_entry(record.state.stage.kernel())
+            || !transition::requires_entry(record.state.stage().kernel())
         {
             return Err(GatewayAttemptError::BindingConflict);
         }
@@ -2887,7 +3140,7 @@ impl GatewayAttempts {
         {
             return Err(GatewayAttemptError::Corrupt);
         }
-        if record.state.created_resource.is_some() {
+        if record.state.created_resource().is_some() {
             let store = Arc::clone(&self.store);
             let policy = self.policy.clone();
             let source = record.clone();
@@ -3031,7 +3284,7 @@ impl ClaimedGatewayAttempt {
                         .as_deref()
                         .ok_or(GatewayAttemptError::Corrupt)?,
                 )?;
-                if current.state.stage != GatewayAttemptStage::Reserved
+                if current.state.stage() != GatewayAttemptStage::Reserved
                     || current.binding_canonical.as_bytes()
                         != approved
                             .effect()
@@ -3078,7 +3331,7 @@ impl ClaimedGatewayAttempt {
                     pre_entry.clone(),
                     &snapshots[1..],
                 )?;
-                next.state.stage = GatewayAttemptStage::EntryGranted;
+                next.state.phase = MutationPhase::EntryGranted;
                 if !valid_transition(&current, &next)? {
                     return Err(GatewayAttemptError::InvalidTransition);
                 }
@@ -3113,7 +3366,7 @@ impl ClaimedGatewayAttempt {
         self,
         pre_entry: &GatewayPreEntry,
     ) -> Result<Self, GatewayAttemptError> {
-        if self.attempt.record.state.stage != GatewayAttemptStage::Reserved {
+        if self.attempt.record.state.stage() != GatewayAttemptStage::Reserved {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let fresh = PreEntryWire::encode(pre_entry)?;
@@ -3138,8 +3391,9 @@ impl ClaimedGatewayAttempt {
         pre_entry: Option<&GatewayPreEntry>,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.state.stage = GatewayAttemptStage::NotEntered;
-        next.state.refusal = Some(refusal.to_owned());
+        next.state.phase = MutationPhase::NotEntered {
+            refusal: refusal.to_owned(),
+        };
         if let Some(pre_entry) = pre_entry
             && next.state.pre_entry.is_none()
         {
@@ -3154,7 +3408,7 @@ impl ClaimedGatewayAttempt {
     /// Persistence failure does not permit a retry.
     pub async fn record_unknown(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.state.stage = GatewayAttemptStage::Unknown;
+        next.state.phase = MutationPhase::Unknown;
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -3173,10 +3427,13 @@ impl ClaimedGatewayAttempt {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let mut next = self.attempt.record.clone();
-        next.state.stage = GatewayAttemptStage::ResponseRecorded;
-        next.state.response_status = Some(status);
-        next.state.response_digest = Some(hex::encode(digest));
-        next.state.response_locator = locator;
+        next.state.phase = MutationPhase::ResponseRecorded {
+            response: MutationResponse {
+                status,
+                digest: hex::encode(digest),
+                locator,
+            },
+        };
         Ok(ObservableGatewayAttempt {
             attempt: self.attempt.advance(next).await?,
         })
@@ -3256,8 +3513,19 @@ impl ObservableGatewayAttempt {
         matched: bool,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.state.stage = GatewayAttemptStage::Observed;
-        next.state.observation_match = Some(matched);
+        next.state.phase = MutationPhase::Observed {
+            response: next
+                .state
+                .response()
+                .cloned()
+                .ok_or(GatewayAttemptError::InvalidTransition)?,
+            reading: if matched {
+                MutationReading::Match
+            } else {
+                MutationReading::Mismatch
+            },
+            recovery: None,
+        };
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -3271,9 +3539,15 @@ impl ObservableGatewayAttempt {
         self,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
         let mut next = self.attempt.record.clone();
-        next.state.stage = GatewayAttemptStage::Observed;
-        next.state.observation_match = Some(false);
-        next.state.observation_fact = Some(GatewayObservationFact::EchoMismatch);
+        next.state.phase = MutationPhase::Observed {
+            response: next
+                .state
+                .response()
+                .cloned()
+                .ok_or(GatewayAttemptError::InvalidTransition)?,
+            reading: MutationReading::EchoMismatch,
+            recovery: None,
+        };
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 
@@ -3305,15 +3579,19 @@ impl ObservableGatewayAttempt {
             return Err(GatewayAttemptError::InvalidTransition);
         }
         let mut next = record.clone();
-        next.state.provider_evidence = Some(EvidenceWire {
-            channel: GatewayEvidenceChannel::ReadBack,
-            locator: locator.url().to_owned(),
-            echo: record.echo_token()?,
-            evidence_digest: hex::encode(Sha256::digest(evidence)),
-            evidence_b64: Base64::encode_string(evidence),
-            observed_at,
-        });
-        next.state.stage = GatewayAttemptStage::ObservedByProvider;
+        next.state.phase = MutationPhase::ObservedByProvider {
+            response: next.state.response().cloned(),
+            evidence: EvidenceWire {
+                channel: GatewayEvidenceChannel::ReadBack,
+                locator: locator.url().to_owned(),
+                echo: record.echo_token()?,
+                evidence_digest: hex::encode(Sha256::digest(evidence)),
+                evidence_b64: Base64::encode_string(evidence),
+                observed_at,
+            },
+            recovery: None,
+            created_resource: None,
+        };
         self.attempt.advance(next).await?.record.snapshot(false)
     }
 }
@@ -3674,8 +3952,9 @@ fn store_exhausted(
     admission: &Admission,
 ) -> Result<Reserved, GatewayAttemptError> {
     let mut record = base.clone();
-    record.state.stage = GatewayAttemptStage::NotEntered;
-    record.state.refusal = Some(code.to_owned());
+    record.state.phase = MutationPhase::NotEntered {
+        refusal: code.to_owned(),
+    };
     record.snapshot(false)?;
     let entries = [GatewayRecordEntry {
         kind: GatewayRecordKind::Attempt,
@@ -3831,7 +4110,7 @@ impl GatewayAttempts {
                 {
                     return Err(GatewayAttemptError::BindingConflict);
                 }
-                if record.state.stage != GatewayAttemptStage::Reserved {
+                if record.state.stage() != GatewayAttemptStage::Reserved {
                     return Err(GatewayAttemptError::Replay);
                 }
                 // This handle grants no entry. A fresh fenced CAS still checks
@@ -3945,3 +4224,7 @@ mod entry_tests;
 #[cfg(test)]
 #[path = "store_retention_tests.rs"]
 mod retention_tests;
+
+#[cfg(test)]
+#[path = "store/mutation_phase_tests.rs"]
+mod mutation_phase_tests;

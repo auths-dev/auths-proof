@@ -9,6 +9,7 @@ use super::{
 };
 use crate::effect::{BoundEffect, CandidateCredentialTarget, compile_candidate_credential};
 use crate::submit::AcquisitionIo;
+use subtle::ConstantTimeEq as _;
 
 impl GatewayEngine {
     /// Stages a generation-one candidate from a retained private operator
@@ -80,25 +81,33 @@ impl GatewayEngine {
         self.note_credential(&record, record.credential_generation())
             .await?;
         if self.holds(&record).await.is_err() {
+            self.begin_credential_mutation(&record, record.credential_generation())
+                .await?;
             let secret = SecretBytes::new(std::mem::take(&mut *candidate))
                 .map_err(|_| "gateway.install.invalid-credential")?;
-            let stored = self
+            crate::admin_fault::boundary("candidate-installation.before-custody");
+            let outcome = self
                 .credentials
                 .install(
                     record.connection_id(),
                     record.credential_generation(),
                     secret,
                 )
-                .await
-                .map_err(|_| "gateway.install.credential-store-unavailable")?;
+                .await;
+            crate::admin_fault::boundary("candidate-installation.after-custody-reply");
+            self.settle_credential_mutation(&record, record.credential_generation(), &outcome)
+                .await?;
+            let stored = outcome.map_err(|_| "gateway.install.credential-store-unavailable")?;
             if stored != reference {
                 return Err("gateway.install.credential-store-unavailable");
             }
         }
+        crate::admin_fault::boundary("candidate-installation.before-floor");
         self.connection
             .initialize_candidate_floor(&record)
             .await
             .map_err(|_| "gateway.connection.restore-rollback")?;
+        crate::admin_fault::boundary("candidate-installation.after-floor");
         self.check_candidate_predecessor(&target).await?;
         Ok(target)
     }
@@ -154,9 +163,10 @@ impl GatewayEngine {
             .map_err(|()| "gateway.admin.credential-unavailable")?;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
-        self.note_credential(record, proposed.credential_generation())
+        self.begin_credential_mutation(record, proposed.credential_generation())
             .await?;
-        let reference = self
+        crate::admin_fault::boundary("candidate-rotation.before-custody");
+        let outcome = self
             .credentials
             .replace(
                 record.connection_id(),
@@ -164,8 +174,11 @@ impl GatewayEngine {
                 proposed.credential_generation(),
                 secret,
             )
-            .await
-            .map_err(|_| "gateway.admin.credential-unavailable")?;
+            .await;
+        crate::admin_fault::boundary("candidate-rotation.after-custody-reply");
+        self.settle_credential_mutation(record, proposed.credential_generation(), &outcome)
+            .await?;
+        let reference = outcome.map_err(|_| "gateway.admin.credential-unavailable")?;
         let proposed = record
             .rotated(
                 record.descriptor().to_vec(),
@@ -178,6 +191,95 @@ impl GatewayEngine {
             .map_err(|_| "gateway.admin.transition-unavailable")?;
         self.check_candidate_predecessor(&target).await?;
         Ok(target)
+    }
+
+    /// Confirms exact retained staging without replacing custody or refreshing
+    /// a proposal timestamp. This grants no provider read or publication.
+    ///
+    /// # Errors
+    /// Refuses a changed predecessor, different secret or unavailable exact custody.
+    pub async fn confirm_staged_candidate(
+        &self,
+        target: &CandidateCredentialTarget,
+        candidate: &[u8],
+    ) -> Result<(), &'static str> {
+        self.check_candidate_predecessor(target).await?;
+        let record = target.record();
+        let commitment = auths_connections::CredentialReferenceCommitment::of(
+            record.connection_id(),
+            record.credential_generation(),
+            candidate,
+        );
+        if !bool::from(
+            commitment
+                .as_bytes()
+                .ct_eq(record.credential_binding().reference_commitment()),
+        ) {
+            return Err("gateway.admin.generation-conflict");
+        }
+        self.holds(record)
+            .await
+            .map_err(|()| "gateway.admin.credential-unavailable")
+    }
+
+    /// Inspects retained candidate checks without running a read or publishing.
+    /// Ready is advisory; the existing publication fence repeats all guards.
+    ///
+    /// # Errors
+    /// Refuses invalid exact proof/approval or unavailable native configuration.
+    pub async fn candidate_recovery_state(
+        &self,
+        target: &CandidateCredentialTarget,
+        proof: &[u8],
+        action: &[u8],
+        approval: ExactEffectApproval,
+    ) -> Result<crate::CandidateRecoveryState, &'static str> {
+        let started = Instant::now();
+        self.check_effect_configuration().await?;
+        self.check_candidate_location(target)?;
+        let current = self
+            .connection
+            .load()
+            .await
+            .map_err(|_| "gateway.connection.unavailable")?;
+        if current
+            .as_ref()
+            .is_some_and(|loaded| loaded.record() == target.record())
+        {
+            return Ok(crate::CandidateRecoveryState::Published);
+        }
+        if !target.predecessor_matches(current.as_ref().map(LoadedConnection::private_bytes)) {
+            return Ok(crate::CandidateRecoveryState::Superseded);
+        }
+        if target.previous().is_none() {
+            self.connection
+                .check_candidate_floor(target.record())
+                .await
+                .map_err(|_| "gateway.connection.restore-rollback")?;
+        }
+        let effect = self
+            .compile_candidate_target(target, proof, action)
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        let now = self
+            .qualification
+            .effect_time()
+            .ok_or("gateway.verify.clock-unavailable")?;
+        let approved = Arc::new(
+            effect
+                .approve(approval, self.effect_policy.approver(), now)
+                .map_err(|_| "gateway.effect.approval")?,
+        );
+        let state = self
+            .attempts
+            .inspect_candidate(approved, self.candidate_validation(target, started)?, now)
+            .await
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        if state == crate::CandidateRecoveryState::ReadyForPublication {
+            self.holds(target.record())
+                .await
+                .map_err(|()| "gateway.admin.credential-unavailable")?;
+        }
+        Ok(state)
     }
 
     /// Compiles independently authorized checks for a staged credential. The

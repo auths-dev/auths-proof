@@ -49,6 +49,17 @@ impl SecretBytes {
         self.0.as_slice()
     }
 
+    /// Computes the exact generation commitment without exposing secret bytes
+    /// outside their owner. This grants neither custody nor publication.
+    #[must_use]
+    pub fn reference_commitment(
+        &self,
+        connection_id: &ConnectionId,
+        generation: NonZeroU64,
+    ) -> CredentialReferenceCommitment {
+        credential_commitment(connection_id, generation, self.expose())
+    }
+
     /// Borrows the bytes for a credential-store implementation that must
     /// write them to where it keeps secrets. Nothing else may call this: the
     /// bytes must not be logged, compared, serialized, or kept.
@@ -219,6 +230,11 @@ impl CredentialStoreKind {
 /// therefore names both generations, and a lease reads exactly the
 /// credential generation the binding names: a store never chooses a
 /// generation on the caller's behalf.
+///
+/// A creation mutator's error may clear its pending-operation obligation only
+/// when [`CredentialStoreError::certifies_no_mutation`] says so. Implementations
+/// must classify lost replies, post-write failures and unknown completion as
+/// unavailable/uncertain; a generic error is never evidence of non-effect.
 #[async_trait]
 pub trait ConnectionCredentialStore: Send + Sync {
     /// Installs the first credential generation.
@@ -1423,6 +1439,24 @@ pub enum CredentialStoreError {
     /// Persistent storage is a symlink, has unsafe permissions, or is malformed.
     #[error("credential storage is unsafe")]
     UnsafeStorage,
+}
+
+impl CredentialStoreError {
+    /// Whether this error certifies that this invocation made no custody change.
+    /// Network, persistence, unsafe-storage and lost-acknowledgement failures must
+    /// use an uncertain classification instead of one of these refusal variants.
+    #[must_use]
+    pub const fn certifies_no_mutation(self) -> bool {
+        matches!(
+            self,
+            Self::InvalidSecret
+                | Self::InvalidCapacity
+                | Self::Conflict
+                | Self::Capacity
+                | Self::Substitution
+                | Self::Expired
+        )
+    }
 }
 
 fn credential_commitment(

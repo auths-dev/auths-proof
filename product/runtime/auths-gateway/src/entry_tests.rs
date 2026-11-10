@@ -404,7 +404,7 @@ async fn native_entry_fixture_is_current() {
     let approved = approved();
     let claim = reserved(store.attempts(), &approved).await;
     assert_eq!(
-        claim.attempt.record.state.stage,
+        claim.attempt.record.state.stage(),
         GatewayAttemptStage::Reserved
     );
     assert!(claim.attempt.record.entry.is_none());
@@ -419,7 +419,7 @@ async fn native_entry_fixture_is_current() {
         .await
         .expect("grant");
     assert_eq!(
-        granted.attempt.record.state.stage,
+        granted.attempt.record.state.stage(),
         GatewayAttemptStage::EntryGranted
     );
     assert_eq!(
@@ -460,8 +460,9 @@ async fn native_entry_fixture_is_current() {
     assert_eq!(read.stage(), GatewayAttemptStage::Unknown);
     let mut next = granted.attempt.record.clone();
     next.revision += 1;
-    next.state.stage = GatewayAttemptStage::NotEntered;
-    next.state.refusal = Some("test.no-send".to_owned());
+    next.state.phase = MutationPhase::NotEntered {
+        refusal: "test.no-send".to_owned(),
+    };
     assert!(!valid_transition(&granted.attempt.record, &next).expect("transition"));
     // Canonical native records also seed the shipping decoder/transition fuzzer.
     // The nonce is private replay evidence, independent of signed effect bytes;
@@ -470,20 +471,25 @@ async fn native_entry_fixture_is_current() {
     entry.nonce = "00112233445566778899aabbccddeeff".to_owned();
     let mut reserved = entry.clone();
     reserved.revision = 1;
-    reserved.state.stage = GatewayAttemptStage::Reserved;
+    reserved.state.phase = MutationPhase::Reserved;
     reserved.entry = None;
     let mut refused = reserved.clone();
     refused.revision = 2;
-    refused.state.stage = GatewayAttemptStage::NotEntered;
-    refused.state.refusal = Some("test.before-grant".to_owned());
+    refused.state.phase = MutationPhase::NotEntered {
+        refusal: "test.before-grant".to_owned(),
+    };
     let mut unknown = entry.clone();
     unknown.revision = entry.revision + 1;
-    unknown.state.stage = GatewayAttemptStage::Unknown;
+    unknown.state.phase = MutationPhase::Unknown;
     let mut response = entry.clone();
     response.revision = entry.revision + 1;
-    response.state.stage = GatewayAttemptStage::ResponseRecorded;
-    response.state.response_status = Some(200);
-    response.state.response_digest = Some(hex::encode([9; 32]));
+    response.state.phase = MutationPhase::ResponseRecorded {
+        response: MutationResponse {
+            status: 200,
+            digest: hex::encode([9; 32]),
+            locator: None,
+        },
+    };
     let root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fuzz/corpus/target_gateway_attempt");
     let write_seed = |name: &str, bytes: &[u8]| {

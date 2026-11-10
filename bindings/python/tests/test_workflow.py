@@ -651,7 +651,15 @@ def test_cancellation_closes_the_partial_child_and_produces_no_signature() -> No
             with pytest.raises(asyncio.CancelledError):
                 await operation
             assert parent_signer.sign_calls == 0
+            # Caller cancellation invalidates publication, but the provider still
+            # owns live input. Destruction follows its settlement, not cancellation.
+            assert child_signer.close_calls == 0
+
+            assert provider.release is not None
+            provider.release.set()
+            await client.aclose()
             assert child_signer.close_calls == 1
+            assert parent_signer.sign_calls == 0
 
     asyncio.run(scenario())
 
@@ -679,8 +687,16 @@ def test_cancellation_during_child_identity_disposes_the_child_signer() -> None:
             operation.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await operation
-            assert child_signer.close_calls == 1
+            # Caller cancellation invalidates publication, but the provider still
+            # owns live input. Destruction follows its settlement, not cancellation.
+            assert child_signer.close_calls == 0
             assert provider.calls == 0
+            assert parent_signer.sign_calls == 0
+
+            assert child_signer.identity_release is not None
+            child_signer.identity_release.set()
+            await client.aclose()
+            assert child_signer.close_calls == 1
             assert parent_signer.sign_calls == 0
 
     asyncio.run(scenario())
@@ -711,6 +727,13 @@ def test_cancellation_during_parent_signing_disposes_the_child_signer() -> None:
                 await operation
             assert provider.calls == 1
             assert parent_signer.sign_calls == 1
+            # Caller cancellation invalidates publication, but the provider still
+            # owns live input. Destruction follows its settlement, not cancellation.
+            assert child_signer.close_calls == 0
+
+            assert parent_signer.sign_release is not None
+            parent_signer.sign_release.set()
+            await client.aclose()
             assert child_signer.close_calls == 1
 
     asyncio.run(scenario())

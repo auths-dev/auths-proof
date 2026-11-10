@@ -237,9 +237,10 @@ async fn first_installation(
     assert!(!conflict.status.success());
     assert!(!state.join("conflict.json").exists());
     assert!(
-        !resume(&proposal, b"rk_test_initial_install\n")
+        resume(&proposal, b"rk_test_initial_install\n")
             .status
-            .success()
+            .success(),
+        "exact existing proposal is an explicit idempotent replay"
     );
     assert_eq!(std::fs::read(&proposal).expect("preserved"), bytes);
     for path in [
@@ -253,6 +254,8 @@ async fn first_installation(
         );
     }
     assert!(shared.load().await.expect("load").is_none());
+    #[cfg(feature = "testkit-harness")]
+    candidate_installation_fault_matrix(&root, recipe).await;
     json!({"production_install_stages_without_publication":true,"private_draft_and_proposal":true,"exact_floor_and_cleanup_note":true,"independent_resume_process_reuses_exact_proposal":true,"different_secret_refused":true,"existing_output_preserved":true,"no_approved_provider_execution_claim":true})
 }
 
@@ -485,8 +488,9 @@ fn assert_call_authoring(
     assert!(!root.join("refused.json").exists());
 }
 
-fn install_candidate_cli(root: &Path, state: &Path, recipe: &CompiledRecipe) {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_auths-gateway"))
+fn candidate_install_command(root: &Path, state: &Path, recipe: &CompiledRecipe) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_auths-gateway"));
+    command
         .arg("install")
         .arg("--state-dir")
         .arg(state)
@@ -508,7 +512,12 @@ fn install_candidate_cli(root: &Path, state: &Path, recipe: &CompiledRecipe) {
             "--account-label",
             "acct_TESTACCOUNT01",
             "--credential-stdin",
-        ])
+        ]);
+    command
+}
+
+fn run_candidate_install(command: &mut Command) -> std::process::Output {
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -520,10 +529,115 @@ fn install_candidate_cli(root: &Path, state: &Path, recipe: &CompiledRecipe) {
         .expect("stdin")
         .write_all(b"rk_test_initial_install\n")
         .expect("secret");
-    let output = child.wait_with_output().expect("install output");
+    child.wait_with_output().expect("install output")
+}
+
+fn install_candidate_cli(root: &Path, state: &Path, recipe: &CompiledRecipe) {
+    let output = run_candidate_install(&mut candidate_install_command(root, state, recipe));
     assert!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[cfg(feature = "testkit-harness")]
+async fn candidate_installation_fault_matrix(root: &Path, recipe: &CompiledRecipe) {
+    let trace_state = root.join("candidate-fault-trace");
+    let trace = run_candidate_install(
+        candidate_install_command(root, &trace_state, recipe).env("AUTHS_TEST_ADMIN_TRACE", "1"),
+    );
+    assert!(
+        trace.status.success(),
+        "{}",
+        String::from_utf8_lossy(&trace.stderr)
+    );
+    let points: Vec<_> = String::from_utf8_lossy(&trace.stderr)
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("auths-test-admin-boundary:")
+                .map(str::to_owned)
+        })
+        .collect();
+    assert!(
+        points
+            .iter()
+            .any(|point| point.ends_with(":candidate-installation.before-custody"))
+    );
+    assert!(
+        points
+            .iter()
+            .any(|point| point.ends_with(":candidate-installation.after-floor"))
+    );
+    for (index, point) in points.iter().enumerate() {
+        let state = root.join(format!("candidate-fault-{index}"));
+        let interrupted = run_candidate_install(
+            candidate_install_command(root, &state, recipe)
+                .env("AUTHS_TEST_ADMIN_INTERRUPT_AT", (index + 1).to_string()),
+        );
+        assert_eq!(
+            interrupted.status.code(),
+            Some(79),
+            "{point}: {}",
+            String::from_utf8_lossy(&interrupted.stderr)
+        );
+        let draft = std::fs::read(state.join("candidate-installation.cbor")).ok();
+        let resumed =
+            run_candidate_install(candidate_install_command(root, &state, recipe).arg("--resume"));
+        let shared = SharedConnection::new(
+            Arc::new(FileGatewayAttemptStore::open(state.join("attempts")).expect("store")),
+            ProviderKind::parse("stripe").expect("provider"),
+            ConnectionAlias::parse("synthetic").expect("alias"),
+        );
+        assert!(
+            shared.load().await.expect("native connection").is_none(),
+            "staging cannot publish: {point}"
+        );
+        let status = Command::new(env!("CARGO_BIN_EXE_auths-gateway"))
+            .arg("recovery-status")
+            .arg("--state-dir")
+            .arg(&state)
+            .output()
+            .expect("status");
+        let facts: Value = serde_json::from_slice(&status.stdout).expect("recovery facts");
+        assert_eq!(
+            facts["installation"], "configured-unpublished",
+            "{point}: {facts}"
+        );
+        if resumed.status.success() {
+            let proposal =
+                std::fs::read(state.join("candidate-installation.json")).expect("staged proposal");
+            let repeated = run_candidate_install(
+                candidate_install_command(root, &state, recipe).arg("--resume"),
+            );
+            assert!(
+                repeated.status.success(),
+                "{point}: {}",
+                String::from_utf8_lossy(&repeated.stderr)
+            );
+            assert_eq!(
+                std::fs::read(state.join("candidate-installation.json"))
+                    .expect("same exact proposal"),
+                proposal
+            );
+        } else {
+            assert!(
+                String::from_utf8_lossy(&resumed.stderr)
+                    .contains("credential-operation-unconfirmed"),
+                "{point}: {}",
+                String::from_utf8_lossy(&resumed.stderr)
+            );
+            assert_eq!(
+                facts["native"]["facts"]["cleanup"]["state"],
+                "creation-unconfirmed"
+            );
+        }
+        if let Some(draft) = draft {
+            assert_eq!(
+                std::fs::read(state.join("candidate-installation.cbor"))
+                    .expect("retained identity"),
+                draft
+            );
+        }
+    }
 }

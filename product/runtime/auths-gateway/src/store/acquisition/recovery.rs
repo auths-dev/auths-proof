@@ -222,17 +222,13 @@ impl RecoveryEvidenceLink {
             || self.recorded_at > MAX_JSON_INTEGER
             || !fresh(self.received_at, self.recorded_at)
             || !matches!(
-                source.state.stage,
+                source.state.stage(),
                 GatewayAttemptStage::Observed | GatewayAttemptStage::ObservedByProvider
             )
-            || source
-                .state
-                .provider_evidence
-                .as_ref()
-                .is_some_and(|evidence| {
-                    evidence.observed_at != self.received_at
-                        || evidence.evidence_digest != self.response_digest
-                })
+            || source.state.provider_evidence().is_some_and(|evidence| {
+                evidence.observed_at != self.received_at
+                    || evidence.evidence_digest != self.response_digest
+            })
         {
             return Err(GatewayAttemptError::Corrupt);
         }
@@ -279,13 +275,12 @@ pub(in crate::store) fn validate_created_history(
     source_bytes: &[u8],
     source: &Record,
 ) -> Result<(), GatewayAttemptError> {
-    if source.state.created_resource.is_none() {
+    if source.state.created_resource().is_none() {
         return Ok(());
     }
     let link = source
         .state
-        .recovery_evidence
-        .as_ref()
+        .recovery_evidence()
         .ok_or(GatewayAttemptError::Corrupt)?;
     link.validate(source)?;
     let namespace =
@@ -355,8 +350,7 @@ fn check_created_history_relation(
     read.snapshot()?;
     let link = source
         .state
-        .recovery_evidence
-        .as_ref()
+        .recovery_evidence()
         .ok_or(GatewayAttemptError::Corrupt)?;
     link.validate(source)?;
     let AcquisitionPlan::Recovery(plan) = &read.state.plan else {
@@ -372,8 +366,8 @@ fn check_created_history_relation(
     let operation =
         LogicalOperationId::parse(&read.operation_id).map_err(|_| GatewayAttemptError::Corrupt)?;
     let slot = read.state.allocation.ok_or(GatewayAttemptError::Corrupt)?;
-    if source.state.created_resource.is_none()
-        || source.state.stage != GatewayAttemptStage::ObservedByProvider
+    if source.state.created_resource().is_none()
+        || source.state.stage() != GatewayAttemptStage::ObservedByProvider
         || GatewayAttemptKey::for_context(&namespace, partition, epoch, &operation)? != read_key
         || read.namespace != source.namespace
         || read.operation_id != link.acquisition_operation
@@ -386,8 +380,7 @@ fn check_created_history_relation(
         || !response.version_ok
         || source
             .state
-            .provider_evidence
-            .as_ref()
+            .provider_evidence()
             .is_none_or(|evidence| evidence.evidence_b64 != response.body_b64)
         || row != canonical(&allocation(&read.state.plan, read_key, slot)?)?.as_slice()
     {
@@ -445,8 +438,8 @@ pub(in crate::store) fn created_lineage_from_records(
         allocation_key: *capacity::allocation_key(&capacity, slot).as_bytes(),
         resource: source
             .state
-            .created_resource
-            .clone()
+            .created_resource()
+            .cloned()
             .ok_or(GatewayAttemptError::Corrupt)?,
     };
     value.validate().map_err(|_| GatewayAttemptError::Corrupt)?;
@@ -530,14 +523,13 @@ impl GatewayAttempts {
             let Some((_, source)) = attempts.load(&namespace, &operation).await? else {
                 continue;
             };
-            if source.state.created_resource.is_none() {
+            if source.state.created_resource().is_none() {
                 continue;
             }
             let source_key = attempts.key(&namespace, &operation)?;
             let link = source
                 .state
-                .recovery_evidence
-                .as_ref()
+                .recovery_evidence()
                 .ok_or(GatewayAttemptError::Corrupt)?;
             let read_operation = LogicalOperationId::parse(&link.acquisition_operation)
                 .map_err(|_| GatewayAttemptError::Corrupt)?;
@@ -610,7 +602,7 @@ fn refinement(
     let Some(link) = read.response_link(now)? else {
         return Ok(Err(RecoveryDisposition::AcquisitionIncomplete));
     };
-    if let Some(existing) = &source.state.recovery_evidence {
+    if let Some(existing) = source.state.recovery_evidence() {
         let mut expected = link;
         expected.recorded_at = existing.recorded_at;
         return Ok(Err(if existing == &expected {
@@ -620,7 +612,7 @@ fn refinement(
         }));
     }
     if matches!(
-        source.state.stage,
+        source.state.stage(),
         GatewayAttemptStage::Observed
             | GatewayAttemptStage::ObservedByProvider
             | GatewayAttemptStage::NotEntered
@@ -653,43 +645,52 @@ fn refinement(
         ReadBack::CreatedResource(candidate) => Some(candidate.handle().to_owned()),
         _ => None,
     };
-    match reading {
+    next.state.phase = match reading {
         ReadBack::EchoMatched | ReadBack::CreatedResource(_) => {
-            // A response-derived locator cannot resolve an unknown send. The
-            // shared reducer checks this link condition again before commit.
-            if source.state.response_status.is_none()
+            if source.state.response_status().is_none()
                 && !transition::resolves_unknown(source.link())
             {
                 return Ok(Err(RecoveryDisposition::Inconclusive));
             }
-            next.state.stage = GatewayAttemptStage::ObservedByProvider;
-            next.state.created_resource = created_resource;
-            next.state.provider_evidence = Some(EvidenceWire {
-                channel: GatewayEvidenceChannel::ReadBack,
-                locator: request.url().to_owned(),
-                echo: token,
-                evidence_digest: link.response_digest.clone(),
-                evidence_b64: response.body_b64.clone(),
-                observed_at: response.received_at,
-            });
+            MutationPhase::ObservedByProvider {
+                response: source.state.response().cloned(),
+                created_resource,
+                evidence: EvidenceWire {
+                    channel: GatewayEvidenceChannel::ReadBack,
+                    locator: request.url().to_owned(),
+                    echo: token,
+                    evidence_digest: link.response_digest.clone(),
+                    evidence_b64: response.body_b64.clone(),
+                    observed_at: response.received_at,
+                },
+                recovery: Some(link),
+            }
         }
         ReadBack::Value { matched } => {
-            if source.state.response_status.is_none() {
+            let Some(response) = source.state.response().cloned() else {
                 return Ok(Err(RecoveryDisposition::Inconclusive));
+            };
+            MutationPhase::Observed {
+                response,
+                reading: if matched {
+                    MutationReading::Match
+                } else {
+                    MutationReading::Mismatch
+                },
+                recovery: Some(link),
             }
-            next.state.stage = GatewayAttemptStage::Observed;
-            next.state.observation_match = Some(matched);
         }
         ReadBack::EchoMismatch => {
-            if source.state.response_status.is_none() {
+            let Some(response) = source.state.response().cloned() else {
                 return Ok(Err(RecoveryDisposition::Inconclusive));
+            };
+            MutationPhase::Observed {
+                response,
+                reading: MutationReading::EchoMismatch,
+                recovery: Some(link),
             }
-            next.state.stage = GatewayAttemptStage::Observed;
-            next.state.observation_match = Some(false);
-            next.state.observation_fact = Some(GatewayObservationFact::EchoMismatch);
         }
-    }
-    next.state.recovery_evidence = Some(link);
+    };
     next.revision = next_operation_revision(next.revision)?;
     if !valid_transition(source, &next)? {
         return Err(GatewayAttemptError::InvalidTransition);

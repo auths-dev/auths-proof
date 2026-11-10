@@ -523,7 +523,7 @@ rollback, grace periods, or a second qualification authority.
 
 Before implementing sections 8.2–8.3, complete and review a protocol amendment
 here or a separately numbered specification under `docs/specs`, and link it
-from this section. No such completed protocol is claimed by the current draft.
+from this section. The concrete protocol amendment is [AP-SPEC-077](0077-administrative-recovery-protocol.md), which defines command identities, authority, transition tables, competing writers, durability ordering and the interruption matrix. Runtime completion is tracked separately in the implementation record.
 This is an engineering design gate, not a new user-permission workflow. Runtime
 work on sections 5–7 and the payload refactor in 8.1 need not wait for it.
 

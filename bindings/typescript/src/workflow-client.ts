@@ -8,6 +8,7 @@ export {
   ProviderOperationError,
   SignedGrantSource,
   TrustedContextSource,
+  type LifecycleWaitOptions,
   type AgentIdentity,
   type ApprovalOperationContext,
   type ApprovalConfiguration,
@@ -64,5 +65,5 @@ export {
 export type LoadAuthsOptions = LoadWorkflowOptions;
 
 export async function loadAuths(options: LoadAuthsOptions) {
-  return createWorkflowClient(options, await loadPackagedWorkflowEngine());
+  return createWorkflowClient(options, loadPackagedWorkflowEngine);
 }

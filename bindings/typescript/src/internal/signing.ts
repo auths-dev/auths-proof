@@ -311,6 +311,7 @@ async function approveExact(
   } catch (error) {
     if (error instanceof ProviderOperationError) {
       const code =
+        error.causeChain.includes("invalid-response") ? "approval-response-mismatch" :
         error.kind === "rejected" ? "approval-rejected" :
         error.kind === "cancelled" ? "approval-cancelled" :
         error.kind === "timeout" ? "approval-timeout" :

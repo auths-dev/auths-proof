@@ -12,7 +12,7 @@ pub(super) use content::retained;
 pub(super) use content::retained_bytes;
 pub use content::{ContentProjectionStatus, RetainedContent};
 mod candidate;
-pub use candidate::CandidatePublication;
+pub use candidate::{CandidatePublication, CandidateRecoveryState};
 mod recovery;
 pub(super) use recovery::RecoveryEvidenceLink;
 #[cfg(test)]
@@ -1331,7 +1331,7 @@ fn eligible_source(
                 let source = decode(source_bytes)?;
                 (
                     source.validate_header()?,
-                    source.state.stage == GatewayAttemptStage::Reserved,
+                    source.state.stage() == GatewayAttemptStage::Reserved,
                     source.entry.is_some(),
                     source.evaluated_at,
                 )

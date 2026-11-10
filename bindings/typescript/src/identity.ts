@@ -1,3 +1,4 @@
+import { ResourceLifecycle, openResource, type LifecycleWaitOptions } from "./internal/resource-lifecycle.js";
 import type { AuthsIssue } from "./index.js";
 import { issue } from "./internal/issues.js";
 import { loadIdentityEngine } from "./internal/identity-engine.js";
@@ -48,7 +49,8 @@ export interface IdentityClient extends AsyncDisposable {
   validate(identity: ResolvedIdentity, options?: IdentityOperationOptions): Promise<IdentityResult<ValidatedIdentity>>;
   authenticate(input: Readonly<{ identity: ValidatedIdentity; relationshipId?: string; message: Uint8Array; signature: Uint8Array; timeoutMs?: number; signal?: AbortSignal }>): Promise<IdentityResult<AuthenticatedIdentityMessage>>;
   authenticateMessage(input: Readonly<{ identityPacket: Uint8Array; relationshipId?: string; message: Uint8Array; signature: Uint8Array; timeoutMs?: number; signal?: AbortSignal }>): Promise<IdentityResult<AuthenticatedIdentityMessage>>;
-  close(): Promise<void>;
+  close(options?: LifecycleWaitOptions): Promise<void>;
+  retryCleanup(options?: LifecycleWaitOptions): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
 }
 
@@ -71,14 +73,14 @@ const decodedRecords = new WeakMap<object, IdentityRecord>();
 const resolvedRecords = new WeakMap<object, IdentityRecord>();
 const validatedRecords = new WeakMap<object, IdentityRecord>();
 
-export async function createRawKeyEd25519IdentityClient(): Promise<IdentityClient> {
-  return new RawKeyIdentityClient(await loadIdentityEngine() as unknown as IdentityEngine);
+export function createRawKeyEd25519IdentityClient(options: LifecycleWaitOptions = {}): Promise<IdentityClient> {
+  return openResource(async (owner) => new RawKeyIdentityClient(await loadIdentityEngine() as unknown as IdentityEngine, owner), options);
 }
 
 class RawKeyIdentityClient implements IdentityClient {
   readonly #engine: IdentityEngine;
-  #state: "open" | "closing" | "closed" = "open";
-  constructor(engine: IdentityEngine) { this.#engine = engine; }
+  readonly #lifecycle: ResourceLifecycle;
+  constructor(engine: IdentityEngine, lifecycle: ResourceLifecycle) { this.#engine = engine; this.#lifecycle = lifecycle; }
 
   decode(packet: Uint8Array): IdentityResult<DecodedIdentity> {
     this.#assertOpen();
@@ -159,6 +161,7 @@ class RawKeyIdentityClient implements IdentityClient {
   }
 
   async authenticateMessage(input: Readonly<{ identityPacket: Uint8Array; relationshipId?: string; message: Uint8Array; signature: Uint8Array; timeoutMs?: number; signal?: AbortSignal }>): Promise<IdentityResult<AuthenticatedIdentityMessage>> {
+    input = { ...input, identityPacket: input.identityPacket.slice(), message: input.message.slice(), signature: input.signature.slice() };
     const decoded = this.decode(input.identityPacket);
     if (decoded.kind !== "ok") return decoded;
     const resolved = await this.resolve(decoded.value, input);
@@ -168,9 +171,10 @@ class RawKeyIdentityClient implements IdentityClient {
     return this.authenticate({ identity: validated.value, message: input.message, signature: input.signature, ...(input.relationshipId === undefined ? {} : { relationshipId: input.relationshipId }), ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }), ...(input.signal === undefined ? {} : { signal: input.signal }) });
   }
 
-  async close(): Promise<void> { if (this.#state === "closed") return; this.#state = "closing"; this.#state = "closed"; }
+  close(options: LifecycleWaitOptions = {}): Promise<void> { return this.#lifecycle.close(options); }
+  retryCleanup(options: LifecycleWaitOptions = {}): Promise<void> { return this.#lifecycle.retryCleanup(options); }
   async [Symbol.asyncDispose](): Promise<void> { await this.close(); }
-  #assertOpen(): void { if (this.#state !== "open") throw new TypeError("Auths identity client is not open"); }
+  #assertOpen(): void { this.#lifecycle.assertOpen(); }
 }
 
 function rejected(code: "identity.packet-malformed" | "identity.method-unsupported" | "identity.resolution-rejected" | "identity.validation-rejected" | "identity.relationship-denied" | "identity.signature-invalid"): IdentityResult<never> {

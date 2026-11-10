@@ -5,6 +5,8 @@ from typing import Generic as _Generic, Literal as _Literal, Protocol as _Protoc
 from typing import Sequence as _Sequence, Tuple as _Tuple, TypeVar as _TypeVar, Union as _Union
 
 from . import IdentityClient, _create_client
+from .._resource_lifecycle import ResourceLifecycle as _ResourceLifecycle, own_adapter as _own_adapter
+from typing import Optional as _Optional
 
 
 @_dataclass(frozen=True)
@@ -94,6 +96,7 @@ class MessageAuthenticator(_Protocol):
 
 
 class _ResolverMethod:
+    cleanup_retry = "idempotent"
     def __init__(self, method_id: str, version: int, resolver: IdentityResolver, maximum_bytes: int, owns: bool) -> None:
         if not method_id or not 1 <= len(method_id.encode("utf-8")) <= 128 or version < 1:
             raise ValueError("invalid identity method descriptor")
@@ -103,17 +106,22 @@ class _ResolverMethod:
         self.version = version
         self._resolver = resolver
         self._maximum = maximum_bytes
-        self._owns = owns
+        self._lifecycle = _ResourceLifecycle(opened=True)
+        if owns:
+            _own_adapter(self._lifecycle, resolver)
 
     async def resolve(self, descriptor: DecodedIdentityRecord) -> AdapterResult[ResolvedIdentityRecord]:
-        return await self._resolver.resolve(descriptor, maximum_bytes=self._maximum)
+        return await self._lifecycle.run(lambda: self._resolver.resolve(descriptor, maximum_bytes=self._maximum))
 
     async def validate(self, record: ResolvedIdentityRecord) -> AdapterResult[None]:
+        self._lifecycle.assert_open()
         return AdapterOk("ok", None)
 
-    async def aclose(self) -> None:
-        if self._owns:
-            await self._resolver.aclose()
+    async def aclose(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.close(timeout=timeout)
+
+    async def retry_cleanup(self, *, timeout: _Optional[float] = None) -> None:
+        await self._lifecycle.retry_cleanup(timeout=timeout)
 
 
 def create_client(*, methods: _Sequence[IdentityMethod], authenticators: _Sequence[MessageAuthenticator], owns_adapters: bool = False) -> IdentityClient:

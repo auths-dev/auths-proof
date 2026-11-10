@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 440,
+  "freezeVersion": 441,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -202,7 +202,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 66,
+      "version": 67,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -210,7 +210,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "2e8e3f7496e759102b0f6c2136c62346ead09cc07c693a22a39210db7e315bd6"
+      "sha256": "395167dd82c352cec015c4c606e4b112ab0705e1b66e7f64539adc72fd1859bd"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 111,
+      "version": 112,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "8a08634598d8cb8032509f7019d6b5f51edcc1e34c1ecbc7d55b15ed00b1050f"
+      "sha256": "c9762fe9036c36a2e98e39dcf3e1add0505563b127352cec63e8f7fa94a5187b"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 173,
+      "version": 174,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "04d0552d8526cbb1034ea1230ecf22d61f6ca5be0d3541d1d9f710fbbe24623e"
+      "sha256": "ce623186ee889ad11319632c8c9ccccb61eef15f9bbe25da3de88f7acb26ed5f"
     },
     {
       "id": "auths.modular-components",
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 132,
+      "version": 133,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -631,7 +631,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "94cdb488530e6ad2fb90249380d6d15dda6f6d386c777da2cf87dbf5bf1edec8"
+      "sha256": "1a07fd0a841eb53c6fc54efa3adf2becb252a07c98f340debbc03cfc61bee139"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -849,7 +849,7 @@
     },
     {
       "id": "auths.product.operations",
-      "version": 6,
+      "version": 7,
       "classification": "frozen-meaning",
       "categories": [
         "privacy-safe-events",
@@ -867,7 +867,7 @@
         "product/operations/v2",
         "product/runtime/auths-runtime/src/production.rs"
       ],
-      "sha256": "627affbbb01bd1587c6333259e420c3d26a6ce19835e2e5fae19a3008bbef490"
+      "sha256": "0e13ec5c846fe206b381a34e464fd7ccc014531a63d67f52748986933764b1f3"
     },
     {
       "id": "auths.product.public-sdk-contract",
@@ -986,7 +986,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 89,
+      "version": 90,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1007,11 +1007,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "40ba97b2db793eb1c31f2e8e3701d8a1dae5060fa634c856637ff30df53aeb0c"
+      "sha256": "70b7b77ddcd116ab7fb3027151de8ba59b16835f4673bf7321a829d58e4a9bb8"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 440,
+      "version": 441,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1104,7 +1104,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "73d36780d5709bba86f29af4bddf483068beb6f38a848e7e2d0a4875592b1693"
+      "sha256": "ffedac8cd80579b5fa6907494221aa93654b73f8cb27a5d095b81801d1d82836"
     }
   ]
 }

@@ -508,6 +508,24 @@ impl QualificationGate {
         true
     }
 
+    /// Merges independently retained monotonic verifier memory before reloading
+    /// local inputs. This cannot clear revocation or lower an accepted floor.
+    pub fn remember_retained(&self, retained: &VerifierState) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state.accepted_revocation_sequence = state
+            .accepted_revocation_sequence
+            .max(retained.accepted_revocation_sequence);
+        state.accepted_index_issued_at = state
+            .accepted_index_issued_at
+            .max(retained.accepted_index_issued_at);
+        state
+            .revoked_signers
+            .extend(retained.revoked_signers.iter().cloned());
+        state
+            .revoked_qualifications
+            .extend(retained.revoked_qualifications.iter().cloned());
+    }
+
     /// Drops the held result, so nothing qualifies until inputs load again.
     /// The operator plane calls this when the host's inputs cannot be read.
     pub fn unload(&self) {

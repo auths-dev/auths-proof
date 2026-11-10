@@ -1,4 +1,4 @@
-freeze_version = 440
+freeze_version = 441
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -16,10 +16,10 @@ freeze_version = 440
 "auths.frozen-bytes/core/fixtures/v1/manifest.json" = 16
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 66
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 67
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 20
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 17
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 111
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 112
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 4
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 3
@@ -45,9 +45,9 @@ freeze_version = 440
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 173
+"auths.identity.protocol" = 174
 "auths.modular-components" = 22
-"auths.portable-abi-bindings" = 132
+"auths.portable-abi-bindings" = 133
 "auths.product.bounded-domains" = 21
 "auths.product.bounded-policy" = 6
 "auths.product.configuration-commitments" = 1
@@ -59,12 +59,12 @@ freeze_version = 440
 "auths.product.lifecycle" = 17
 "auths.product.mcp-closed-execution" = 32
 "auths.product.mechanism-profile-conformance" = 13
-"auths.product.operations" = 6
+"auths.product.operations" = 7
 "auths.product.public-sdk-contract" = 169
 "auths.product.receipts" = 13
 "auths.product.release-assurance" = 7
 "auths.product.simplified-waist" = 20
 "auths.product.vocabulary" = 31
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 89
-"auths.release.public-surface" = 440
+"auths.release.evolution-contract" = 90
+"auths.release.public-surface" = 441

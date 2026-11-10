@@ -503,6 +503,109 @@ pub struct GatewayAdminOutcome {
     pub in_flight: u64,
 }
 
+/// Bounded exact-generation collection outcome. Publication is independent of
+/// cleanup; an incomplete result retains every unconfirmed journal obligation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum CredentialCollection {
+    /// Every currently eligible note was confirmed removed; active/future
+    /// generations may remain retained without being eligible for deletion.
+    Complete { deleted: usize, retained: usize },
+    /// The bounded batch completed but further eligible notes remain.
+    Pending {
+        deleted: usize,
+        remaining: usize,
+        retained: usize,
+    },
+    /// At least one exact deletion/note update failed. None means the final
+    /// journal read was unavailable, never an empty obligation set.
+    Incomplete {
+        deleted: usize,
+        remaining: Option<usize>,
+        code: &'static str,
+    },
+}
+
+impl CredentialCollection {
+    /// Exact deletions whose journal note removals were also acknowledged.
+    #[must_use]
+    pub const fn deleted(&self) -> usize {
+        match *self {
+            Self::Complete { deleted, .. }
+            | Self::Pending { deleted, .. }
+            | Self::Incomplete { deleted, .. } => deleted,
+        }
+    }
+    /// A settled incomplete operation remains a non-success command result.
+    #[must_use]
+    pub const fn failure_code(&self) -> Option<&'static str> {
+        match *self {
+            Self::Incomplete { code, .. } => Some(code),
+            _ => None,
+        }
+    }
+}
+
+/// Host-scoped cleanup projection from the existing durable credential journal.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum CredentialRecovery {
+    NonePending {
+        retained: usize,
+    },
+    AwaitingDelay {
+        notes: Vec<crate::CredentialCleanupNote>,
+    },
+    CreationUnconfirmed {
+        notes: Vec<crate::CredentialCleanupNote>,
+    },
+    DeletionPending {
+        notes: Vec<crate::CredentialCleanupNote>,
+    },
+    DeletionIncomplete {
+        notes: Vec<crate::CredentialCleanupNote>,
+    },
+    DeletionConfirmed {
+        notes: Vec<crate::CredentialCleanupNote>,
+    },
+    Unavailable,
+}
+
+/// Native publication facts, independent of custody availability or cleanup.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum AdministrativeRecovery {
+    Unpublished {
+        cleanup: CredentialRecovery,
+    },
+    Published {
+        generation: u64,
+        credential_generation: u64,
+        connection_state: String,
+        cleanup: CredentialRecovery,
+    },
+}
+
+impl AdministrativeRecovery {
+    /// Incomplete/unavailable cleanup stays separate from native publication.
+    #[must_use]
+    pub const fn cleanup_failure_code(&self) -> Option<&'static str> {
+        let cleanup = match self {
+            Self::Unpublished { cleanup } | Self::Published { cleanup, .. } => cleanup,
+        };
+        match cleanup {
+            CredentialRecovery::Unavailable => Some("gateway.admin.credential-journal-unavailable"),
+            CredentialRecovery::CreationUnconfirmed { .. } => {
+                Some("gateway.admin.credential-operation-unconfirmed")
+            }
+            CredentialRecovery::DeletionIncomplete { .. } => {
+                Some("gateway.admin.credential-deletion-incomplete")
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Secret-free connection state for the operator's `status` command.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -558,9 +661,16 @@ pub struct GatewayEngine {
     /// record commits its successor.
     retirement_delay: Duration,
     /// Superseded generations this process still has to retire.
-    retirements: std::sync::Mutex<Vec<Retirement>>,
+    retirements: std::sync::Mutex<RetirementSchedule>,
     #[cfg(feature = "loopback-provider")]
     loopback_port: Option<u16>,
+}
+
+enum RetirementSchedule {
+    Active(Vec<Retirement>),
+    // Explicit collection recovers from the durable exact-generation journal.
+    // Saturation cannot erase a delay and enable an unsafe broad retirement.
+    Unavailable { _retained: Vec<Retirement> },
 }
 
 /// One superseded credential generation and when it may be revoked.
@@ -703,7 +813,7 @@ impl GatewayEngine {
             last_sweep: AtomicU64::new(0),
             drain_limit: DRAIN_LIMIT,
             retirement_delay: crate::CredentialRetirementDelay::FIXED.as_duration(),
-            retirements: std::sync::Mutex::new(Vec::new()),
+            retirements: std::sync::Mutex::new(RetirementSchedule::Active(Vec::new())),
             #[cfg(feature = "loopback-provider")]
             loopback_port: None,
         })
@@ -868,6 +978,18 @@ impl GatewayEngine {
         self.shared_configuration()?.publish(gate)
     }
 
+    /// Checks a reverified local publication against the existing native
+    /// qualification/configuration fence, without publishing or granting entry.
+    ///
+    /// # Errors
+    /// Returns the existing configuration refusal on unavailable or stale state.
+    pub fn check_qualification_publication(
+        &self,
+        gate: &crate::QualificationGate,
+    ) -> Result<(), &'static str> {
+        self.shared_configuration()?.check(gate)
+    }
+
     async fn check_effect_configuration(&self) -> Result<(), &'static str> {
         let configuration = self.shared_configuration()?;
         let gate = Arc::clone(&self.qualification);
@@ -917,6 +1039,51 @@ impl GatewayEngine {
         Ok(())
     }
 
+    async fn begin_credential_mutation(
+        &self,
+        record: &ConnectionRecord,
+        generation: std::num::NonZeroU64,
+    ) -> Result<(), &'static str> {
+        self.note_credential(record, generation).await?;
+        if let Some(journal) = self.credential_journal.clone() {
+            let id = record.connection_id().clone();
+            tokio::task::spawn_blocking(move || journal.begin_mutation(&id, generation))
+                .await
+                .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        }
+        Ok(())
+    }
+
+    async fn confirm_credential_mutation(
+        &self,
+        record: &ConnectionRecord,
+        generation: std::num::NonZeroU64,
+    ) -> Result<(), &'static str> {
+        if let Some(journal) = self.credential_journal.clone() {
+            let id = record.connection_id().clone();
+            tokio::task::spawn_blocking(move || journal.confirm_mutation(&id, generation))
+                .await
+                .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        }
+        Ok(())
+    }
+
+    async fn settle_credential_mutation<T>(
+        &self,
+        record: &ConnectionRecord,
+        generation: std::num::NonZeroU64,
+        outcome: &Result<T, auths_connections::CredentialStoreError>,
+    ) -> Result<(), &'static str> {
+        if outcome.is_ok()
+            || outcome
+                .as_ref()
+                .is_err_and(|error| error.certifies_no_mutation())
+        {
+            self.confirm_credential_mutation(record, generation).await?;
+        }
+        Ok(())
+    }
+
     /// Collects at most sixteen exact generations from durable notes. It
     /// waits the fixed retirement delay after observing the shared record,
     /// requires it unchanged, and never deletes its active credential or a
@@ -929,7 +1096,7 @@ impl GatewayEngine {
     /// # Errors
     /// A damaged journal, changed connection or failed deletion refuses and
     /// retains the obligation for a later operator run.
-    pub async fn collect_credentials(&self) -> Result<usize, &'static str> {
+    pub async fn collect_credentials(&self) -> Result<CredentialCollection, &'static str> {
         let journal = self
             .credential_journal
             .clone()
@@ -946,28 +1113,112 @@ impl GatewayEngine {
         if !latest.unchanged(&current) {
             return Err("gateway.admin.generation-conflict");
         }
+        let eligible = |generation: std::num::NonZeroU64| {
+            generation <= record.generation()
+                && (record.state() == ConnectionState::Revoked
+                    || generation != record.credential_generation())
+        };
         let mut deleted = 0;
+        let mut failure = None;
         for generation in generations
             .into_iter()
-            .filter(|generation| {
-                *generation <= record.generation()
-                    && (record.state() == ConnectionState::Revoked
-                        || *generation != record.credential_generation())
-            })
+            .filter(|generation| eligible(*generation))
             .take(16)
         {
-            self.credentials
-                .revoke(record.connection_id(), generation)
+            match self
+                .collect_credential_generation(&journal, &record, generation)
                 .await
-                .map_err(|_| "gateway.admin.credential-deletion-incomplete")?;
+            {
+                Ok(true) => deleted += 1,
+                Ok(false) => {} // Another collector already removed the note.
+                Err(code) => {
+                    failure.get_or_insert(code);
+                }
+            }
+        }
+        let reading = journal.clone();
+        let id = record.connection_id().clone();
+        let notes = match tokio::task::spawn_blocking(move || reading.generations(&id)).await {
+            Ok(Ok(notes)) => notes,
+            _ => {
+                return Ok(CredentialCollection::Incomplete {
+                    deleted,
+                    remaining: None,
+                    code: "gateway.admin.credential-journal-unavailable",
+                });
+            }
+        };
+        let remaining = notes
+            .iter()
+            .filter(|generation| eligible(**generation))
+            .count();
+        if let Some(code) = failure {
+            return Ok(CredentialCollection::Incomplete {
+                deleted,
+                remaining: Some(remaining),
+                code,
+            });
+        }
+        let retained = notes.len() - remaining;
+        Ok(if remaining == 0 {
+            CredentialCollection::Complete { deleted, retained }
+        } else {
+            CredentialCollection::Pending {
+                deleted,
+                remaining,
+                retained,
+            }
+        })
+    }
+
+    async fn collect_credential_generation(
+        &self,
+        journal: &crate::CredentialJournal,
+        record: &ConnectionRecord,
+        generation: std::num::NonZeroU64,
+    ) -> Result<bool, &'static str> {
+        let reading = journal.clone();
+        let id = record.connection_id().clone();
+        let notes = tokio::task::spawn_blocking(move || reading.notes(&id))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        let Some(note) = notes.into_iter().find(|note| note.generation == generation) else {
+            return Ok(false);
+        };
+        if note.phase == crate::CredentialCleanupPhase::MutationPending {
+            return Err("gateway.admin.credential-operation-unconfirmed");
+        }
+        if note.phase != crate::CredentialCleanupPhase::DeletionConfirmed {
             let updating = journal.clone();
             let id = record.connection_id().clone();
-            tokio::task::spawn_blocking(move || updating.forget(&id, generation))
+            tokio::task::spawn_blocking(move || updating.begin_deletion(&id, generation))
                 .await
                 .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-            deleted += 1;
+            if self
+                .credentials
+                .revoke(record.connection_id(), generation)
+                .await
+                .is_err()
+            {
+                let updating = journal.clone();
+                let id = record.connection_id().clone();
+                let _ =
+                    tokio::task::spawn_blocking(move || updating.fail_deletion(&id, generation))
+                        .await;
+                return Err("gateway.admin.credential-deletion-incomplete");
+            }
+            let updating = journal.clone();
+            let id = record.connection_id().clone();
+            tokio::task::spawn_blocking(move || updating.confirm_deletion(&id, generation))
+                .await
+                .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
         }
-        Ok(deleted)
+        let updating = journal.clone();
+        let id = record.connection_id().clone();
+        tokio::task::spawn_blocking(move || updating.forget(&id, generation))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        Ok(true)
     }
 
     async fn load_for_collection(&self) -> Result<LoadedConnection, &'static str> {
@@ -1156,17 +1407,9 @@ impl GatewayEngine {
             return self.accept_rotation(record, secret).await;
         }
         let commitment = self.store_successor(record, secret).await?;
-        let committed = self.commit_successor(&current, commitment).await;
-        if committed.is_err()
-            && let Some(next) =
-                auths_connections::kernel::next_generation(record.generation().get())
-                    .and_then(std::num::NonZeroU64::new)
-        {
-            // A one-step rotation has no later commit, so its unpublished
-            // successor is discarded now rather than by the next prepare.
-            let _ = self.credentials.revoke(record.connection_id(), next).await;
-        }
-        committed
+        // A failed acknowledgement may follow a committed rotation. Retain
+        // exact custody and notes; never compensate by deleting that generation.
+        self.commit_successor(&current, commitment).await
     }
 
     /// Offline operator rotation cannot bypass any recipe-declared read.
@@ -1192,13 +1435,14 @@ impl GatewayEngine {
         let next = auths_connections::kernel::next_generation(record.generation().get())
             .and_then(std::num::NonZeroU64::new)
             .ok_or("gateway.admin.generation-exhausted")?;
-        self.note_credential(record, next).await?;
-        // Nothing can name a generation the record has not reached, so a
-        // successor left by an earlier failed rotation is discarded, not reused.
-        let _ = self.credentials.revoke(record.connection_id(), next).await;
-        self.credentials
+        self.begin_credential_mutation(record, next).await?;
+        let outcome = self
+            .credentials
             .replace(record.connection_id(), record.generation(), next, secret)
-            .await
+            .await;
+        self.settle_credential_mutation(record, next, &outcome)
+            .await?;
+        outcome
             .map(|commitment| *commitment.as_bytes())
             .map_err(|_| "gateway.admin.credential-unavailable")
     }
@@ -1218,10 +1462,9 @@ impl GatewayEngine {
                 Ok(self.drained("gateway.admin.rotated").await)
             }
             Err(code) => {
-                // The record still names its previous secret. An unpublished
-                // successor cannot be leased: it is newer than the credential
-                // generation, so no record selects it, and the next prepare
-                // discards it.
+                // A failed acknowledgement is not proof of non-publication.
+                // Retain the exact successor and note; reload/reconcile native
+                // authority before deciding cleanup or a different candidate.
                 Err(code)
             }
         }
@@ -1293,11 +1536,15 @@ impl GatewayEngine {
         record: &ConnectionRecord,
         secret: SecretBytes,
     ) -> Result<GatewayAdminOutcome, &'static str> {
-        match self
+        self.begin_credential_mutation(record, record.credential_generation())
+            .await?;
+        let outcome = self
             .credentials
             .confirm(&record.credential_binding(), secret)
-            .await
-        {
+            .await;
+        self.settle_credential_mutation(record, record.credential_generation(), &outcome)
+            .await?;
+        match outcome {
             Ok(()) => {}
             Err(auths_connections::CredentialStoreError::Substitution) => {
                 return Err("gateway.admin.generation-conflict");
@@ -1360,7 +1607,23 @@ impl GatewayEngine {
         successor: &ConnectionRecord,
         superseded: Option<std::num::NonZeroU64>,
     ) {
-        if let Ok(mut retirements) = self.retirements.lock() {
+        if let Ok(mut scheduling) = self.retirements.lock() {
+            let RetirementSchedule::Active(retirements) = &mut *scheduling else {
+                return;
+            };
+            let binding = successor.credential_binding();
+            if retirements.iter().any(|retirement| {
+                retirement.successor == binding && retirement.superseded == superseded
+            }) {
+                return;
+            }
+            if retirements.len() >= 64 {
+                let retained = std::mem::take(retirements);
+                *scheduling = RetirementSchedule::Unavailable {
+                    _retained: retained,
+                };
+                return;
+            }
             retirements.push(Retirement {
                 due: Instant::now() + self.retirement_delay,
                 successor: successor.credential_binding(),
@@ -1377,7 +1640,10 @@ impl GatewayEngine {
     /// rotation, disable, or revoke.
     async fn collect_retired(&self, current: &ConnectionRecord, now: Instant) {
         let (due, pending) = match self.retirements.lock() {
-            Ok(mut retirements) => {
+            Ok(mut scheduling) => {
+                let RetirementSchedule::Active(retirements) = &mut *scheduling else {
+                    return;
+                };
                 let (due, kept): (Vec<_>, Vec<_>) = retirements
                     .drain(..)
                     .partition(|retirement| retirement.due <= now);
@@ -1387,19 +1653,42 @@ impl GatewayEngine {
             }
             Err(_) => return,
         };
+        let mut incomplete = Vec::new();
         for retirement in due {
-            if let Some(generation) = retirement.superseded {
-                let _ = self
+            let exact = match retirement.superseded {
+                Some(generation) => {
+                    self.credentials
+                        .revoke(retirement.successor.connection_id(), generation)
+                        .await
+                }
+                None => Ok(()),
+            };
+            if exact.is_err()
+                || self
                     .credentials
-                    .revoke(retirement.successor.connection_id(), generation)
-                    .await;
+                    .retire_superseded(&retirement.successor)
+                    .await
+                    .is_err()
+            {
+                incomplete.push(retirement);
             }
-            let _ = self
-                .credentials
-                .retire_superseded(&retirement.successor)
-                .await;
         }
-        if !pending {
+        let failed = !incomplete.is_empty();
+        if let Ok(mut scheduling) = self.retirements.lock()
+            && let RetirementSchedule::Active(retirements) = &mut *scheduling
+        {
+            retirements.extend(incomplete);
+            if retirements.len() > 64 {
+                let retained = std::mem::take(retirements);
+                *scheduling = RetirementSchedule::Unavailable {
+                    _retained: retained,
+                };
+            }
+        }
+        let scheduling_clear = self.retirements.lock().is_ok_and(|scheduling| {
+            matches!(&*scheduling, RetirementSchedule::Active(retirements) if retirements.is_empty())
+        });
+        if !pending && !failed && scheduling_clear {
             let _ = self
                 .credentials
                 .retire_superseded(&current.credential_binding())
@@ -1479,6 +1768,86 @@ impl GatewayEngine {
             in_flight: self.in_flight(),
             last_sweep: Some(self.last_sweep.load(Ordering::SeqCst)).filter(|clock| *clock != 0),
             gateway_clock,
+        })
+    }
+
+    /// Derives host-scoped recovery facts without custody I/O or publication.
+    /// A manifest or cleanup note never substitutes for the native connection.
+    ///
+    /// # Errors
+    /// Refuses unavailable/corrupt native authority. Missing cleanup is reported
+    /// as unavailable, never an empty obligation set or service readiness.
+    pub async fn administrative_recovery(
+        &self,
+        draft: Option<&ConnectionRecord>,
+    ) -> Result<AdministrativeRecovery, &'static str> {
+        use crate::CredentialCleanupPhase as P;
+        let loaded = self
+            .connection
+            .load_for_credential_collection()
+            .await
+            .map_err(|_| "gateway.admin.connection-unavailable")?;
+        let record = loaded
+            .as_ref()
+            .map_or(draft, |loaded| Some(loaded.record()));
+        let cleanup = match (record, self.credential_journal.clone()) {
+            (Some(record), Some(journal)) => {
+                let id = record.connection_id().clone();
+                match tokio::task::spawn_blocking(move || journal.notes(&id)).await {
+                    Ok(Ok(notes)) => {
+                        let eligible = |note: &&crate::CredentialCleanupNote| {
+                            loaded.is_some()
+                                && note.generation <= record.generation()
+                                && (record.state() == ConnectionState::Revoked
+                                    || note.generation != record.credential_generation())
+                        };
+                        let unresolved: Vec<_> = notes.iter().filter(eligible).cloned().collect();
+                        if notes.iter().any(|note| note.phase == P::MutationPending) {
+                            CredentialRecovery::CreationUnconfirmed { notes }
+                        } else if unresolved
+                            .iter()
+                            .any(|note| note.phase == P::DeletionIncomplete)
+                        {
+                            CredentialRecovery::DeletionIncomplete { notes }
+                        } else if unresolved
+                            .iter()
+                            .any(|note| note.phase == P::DeletionPending)
+                        {
+                            CredentialRecovery::DeletionPending { notes }
+                        } else if unresolved
+                            .iter()
+                            .any(|note| note.phase == P::DeletionConfirmed)
+                        {
+                            CredentialRecovery::DeletionConfirmed { notes }
+                        } else if unresolved.is_empty() {
+                            CredentialRecovery::NonePending {
+                                retained: notes.len(),
+                            }
+                        } else {
+                            CredentialRecovery::AwaitingDelay { notes }
+                        }
+                    }
+                    _ => CredentialRecovery::Unavailable,
+                }
+            }
+            _ => CredentialRecovery::Unavailable,
+        };
+        Ok(match loaded {
+            None => AdministrativeRecovery::Unpublished { cleanup },
+            Some(loaded) => {
+                let record = loaded.record();
+                AdministrativeRecovery::Published {
+                    generation: record.generation().get(),
+                    credential_generation: record.credential_generation().get(),
+                    connection_state: match record.state() {
+                        ConnectionState::Active => "active",
+                        ConnectionState::Disabled => "disabled",
+                        ConnectionState::Revoked => "revoked",
+                    }
+                    .to_owned(),
+                    cleanup,
+                }
+            }
         })
     }
 
@@ -3505,6 +3874,7 @@ pub(crate) mod tests {
         struct CountedCredentials {
             store: Arc<auths_connections::PersistentCredentialStore>,
             leases: Arc<AtomicU64>,
+            lose_custody_ack: Arc<std::sync::atomic::AtomicBool>,
         }
 
         #[async_trait::async_trait]
@@ -3538,9 +3908,15 @@ pub(crate) mod tests {
                 auths_connections::CredentialReferenceCommitment,
                 auths_connections::CredentialStoreError,
             > {
-                self.store
+                let outcome = self
+                    .store
                     .replace(connection_id, old_generation, new_generation, secret)
-                    .await
+                    .await;
+                if outcome.is_ok() && self.lose_custody_ack.swap(false, Ordering::SeqCst) {
+                    Err(auths_connections::CredentialStoreError::Unavailable)
+                } else {
+                    outcome
+                }
             }
             async fn revoke(
                 &self,
@@ -3584,6 +3960,7 @@ pub(crate) mod tests {
             credentials_directory: std::path::PathBuf,
             pub(crate) engine: GatewayEngine,
             pub(crate) leases: Arc<AtomicU64>,
+            lose_custody_ack: Arc<std::sync::atomic::AtomicBool>,
             /// The same store the engine holds, for assertions on what it
             /// stores.
             store: Arc<auths_connections::PersistentCredentialStore>,
@@ -3637,9 +4014,11 @@ pub(crate) mod tests {
                 .expect("credential store"),
             );
             let leases = Arc::new(AtomicU64::new(0));
+            let lose_custody_ack = Arc::new(std::sync::atomic::AtomicBool::new(false));
             let credentials: Arc<dyn ConnectionCredentialStore> = Arc::new(CountedCredentials {
                 store: Arc::clone(&store),
                 leases: Arc::clone(&leases),
+                lose_custody_ack: Arc::clone(&lose_custody_ack),
             });
             let root = crate::harness::Signer::new(0x11);
             let observer = crate::harness::Signer::new(0x33);
@@ -3678,6 +4057,7 @@ pub(crate) mod tests {
                 credentials_directory,
                 engine,
                 leases,
+                lose_custody_ack,
                 store,
             }
         }
@@ -3699,6 +4079,13 @@ pub(crate) mod tests {
                 &recipe,
                 &first.engine.connection,
                 &*first.engine.credentials,
+                &crate::CredentialJournal::new(
+                    first
+                        .credentials_directory
+                        .parent()
+                        .expect("root")
+                        .to_path_buf(),
+                ),
                 |reference| {
                     ConnectionRecord::new(
                         provider(),
@@ -3982,7 +4369,8 @@ pub(crate) mod tests {
                 host.engine
                     .collect_credentials()
                     .await
-                    .expect("collect abandoned"),
+                    .expect("collect abandoned")
+                    .deleted(),
                 1
             );
             assert_eq!(host.stored(&installation.connection_id), [1]);
@@ -4003,7 +4391,8 @@ pub(crate) mod tests {
                 host.engine
                     .collect_credentials()
                     .await
-                    .expect("keep future"),
+                    .expect("keep future")
+                    .deleted(),
                 0
             );
             assert_eq!(host.stored(&installation.connection_id), [3, 4]);
@@ -4025,6 +4414,162 @@ pub(crate) mod tests {
                     .expect("notes")
                     .is_empty()
             );
+        }
+
+        async fn administrative_recovery_contract(backend: crate::store_testkit::Backend) {
+            let mut installation = installation_on(backend, 8).await;
+            let id = installation.connection_id.clone();
+            let host = &mut installation.first;
+            let journal = crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("private root")
+                    .to_path_buf(),
+            );
+            journal.initialize(&id).expect("journal");
+            journal
+                .register(&id, std::num::NonZeroU64::MIN)
+                .expect("initial note");
+            host.engine.credential_journal = Some(journal.clone());
+            let commitment = host
+                .engine
+                .prepare_rotation(candidate("synthetic-recovery-successor"))
+                .await
+                .expect("stage");
+            host.engine
+                .commit_rotation(commitment)
+                .await
+                .expect("publish");
+            let before_leases = host.leases.load(Ordering::SeqCst);
+            // A stale custody writer can outlive native publication. Its exact
+            // pending note must survive absence/deletion observations and restart.
+            journal
+                .begin_mutation(&id, std::num::NonZeroU64::MIN)
+                .expect("pending old writer");
+            let facts = host
+                .engine
+                .administrative_recovery(None)
+                .await
+                .expect("native facts");
+            assert!(matches!(
+                facts,
+                AdministrativeRecovery::Published {
+                    cleanup: CredentialRecovery::CreationUnconfirmed { .. },
+                    ..
+                }
+            ));
+            let incomplete = host
+                .engine
+                .collect_credentials()
+                .await
+                .expect("bounded incomplete report");
+            assert_eq!(
+                incomplete.failure_code(),
+                Some("gateway.admin.credential-operation-unconfirmed")
+            );
+            assert_eq!(incomplete.deleted(), 0);
+            let reopened = crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("private root")
+                    .to_path_buf(),
+            );
+            assert_eq!(
+                reopened.notes(&id).expect("retained after restart")[0].phase,
+                crate::CredentialCleanupPhase::MutationPending
+            );
+            journal
+                .confirm_mutation(&id, std::num::NonZeroU64::MIN)
+                .expect("late owned completion");
+            let (first, second) = tokio::join!(
+                host.engine.collect_credentials(),
+                host.engine.collect_credentials()
+            );
+            let first = first.expect("first collector");
+            let second = second.expect("second collector");
+            assert!(first.deleted() + second.deleted() >= 1);
+            assert!(
+                reopened
+                    .notes(&id)
+                    .expect("remaining active note")
+                    .iter()
+                    .all(|note| note.generation.get() == 2)
+            );
+            let repeated = host
+                .engine
+                .collect_credentials()
+                .await
+                .expect("repeated exact collection");
+            assert_eq!(repeated.deleted(), 0);
+            assert!(repeated.failure_code().is_none());
+            assert_eq!(
+                host.leases.load(Ordering::SeqCst),
+                before_leases,
+                "administrative recovery never leases a credential"
+            );
+            assert_eq!(host.stored(&id), [2]);
+            lost_custody_ack_is_retained(host, &id, &reopened).await;
+        }
+
+        async fn lost_custody_ack_is_retained(
+            host: &mut Host,
+            id: &auths_connections::ConnectionId,
+            journal: &crate::CredentialJournal,
+        ) {
+            host.lose_custody_ack.store(true, Ordering::SeqCst);
+            assert_eq!(
+                host.engine
+                    .prepare_rotation(candidate("synthetic-lost-custody-ack"))
+                    .await,
+                Err("gateway.admin.credential-unavailable")
+            );
+            assert_eq!(
+                host.stored(id),
+                [2, 3],
+                "the mutation completed before its reply was lost"
+            );
+            host.engine
+                .disable_connection()
+                .await
+                .expect("advance past abandoned generation");
+            let incomplete = host
+                .engine
+                .collect_credentials()
+                .await
+                .expect("report unconfirmed creation");
+            assert_eq!(
+                incomplete.failure_code(),
+                Some("gateway.admin.credential-operation-unconfirmed")
+            );
+            assert_eq!(
+                host.stored(id),
+                [2, 3],
+                "absence/revoke cannot establish that a late creation stopped"
+            );
+            assert_eq!(
+                journal
+                    .notes(id)
+                    .expect("retained unconfirmed write")
+                    .last()
+                    .expect("future note")
+                    .phase,
+                crate::CredentialCleanupPhase::MutationPending
+            );
+        }
+
+        #[tokio::test]
+        async fn file_administrative_recovery_retains_uncertainty_and_orders_collectors() {
+            administrative_recovery_contract(crate::store_testkit::Backend::File).await;
+        }
+
+        #[tokio::test]
+        #[ignore = "needs the TLS PostgreSQL fixture"]
+        async fn postgres_administrative_recovery_retains_uncertainty_and_orders_collectors() {
+            assert!(
+                crate::store_testkit::postgres_configured(),
+                "TLS PostgreSQL fixture required"
+            );
+            administrative_recovery_contract(crate::store_testkit::Backend::Postgres).await;
         }
 
         #[tokio::test]
@@ -4066,7 +4611,13 @@ pub(crate) mod tests {
                 .stop(true, wall_clock_seconds().expect("clock"))
                 .await
                 .expect("explicit store-only revoke");
-            assert_eq!(host.engine.collect_credentials().await, Ok(1));
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .map(|outcome| outcome.deleted()),
+                Ok(1)
+            );
             assert!(host.stored(&installation.connection_id).is_empty());
             assert_eq!(
                 std::fs::read(&path).expect("retained floor").as_slice(),
@@ -4224,7 +4775,8 @@ pub(crate) mod tests {
                 host.engine
                     .collect_credentials()
                     .await
-                    .expect("collect abandoned"),
+                    .expect("collect abandoned")
+                    .deleted(),
                 1
             );
             // The emergency flow collects the abandoned successor before
@@ -4298,7 +4850,7 @@ pub(crate) mod tests {
         }
 
         #[tokio::test]
-        async fn a_rotation_failing_after_its_credential_write_is_discarded() {
+        async fn a_rotation_publication_failure_retains_exact_custody_until_explicit_recovery() {
             let installation = installation(8).await;
             let host = &installation.first;
             // A read-only shared store makes the record write fail after the
@@ -4313,8 +4865,8 @@ pub(crate) mod tests {
             assert_eq!(refused, Err("gateway.admin.transition-unavailable"));
             assert_eq!(
                 host.stored(&installation.connection_id),
-                [1],
-                "the unpublished successor is gone"
+                [1, 2],
+                "a failed acknowledgement must not delete possibly published custody"
             );
             assert_eq!(host.record().await.generation().get(), 1);
             assert_eq!(host.entry_refusal().await, None);
@@ -4655,6 +5207,13 @@ pub(crate) mod tests {
                 &recipe,
                 &second.engine.connection,
                 &*second.engine.credentials,
+                &crate::CredentialJournal::new(
+                    second
+                        .credentials_directory
+                        .parent()
+                        .expect("root")
+                        .to_path_buf(),
+                ),
                 |reference| {
                     ConnectionRecord::new(
                         provider(),

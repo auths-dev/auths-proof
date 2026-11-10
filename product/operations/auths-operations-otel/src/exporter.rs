@@ -155,14 +155,13 @@ impl<T: OtlpTransport> BoundedOtlpExporter<T> {
                 }
                 Phase::Exporting { cohort, .. } => Admission::Joined(Arc::clone(cohort)),
                 Phase::Idle | Phase::Retryable(_) => {
-                    let batch = match &state.phase {
-                        Phase::Retryable(batch) => Arc::clone(batch),
-                        _ => {
-                            if state.queue.is_empty() {
-                                return Ok(());
-                            }
-                            Arc::new(std::mem::take(&mut state.queue).into_iter().collect())
+                    let batch = if let Phase::Retryable(batch) = &state.phase {
+                        Arc::clone(batch)
+                    } else {
+                        if state.queue.is_empty() {
+                            return Ok(());
                         }
+                        Arc::new(std::mem::take(&mut state.queue).into_iter().collect())
                     };
                     let cohort = Arc::new(Cohort::new());
                     state.phase = Phase::Exporting {

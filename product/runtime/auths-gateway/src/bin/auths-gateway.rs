@@ -63,7 +63,10 @@ mod unix {
         io::{IsTerminal as _, Read as _, Write as _},
         num::NonZeroU64,
         os::unix::{
-            fs::{FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _},
+            fs::{
+                DirBuilderExt as _, FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _,
+                PermissionsExt as _,
+            },
             process::CommandExt as _,
         },
         path::{Component, Path, PathBuf},
@@ -390,6 +393,9 @@ mod unix {
         Install {
             #[arg(long)]
             state_dir: PathBuf,
+            /// Complete only missing exact retained installation inputs.
+            #[arg(long, default_value_t = false)]
+            resume: bool,
             #[arg(long)]
             recipe: PathBuf,
             #[arg(long)]
@@ -591,6 +597,12 @@ mod unix {
             #[arg(long)]
             admin_socket: Option<PathBuf>,
         },
+        /// Complete retained qualification publication or clean retired inputs.
+        /// Reverification and retained/native monotonic floors remain mandatory.
+        QualificationRecover {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
         /// Print this installation's qualification policy, state, and code,
         /// derived now from the imported inputs. Contacts nothing.
         QualificationStatus {
@@ -650,6 +662,19 @@ mod unix {
             /// Where to write the archive; standard output when absent.
             #[arg(long)]
             out: Option<PathBuf>,
+        },
+        /// Derive bounded host recovery facts; never runs checks or publishes.
+        RecoveryStatus {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long, requires_all = ["proof", "action", "approval"])]
+            candidate: Option<PathBuf>,
+            #[arg(long, requires = "candidate")]
+            proof: Option<PathBuf>,
+            #[arg(long, requires = "candidate")]
+            action: Option<PathBuf>,
+            #[arg(long, requires = "candidate")]
+            approval: Option<PathBuf>,
         },
         /// Ask the private operator socket for the connection state.
         Status {
@@ -1438,18 +1463,81 @@ mod unix {
         Ok(bytes)
     }
 
+    fn admin_boundary(point: &'static str) {
+        #[cfg(feature = "testkit-harness")]
+        auths_gateway::administrative_test_boundary(point);
+        #[cfg(not(feature = "testkit-harness"))]
+        let _ = point;
+    }
+
     fn private_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
+        let parent = path.parent().ok_or("gateway.state.invalid-path")?;
+        admin_boundary("private-file.before-create");
+        let mut pending =
+            tempfile::NamedTempFile::new_in(parent).map_err(|_| "gateway.state.write-failed")?;
+        pending
+            .as_file()
+            .set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|_| "gateway.state.write-failed")?;
+        admin_boundary("private-file.before-content");
+        pending
+            .write_all(bytes)
+            .map_err(|_| "gateway.state.write-failed")?;
+        admin_boundary("private-file.after-content");
+        pending
+            .as_file()
+            .sync_all()
+            .map_err(|_| "gateway.state.write-failed")?;
+        admin_boundary("private-file.after-file-sync");
+        pending
+            .persist_noclobber(path)
+            .map_err(|_| "gateway.state.file-exists-or-unavailable")?;
+        admin_boundary("private-file.after-publication");
+        File::open(parent)
+            .and_then(|dir| dir.sync_all())
+            .map_err(|_| "gateway.state.sync-failed")?;
+        admin_boundary("private-file.after-parent-sync");
+        Ok(())
+    }
+
+    /// Retain an exact private input once; interrupted retries may fill missing
+    /// files but can never replace a different retained decision input.
+    fn retain_private_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
+        let metadata = match fs::symlink_metadata(path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return private_file(path, bytes);
+            }
+            Err(_) => return Err("gateway.state.file-exists-or-unavailable"),
+            Ok(metadata) => metadata,
+        };
+        if !metadata.is_file()
+            || metadata.permissions().mode() & 0o077 != 0
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.len() != bytes.len() as u64
+        {
+            return Err("gateway.state.resume-conflict");
+        }
+        let mut retained = Vec::with_capacity(bytes.len());
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
             .open(path)
             .map_err(|_| "gateway.state.file-exists-or-unavailable")?;
-        file.write_all(bytes)
-            .and_then(|()| file.sync_all())
-            .map_err(|_| "gateway.state.write-failed")?;
+        (&file)
+            .take(bytes.len() as u64 + 1)
+            .read_to_end(&mut retained)
+            .map_err(|_| "gateway.state.file-exists-or-unavailable")?;
+        if retained != bytes {
+            return Err("gateway.state.resume-conflict");
+        }
+        // A preceding process may have published these exact bytes but died
+        // before synchronization. Exact resume must establish its own durability.
+        file.sync_all().map_err(|_| "gateway.state.sync-failed")?;
         File::open(path.parent().ok_or("gateway.state.invalid-path")?)
-            .and_then(|dir| dir.sync_all())
+            .and_then(|directory| directory.sync_all())
             .map_err(|_| "gateway.state.sync-failed")?;
         Ok(())
     }
@@ -1544,6 +1632,7 @@ mod unix {
         attempt_store: Option<PathBuf>,
         credential_store: CredentialStoreSettings,
         qualification: QualificationOptions,
+        resume: bool,
     ) -> Result<(), Failure> {
         // The store choice is checked before anything is read or written.
         auths_gateway::credential_store_policy(
@@ -1617,8 +1706,26 @@ mod unix {
             "installation.lock",
             "gateway.configuration.unavailable",
         )?;
-        if state_dir.join("installation.json").exists() {
+        if !resume && state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed".into());
+        }
+        if !resume
+            && [
+                INSTALL_DRAFT_FILE,
+                "recipe.json",
+                "profile.lock.json",
+                "trusted.context.cbor",
+            ]
+            .iter()
+            .any(|name| state_dir.join(name).exists())
+        {
+            return Err("gateway.install.resume-required".into());
+        }
+        if resume && state_dir.join("installation.json").exists() {
+            retain_installation_file(
+                &state_dir.join("installation.json"),
+                &encode_installation(&manifest)?,
+            )?;
         }
         let attempts = {
             let store_path = store_path.clone();
@@ -1647,8 +1754,22 @@ mod unix {
             if label.is_empty() || label.len() > 256 {
                 return Err("gateway.install.invalid-account-label".into());
             }
-            let id =
-                ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
+            let retained = if resume && state_dir.join(INSTALL_DRAFT_FILE).exists() {
+                let path = state_dir.join(INSTALL_DRAFT_FILE);
+                let bytes = read_bounded(&path, auths_gateway::effect::MAX_EFFECT_BYTES)?;
+                retain_installation_file(&path, &bytes)?;
+                Some(
+                    ConnectionRecord::from_canonical_cbor(&bytes)
+                        .map_err(|_| "gateway.install.resume-conflict")?,
+                )
+            } else {
+                None
+            };
+            let id = match &retained {
+                Some(record) => record.connection_id().clone(),
+                None => ConnectionId::generate()
+                    .map_err(|_| "gateway.install.randomness-unavailable")?,
+            };
             let profile = ConnectionProfile::new(
                 SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
                 2,
@@ -1657,32 +1778,37 @@ mod unix {
             let mut account_hash = Sha256::new();
             account_hash.update(b"auths.gateway-account/1\0");
             account_hash.update(label.as_bytes());
-            let timestamp = now()?;
-            Some(
-                ConnectionRecord::new(
-                    provider.clone(),
-                    alias.clone(),
-                    id,
-                    SemanticId::parse("auths.gateway-operation/1")
-                        .map_err(|_| "gateway.install.contract")?,
-                    SemanticId::parse("auths.gateway-connection-descriptor/1")
-                        .map_err(|_| "gateway.install.descriptor-schema")?,
-                    descriptor,
-                    account_hash.finalize().into(),
-                    [0; 32],
-                    NonZeroU64::MIN,
-                    ConnectionState::Active,
-                    vec!["gateway".to_owned()],
-                    vec![profile],
-                    timestamp,
-                    timestamp,
-                    None,
-                )
-                .map_err(|_| "gateway.install.connection-invalid")?,
+            let timestamp = match &retained {
+                Some(record) => record.created_at_unix_seconds(),
+                None => now()?,
+            };
+            let draft = ConnectionRecord::new(
+                provider.clone(),
+                alias.clone(),
+                id,
+                SemanticId::parse("auths.gateway-operation/1")
+                    .map_err(|_| "gateway.install.contract")?,
+                SemanticId::parse("auths.gateway-connection-descriptor/1")
+                    .map_err(|_| "gateway.install.descriptor-schema")?,
+                descriptor,
+                account_hash.finalize().into(),
+                [0; 32],
+                NonZeroU64::MIN,
+                ConnectionState::Active,
+                vec!["gateway".to_owned()],
+                vec![profile],
+                timestamp,
+                timestamp,
+                None,
             )
+            .map_err(|_| "gateway.install.connection-invalid")?;
+            if retained.as_ref().is_some_and(|record| record != &draft) {
+                return Err("gateway.install.resume-conflict".into());
+            }
+            Some(draft)
         };
         if let Some(draft) = &draft {
-            private_file(
+            retain_installation_file(
                 &state_dir.join(INSTALL_DRAFT_FILE),
                 &draft
                     .to_canonical_cbor()
@@ -1690,73 +1816,73 @@ mod unix {
             )?;
         }
         // Retain authenticated cleanup inputs before any custody write.
-        private_file(&state_dir.join("recipe.json"), &source)?;
-        private_file(&state_dir.join("profile.lock.json"), &lock)?;
-        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
+        retain_installation_file(&state_dir.join("recipe.json"), &source)?;
+        retain_installation_file(&state_dir.join("profile.lock.json"), &lock)?;
+        retain_installation_file(&state_dir.join("trusted.context.cbor"), &trust)?;
         if let Some(bytes) = &attestation {
-            private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
+            retain_installation_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
         }
         if let Some(bytes) = &qualification_root {
-            private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
+            retain_installation_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
         }
         let manifest_bytes = encode_installation(&manifest)?;
-        private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
+        retain_installation_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         let shared = SharedConnection::new(attempts.store(), provider, alias);
         let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
         if join {
             join_connection(&shared, &journal, &*credentials, &recipe, &candidate).await?;
         } else {
             let draft = draft.ok_or("gateway.install.connection-invalid")?;
-            if !recipe
+            if recipe
                 .credential_reads()
                 .map_err(|_| "gateway.install.invalid-descriptor")?
                 .is_empty()
             {
-                let proposal = state_dir.join(INSTALL_PROPOSAL_FILE);
-                stage_installation(&state_dir, candidate, &proposal).await?;
-                println!(
-                    "installation candidate staged; approve checks and publish before serving"
-                );
-                return Ok(());
+                let notes = journal.clone();
+                let id = draft.connection_id().clone();
+                tokio::task::spawn_blocking(move || {
+                    notes.initialize(&id)?;
+                    notes.register(&id, NonZeroU64::MIN)
+                })
+                .await
+                .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+                let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+                    .map_err(|_| "gateway.install.invalid-credential")?;
+                install_connection(
+                    &recipe,
+                    &shared,
+                    &*credentials,
+                    &journal,
+                    |reference| bind_initial_credential(&draft, reference),
+                    draft.connection_id(),
+                    secret,
+                )
+                .await?;
+            } else {
+                let current = shared
+                    .load()
+                    .await
+                    .map_err(|_| "gateway.install.connection-store-unavailable")?;
+                if let Some(current) = current {
+                    let reference = auths_connections::CredentialReferenceCommitment::of(
+                        draft.connection_id(),
+                        draft.credential_generation(),
+                        &candidate,
+                    );
+                    let expected = bind_initial_credential(&draft, *reference.as_bytes())?;
+                    if current.record() != &expected {
+                        return Err("gateway.install.resume-conflict".into());
+                    }
+                    join_connection(&shared, &journal, &*credentials, &recipe, &candidate).await?;
+                } else {
+                    let proposal = state_dir.join(INSTALL_PROPOSAL_FILE);
+                    stage_installation(&state_dir, candidate, &proposal).await?;
+                    println!(
+                        "installation candidate staged; approve checks and publish before serving"
+                    );
+                    return Ok(());
+                }
             }
-            let notes = journal.clone();
-            let id = draft.connection_id().clone();
-            tokio::task::spawn_blocking(move || {
-                notes.initialize(&id)?;
-                notes.register(&id, NonZeroU64::MIN)
-            })
-            .await
-            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-            let secret = SecretBytes::new(std::mem::take(&mut *candidate))
-                .map_err(|_| "gateway.install.invalid-credential")?;
-            install_connection(
-                &recipe,
-                &shared,
-                &*credentials,
-                |reference| {
-                    ConnectionRecord::new(
-                        draft.provider_kind().clone(),
-                        draft.alias().clone(),
-                        draft.connection_id().clone(),
-                        draft.contract().clone(),
-                        draft.descriptor_schema().clone(),
-                        draft.descriptor().to_vec(),
-                        *draft.account_commitment(),
-                        reference,
-                        draft.generation(),
-                        draft.state(),
-                        draft.allowed_workloads().to_vec(),
-                        draft.allowed_profiles().to_vec(),
-                        draft.created_at_unix_seconds(),
-                        draft.updated_at_unix_seconds(),
-                        None,
-                    )
-                    .map_err(|_| "gateway.install.connection-invalid")
-                },
-                draft.connection_id(),
-                secret,
-            )
-            .await?;
         }
         let installed = shared
             .load()
@@ -1765,9 +1891,11 @@ mod unix {
             .ok_or("gateway.install.connection-store-unavailable")?;
         let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
         let record = installed.record().clone();
+        admin_boundary("installation.before-floor");
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
+        admin_boundary("installation.after-floor-ack");
         let initializing = state_dir.clone();
         tokio::task::spawn_blocking(move || -> Result<(), Failure> {
             load_engine(&initializing)?
@@ -1782,6 +1910,40 @@ mod unix {
             manifest.recipe_digest
         );
         Ok(())
+    }
+
+    fn retain_installation_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
+        retain_private_file(path, bytes).map_err(|code| {
+            if code == "gateway.state.resume-conflict" {
+                "gateway.install.resume-conflict"
+            } else {
+                code
+            }
+        })
+    }
+
+    fn bind_initial_credential(
+        draft: &ConnectionRecord,
+        reference: [u8; 32],
+    ) -> Result<ConnectionRecord, &'static str> {
+        ConnectionRecord::new(
+            draft.provider_kind().clone(),
+            draft.alias().clone(),
+            draft.connection_id().clone(),
+            draft.contract().clone(),
+            draft.descriptor_schema().clone(),
+            draft.descriptor().to_vec(),
+            *draft.account_commitment(),
+            reference,
+            draft.generation(),
+            draft.state(),
+            draft.allowed_workloads().to_vec(),
+            draft.allowed_profiles().to_vec(),
+            draft.created_at_unix_seconds(),
+            draft.updated_at_unix_seconds(),
+            None,
+        )
+        .map_err(|_| "gateway.install.connection-invalid")
     }
 
     /// The files of `directory` in name order, each at most `maximum` bytes
@@ -1999,9 +2161,23 @@ mod unix {
     /// edited manifest cannot relax production. Only a changed installation
     /// is an error; unreadable inputs or remembered revocations give a gate
     /// that qualifies nothing.
+    #[derive(Clone, Copy)]
+    enum QualificationLoading {
+        Retain,
+        Inspect,
+    }
+
     fn qualification_gate(
         state_dir: &Path,
         manifest: &Installation,
+    ) -> Result<QualificationGate, Failure> {
+        qualification_gate_with(state_dir, manifest, QualificationLoading::Retain)
+    }
+
+    fn qualification_gate_with(
+        state_dir: &Path,
+        manifest: &Installation,
+        loading: QualificationLoading,
     ) -> Result<QualificationGate, Failure> {
         let policy = qualification_policy(
             Some(&manifest.qualification.policy),
@@ -2024,8 +2200,23 @@ mod unix {
             clock,
             remembered.unwrap_or_default(),
         );
-        // Inputs that cannot be read leave the gate holding nothing.
-        let _ = qualification_reload(state_dir, &gate);
+        // Inspection can verify retained inputs in memory without advancing a
+        // durable floor as a side effect of a status query.
+        match loading {
+            QualificationLoading::Retain => {
+                let _ = qualification_reload(state_dir, &gate);
+            }
+            QualificationLoading::Inspect => {
+                let _lock = private_state_lock(
+                    state_dir,
+                    "qualification.lock",
+                    "gateway.qualification.unavailable",
+                )?;
+                if let Ok(bundle) = qualification_bundle(&state_dir.join(QUALIFICATION_DIRECTORY)) {
+                    gate.load(&bundle);
+                }
+            }
+        }
         Ok(gate)
     }
 
@@ -2056,26 +2247,42 @@ mod unix {
         state_dir: &Path,
         gate: &QualificationGate,
     ) -> Result<(), &'static str> {
-        let bundle = qualification_bundle(&state_dir.join(QUALIFICATION_DIRECTORY))
-            .inspect_err(|_| gate.unload())?;
-        if gate.load(&bundle) {
-            write_verifier_state(state_dir, &gate.verifier_state())?;
+        let _lock = private_state_lock(
+            state_dir,
+            "qualification.lock",
+            "gateway.qualification.unavailable",
+        )?;
+        let outcome = (|| {
+            gate.remember_retained(&read_verifier_state(state_dir)?);
+            let bundle = qualification_bundle(&state_dir.join(QUALIFICATION_DIRECTORY))?;
+            if gate.load(&bundle) {
+                write_verifier_state(state_dir, &gate.verifier_state())?;
+            }
+            Ok(())
+        })();
+        if outcome.is_err() {
+            gate.unload();
         }
-        Ok(())
+        outcome
     }
 
-    /// Verifies a release directory under the installation's trust root and
-    /// makes it this host's qualification inputs. Inputs whose certificate,
-    /// index, or revocation list cannot be used are refused and nothing
-    /// changes; anything else is authentic and is kept, whatever state it
-    /// derives.
-    fn qualification_import(state_dir: &Path, from: &Path) -> Result<(), Failure> {
-        const CODE: &str = "gateway.qualification.unavailable";
-        private_root(state_dir)?;
+    struct PreparedQualification {
+        bundle: QualificationBundle,
+        gate: QualificationGate,
+    }
+    struct StagedQualification {
+        gate: QualificationGate,
+        directory: PathBuf,
+    }
+
+    fn prepare_qualification(
+        state_dir: &Path,
+        from: &Path,
+    ) -> Result<PreparedQualification, Failure> {
         let manifest = installation(state_dir)?;
         let bundle =
             qualification_bundle(from).map_err(|code| Failure::at(code, from, "unreadable"))?;
-        let candidate = QualificationGate::new(
+        let gate = QualificationGate::new(
             qualification_policy(
                 Some(&manifest.qualification.policy),
                 production_qualification(manifest.deployment),
@@ -2086,70 +2293,542 @@ mod unix {
             Box::new(DevelopmentClock),
             read_verifier_state(state_dir)?,
         );
-        candidate.load(&bundle);
-        let status = candidate.status();
-        if !candidate.inputs_usable() {
+        gate.load(&bundle);
+        if !gate.inputs_usable() {
             return Err(Failure::at(
-                CODE,
+                "gateway.qualification.unavailable",
                 from,
-                "not a release this installation's root signed",
+                "unusable signed qualification inputs",
             ));
         }
-        // What the new inputs establish is recorded before they replace the
-        // old ones. If the replacement then fails, the old inputs meet a
-        // floor they are below and nothing qualifies.
-        load_engine(state_dir)?.publish_effect_qualification(&candidate)?;
-        write_verifier_state(state_dir, &candidate.verifier_state())?;
-        let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
-        let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
-        let current = state_dir.join(QUALIFICATION_DIRECTORY);
-        let failed = |error: std::io::Error| Failure::at(CODE, &current, error);
-        for stale in [&staged, &retired] {
-            if stale.exists() {
-                fs::remove_dir_all(stale).map_err(failed)?;
+        Ok(PreparedQualification { bundle, gate })
+    }
+
+    fn sync_qualification_directory(directory: &Path) -> Result<(), Failure> {
+        admin_boundary("qualification.before-directory-sync");
+        File::open(directory)
+            .and_then(|file| file.sync_all())
+            .map_err(|error| Failure::at("gateway.qualification.unavailable", directory, error))?;
+        admin_boundary("qualification.after-directory-sync");
+        Ok(())
+    }
+
+    /// The local publication contains only this closed, bounded file layout.
+    /// Refuse foreign/symbolic entries instead of recursively deleting them.
+    fn remove_qualification_directory(directory: &Path) -> Result<(), Failure> {
+        const CODE: &str = "gateway.qualification.unavailable";
+        if !directory.exists() {
+            return Ok(());
+        }
+        check_private_directory(directory).map_err(|cause| Failure::at(CODE, directory, cause))?;
+        let entries =
+            fs::read_dir(directory).map_err(|error| Failure::at(CODE, directory, error))?;
+        for entry in entries.take(6) {
+            let entry = entry.map_err(|error| Failure::at(CODE, directory, error))?;
+            let name = entry.file_name();
+            let path = entry.path();
+            let Some(name) = name.to_str() else {
+                return Err(CODE.into());
+            };
+            if [RELEASE_RECORDS_DIRECTORY, RELEASE_ATTESTATIONS_DIRECTORY].contains(&name) {
+                check_private_directory(&path).map_err(|cause| Failure::at(CODE, &path, cause))?;
+                let members =
+                    fs::read_dir(&path).map_err(|error| Failure::at(CODE, &path, error))?;
+                for (index, member) in members.enumerate() {
+                    if index >= MAX_INDEX_ENTRIES {
+                        return Err(CODE.into());
+                    }
+                    let member = member.map_err(|error| Failure::at(CODE, &path, error))?;
+                    let metadata = fs::symlink_metadata(member.path())
+                        .map_err(|error| Failure::at(CODE, &path, error))?;
+                    if !metadata.is_file() || metadata.permissions().mode() & 0o077 != 0 {
+                        return Err(CODE.into());
+                    }
+                    fs::remove_file(member.path())
+                        .map_err(|error| Failure::at(CODE, &path, error))?;
+                }
+                sync_qualification_directory(&path)?;
+                fs::remove_dir(&path).map_err(|error| Failure::at(CODE, &path, error))?;
+            } else if [
+                RELEASE_SIGNER_CERTIFICATE_FILE,
+                RELEASE_REVOCATION_LIST_FILE,
+                RELEASE_INDEX_FILE,
+            ]
+            .contains(&name)
+            {
+                let metadata =
+                    fs::symlink_metadata(&path).map_err(|error| Failure::at(CODE, &path, error))?;
+                if !metadata.is_file() || metadata.permissions().mode() & 0o077 != 0 {
+                    return Err(CODE.into());
+                }
+                fs::remove_file(&path).map_err(|error| Failure::at(CODE, &path, error))?;
+            } else {
+                return Err(CODE.into());
             }
         }
+        sync_qualification_directory(directory)?;
+        fs::remove_dir(directory).map_err(|error| Failure::at(CODE, directory, error))?;
+        sync_qualification_directory(directory.parent().ok_or(CODE)?)
+    }
+
+    fn stage_qualification(
+        state_dir: &Path,
+        prepared: PreparedQualification,
+    ) -> Result<StagedQualification, Failure> {
+        let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
+        // Never delete the only retained accepted candidate during recovery.
+        // Exact retry fills only missing files; different staged bytes conflict.
         for directory in [
             staged.clone(),
             staged.join(RELEASE_RECORDS_DIRECTORY),
             staged.join(RELEASE_ATTESTATIONS_DIRECTORY),
         ] {
-            fs::create_dir(&directory).map_err(failed)?;
-            fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).map_err(failed)?;
+            match fs::DirBuilder::new().mode(0o700).create(&directory) {
+                Ok(()) => fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
+                    .map_err(|error| {
+                        Failure::at("gateway.qualification.unavailable", &directory, error)
+                    })?,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    check_private_directory(&directory).map_err(|cause| {
+                        Failure::at("gateway.qualification.unavailable", &directory, cause)
+                    })?;
+                }
+                Err(error) => {
+                    return Err(Failure::at(
+                        "gateway.qualification.unavailable",
+                        &directory,
+                        error,
+                    ));
+                }
+            }
         }
-        private_file(
+        let bundle = &prepared.bundle;
+        retain_private_file(
             &staged.join(RELEASE_SIGNER_CERTIFICATE_FILE),
             &bundle.signer_certificate,
         )?;
-        private_file(
+        retain_private_file(
             &staged.join(RELEASE_REVOCATION_LIST_FILE),
             &bundle.revocation_list,
         )?;
-        private_file(&staged.join(RELEASE_INDEX_FILE), &bundle.release_index)?;
+        retain_private_file(&staged.join(RELEASE_INDEX_FILE), &bundle.release_index)?;
         for (directory, members) in [
             (RELEASE_RECORDS_DIRECTORY, &bundle.records),
             (RELEASE_ATTESTATIONS_DIRECTORY, &bundle.attestations),
         ] {
             for (position, member) in members.iter().enumerate() {
-                private_file(
+                retain_private_file(
                     &staged.join(directory).join(format!("{position:04}.json")),
                     member,
                 )?;
             }
+            sync_qualification_directory(&staged.join(directory))?;
         }
+        sync_qualification_directory(&staged)?;
+        sync_qualification_directory(state_dir)?;
+        if qualification_bundle(&staged)?.digest() != bundle.digest() {
+            return Err("gateway.qualification.unavailable".into());
+        }
+        Ok(StagedQualification {
+            gate: prepared.gate,
+            directory: staged,
+        })
+    }
+
+    /// Verifies a release directory under the installation's trust root and
+    /// makes it this host's qualification inputs. Inputs whose certificate,
+    /// index, or revocation list cannot be used are refused and nothing
+    /// changes; anything else is authentic and is kept, whatever state it
+    /// derives.
+    fn qualification_import(state_dir: &Path, from: &Path) -> Result<(), Failure> {
+        const CODE: &str = "gateway.qualification.unavailable";
+        private_root(state_dir)?;
+        // Engine loading performs a locked local reload. Do it before taking
+        // the transaction lock so we never recursively acquire that same lock.
+        let manifest = installation(state_dir)?;
+        let engine = load_engine_from_manifest(
+            state_dir,
+            CredentialAccess::Operator,
+            &manifest,
+            QualificationLoading::Inspect,
+        )?;
+        let _lock = private_state_lock(state_dir, "qualification.lock", CODE)?;
+        let prepared = prepare_qualification(state_dir, from)?;
+        let staged = stage_qualification(state_dir, prepared)?;
+        let current = state_dir.join(QUALIFICATION_DIRECTORY);
+        let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
+        if current.exists() && retired.exists() {
+            let previous_publication = prepare_qualification(state_dir, &current)?;
+            engine.check_qualification_publication(&previous_publication.gate)?;
+            remove_qualification_directory(&retired)?;
+        }
+        admin_boundary("qualification.before-native-floor");
+        engine.publish_effect_qualification(&staged.gate)?;
+        admin_boundary("qualification.after-native-floor");
+        write_verifier_state(state_dir, &staged.gate.verifier_state())?;
+        admin_boundary("qualification.after-local-floor");
         if current.exists() {
-            fs::rename(&current, &retired).map_err(failed)?;
+            admin_boundary("qualification.before-current-retirement");
+            fs::rename(&current, &retired).map_err(|error| Failure::at(CODE, &current, error))?;
+            admin_boundary("qualification.after-current-retirement");
+            sync_qualification_directory(state_dir)?;
+            admin_boundary("qualification.after-retirement-sync");
         }
-        fs::rename(&staged, &current).map_err(failed)?;
-        if retired.exists() {
-            fs::remove_dir_all(&retired).map_err(failed)?;
-        }
+        admin_boundary("qualification.before-current-publication");
+        fs::rename(&staged.directory, &current)
+            .map_err(|error| Failure::at(CODE, &current, error))?;
+        admin_boundary("qualification.after-current-publication");
+        sync_qualification_directory(state_dir)?;
+        admin_boundary("qualification.after-publication-sync");
+        let published = prepare_qualification(state_dir, &current)?;
+        engine.check_qualification_publication(&published.gate)?;
+        admin_boundary("qualification.before-retired-cleanup");
+        remove_qualification_directory(&retired)?;
+        admin_boundary("qualification.after-retired-cleanup");
+        let status = published.gate.status();
         println!(
             "imported qualification inputs: state={} code={}",
             status.state.as_str(),
             status.code.unwrap_or("none")
         );
         Ok(())
+    }
+
+    fn qualification_recover(state_dir: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
+        if staged.exists() {
+            return qualification_import(state_dir, &staged);
+        }
+        let engine = load_engine(state_dir)?;
+        let _lock = private_state_lock(
+            state_dir,
+            "qualification.lock",
+            "gateway.qualification.unavailable",
+        )?;
+        // Recheck after taking the lock: another importer may have staged work.
+        if staged.exists() {
+            return Err("gateway.qualification.unavailable".into());
+        }
+        let current = state_dir.join(QUALIFICATION_DIRECTORY);
+        let published = prepare_qualification(state_dir, &current)?;
+        engine.check_qualification_publication(&published.gate)?;
+        remove_qualification_directory(
+            &state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous")),
+        )?;
+        println!("qualification publication verified; retired cleanup complete");
+        Ok(())
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "kebab-case")]
+    enum InstallationRecoveryPhase {
+        Uninitialized,
+        InputsRetained,
+        ConfiguredUnpublished,
+        Published,
+        Quarantined,
+    }
+
+    #[derive(Serialize)]
+    #[serde(tag = "state", rename_all = "kebab-case")]
+    enum QualificationRecoveryPhase {
+        Empty,
+        Staged,
+        FloorsAdvanced,
+        CurrentPublished,
+        RetiredCleanupPending,
+        Unavailable { code: &'static str },
+    }
+
+    #[derive(Serialize)]
+    #[serde(tag = "state", rename_all = "kebab-case")]
+    enum RecoveryComponent<T: Serialize> {
+        Known { facts: T },
+        Unavailable { code: &'static str },
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "kebab-case")]
+    enum AdministrativeNextCommand {
+        Install,
+        InstallResume,
+        CandidateStageInstallation,
+        CandidateAcquire,
+        CandidatePublish,
+        CredentialCollect,
+        QualificationImport,
+        QualificationRecover,
+        RecoveryStatus,
+    }
+
+    #[derive(Serialize)]
+    struct AdministrativeRecoveryReport {
+        schema: &'static str,
+        installation: InstallationRecoveryPhase,
+        native: Option<RecoveryComponent<auths_gateway::AdministrativeRecovery>>,
+        candidate: Option<RecoveryComponent<auths_gateway::CandidateRecoveryState>>,
+        qualification: QualificationRecoveryPhase,
+        next_commands: Vec<AdministrativeNextCommand>,
+    }
+
+    fn inspect_qualification_publication(
+        state_dir: &Path,
+        engine: &GatewayEngine,
+    ) -> QualificationRecoveryPhase {
+        let inspect = || -> Result<QualificationRecoveryPhase, Failure> {
+            let _lock = private_state_lock(
+                state_dir,
+                "qualification.lock",
+                "gateway.qualification.unavailable",
+            )?;
+            let current = state_dir.join(QUALIFICATION_DIRECTORY);
+            let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
+            let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
+            if staged.exists() {
+                let candidate = prepare_qualification(state_dir, &staged)?;
+                return match engine.check_qualification_publication(&candidate.gate) {
+                    Ok(()) => Ok(QualificationRecoveryPhase::FloorsAdvanced),
+                    Err("gateway.configuration.changed") => Ok(QualificationRecoveryPhase::Staged),
+                    Err(code) => Err(code.into()),
+                };
+            }
+            if current.exists() {
+                let publication = prepare_qualification(state_dir, &current)?;
+                engine.check_qualification_publication(&publication.gate)?;
+                return Ok(if retired.exists() {
+                    QualificationRecoveryPhase::RetiredCleanupPending
+                } else {
+                    QualificationRecoveryPhase::CurrentPublished
+                });
+            }
+            let memory = read_verifier_state(state_dir)?;
+            if retired.exists()
+                || memory.accepted_revocation_sequence != 0
+                || memory.accepted_index_issued_at != 0
+                || !memory.revoked_signers.is_empty()
+                || !memory.revoked_qualifications.is_empty()
+            {
+                return Err("gateway.qualification.unavailable".into());
+            }
+            Ok(QualificationRecoveryPhase::Empty)
+        };
+        inspect().unwrap_or_else(|failure| QualificationRecoveryPhase::Unavailable {
+            code: failure.code,
+        })
+    }
+
+    fn initial_recovery_report(
+        state_dir: &Path,
+    ) -> (AdministrativeRecoveryReport, Option<&'static str>) {
+        let retained_files = [
+            INSTALL_DRAFT_FILE,
+            "recipe.json",
+            "profile.lock.json",
+            "trusted.context.cbor",
+            "installation.json",
+        ];
+        let any_retained = retained_files
+            .iter()
+            .any(|name| state_dir.join(name).exists());
+        let mut report = AdministrativeRecoveryReport {
+            schema: "auths.gateway-recovery/1",
+            installation: if any_retained {
+                InstallationRecoveryPhase::InputsRetained
+            } else {
+                InstallationRecoveryPhase::Uninitialized
+            },
+            native: None,
+            candidate: None,
+            qualification: QualificationRecoveryPhase::Empty,
+            next_commands: vec![if any_retained {
+                AdministrativeNextCommand::InstallResume
+            } else {
+                AdministrativeNextCommand::Install
+            }],
+        };
+        let mut failure = None;
+        for name in retained_files {
+            let path = state_dir.join(name);
+            match fs::symlink_metadata(&path) {
+                Ok(metadata)
+                    if !metadata.is_file()
+                        || metadata.permissions().mode() & 0o077 != 0
+                        || metadata.uid() != rustix::process::geteuid().as_raw()
+                        || metadata.nlink() != 1 =>
+                {
+                    report.installation = InstallationRecoveryPhase::Quarantined;
+                    report.next_commands = vec![AdministrativeNextCommand::RecoveryStatus];
+                    failure = Some("gateway.install.retained-input-invalid");
+                }
+                Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                    failure = Some("gateway.install.retained-input-invalid");
+                }
+                _ => {}
+            }
+        }
+        (report, failure)
+    }
+
+    async fn populate_native_recovery(
+        state_dir: &Path,
+        engine: &GatewayEngine,
+        report: &mut AdministrativeRecoveryReport,
+    ) -> Option<&'static str> {
+        let mut failure = None;
+        let draft = (|| -> Result<Option<ConnectionRecord>, Failure> {
+            if !state_dir.join(INSTALL_DRAFT_FILE).exists() {
+                return Ok(None);
+            }
+            let path = state_dir.join(INSTALL_DRAFT_FILE);
+            let bytes = read_bounded(&path, auths_gateway::effect::MAX_EFFECT_BYTES)?;
+            retain_private_file(&path, &bytes)?;
+            Ok(Some(
+                ConnectionRecord::from_canonical_cbor(&bytes)
+                    .map_err(|_| "gateway.install.connection-invalid")?,
+            ))
+        })();
+        let native = match draft {
+            Ok(draft) => engine.administrative_recovery(draft.as_ref()).await,
+            Err(error) => {
+                report.installation = InstallationRecoveryPhase::Quarantined;
+                Err(error.code)
+            }
+        };
+        match native {
+            Ok(facts) => {
+                report.installation = match facts {
+                    auths_gateway::AdministrativeRecovery::Published { .. } => {
+                        InstallationRecoveryPhase::Published
+                    }
+                    auths_gateway::AdministrativeRecovery::Unpublished { .. } => {
+                        InstallationRecoveryPhase::ConfiguredUnpublished
+                    }
+                };
+                if let Some(code) = facts.cleanup_failure_code() {
+                    failure = Some(code);
+                }
+                report.native = Some(RecoveryComponent::Known { facts });
+            }
+            Err(code) => {
+                report.native = Some(RecoveryComponent::Unavailable { code });
+                failure = Some(code);
+            }
+        }
+        report.qualification = inspect_qualification_publication(state_dir, engine);
+        report.next_commands = match report.installation {
+            InstallationRecoveryPhase::Published => vec![
+                AdministrativeNextCommand::CredentialCollect,
+                AdministrativeNextCommand::QualificationImport,
+            ],
+            InstallationRecoveryPhase::Quarantined => {
+                vec![AdministrativeNextCommand::RecoveryStatus]
+            }
+            _ => vec![
+                AdministrativeNextCommand::InstallResume,
+                AdministrativeNextCommand::CandidateStageInstallation,
+            ],
+        };
+        if matches!(
+            report.qualification,
+            QualificationRecoveryPhase::Staged
+                | QualificationRecoveryPhase::FloorsAdvanced
+                | QualificationRecoveryPhase::RetiredCleanupPending
+        ) {
+            report
+                .next_commands
+                .push(AdministrativeNextCommand::QualificationRecover);
+        }
+        if let QualificationRecoveryPhase::Unavailable { code } = report.qualification {
+            failure = Some(code);
+        }
+        failure
+    }
+
+    async fn administrative_recovery_status(
+        state_dir: PathBuf,
+        candidate: Option<PathBuf>,
+        proof: Option<PathBuf>,
+        action: Option<PathBuf>,
+        approval: Option<PathBuf>,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let candidate_requested = candidate.is_some();
+        let (mut report, mut failure) = initial_recovery_report(&state_dir);
+        if failure.is_none() && state_dir.join("installation.json").exists() {
+            let directory = state_dir.clone();
+            let loaded = tokio::task::spawn_blocking(move || {
+                let manifest = installation(&directory)?;
+                load_engine_from_manifest(
+                    &directory,
+                    CredentialAccess::Operator,
+                    &manifest,
+                    QualificationLoading::Inspect,
+                )
+            })
+            .await
+            .map_err(|_| "gateway.admin.connection-unavailable")?;
+            match loaded {
+                Err(error) => {
+                    report.installation = InstallationRecoveryPhase::Quarantined;
+                    report.native = Some(RecoveryComponent::Unavailable { code: error.code });
+                    report.next_commands = vec![AdministrativeNextCommand::RecoveryStatus];
+                    failure = Some(error.code);
+                }
+                Ok(engine) => {
+                    failure = populate_native_recovery(&state_dir, &engine, &mut report).await;
+                    if let (Some(candidate), Some(proof), Some(action), Some(approval)) =
+                        (candidate, proof, action, approval)
+                    {
+                        let inspected = async {
+                            let target = read_candidate(&state_dir, &candidate)?;
+                            let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+                            let action = read_bounded(&action, 64 * 1024)?;
+                            let approval = read_effect_approval(&approval)?;
+                            engine
+                                .candidate_recovery_state(&target, &proof, &action, approval)
+                                .await
+                                .map_err(Failure::from)
+                        }
+                        .await;
+                        report.candidate = Some(match inspected {
+                            Ok(facts) => {
+                                match facts {
+                                    auths_gateway::CandidateRecoveryState::ReadyForPublication => {
+                                        report
+                                            .next_commands
+                                            .push(AdministrativeNextCommand::CandidatePublish);
+                                    }
+                                    auths_gateway::CandidateRecoveryState::ChecksIncomplete => {
+                                        report
+                                            .next_commands
+                                            .push(AdministrativeNextCommand::CandidateAcquire);
+                                    }
+                                    _ => {}
+                                }
+                                RecoveryComponent::Known { facts }
+                            }
+                            Err(error) => {
+                                failure = Some(error.code);
+                                RecoveryComponent::Unavailable { code: error.code }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        if report.candidate.is_none() && candidate_requested {
+            report.candidate = Some(RecoveryComponent::Unavailable {
+                code: "gateway.admin.connection-unavailable",
+            });
+            failure = Some("gateway.admin.connection-unavailable");
+        }
+        let bytes = serde_json_canonicalizer::to_vec(&report).map_err(|_| "gateway.output")?;
+        if bytes.len() > 1024 * 1024 {
+            return Err("gateway.output".into());
+        }
+        println!("{}", String::from_utf8_lossy(&bytes));
+        failure.map_or(Ok(()), |code| Err(code.into()))
     }
 
     /// Prints the installation's qualification state, or the tuple it must
@@ -2307,13 +2986,14 @@ mod unix {
     ) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         let manifest = installation(state_dir)?;
-        load_engine_from_manifest(state_dir, access, &manifest)
+        load_engine_from_manifest(state_dir, access, &manifest, QualificationLoading::Retain)
     }
 
     fn load_engine_from_manifest(
         state_dir: &Path,
         access: CredentialAccess,
         manifest: &Installation,
+        qualification_loading: QualificationLoading,
     ) -> Result<GatewayEngine, Failure> {
         let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
         let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536)?;
@@ -2392,7 +3072,11 @@ mod unix {
             None => engine,
         };
         let engine = engine
-            .with_qualification(Arc::new(qualification_gate(state_dir, manifest)?))
+            .with_qualification(Arc::new(qualification_gate_with(
+                state_dir,
+                manifest,
+                qualification_loading,
+            )?))
             .with_generation_floor(auths_gateway::GenerationFloor::new(state_dir.to_path_buf()))
             .with_credential_journal(auths_gateway::CredentialJournal::new(
                 state_dir.to_path_buf(),
@@ -3351,12 +4035,27 @@ mod unix {
             .map_err(|_| "gateway.effect.approval")
     }
 
+    async fn installation_operation_lock(state_dir: &Path) -> Result<File, Failure> {
+        let directory = state_dir.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            private_root(&directory)?;
+            private_state_lock(
+                &directory,
+                "installation.lock",
+                "gateway.configuration.unavailable",
+            )
+            .map_err(Failure::from)
+        })
+        .await
+        .map_err(|_| "gateway.configuration.unavailable")?
+    }
+
     async fn stage_installation(
         state_dir: &Path,
         candidate: Zeroizing<Vec<u8>>,
         proposal_out: &Path,
     ) -> Result<(), Failure> {
-        if !proposal_out.is_absolute() || proposal_out.exists() {
+        if !proposal_out.is_absolute() {
             return Err("gateway.state.file-exists-or-unavailable".into());
         }
         private_root(state_dir)?;
@@ -3379,10 +4078,18 @@ mod unix {
         })
         .await
         .map_err(|_| "gateway.configuration.unavailable")??;
-        let proposal = engine
-            .stage_candidate_installation(&draft, candidate)
-            .await?;
-        private_file(
+        let proposal = if proposal_out.exists() {
+            let retained = read_candidate(state_dir, proposal_out)?;
+            engine
+                .confirm_staged_candidate(&retained, &candidate)
+                .await?;
+            retained
+        } else {
+            engine
+                .stage_candidate_installation(&draft, candidate)
+                .await?
+        };
+        retain_private_file(
             proposal_out,
             &Zeroizing::new(
                 proposal
@@ -4261,7 +4968,12 @@ mod unix {
     ) -> Result<serde_json::Value, Failure> {
         private_root(state_dir)?;
         let manifest = candidate_installation(state_dir, policy)?;
-        let engine = load_engine_from_manifest(state_dir, CredentialAccess::Operator, &manifest)?;
+        let engine = load_engine_from_manifest(
+            state_dir,
+            CredentialAccess::Operator,
+            &manifest,
+            QualificationLoading::Retain,
+        )?;
         Ok(
             serde_json::json!({"schema":"auths.effect-configuration-review/1",
             "previous_revision_hex":hex::encode(engine.effect_configuration_revision()?),
@@ -4295,7 +5007,12 @@ mod unix {
         let bytes = encode_installation(&manifest)?;
         let revision = parse(revision)?;
         let candidate = parse(candidate)?;
-        let engine = load_engine_from_manifest(state_dir, CredentialAccess::Operator, &manifest)?;
+        let engine = load_engine_from_manifest(
+            state_dir,
+            CredentialAccess::Operator,
+            &manifest,
+            QualificationLoading::Retain,
+        )?;
         if engine.effect_configuration_candidate()? != candidate {
             return Err("gateway.configuration.changed".into());
         }
@@ -4629,6 +5346,7 @@ mod unix {
                 credential_stdin,
                 proposal_out,
             } => {
+                let _operation = installation_operation_lock(&state_dir).await?;
                 if !credential_stdin || std::io::stdin().is_terminal() {
                     return Err("gateway.install.credential-must-be-piped-to-stdin".into());
                 }
@@ -4641,16 +5359,25 @@ mod unix {
                 credential_stdin,
                 proposal_out,
             } => {
+                let _operation = installation_operation_lock(&state_dir).await?;
                 if !credential_stdin || std::io::stdin().is_terminal() {
                     return Err("gateway.admin.credential-must-be-piped-to-stdin".into());
                 }
-                if !proposal_out.is_absolute() || proposal_out.exists() {
+                if !proposal_out.is_absolute() {
                     return Err("gateway.state.file-exists-or-unavailable".into());
                 }
                 let candidate = read_install_credential()?;
                 let engine = operator_engine(&state_dir).await?;
-                let proposal = engine.stage_candidate_rotation(candidate).await?;
-                private_file(
+                let proposal = if proposal_out.exists() {
+                    let retained = read_candidate(&state_dir, &proposal_out)?;
+                    engine
+                        .confirm_staged_candidate(&retained, &candidate)
+                        .await?;
+                    retained
+                } else {
+                    engine.stage_candidate_rotation(candidate).await?
+                };
+                retain_private_file(
                     &proposal_out,
                     &proposal
                         .to_private_bytes()
@@ -4738,6 +5465,7 @@ mod unix {
                 action,
                 approval,
             } => {
+                let _operation = installation_operation_lock(&state_dir).await?;
                 let target = read_candidate(&state_dir, &candidate)?;
                 let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(&action, 64 * 1024)?;
@@ -5032,6 +5760,7 @@ mod unix {
             }
             Command::Install {
                 state_dir,
+                resume,
                 recipe,
                 profile_lock,
                 trusted_context,
@@ -5060,7 +5789,7 @@ mod unix {
                     kms_key: aws_kms_key,
                     identity: aws_identity,
                 };
-                install(
+                Box::pin(install(
                     state_dir,
                     recipe,
                     profile_lock,
@@ -5078,7 +5807,8 @@ mod unix {
                     attempt_store,
                     credential_store,
                     qualification,
-                )
+                    resume,
+                ))
                 .await
             }
             Command::QualificationImport {
@@ -5118,6 +5848,11 @@ mod unix {
                     println!("{}", String::from_utf8_lossy(&archive));
                 }
                 Ok(())
+            }
+            Command::QualificationRecover { state_dir } => {
+                tokio::task::spawn_blocking(move || qualification_recover(&state_dir))
+                    .await
+                    .map_err(|_| "gateway.qualification.unavailable")?
             }
             Command::QualificationStatus { state_dir, tuple } => {
                 tokio::task::spawn_blocking(move || qualification_status(&state_dir, tuple))
@@ -5282,6 +6017,15 @@ mod unix {
                 let command = serde_json::json!({"command": "execution-witness"});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
+            Command::RecoveryStatus {
+                state_dir,
+                candidate,
+                proof,
+                action,
+                approval,
+            } => {
+                administrative_recovery_status(state_dir, candidate, proof, action, approval).await
+            }
             Command::Status {
                 state_dir,
                 admin_socket,
@@ -5364,12 +6108,14 @@ mod unix {
             }
             Command::CredentialCollect { state_dir } => {
                 let engine = operator_engine(&state_dir).await?;
-                let deleted = engine.collect_credentials().await?;
+                let outcome = engine.collect_credentials().await?;
                 println!(
                     "{}",
-                    serde_json::json!({"schema": "auths.gateway-credential-collection/1", "deleted": deleted})
+                    serde_json::json!({"schema": "auths.gateway-credential-collection/2", "outcome": outcome})
                 );
-                Ok(())
+                outcome
+                    .failure_code()
+                    .map_or(Ok(()), |code| Err(code.into()))
             }
             Command::Rotate {
                 state_dir,

@@ -334,21 +334,44 @@ impl SharedConnection {
     }
 }
 
-/// Installs the first record for a recipe with no credential reads: stores `secret` in this
-/// process's credential store at generation 1, then inserts the record that
-/// commits to it. A record already present is never replaced, and the
-/// secret stored for the refused install is deleted.
+async fn settle_custody_note<T>(
+    journal: &crate::CredentialJournal,
+    id: &ConnectionId,
+    generation: NonZeroU64,
+    outcome: &Result<T, CredentialStoreError>,
+) -> Result<(), &'static str> {
+    if outcome.is_ok()
+        || outcome
+            .as_ref()
+            .is_err_and(|error| error.certifies_no_mutation())
+    {
+        let notes = journal.clone();
+        let id = id.clone();
+        tokio::task::spawn_blocking(move || notes.confirm_mutation(&id, generation))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+    }
+    Ok(())
+}
+
+/// Installs or explicitly resumes the exact first record for a recipe with no
+/// credential reads. Durable cleanup/mutation notes precede custody; an existing
+/// different connection is never replaced. Failed native acknowledgement reloads
+/// the exact record and never compensates by deleting possibly live custody.
 ///
-/// `draft` supplies every field of the record except the credential
-/// reference commitment, which only the local store can compute.
+/// `draft` supplies all fields except the native credential-reference commitment.
+/// The secret owner computes that commitment without exposing its bytes; custody
+/// must acknowledge or already hold the exact binding before publication.
 ///
 /// # Errors
-/// Returns `gateway.install.connection-exists` when a record is present,
-/// and a credential-store or connection-store code otherwise.
+/// Refuses conflicting input, unconfirmed custody work, unavailable durable notes
+/// or custody/native storage. Errors may retain cleanup obligations and do not
+/// prove the credential or native publication is absent.
 pub async fn install_connection(
     recipe: &crate::CompiledRecipe,
     shared: &SharedConnection,
     credentials: &dyn ConnectionCredentialStore,
+    journal: &crate::CredentialJournal,
     draft: impl FnOnce([u8; 32]) -> Result<ConnectionRecord, &'static str>,
     connection_id: &ConnectionId,
     secret: SecretBytes,
@@ -361,25 +384,70 @@ pub async fn install_connection(
         return Err("gateway.install.candidate-approval-required");
     }
     let first = NonZeroU64::MIN;
-    let reference = credentials
-        .install(connection_id, first, secret)
+    let reference = secret.reference_commitment(connection_id, first);
+    let expected = draft(*reference.as_bytes())?;
+    if expected.connection_id() != connection_id {
+        return Err("gateway.install.connection-invalid");
+    }
+    if let Some(current) = shared
+        .load()
         .await
-        .map_err(|_| "gateway.install.credential-store-unavailable")?;
-    let inserted = match draft(*reference.as_bytes()) {
-        Ok(record) if record.connection_id() == connection_id => {
-            shared.insert(&record).await.map_err(|error| match error {
+        .map_err(|_| "gateway.install.connection-store-unavailable")?
+        && current.record() != &expected
+    {
+        return Err("gateway.install.connection-exists");
+    }
+    let notes = journal.clone();
+    let id = connection_id.clone();
+    tokio::task::spawn_blocking(move || {
+        notes.initialize(&id)?;
+        notes.register(&id, first)
+    })
+    .await
+    .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+    if credentials
+        .holds(&expected.credential_binding())
+        .await
+        .is_err()
+    {
+        let notes = journal.clone();
+        let id = connection_id.clone();
+        tokio::task::spawn_blocking(move || notes.begin_mutation(&id, first))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        crate::admin_fault::boundary("installation.before-custody");
+        let outcome = credentials.install(connection_id, first, secret).await;
+        crate::admin_fault::boundary("installation.after-custody-ack");
+        settle_custody_note(journal, connection_id, first, &outcome).await?;
+        let stored = outcome.map_err(|_| "gateway.install.credential-store-unavailable")?;
+        if stored != reference {
+            return Err("gateway.install.credential-store-unavailable");
+        }
+    }
+    crate::admin_fault::boundary("installation.before-native-publication");
+    match shared.insert(&expected).await {
+        Ok(loaded) => {
+            crate::admin_fault::boundary("installation.after-native-publication-ack");
+            Ok(loaded.record().clone())
+        }
+        Err(error) => {
+            // A failed response can follow a durable native publication. Never
+            // compensate it by deleting a possibly live credential. Exact notes
+            // retain all cleanup obligations for explicit inspection/collection.
+            let current = shared
+                .load()
+                .await
+                .map_err(|_| "gateway.install.connection-store-unavailable")?;
+            if current
+                .as_ref()
+                .is_some_and(|loaded| loaded.record() == &expected)
+            {
+                return Ok(expected);
+            }
+            Err(match error {
                 SharedConnectionError::Exists => "gateway.install.connection-exists",
                 _ => "gateway.install.connection-store-unavailable",
             })
-        }
-        Ok(_) => Err("gateway.install.connection-invalid"),
-        Err(code) => Err(code),
-    };
-    match inserted {
-        Ok(loaded) => Ok(loaded.record().clone()),
-        Err(code) => {
-            let _ = credentials.delete_connection(connection_id, &[first]).await;
-            Err(code)
         }
     }
 }
@@ -423,15 +491,36 @@ pub async fn join_connection(
     })
     .await
     .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
-    // Joining confirms exactly the already-published secret. It does not
-    // acquire new provider evidence or authorize a changed credential.
-
+    // Validate the supplied secret even when this host already holds custody.
     let secret =
         SecretBytes::new(candidate.to_vec()).map_err(|_| "gateway.install.invalid-credential")?;
-    match credentials
-        .confirm(&record.credential_binding(), secret)
+    let expected = secret.reference_commitment(record.connection_id(), generation);
+    if !bool::from(subtle::ConstantTimeEq::ct_eq(
+        expected.as_bytes().as_slice(),
+        record
+            .credential_binding()
+            .reference_commitment()
+            .as_slice(),
+    )) {
+        return Err("gateway.install.join-commitment-mismatch");
+    }
+    if credentials
+        .holds(&record.credential_binding())
         .await
+        .is_ok()
     {
+        return Ok(record.clone());
+    }
+    let notes = journal.clone();
+    let id = record.connection_id().clone();
+    tokio::task::spawn_blocking(move || notes.begin_mutation(&id, generation))
+        .await
+        .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+    let outcome = credentials
+        .confirm(&record.credential_binding(), secret)
+        .await;
+    settle_custody_note(journal, record.connection_id(), generation, &outcome).await?;
+    match outcome {
         Ok(()) => Ok(record.clone()),
         Err(CredentialStoreError::Substitution) => Err("gateway.install.join-commitment-mismatch"),
         Err(_) => Err("gateway.install.credential-store-unavailable"),

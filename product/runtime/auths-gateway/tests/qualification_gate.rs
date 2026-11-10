@@ -71,36 +71,44 @@ fn run(command: &mut Command, stdin: &[u8]) -> Output {
     child.wait_with_output().expect("output")
 }
 
-fn install(root: &Path, state: &Path, arguments: &[&str]) -> Output {
+fn install_command(root: &Path, state: &Path, arguments: &[&str]) -> Command {
     let digest = CompiledRecipe::compile(RECIPE, LOCK)
         .expect("compiled recipe")
         .digest_hex();
+    let mut command = Command::new(BIN);
+    command
+        .arg("install")
+        .arg("--effect-policy")
+        .arg(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../bindings/fixtures/gateway/effect-policy.json"
+        ))
+        .arg("--state-dir")
+        .arg(state)
+        .arg("--recipe")
+        .arg(root.join("recipe.json"))
+        .arg("--profile-lock")
+        .arg(root.join("profile.lock.json"))
+        .arg("--trusted-context")
+        .arg(root.join("trusted.context.cbor"))
+        .arg("--approve-digest")
+        .arg(digest)
+        .args([
+            "--provider",
+            "airtable",
+            "--alias",
+            "demo",
+            "--account-label",
+            "synthetic-account",
+            "--credential-stdin",
+        ])
+        .args(arguments);
+    command
+}
+
+fn install(root: &Path, state: &Path, arguments: &[&str]) -> Output {
     run(
-        Command::new(BIN)
-            .arg("install")
-            .arg("--effect-policy")
-            .arg(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../../bindings/fixtures/gateway/effect-policy.json"
-            ))
-            .arg("--state-dir")
-            .arg(state)
-            .arg("--recipe")
-            .arg(root.join("recipe.json"))
-            .arg("--profile-lock")
-            .arg(root.join("profile.lock.json"))
-            .arg("--trusted-context")
-            .arg(root.join("trusted.context.cbor"))
-            .arg("--approve-digest")
-            .arg(digest)
-            .arg("--provider")
-            .arg("airtable")
-            .arg("--alias")
-            .arg("demo")
-            .arg("--account-label")
-            .arg("synthetic-account")
-            .arg("--credential-stdin")
-            .args(arguments),
+        &mut install_command(root, state, arguments),
         b"synthetic-token\n",
     )
 }
@@ -419,4 +427,296 @@ fn a_development_installation_defaults_to_the_optional_policy() {
         text(&status.stdout).trim(),
         format!("policy=optional state=unqualified code={UNAVAILABLE}")
     );
+}
+
+#[cfg(feature = "testkit-harness")]
+mod ap076_recovery {
+    use super::*;
+    use serde_json::Value;
+
+    fn boundaries(output: &Output) -> Vec<String> {
+        text(&output.stderr)
+            .lines()
+            .filter_map(|line| {
+                line.strip_prefix("auths-test-admin-boundary:")
+                    .map(str::to_owned)
+            })
+            .collect()
+    }
+
+    fn report(state: &Path) -> (Output, Value) {
+        let result = gateway(&[
+            "recovery-status",
+            "--state-dir",
+            &state.display().to_string(),
+        ]);
+        let value = serde_json::from_slice(&result.stdout)
+            .expect("bounded recovery JSON even on an unavailable component");
+        (result, value)
+    }
+
+    fn import_command(state: &Path, from: &Path) -> Command {
+        let mut command = Command::new(BIN);
+        command
+            .arg("qualification-import")
+            .arg("--state-dir")
+            .arg(state)
+            .arg("--from")
+            .arg(from);
+        command
+    }
+
+    #[test]
+    fn installation_recovers_or_explicitly_quarantines_every_interruption_boundary() {
+        let (_trace_directory, trace_root) = private_root();
+        let trace_state = trace_root.join("state");
+        let trace = run(
+            install_command(&trace_root, &trace_state, &[]).env("AUTHS_TEST_ADMIN_TRACE", "1"),
+            b"synthetic-token\n",
+        );
+        assert!(trace.status.success(), "{}", text(&trace.stderr));
+        let points = boundaries(&trace);
+        assert!(
+            points
+                .iter()
+                .any(|point| point.ends_with(":installation.before-custody"))
+        );
+        assert!(
+            points
+                .iter()
+                .any(|point| point.ends_with(":installation.after-native-publication-ack"))
+        );
+        for (index, point) in points.iter().enumerate() {
+            let (_directory, root) = private_root();
+            let state = root.join("state");
+            let interrupted = run(
+                install_command(&root, &state, &[])
+                    .env("AUTHS_TEST_ADMIN_INTERRUPT_AT", (index + 1).to_string()),
+                b"synthetic-token\n",
+            );
+            assert_eq!(
+                interrupted.status.code(),
+                Some(79),
+                "{point}: {}",
+                text(&interrupted.stderr)
+            );
+            let draft = fs::read(state.join("candidate-installation.cbor")).ok();
+            let resumed = install(&root, &state, &["--resume"]);
+            let (_, facts) = report(&state);
+            assert_eq!(facts["schema"], "auths.gateway-recovery/1", "{point}");
+            if resumed.status.success() {
+                assert_eq!(facts["installation"], "published", "{point}: {facts}");
+                let repeated = install(&root, &state, &["--resume"]);
+                assert!(
+                    repeated.status.success(),
+                    "{point}: {}",
+                    text(&repeated.stderr)
+                );
+                let (_, again) = report(&state);
+                assert_eq!(
+                    again, facts,
+                    "acknowledged state must survive immediate process restart: {point}"
+                );
+            } else {
+                assert!(
+                    text(&resumed.stderr).contains("credential-operation-unconfirmed"),
+                    "{point}: {}",
+                    text(&resumed.stderr)
+                );
+                assert_eq!(
+                    facts["native"]["facts"]["cleanup"]["state"], "creation-unconfirmed",
+                    "{point}: {facts}"
+                );
+                assert_ne!(facts["installation"], "published", "{point}");
+            }
+            if let Some(draft) = draft {
+                assert_eq!(
+                    fs::read(state.join("candidate-installation.cbor")).expect("retained draft"),
+                    draft,
+                    "identity/timestamps cannot change: {point}"
+                );
+            }
+        }
+    }
+
+    fn qualified_install(root: &Path, state: &Path, release: &TestRelease) -> QualificationTuple {
+        let trust_root = root.join("root.json");
+        fs::write(&trust_root, release.pinned().canonical_bytes()).expect("root");
+        let installed = install(
+            root,
+            state,
+            &[
+                "--qualification-policy",
+                "required",
+                "--recipe-family",
+                FAMILY,
+                "--provider-contract-id",
+                &contract(),
+                "--qualification-trust-root",
+                &trust_root.display().to_string(),
+            ],
+        );
+        assert!(installed.status.success(), "{}", text(&installed.stderr));
+        let tuple = gateway(&[
+            "qualification-status",
+            "--state-dir",
+            &state.display().to_string(),
+            "--tuple",
+        ]);
+        assert!(tuple.status.success(), "{}", text(&tuple.stderr));
+        serde_json::from_slice(&tuple.stdout).expect("tuple")
+    }
+
+    #[test]
+    fn qualification_first_import_and_replacement_survive_every_boundary_and_repeat() {
+        let at = now();
+        let release = TestRelease::new(at);
+        for replacement in [false, true] {
+            let (_trace_directory, trace_root) = private_root();
+            let trace_state = trace_root.join("state");
+            let tuple = qualified_install(&trace_root, &trace_state, &release);
+            let original = release.release(&[&testkit::proposal(1, &tuple, at)]);
+            let successor = release.release(&[&testkit::proposal(2, &tuple, at)]);
+            original
+                .write_to(&trace_root.join("original"))
+                .expect("original bundle");
+            if replacement {
+                assert!(
+                    run(
+                        &mut import_command(&trace_state, &trace_root.join("original")),
+                        b""
+                    )
+                    .status
+                    .success()
+                );
+            }
+            let bundle = if replacement { &successor } else { &original };
+            bundle
+                .write_to(&trace_root.join("release"))
+                .expect("candidate release");
+            let trace = run(
+                import_command(&trace_state, &trace_root.join("release"))
+                    .env("AUTHS_TEST_ADMIN_TRACE", "1"),
+                b"",
+            );
+            assert!(trace.status.success(), "{}", text(&trace.stderr));
+            let points = boundaries(&trace);
+            assert!(
+                points
+                    .iter()
+                    .any(|point| point.ends_with(":qualification.after-native-floor"))
+            );
+            assert!(
+                points
+                    .iter()
+                    .any(|point| point.ends_with(":qualification.after-publication-sync"))
+            );
+            for (index, point) in points.iter().enumerate() {
+                let (_directory, root) = private_root();
+                let state = root.join("state");
+                let actual_tuple = qualified_install(&root, &state, &release);
+                assert_eq!(actual_tuple, tuple, "test tuple excludes host paths");
+                original
+                    .write_to(&root.join("original"))
+                    .expect("original bundle");
+                if replacement {
+                    assert!(
+                        run(&mut import_command(&state, &root.join("original")), b"")
+                            .status
+                            .success()
+                    );
+                }
+                bundle
+                    .write_to(&root.join("release"))
+                    .expect("candidate bundle");
+                let custody =
+                    fs::read(state.join("credentials.cbor")).expect("custody before import");
+                let interrupted = run(
+                    import_command(&state, &root.join("release"))
+                        .env("AUTHS_TEST_ADMIN_INTERRUPT_AT", (index + 1).to_string()),
+                    b"",
+                );
+                assert_eq!(
+                    interrupted.status.code(),
+                    Some(79),
+                    "replacement={replacement}, {point}: {}",
+                    text(&interrupted.stderr)
+                );
+                let imported = run(&mut import_command(&state, &root.join("release")), b"");
+                assert!(
+                    imported.status.success(),
+                    "replacement={replacement}, {point}: {}",
+                    text(&imported.stderr)
+                );
+                for _ in 0..2 {
+                    let recovery = gateway(&[
+                        "qualification-recover",
+                        "--state-dir",
+                        &state.display().to_string(),
+                    ]);
+                    assert!(
+                        recovery.status.success(),
+                        "replacement={replacement}, {point}: {}",
+                        text(&recovery.stderr)
+                    );
+                }
+                assert_eq!(
+                    fs::read(state.join("credentials.cbor")).expect("unchanged custody"),
+                    custody,
+                    "qualification recovery cannot mutate custody"
+                );
+                let (status, facts) = report(&state);
+                assert!(status.status.success(), "{point}: {}", text(&status.stderr));
+                assert_eq!(
+                    facts["qualification"]["state"], "current-published",
+                    "{point}: {facts}"
+                );
+                assert_eq!(
+                    fs::read(
+                        state
+                            .join("qualification")
+                            .join(auths_recipe_qualification::RELEASE_INDEX_FILE)
+                    )
+                    .expect("published exact index"),
+                    bundle.release_index
+                );
+                assert!(!state.join("qualification.next").exists());
+                assert!(!state.join("qualification.previous").exists());
+                let (_, restarted) = report(&state);
+                assert_eq!(
+                    restarted, facts,
+                    "acknowledged publication survives restart: {point}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn competing_identical_imports_share_native_truth_and_never_erase_a_floor() {
+        let (_directory, root) = private_root();
+        let state = root.join("state");
+        let at = now();
+        let release = TestRelease::new(at);
+        let tuple = qualified_install(&root, &state, &release);
+        let bundle = release.release(&[&testkit::proposal(1, &tuple, at)]);
+        bundle.write_to(&root.join("release")).expect("release");
+        let from = root.join("release");
+        let handles: Vec<_> = (0..2)
+            .map(|_| {
+                let state = state.clone();
+                let from = from.clone();
+                std::thread::spawn(move || run(&mut import_command(&state, &from), b""))
+            })
+            .collect();
+        for handle in handles {
+            let output = handle.join().expect("import worker");
+            assert!(output.status.success(), "{}", text(&output.stderr));
+        }
+        let (_, first) = report(&state);
+        let repeated = run(&mut import_command(&state, &from), b"");
+        assert!(repeated.status.success(), "{}", text(&repeated.stderr));
+        let (_, second) = report(&state);
+        assert_eq!(first, second);
+        assert_eq!(second["qualification"]["state"], "current-published");
+    }
 }

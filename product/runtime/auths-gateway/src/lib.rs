@@ -7,8 +7,13 @@
 #![forbid(unsafe_code)]
 
 pub mod admin;
+mod admin_fault;
 #[cfg(unix)]
 pub mod app;
+/// Test-build-only process interruption point. Never present in shipping builds.
+#[cfg(feature = "testkit-harness")]
+pub use admin_fault::boundary as administrative_test_boundary;
+
 mod audit;
 mod binding;
 mod bounds;
@@ -101,16 +106,17 @@ pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
     install_connection, join_connection,
 };
-pub use credential_journal::CredentialJournal;
+pub use credential_journal::{CredentialCleanupNote, CredentialCleanupPhase, CredentialJournal};
 pub use echo_verify::{
     ECHO_VERIFICATION_NOTE, ECHO_VERIFICATION_SCHEMA, EchoResult, EchoVerification,
     EchoVerifyError, MAX_ECHO_POINTER_BYTES, MAX_ECHO_RECORD_BYTES, canonical_action_commitment,
     echo_verify, echo_verify_bundle,
 };
 pub use engine::{
-    GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
-    GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewayPrivateAudit,
-    GatewaySubmitResult, PUBLIC_EVIDENCE_SCHEMA, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
+    AdministrativeRecovery, CredentialCollection, CredentialRecovery, GatewayAdminOutcome,
+    GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError, GatewayEvidenceSummary,
+    GatewayObserveRequest, GatewayObserveResult, GatewayPrivateAudit, GatewaySubmitResult,
+    PUBLIC_EVIDENCE_SCHEMA, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
     gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;
@@ -152,16 +158,17 @@ pub use separation::{
 };
 pub use store::{
     AcquisitionClaim, AcquisitionSnapshot, AcquisitionStage, CandidatePublication,
-    ClaimedGatewayAttempt, ContentHistory, ContentProjectionStatus, DisclosureSnapshot,
-    DisclosureStage, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
-    GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,
-    GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel, GatewayFenceDecision,
-    GatewayInsert, GatewayObservationFact, GatewayOperationStage, GatewayPreEntry,
-    GatewayProviderEvidence, GatewayRecordEntry, GatewayRecordKind, GatewayRecoveryReport,
-    GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
-    PrivateDirectoryError, RecoveryBudget, RecoveryDisposition, RecoveryEscalation,
-    RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts, ReservedAcquisition,
-    RetainedContent, check_private_directory, check_private_directory_owned_by, pre_entry_digest,
+    CandidateRecoveryState, ClaimedGatewayAttempt, ContentHistory, ContentProjectionStatus,
+    DisclosureSnapshot, DisclosureStage, FileGatewayAttemptStore, GatewayAttemptError,
+    GatewayAttemptKey, GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore,
+    GatewayAttempts, GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel,
+    GatewayFenceDecision, GatewayInsert, GatewayObservationFact, GatewayOperationStage,
+    GatewayPreEntry, GatewayProviderEvidence, GatewayRecordEntry, GatewayRecordKind,
+    GatewayRecoveryReport, GatewayRelativeBasis, ObservableGatewayAttempt,
+    PostgresGatewayAttemptStore, PrivateDirectoryError, RecoveryBudget, RecoveryDisposition,
+    RecoveryEscalation, RecoveryNextAction, RecoverySnapshot, RecoverySourceFacts,
+    ReservedAcquisition, RetainedContent, check_private_directory,
+    check_private_directory_owned_by, pre_entry_digest,
 };
 pub use support::{
     MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,
