@@ -169,7 +169,21 @@ export class SigningCoordinator {
       );
     }
     this.#consumed = true;
-    if (this.#now() > options.expiresAt) {
+    // One operation owns its original deadline and a nondecreasing observed
+    // clock through approval and signature acceptance. Custody may already
+    // have signed when expiry is observed; refusing completion does not undo it.
+    const expiresAt = options.expiresAt;
+    const objectKind = options.objectKind;
+    const signer = options.signer;
+    const approval = options.approval;
+    const signal = options.signal;
+    let observed = this.#now();
+    const now = () => {
+      const sampled = this.#now();
+      if (sampled > observed) observed = sampled;
+      return observed;
+    };
+    if (observed > expiresAt) {
       throw new AuthsWorkflowError(
         "transaction-expired",
         "signing transaction expired before provider use",
@@ -202,7 +216,7 @@ export class SigningCoordinator {
     let native: NativeSigningRequest;
     try {
       native = this.#adapter.prepare(
-        options.objectKind,
+        objectKind,
         unsignedObject.slice(),
         principal,
       );
@@ -214,7 +228,7 @@ export class SigningCoordinator {
     }
 
     try {
-      if (native.objectKind !== options.objectKind) {
+      if (native.objectKind !== objectKind) {
         throw new AuthsWorkflowError(
           "signer-response-mismatch",
           "native authoring returned a different object kind",
@@ -232,28 +246,28 @@ export class SigningCoordinator {
       const requestId = boundedRequestId(native.requestId);
 
       await approveExact(
-        options,
+        { ...options, objectKind, expiresAt, signer, approval, ...(signal === undefined ? {} : { signal }) },
         requiredApproval,
         requestId,
         transactionDigest,
         display,
-        this.#now,
+        now,
       );
-      if (this.#now() > options.expiresAt) {
+      if (now() > expiresAt) {
         throw new AuthsWorkflowError(
           "transaction-expired",
           "signing transaction expired before signer use",
         );
       }
 
-      const response = await callSigner(options.signer, {
+      const response = await callSigner(signer, {
         requestId,
-        objectKind: options.objectKind,
+        objectKind,
         objectId: objectId.slice(),
         principal: copyPrincipal(principal),
         transactionDigest: transactionDigest.slice(),
         signingPreimage: signingPreimage.slice(),
-        expiresAt: options.expiresAt,
+        expiresAt,
         display: copyDisplay(display),
       });
       const { signature, evidence } = consumeSigningResponse(
@@ -262,11 +276,17 @@ export class SigningCoordinator {
         principal,
         transactionDigest,
       );
+      if (now() > expiresAt) {
+        throw new AuthsWorkflowError(
+          "transaction-expired",
+          "signing transaction expired during signer use",
+        );
+      }
       let signedObject: Uint8Array;
       try {
         signedObject = boundedBytes(
           this.#adapter.complete(
-            options.objectKind,
+            objectKind,
             unsignedObject.slice(),
             principal,
             signature.slice(),

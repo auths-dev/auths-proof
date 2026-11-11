@@ -9,6 +9,11 @@ const statePath = process.env.NORTHSTAR_STATE_PATH ?? "/tmp/auths-incident-demo/
 const allowOrigin = process.env.AUTHS_INCIDENT_ALLOWED_ORIGIN ?? "http://localhost:7100";
 const serviceToken = process.env.AUTHS_INCIDENT_SERVICE_TOKEN ?? "";
 const insecureLocal = process.env.AUTHS_INCIDENT_ALLOW_INSECURE_LOCAL === "1";
+const maximumBodyBytes = 32 * 1024;
+
+class InvalidBody extends Error {
+  constructor(readonly status: number) { super("invalid request body"); }
+}
 
 type CodeRecord = {
   sub: string;
@@ -111,14 +116,26 @@ function json(response: any, status: number, body: unknown): void {
 }
 
 async function body(request: any): Promise<Record<string, any>> {
+  const declared = request.headers["content-length"];
+  if (declared !== undefined && (!/^\d+$/.test(declared) || Number(declared) > maximumBodyBytes)) {
+    throw new InvalidBody(413);
+  }
   const chunks: any[] = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let length = 0;
+  for await (const chunk of request) {
+    length += chunk.length;
+    if (length > maximumBodyBytes) throw new InvalidBody(413);
+    chunks.push(chunk);
+  }
   if (chunks.length === 0) return {};
   const raw = Buffer.concat(chunks).toString("utf8");
   if ((request.headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) {
     return Object.fromEntries(new URLSearchParams(raw));
   }
-  return JSON.parse(raw) as Record<string, any>;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new InvalidBody(400); }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new InvalidBody(400);
+  return parsed as Record<string, any>;
 }
 
 function internal(request: any): boolean {
@@ -166,6 +183,13 @@ const server = http.createServer(async (request: any, response: any) => {
   try {
     if (request.method === "OPTIONS") return json(response, 204, {});
     const url = new URL(request.url ?? "/", publicUrl);
+    const input = request.method === "POST" ? await body(request) : {};
+    // Northstar supports exactly one mutating process per statePath. From
+    // here through response/commit there is no await: the Node event loop owns
+    // load -> current guards -> transition -> persistence, including reset.
+    // A body admitted before another transition therefore reads its successor,
+    // never a retained request-local copy. Multiple mutating processes require
+    // a real cross-process transaction and are not supported by this demo.
     let state = load();
 
     if (url.pathname === "/healthz") return json(response, 200, { status: "ok", service: "northstar", schema: "auths-incident-demo/1" });
@@ -205,7 +229,6 @@ const server = http.createServer(async (request: any, response: any) => {
       return response.end();
     }
     if (url.pathname === "/token" && request.method === "POST") {
-      const input = await body(request);
       const record = state.codes[String(input.code ?? "")];
       const verifier = String(input.code_verifier ?? "");
       const actual = createHash("sha256").update(verifier).digest("base64url");
@@ -234,7 +257,6 @@ const server = http.createServer(async (request: any, response: any) => {
     }
     if (url.pathname === "/api/approve" && request.method === "POST") {
       if (!authenticateOidc(state, request)) return json(response, 401, { code: "oidc-approval-authentication-required" });
-      const input = await body(request);
       if (!input.requestId || !input.transactionDigest || !input.planCommitment) return json(response, 400, { code: "invalid-approval-request" });
       state.approvals += 1;
       event(state, "approval", "Northstar incident commander approved the exact plan commitment");
@@ -243,12 +265,14 @@ const server = http.createServer(async (request: any, response: any) => {
     }
     if (url.pathname === "/api/firewall/apply" && request.method === "POST") {
       if (!internal(request)) return json(response, 401, { code: "northstar-service-auth-required" });
-      const input = await body(request);
       if (input.incidentId !== "INC-2026-0811" || input.region !== "eu-west-2" || input.operation !== "apply-config") {
         return json(response, 403, { code: "closed-operation-mismatch" });
       }
       state.providerCalls += 1;
-      if (state.firewallApplied) return json(response, 409, { code: "already-applied", providerCalls: state.providerCalls });
+      if (state.firewallApplied) {
+        persist(state);
+        return json(response, 409, { code: "already-applied", providerCalls: state.providerCalls });
+      }
       state.firewallApplied = true;
       event(state, "effect", "Exact eu-west-2 firewall exception applied over HTTPS");
       persist(state);
@@ -263,11 +287,12 @@ const server = http.createServer(async (request: any, response: any) => {
       return json(response, 200, { reset: true });
     }
     return json(response, 404, { code: "not-found" });
-  } catch {
+  } catch (error) {
+    if (error instanceof InvalidBody) return json(response, error.status, { code: "invalid-request-body" });
     return json(response, 500, { code: "northstar-internal" });
   }
 });
 
 server.listen(port, "0.0.0.0", () => {
-  process.stdout.write(`auths-incident-demo northstar listening on ${publicUrl}\n`);
+  process.stdout.write(`auths-incident-demo northstar listening on ${publicUrl} (port ${server.address().port})\n`);
 });

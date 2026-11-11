@@ -170,12 +170,22 @@ impl LifecycleReader for InMemoryLifecycleStore {
 /// file, atomically replaces the target, then syncs the parent directory
 /// before acknowledging durability. This adapter deliberately does not claim
 /// multi-process safety; the transactional adapter covers that boundary.
+///
+/// Any persistence failure makes this instance unavailable, including reads and
+/// exact replay. A replacement may already have happened before the error;
+/// reopen the store to validate and recover its authoritative file snapshot.
 pub struct PersistentLifecycleStore {
     path: PathBuf,
     rules: Vec<LifecycleCapacityRuleV1>,
     maximum_records: usize,
-    database: Mutex<LifecycleDatabase>,
+    database: Mutex<PersistentDatabase>,
     fault: Mutex<Option<PersistenceFaultPoint>>,
+}
+
+/// Persistence uncertainty belongs to the same owner as the usable snapshot.
+enum PersistentDatabase {
+    Usable(LifecycleDatabase),
+    Unavailable,
 }
 
 impl PersistentLifecycleStore {
@@ -203,7 +213,7 @@ impl PersistentLifecycleStore {
             path,
             rules,
             maximum_records,
-            database: Mutex::new(database),
+            database: Mutex::new(PersistentDatabase::Usable(database)),
             fault: Mutex::new(None),
         })
     }
@@ -212,12 +222,14 @@ impl PersistentLifecycleStore {
     ///
     /// # Errors
     ///
-    /// Returns [`StoreError::Unavailable`] if the process lock is poisoned.
+    /// Returns [`StoreError::Unavailable`] after any persistence failure or if
+    /// the process lock is poisoned. Reopen to recover the retained file.
     pub fn load(&self, workflow: &WorkflowId) -> Result<Option<LifecycleRecordV1>, StoreError> {
-        self.database
-            .lock()
-            .map(|database| database.records.get(workflow).cloned())
-            .map_err(|_| StoreError::Unavailable)
+        let database = self.database.lock().map_err(|_| StoreError::Unavailable)?;
+        match &*database {
+            PersistentDatabase::Usable(database) => Ok(database.records.get(workflow).cloned()),
+            PersistentDatabase::Unavailable => Err(StoreError::Unavailable),
+        }
     }
 
     #[cfg(test)]
@@ -228,20 +240,32 @@ impl PersistentLifecycleStore {
 
 impl LifecycleStore for PersistentLifecycleStore {
     fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
-        let mut database = self.database.lock().map_err(|_| StoreError::Unavailable)?;
+        let mut state = self.database.lock().map_err(|_| StoreError::Unavailable)?;
+        let PersistentDatabase::Usable(database) = &mut *state else {
+            return Err(StoreError::Unavailable);
+        };
         let path = self.path.clone();
         let fault = self
             .fault
             .lock()
             .map_err(|_| StoreError::Unavailable)?
             .take();
-        transact_database(
-            &mut database,
+        let mut persistence_failed = false;
+        let result = transact_database(
+            database,
             &self.rules,
             self.maximum_records,
             transaction,
-            |next| persist_database(&path, next, fault),
-        )
+            |next| {
+                let result = persist_database(&path, next, fault);
+                persistence_failed = result.is_err();
+                result
+            },
+        );
+        if persistence_failed {
+            *state = PersistentDatabase::Unavailable;
+        }
+        result
     }
 }
 
@@ -1776,6 +1800,25 @@ mod tests {
                 ),
                 Err(StoreError::Unavailable)
             ));
+            // An error is not proof that replacement did not happen. The same
+            // live owner must neither acknowledge old replay nor rewrite it as
+            // part of an unrelated workflow's next snapshot.
+            let retained = fs::read(&path).unwrap();
+            assert!(matches!(
+                store.load(&WorkflowId::parse("workflow-1").unwrap()),
+                Err(StoreError::Unavailable)
+            ));
+            let mut replay = decision_transaction("workflow-1", Some(6));
+            replay.expected_revision = Some(1);
+            assert!(matches!(
+                execute_store_transaction(&store, &replay),
+                Err(StoreError::Unavailable)
+            ));
+            assert!(matches!(
+                execute_store_transaction(&store, &decision_transaction("workflow-2", Some(1))),
+                Err(StoreError::Unavailable)
+            ));
+            assert_eq!(fs::read(&path).unwrap(), retained);
             drop(store);
             let reopened = PersistentLifecycleStore::open(&path, rules(), 16).unwrap();
             assert_eq!(
@@ -1786,7 +1829,45 @@ mod tests {
                     .state(),
                 expected_state
             );
+            execute_store_transaction(&reopened, &decision_transaction("workflow-2", Some(1)))
+                .unwrap();
+            assert_eq!(
+                reopened
+                    .load(&WorkflowId::parse("workflow-1").unwrap())
+                    .unwrap()
+                    .unwrap()
+                    .state(),
+                expected_state
+            );
         }
+    }
+
+    #[test]
+    fn rejected_transition_does_not_make_persistent_store_unavailable() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("lifecycle.store");
+        let store = PersistentLifecycleStore::open(&path, rules(), 16).unwrap();
+        execute_store_transaction(&store, &decision_transaction("workflow-1", Some(6))).unwrap();
+        assert!(matches!(
+            execute_store_transaction(
+                &store,
+                &transaction("workflow-1", Some(99), TransitionCommandV1::Reserve, 11),
+            ),
+            Err(StoreError::Conflict)
+        ));
+        assert_eq!(
+            store
+                .load(&WorkflowId::parse("workflow-1").unwrap())
+                .unwrap()
+                .unwrap()
+                .revision(),
+            1
+        );
+        execute_store_transaction(
+            &store,
+            &transaction("workflow-1", Some(1), TransitionCommandV1::Reserve, 11),
+        )
+        .unwrap();
     }
 
     #[test]

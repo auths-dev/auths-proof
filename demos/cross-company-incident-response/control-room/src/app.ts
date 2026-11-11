@@ -1,6 +1,10 @@
-import { approval } from "@auths-dev/sdk";
-import { BoundedApprovalSession, development } from "@auths-dev/sdk/testkit";
-import { loadVerifier } from "@auths-dev/sdk/verify";
+import type { CustodyDescriptor, CustodySigner } from "@auths-dev/sdk/adapters";
+import {
+  ApprovalRefused, approvalRequests, approve, collectApprovals, compileTrustedContext,
+  decline, exactMcpTool, openApprovalRequest, proposeMcpApproval, signApprovalAction, stringField,
+} from "@auths-dev/sdk/self-hosted";
+import { developmentEd25519Key } from "@auths-dev/sdk/testkit";
+import { createVerifier } from "@auths-dev/sdk/verify";
 
 declare global {
   var AUTHS_INCIDENT_AGENT_API: string | undefined;
@@ -13,6 +17,8 @@ type Json = Record<string, any>;
 let state: Json = {};
 let proposal: Json = {};
 let viewerToken = sessionStorage.getItem("auths.incident.viewer-token") ?? "";
+let viewerGeneration = 0;
+let refreshGeneration = 0;
 
 const attacks = [
   ["byte-mutation", "Change firewall byte after approval"],
@@ -26,12 +32,12 @@ const attacks = [
   ["withdraw-approval", "Withdraw approval mid-plan"],
 ] as const;
 
-async function request(path: string, options: RequestInit = {}): Promise<Json> {
+async function request(path: string, options: RequestInit = {}, token = viewerToken): Promise<Json> {
   const response = await fetch(`${api}${path}`, {
     ...options,
     headers: {
       "content-type": "application/json",
-      ...(viewerToken ? { authorization: `Bearer ${viewerToken}` } : {}),
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },
   });
@@ -59,8 +65,41 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 async function refresh(): Promise<void> {
-  [state, proposal] = await Promise.all([request("/api/state"), request("/api/proposal")]);
-  render();
+  const scope = viewerGeneration;
+  const generation = ++refreshGeneration;
+  const token = viewerToken;
+  const current = () => scope === viewerGeneration && generation === refreshGeneration;
+  try {
+    const [nextState, nextProposal] = await Promise.all([
+      request("/api/state", {}, token), request("/api/proposal", {}, token),
+    ]);
+    if (!current()) return;
+    state = nextState;
+    proposal = nextProposal;
+    render();
+  } catch (error) {
+    if (!current()) return;
+    clearReceiptView();
+    element("receipt-access-status").textContent = "Receipt access unavailable.";
+    throw error;
+  }
+}
+
+function clearReceiptView(): void {
+  // Remove retained disclosure as well as rendered evidence: another render
+  // during login/failure must not revive the previous viewer's receipts.
+  state = { ...state, receipts: [], receiptView: "opaque" };
+  element("receipts").replaceChildren();
+  element("receipt-access-status").textContent = "Receipt view changing…";
+  document.querySelectorAll<HTMLButtonElement>("[data-receipt-role]").forEach((button) => button.classList.remove("active"));
+}
+
+function changeViewerScope(token: string): void {
+  ++viewerGeneration;
+  viewerToken = token;
+  if (token) sessionStorage.setItem("auths.incident.viewer-token", token);
+  else sessionStorage.removeItem("auths.incident.viewer-token");
+  clearReceiptView();
 }
 
 function render(): void {
@@ -182,8 +221,8 @@ async function crossVerify(): Promise<void> {
   const output = element("sdk-evidence");
   try {
     const fixture = await request("/api/fixture");
-    const verifier = await loadVerifier();
-    const result = verifier.verify(bytes(fixture.proof), bytes(fixture.action), bytes(fixture.context));
+    const verifier = await createVerifier();
+    const result = verifier.verify({ proof: bytes(fixture.proof), action: bytes(fixture.action), trustedContext: bytes(fixture.context) });
     const agrees = result.kind === fixture.python.kind && result.stage === fixture.python.stage && result.code === fixture.python.code;
     output.classList.toggle("ok", agrees);
     output.textContent = `${agrees ? "✓" : "✗"} PORTABLE FIXTURE · Python ${fixture.python.kind}/${fixture.python.code} · TypeScript ${result.kind}/${result.code} · P-256 WebAuthn root`;
@@ -197,38 +236,102 @@ async function liveMutationAttack(): Promise<Json> {
   const fixture = await request("/api/fixture");
   const action = bytes(fixture.action);
   action[action.length - 1] = (action[action.length - 1] ?? 0) ^ 1;
-  const result = (await loadVerifier()).verify(bytes(fixture.proof), action, bytes(fixture.context));
+  const result = (await createVerifier()).verify({ proof: bytes(fixture.proof), action, trustedContext: bytes(fixture.context) });
   const python = await request("/api/attack/byte-mutation", { method: "POST", body: "{}" });
   return { ...python, evidence: { python: python.evidence, typescript: { kind: result.kind, stage: result.stage, code: result.code } } };
 }
 
+async function withdrawalSigner(): Promise<CustodySigner> {
+  const key = await developmentEd25519Key();
+  const descriptor: CustodyDescriptor = Object.freeze({
+    contract: "signer-custody/2", kind: "workload", adapterId: "incident.browser.development",
+    principal: key.principal, signature: key.signature, keyVersion: "development-1",
+    keyState: "active-current", lifecycle: "ephemeral",
+  });
+  let phase: "open" | "closed" = "open";
+  const close = async () => { phase = "closed"; };
+  return {
+    descriptor,
+    async sign(request) {
+      if (phase === "closed" || request.signal.aborted) return { kind: "rejected", failure: "cancelled" };
+      const signature = await key.sign(request.signingPreimage);
+      if (phase !== "open" || request.signal.aborted) return { kind: "rejected", failure: "cancelled" };
+      return { kind: "signed", response: {
+        requestId: request.requestId, objectId: request.objectId.slice(), principal: key.principal,
+        descriptor: key.signature, providerKeyVersion: descriptor.keyVersion,
+        transactionDigest: request.transactionDigest.slice(), signature, evidence: [key.evidence],
+      } };
+    },
+    close,
+    [Symbol.asyncDispose]: close,
+  };
+}
+
 async function liveWithdrawalAttack(): Promise<Json> {
-  const policy = await approval.planOnce({ maxUses: 2, expiresInSeconds: 60 });
-  const plan = new Uint8Array(32).fill(1);
-  const first = new Uint8Array(32).fill(2);
-  const second = new Uint8Array(32).fill(3);
-  const session = new BoundedApprovalSession({ planCommitment: plan, memberCommitments: [first, second], policy, provider: development.approve(), display: [] });
-  await session.providerFor(0, first).approve({
-    requestId: "withdraw:first",
-    objectKind: "action",
-    transactionDigest: new Uint8Array(32).fill(4),
-    policy: policy.reference,
-    expiresAt: BigInt(Math.floor(Date.now() / 1000) + 60),
-    display: [],
-  }, { signal: new AbortController().signal });
-  await session.dispose();
+  const actor = await withdrawalSigner();
+  const approver = await withdrawalSigner();
   try {
-    await session.providerFor(1, second).approve({
-      requestId: "withdraw:second",
-      objectKind: "action",
-      transactionDigest: new Uint8Array(32).fill(5),
-      policy: policy.reference,
-      expiresAt: BigInt(Math.floor(Date.now() / 1000) + 60),
-      display: [],
-    }, { signal: new AbortController().signal });
-    return { attack: "withdraw-approval", blocked: false, code: "unexpected-authorized" };
-  } catch (error) {
-    return { attack: "withdraw-approval", blocked: true, stage: "approval", code: "approval-cancelled", detail: (error as Error).message, evidence: { completedSteps: ["firewall-eu-west-2"], unresolved: ["cache-eu-west-2"], sdk: "TypeScript BoundedApprovalSession" } };
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const contract = exactMcpTool({ service: "incident-withdrawal", name: "review_step",
+      fields: { step: stringField({ minBytes: 1, maxBytes: 64 }) } });
+    const approvers = [approver.descriptor.principal];
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const build = (step: string) => proposeMcpApproval({ contract, command: { step }, required: 1,
+      approvers, actor: actor.descriptor.principal, challenge, evaluationTime: now, validitySeconds: 60 });
+    const first = await build("firewall-eu-west-2");
+    const firstRequest = (await approvalRequests(first))[0];
+    if (!firstRequest) throw new Error("Native approval request missing");
+    const firstReview = await openApprovalRequest(firstRequest.data, { now });
+    const firstApproval = await approve(firstReview, approver);
+    const firstCollection = await collectApprovals(first, [firstApproval.data]);
+    const firstProof = firstCollection.assemble(await signApprovalAction(first, actor));
+    const audience = "mcp://incident-withdrawal";
+    const trustedContext = await compileTrustedContext({
+      anchors: [{ id: "browser-demo-actor", principal: actor.descriptor.principal,
+        acceptedMethods: ["raw-key-v1"], profiles: [{ id: "auths.mcp", version: 2 }],
+        permissions: [{ capability: "tools/call", resource: `${audience}/tools/review_step` }],
+        resourceNamespaces: [audience], audiences: [audience], notBefore: now, expiresAt: now + 60n,
+        maxDelegationDepth: 0, assurancePolicy: "browser-withdrawal" }],
+      assurance: { id: "browser-withdrawal", requirements: [
+        { role: "root", quantifier: "every", claim: "self-certifying-identifier" },
+        { role: "actor", quantifier: "every", claim: "self-certifying-identifier" },
+        { role: "actor", quantifier: "every", claim: "offline-verifiable" },
+      ] },
+      evidenceTypes: ["raw-key-v1"],
+      approverAnchors: approvers.map((principal) => ({ principal, acceptedMethods: ["raw-key-v1"], notBefore: now, expiresAt: now + 60n })),
+      approvalRequirements: [{ approvers, threshold: 1 }],
+      request: { audience, challenge, evaluationTime: now },
+    });
+    const verifier = await createVerifier();
+    const firstDecision = verifier.verify({ proof: firstProof, action: first.action, trustedContext });
+    if (firstDecision.kind !== "authorized") throw new Error(`First approval did not verify: ${firstDecision.code}`);
+
+    const second = await build("cache-eu-west-2");
+    const secondRequest = (await approvalRequests(second))[0];
+    if (!secondRequest) throw new Error("Native approval request missing");
+    const secondReview = await openApprovalRequest(secondRequest.data, { now });
+    const refusal = await decline(secondReview, approver, { now });
+    const secondCollection = await collectApprovals(second, [refusal.data]);
+    const secondAction = await signApprovalAction(second, actor);
+    try {
+      secondCollection.assemble(secondAction);
+      return { attack: "withdraw-approval", blocked: false, code: "unexpected-authorized" };
+    } catch (error) {
+      if (!(error instanceof ApprovalRefused) || error.code !== "approval.incomplete") throw error;
+      // Rechecking the original exact proof demonstrates that refusing a later
+      // action neither erases its earlier approval nor claims a provider effect.
+      const retained = verifier.verify({ proof: firstProof, action: first.action, trustedContext });
+      return { attack: "withdraw-approval", blocked: retained.kind === "authorized" && !secondCollection.isComplete,
+        stage: "approval", code: error.code,
+        detail: "The first exact action remains approved; a signed decline prevents a proof for the second. No provider calls were made by this browser check.",
+        evidence: { approvedSteps: ["firewall-eu-west-2"], unresolved: ["cache-eu-west-2"], providerCalls: 0,
+          firstDecision: retained.kind, secondApproved: secondCollection.approved,
+          secondStatuses: secondCollection.statuses.map(({ approver, status }) => ({ approver, status })),
+          firstProof: base64Url(firstProof), decline: refusal.text, sdk: "TypeScript native remote approval" } };
+    }
+  } finally {
+    await approver.close();
+    await actor.close();
   }
 }
 
@@ -267,10 +370,9 @@ function wire(): void {
   document.querySelectorAll<HTMLButtonElement>("[data-receipt-role]").forEach((button) => button.addEventListener("click", () => {
     const role = button.dataset.receiptRole;
     if (role === "public") {
-      viewerToken = "";
-      sessionStorage.removeItem("auths.incident.viewer-token");
+      changeViewerScope("");
       sessionStorage.removeItem("auths.incident.viewer-role");
-      void refresh();
+      void refresh().catch(() => { /* the matching refresh owns its error view */ });
       return;
     }
     if (role) void beginViewerLogin(role);
@@ -278,8 +380,11 @@ function wire(): void {
 }
 
 async function beginViewerLogin(subject: string): Promise<void> {
+  changeViewerScope("");
+  const scope = viewerGeneration;
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(48)));
   const challenge = base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  if (scope !== viewerGeneration) return;
   const oauthState = base64Url(crypto.getRandomValues(new Uint8Array(24)));
   sessionStorage.setItem("auths.incident.pkce-verifier", verifier);
   sessionStorage.setItem("auths.incident.oauth-state", oauthState);
@@ -300,6 +405,7 @@ async function beginViewerLogin(subject: string): Promise<void> {
 }
 
 async function completeViewerLogin(): Promise<void> {
+  const scope = viewerGeneration;
   const query = new URLSearchParams(location.search);
   const code = query.get("code");
   if (!code) return;
@@ -308,21 +414,28 @@ async function completeViewerLogin(): Promise<void> {
   if (!expectedState || query.get("state") !== expectedState || !verifier) {
     throw new Error("Northstar OIDC callback did not match this browser session");
   }
-  const response = await fetch(new URL("/token", String(state.identityProvider)), {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: "auths-incident-control-room",
-      redirect_uri: `${location.origin}${location.pathname}`,
-      code,
-      code_verifier: verifier,
-    }),
-  });
-  const token = await response.json() as Json;
+  let response: Response;
+  let token: Json;
+  try {
+    response = await fetch(new URL("/token", String(state.identityProvider)), {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: "auths-incident-control-room",
+        redirect_uri: `${location.origin}${location.pathname}`,
+        code,
+        code_verifier: verifier,
+      }),
+    });
+    token = await response.json() as Json;
+  } catch (error) {
+    if (scope !== viewerGeneration) return;
+    throw error;
+  }
+  if (scope !== viewerGeneration) return;
   if (!response.ok || typeof token.access_token !== "string") throw new Error("Northstar OIDC login failed");
-  viewerToken = token.access_token;
-  sessionStorage.setItem("auths.incident.viewer-token", viewerToken);
+  changeViewerScope(token.access_token);
   sessionStorage.removeItem("auths.incident.pkce-verifier");
   sessionStorage.removeItem("auths.incident.oauth-state");
   history.replaceState({}, "", location.pathname);

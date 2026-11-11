@@ -340,6 +340,12 @@ late-completion, cleanup failure/retry, and resource-publication behavior.
 A terminal flag must not stand in for unfinished cleanup, and an error or
 cancellation must not be treated as proof of non-effect.
 
+Resource and pathname ownership must span admission, publication, actual work,
+and cleanup; a stale destructor must not remove a successor's resource. A file
+replacement can succeed before persistence reports failure. Continuing in the
+same process after that uncertainty requires explicit invalidation or an
+authoritative reload, not continued decisions from a stale memory snapshot.
+
 Keep one semantic authority for each managed transition. Extend the existing
 kernel, journal, or resource owner; do not add a parallel executor, recovery
 ledger, or universal lifecycle framework. Persist necessary recovery facts

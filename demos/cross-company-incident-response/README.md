@@ -119,8 +119,10 @@ typed stage/code and concrete evidence:
   release, commit, or retain `outcome-unknown`; the live ambiguous case applies
   an effect, loses the response, blocks retry, and reconciles to
   `reconciled-committed`;
-- approval withdrawal: the first step is reported complete and the second
-  remains unresolved after the bounded plan session is disposed.
+- approval withdrawal: the browser authors and verifies the first exact action,
+  then records a signed decline for the second. Native remote approval assembly
+  refuses the second with `approval.incomplete`; the first proof still verifies.
+  This local check makes no provider call and claims no completed effect.
 
 ## Trust boundaries
 

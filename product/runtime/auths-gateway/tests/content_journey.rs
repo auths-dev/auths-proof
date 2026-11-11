@@ -1519,21 +1519,22 @@ fn private_capacity_records(state: &Path) -> std::collections::BTreeMap<String, 
 )]
 fn native_content_process_capacity_fixture_is_current() {
     let installation = ReadOnlyInstallation::create();
-    let root = &installation.root;
     let provider = Provider::start();
-    let left_socket = root.join("left.sock");
-    let right_socket = root.join("right.sock");
+    // Each daemon owns its protected endpoint directory; shared durable state
+    // does not imply shared local socket publication ownership.
+    let left_socket = installation.state.join("app.sock");
+    let peer = installation.join_peer();
+    let right_socket = peer.join("app.sock");
     let left = Daemon::start_at_admin(
         &installation.state,
         &left_socket,
-        &root.join("left-admin.sock"),
+        &installation.state.join("admin.sock"),
         provider.port,
     );
-    let peer = installation.join_peer();
     let right = Daemon::start_at_admin(
         &peer,
         &right_socket,
-        &root.join("right-admin.sock"),
+        &peer.join("admin.sock"),
         provider.port,
     );
     assert_ne!(left.0.id(), right.0.id(), "independent gateway processes");
@@ -1662,11 +1663,11 @@ fn native_content_process_capacity_fixture_is_current() {
     );
     drop(left);
     drop(right);
-    let reopened_socket = root.join("reopened.sock");
+    let reopened_socket = installation.state.join("reopened.sock");
     let reopened = Daemon::start_at_admin(
         &installation.state,
         &reopened_socket,
-        &root.join("reopened-admin.sock"),
+        &installation.state.join("reopened-admin.sock"),
         provider.port,
     );
     for ((effect, operation), expected) in approved.iter().zip(&operations).zip(&histories) {

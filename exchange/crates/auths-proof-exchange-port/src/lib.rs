@@ -10,6 +10,12 @@ use auths_proof_exchange_model::{
 };
 use std::fmt;
 
+/// One challenge and one admitted submission on a channel.
+///
+/// Preflight rejection may be retried before I/O. Once a channel operation
+/// starts I/O, failure or dropping its future makes the channel unavailable;
+/// a lost reply never authorizes implicit resubmission. Use a fresh channel
+/// and the application's existing recovery protocol for uncertain effects.
 #[async_trait]
 pub trait ClientProofChannel {
     type Error: std::error::Error + Send + Sync + 'static;
@@ -24,6 +30,10 @@ pub trait ClientProofChannel {
     ) -> Result<ActionResponse, Self::Error>;
 }
 
+/// One service exchange with operation ownership retained across I/O.
+///
+/// An interrupted or failed admitted operation makes the channel unavailable.
+/// Sequence checks must reject subsequent operations without further I/O.
 #[async_trait]
 pub trait ServerProofChannel {
     type Error: std::error::Error + Send + Sync + 'static;

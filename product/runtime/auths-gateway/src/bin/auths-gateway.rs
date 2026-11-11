@@ -3473,17 +3473,17 @@ mod unix {
 
     fn bind_recovering_socket(path: &Path, code: &'static str) -> Result<UnixListener, Failure> {
         let owner = rustix::process::geteuid().as_raw();
+        if !secure_socket_parent(path, owner) {
+            return Err(Failure::at(
+                code,
+                path,
+                "the parent directory must be canonical, owned by this gateway and closed to group and other writes",
+            ));
+        }
         match fs::symlink_metadata(path) {
             Ok(metadata) => {
                 // Only replace a dead socket owned by this gateway inside its own
                 // non-writable directory. A live listener or foreign inode fails closed.
-                if !secure_socket_parent(path, owner) {
-                    return Err(Failure::at(
-                        code,
-                        path,
-                        "the parent directory is not this gateway's own directory closed to group and other writes",
-                    ));
-                }
                 if !metadata.file_type().is_socket() {
                     return Err(Failure::at(code, path, "an existing file is not a socket"));
                 }
@@ -3519,27 +3519,92 @@ mod unix {
         UnixListener::bind(path).map_err(|error| Failure::at(code, path, error))
     }
 
-    /// Removes a socket file this process bound when startup fails after
-    /// the bind; [`BoundSocket::keep`] leaves it for the running gateway.
-    struct BoundSocket<'a> {
-        path: &'a Path,
-        kept: bool,
+    /// One serving generation owns admission, drain and cleanup. Endpoint
+    /// claims are independent of installation/admin locks and survive listener
+    /// closure; their stable inodes are never unlinked on release.
+    struct ServingClaim {
+        _locks: Vec<File>,
     }
 
-    impl<'a> BoundSocket<'a> {
-        const fn new(path: &'a Path) -> Self {
-            Self { path, kept: false }
+    impl ServingClaim {
+        fn acquire(state_dir: &Path, app: &Path, admin: &Path) -> Result<Self, Failure> {
+            let owner = rustix::process::geteuid().as_raw();
+            let mut parents = [
+                (app, "gateway.serve.app-bind-failed"),
+                (admin, "gateway.serve.admin-bind-failed"),
+            ]
+            .into_iter()
+            .map(|(path, code)| {
+                if !secure_socket_parent(path, owner) {
+                    return Err(Failure::at(code, path,
+                        "the parent directory must be canonical, owned by this gateway and closed to group and other writes"));
+                }
+                let parent = path.parent().ok_or(code)?;
+                Ok((parent.to_owned(), path, code))
+            })
+            .collect::<Result<Vec<_>, Failure>>()?;
+            parents.sort_by(|left, right| left.0.cmp(&right.0));
+            parents.dedup_by(|left, right| left.0 == right.0);
+            let mut locks = vec![Self::lock(
+                &state_dir.join("serving.lock"),
+                state_dir,
+                "gateway.serve.claim-unavailable",
+            )?];
+            // A directory is the supported endpoint allocation unit. One fixed
+            // inode also covers case/normalization aliases on Unix filesystems;
+            // installations that need concurrent service use distinct parents.
+            for (parent, path, code) in parents {
+                locks.push(Self::lock(&parent.join(".auths-serving.lock"), path, code)?);
+            }
+            Ok(Self { _locks: locks })
         }
 
-        fn keep(mut self) {
-            self.kept = true;
+        fn lock(lock_path: &Path, endpoint: &Path, code: &'static str) -> Result<File, Failure> {
+            let file =
+                private_lock_file(lock_path).map_err(|error| Failure::at(code, endpoint, error))?;
+            rustix::fs::flock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive)
+                .map_err(|error| {
+                    let code = if error == rustix::io::Errno::WOULDBLOCK {
+                        "gateway.serve.busy"
+                    } else {
+                        code
+                    };
+                    Failure::at(code, endpoint, error)
+                })?;
+            Ok(file)
         }
     }
 
-    impl Drop for BoundSocket<'_> {
+    /// Cleanup belongs to the bound inode, including startup failure. A
+    /// successor or foreign replacement at the pathname is never ours to remove.
+    struct BoundSocket {
+        path: PathBuf,
+        device: u64,
+        inode: u64,
+    }
+
+    impl BoundSocket {
+        fn new(path: &Path) -> Result<Self, std::io::Error> {
+            let metadata = fs::symlink_metadata(path)?;
+            if !metadata.file_type().is_socket() {
+                return Err(std::io::Error::other("bound socket was replaced"));
+            }
+            Ok(Self {
+                path: path.to_owned(),
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            })
+        }
+    }
+
+    impl Drop for BoundSocket {
         fn drop(&mut self) {
-            if !self.kept {
-                let _ = fs::remove_file(self.path);
+            if fs::symlink_metadata(&self.path).is_ok_and(|metadata| {
+                metadata.file_type().is_socket()
+                    && metadata.dev() == self.device
+                    && metadata.ino() == self.inode
+            }) {
+                let _ = fs::remove_file(&self.path);
             }
         }
     }
@@ -3584,22 +3649,25 @@ mod unix {
         }
         check_admin_socket(&admin_socket, &SERVE_ADMIN_SOCKET)?;
         let admin_path = admin_socket.path.as_path();
+        // Claim before inspecting/recovering either endpoint. Keep this owner
+        // until all bound guards have cleaned up after real session settlement.
+        let _serving = ServingClaim::acquire(&state_dir, &app_socket, admin_path)?;
         // The admin socket is bound first, so the socket an application
         // waits for appears last.
         let admin = bind_recovering_socket(admin_path, "gateway.serve.admin-bind-failed")?;
-        let admin_bound = BoundSocket::new(admin_path);
+        let admin_bound = BoundSocket::new(admin_path)
+            .map_err(|error| Failure::at("gateway.serve.admin-bind-failed", admin_path, error))?;
         fs::set_permissions(admin_path, fs::Permissions::from_mode(0o600)).map_err(|error| {
             Failure::at("gateway.serve.admin-permissions-failed", admin_path, error)
         })?;
         let app = bind_recovering_socket(&app_socket, "gateway.serve.app-bind-failed")?;
-        let app_bound = BoundSocket::new(&app_socket);
+        let app_bound = BoundSocket::new(&app_socket)
+            .map_err(|error| Failure::at("gateway.serve.app-bind-failed", &app_socket, error))?;
         fs::set_permissions(&app_socket, fs::Permissions::from_mode(0o660)).map_err(|error| {
             Failure::at("gateway.serve.app-permissions-failed", &app_socket, error)
         })?;
         let recipe_marker = engine_recipe_marker(&state_dir)?;
         let admin_state_dir = Arc::new(state_dir.clone());
-        admin_bound.keep();
-        app_bound.keep();
         announce_ready(&engine, &recipe_marker);
         // Separate capacities: the application can fill its own listener but
         // never take an admin permit.
@@ -3616,6 +3684,8 @@ mod unix {
                 let engine = Arc::clone(&app_engine);
                 async move {
                     let _permit = permit;
+                    #[cfg(feature = "testkit-harness")]
+                    auths_gateway::administrative_test_boundary("serve.session-admitted");
                     Box::pin(app_session(stream, engine.as_ref())).await;
                 }
             },
@@ -3646,13 +3716,15 @@ mod unix {
             _ = terminate.recv() => {},
             _ = tokio::signal::ctrl_c() => {},
         }
+        #[cfg(feature = "testkit-harness")]
+        auths_gateway::administrative_test_boundary("serve.draining");
         // The listeners have been dropped: no new session can be admitted.
         // Waiting for permits includes pre-entry and admin sessions, not
         // just transports already counted by the engine.
-        let drained = drain_sessions(&app_permits, &admin_permits, app_capacity).await;
-        let _ = fs::remove_file(&app_socket);
-        let _ = fs::remove_file(admin_path);
-        drained
+        finish_drain(drain_sessions(&app_permits, &admin_permits, app_capacity).await);
+        drop(app_bound);
+        drop(admin_bound);
+        Ok(())
     }
 
     async fn sweep_periodically(engine: &GatewayEngine) -> ! {
@@ -3672,7 +3744,32 @@ mod unix {
         admin_permits: &Semaphore,
         app_capacity: usize,
     ) -> Result<(), Failure> {
-        let drained = tokio::time::timeout(Duration::from_secs(25), async {
+        drain_sessions_with_deadline(
+            app_permits,
+            admin_permits,
+            app_capacity,
+            Duration::from_secs(25),
+        )
+        .await
+    }
+
+    /// An incomplete drain never releases ownership back into a live process.
+    /// Exit here while the caller still owns claims, socket guards and tasks;
+    /// the OS releases locks only when this process has actually terminated.
+    fn finish_drain(result: Result<(), Failure>) {
+        if let Err(failure) = result {
+            eprintln!("{failure}");
+            std::process::exit(1);
+        }
+    }
+
+    async fn drain_sessions_with_deadline(
+        app_permits: &Semaphore,
+        admin_permits: &Semaphore,
+        app_capacity: usize,
+        deadline: Duration,
+    ) -> Result<(), Failure> {
+        let drained = tokio::time::timeout(deadline, async {
             let _app = app_permits
                 .acquire_many(u32::try_from(app_capacity).map_err(|_| "gateway.serve.capacity")?)
                 .await
@@ -4971,6 +5068,14 @@ mod unix {
         name: &str,
         code: &'static str,
     ) -> Result<File, &'static str> {
+        let lock = private_lock_file(&state_dir.join(name)).map_err(|_| code)?;
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive).map_err(|_| code)?;
+        Ok(lock)
+    }
+
+    /// The same private, stable lock inode policy for administrative and
+    /// serving coordination; callers select blocking versus prompt admission.
+    fn private_lock_file(path: &Path) -> Result<File, std::io::Error> {
         let lock = OpenOptions::new()
             .read(true)
             .write(true)
@@ -4980,17 +5085,15 @@ mod unix {
             .custom_flags(i32::from_ne_bytes(
                 rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
             ))
-            .open(state_dir.join(name))
-            .map_err(|_| code)?;
-        let metadata = lock.metadata().map_err(|_| code)?;
+            .open(path)?;
+        let metadata = lock.metadata()?;
         if !metadata.is_file()
             || metadata.permissions().mode() & 0o077 != 0
             || metadata.uid() != rustix::process::geteuid().as_raw()
             || metadata.nlink() != 1
         {
-            return Err(code);
+            return Err(std::io::Error::other("unsafe private lock file"));
         }
-        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive).map_err(|_| code)?;
         Ok(lock)
     }
 
@@ -6393,6 +6496,162 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[tokio::test]
+        async fn socket_cleanup_preserves_a_replacement_inode() {
+            let directory = tempfile::tempdir_in("/tmp").expect("private directory");
+            let path = directory.path().join("owned.sock");
+            let original = UnixListener::bind(&path).expect("original bind");
+            let owned = BoundSocket::new(&path).expect("owned identity");
+            fs::remove_file(&path).expect("replace pathname");
+            let replacement = UnixListener::bind(&path).expect("replacement bind");
+            drop(owned);
+            assert!(UnixStream::connect(&path).await.is_ok());
+            drop((original, replacement));
+        }
+
+        #[tokio::test]
+        async fn failed_start_cleans_owned_socket_before_releasing_claims() {
+            let directory = tempfile::tempdir_in("/tmp").expect("private directory");
+            let root = fs::canonicalize(directory.path()).expect("canonical directory");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private");
+            let app = root.join("app.sock");
+            let admin = root.join("admin.sock");
+            let serving = ServingClaim::acquire(&root, &app, &admin).expect("claim");
+            let listener = bind_recovering_socket(&admin, "bind").expect("admin bind");
+            let owned = BoundSocket::new(&admin).expect("identity");
+            fs::write(&app, b"occupied").expect("fail second bind");
+            assert!(bind_recovering_socket(&app, "bind").is_err());
+            drop(listener);
+            drop(owned);
+            assert!(!admin.exists());
+            assert!(ServingClaim::acquire(&root, &app, &admin).is_err());
+            drop(serving);
+            assert!(ServingClaim::acquire(&root, &app, &admin).is_ok());
+            assert_eq!(fs::read(app).expect("foreign file remains"), b"occupied");
+        }
+
+        #[test]
+        fn endpoint_directory_claims_serialize_distinct_leaves_and_case_aliases() {
+            let directory = tempfile::tempdir_in("/tmp").expect("private directory");
+            let root = fs::canonicalize(directory.path()).expect("canonical directory");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private");
+            let first = root.join("first");
+            let second = root.join("second");
+            fs::create_dir(&first).expect("first");
+            fs::create_dir(&second).expect("second");
+            let app = root.join("app.sock");
+            let owner =
+                ServingClaim::acquire(&first, &app, &first.join("admin.sock")).expect("owner");
+            for leaf in ["APP.sock", "different.sock"] {
+                let error =
+                    ServingClaim::acquire(&second, &root.join(leaf), &second.join("admin.sock"))
+                        .err()
+                        .expect("shared endpoint directory is busy");
+                assert_eq!(error.code, "gateway.serve.busy");
+            }
+            drop(owner);
+            assert!(ServingClaim::acquire(&second, &app, &second.join("admin.sock")).is_ok());
+        }
+
+        #[tokio::test]
+        async fn overdue_drain_child() {
+            let Some(root) = std::env::var_os("AUTHS_TEST_OVERDUE_DRAIN_ROOT") else {
+                return;
+            };
+            let root = PathBuf::from(root);
+            let app = root.join("app.sock");
+            let admin = root.join("admin.sock");
+            let _serving = ServingClaim::acquire(&root, &app, &admin).expect("claim");
+            let app_listener = bind_recovering_socket(&app, "app bind").expect("app");
+            let admin_listener = bind_recovering_socket(&admin, "admin bind").expect("admin");
+            let _app_owned = BoundSocket::new(&app).expect("app identity");
+            let _admin_owned = BoundSocket::new(&admin).expect("admin identity");
+            let app_permits = Arc::new(Semaphore::new(1));
+            let admin_permits = Semaphore::new(ADMIN_CAPACITY);
+            let admitted = Arc::clone(&app_permits)
+                .acquire_owned()
+                .await
+                .expect("admitted session");
+            let _session = tokio::spawn(async move {
+                let _admitted = admitted;
+                std::future::pending::<()>().await;
+            });
+            // As in real shutdown, listeners close before admitted work settles.
+            drop((app_listener, admin_listener));
+            fs::write(root.join("admitted"), b"owned").expect("admission evidence");
+            finish_drain(
+                drain_sessions_with_deadline(
+                    &app_permits,
+                    &admin_permits,
+                    1,
+                    Duration::from_millis(1),
+                )
+                .await,
+            );
+            panic!("an overdue drain returned into a live owner");
+        }
+
+        #[tokio::test]
+        async fn overdue_drain_exits_with_claims_and_socket_guards_still_owned() {
+            use std::process::{Command, Stdio};
+            let directory = tempfile::tempdir_in("/tmp").expect("private directory");
+            let root = fs::canonicalize(directory.path()).expect("canonical directory");
+            let mut child = Command::new(std::env::current_exe().expect("test binary"))
+                .arg("--exact")
+                .arg("unix::tests::overdue_drain_child")
+                .arg("--nocapture")
+                .env("AUTHS_TEST_OVERDUE_DRAIN_ROOT", &root)
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("child");
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            let status = loop {
+                if let Some(status) = child.try_wait().expect("child status") {
+                    break status;
+                }
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("overdue shutdown did not terminate");
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            };
+            let output = child.wait_with_output().expect("child output");
+            assert_eq!(status.code(), Some(1));
+            assert!(
+                String::from_utf8_lossy(&output.stderr)
+                    .contains("gateway.serve.shutdown-incomplete")
+            );
+            assert!(root.join("admitted").exists());
+            let app = root.join("app.sock");
+            let admin = root.join("admin.sock");
+            // If guards dropped before exit, these exact socket inodes would
+            // have disappeared. OS process exit releases claims without cleanup.
+            assert!(
+                fs::symlink_metadata(&app)
+                    .expect("uncleaned app")
+                    .file_type()
+                    .is_socket()
+            );
+            assert!(
+                fs::symlink_metadata(&admin)
+                    .expect("uncleaned admin")
+                    .file_type()
+                    .is_socket()
+            );
+            let _successor =
+                ServingClaim::acquire(&root, &app, &admin).expect("OS released claims");
+            let app_listener = bind_recovering_socket(&app, "recover app").expect("recover app");
+            let _app_owned = BoundSocket::new(&app).expect("new app identity");
+            let admin_listener =
+                bind_recovering_socket(&admin, "recover admin").expect("recover admin");
+            let _admin_owned = BoundSocket::new(&admin).expect("new admin identity");
+            assert!(UnixStream::connect(&app).await.is_ok());
+            assert!(UnixStream::connect(&admin).await.is_ok());
+            drop((app_listener, admin_listener));
+        }
 
         #[test]
         #[allow(

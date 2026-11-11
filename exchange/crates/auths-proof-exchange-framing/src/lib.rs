@@ -62,6 +62,9 @@ enum State {
     Challenged,
     Submitted,
     Completed,
+    // Claimed before I/O. Failure or dropping its future leaves the stream
+    // unusable because a partial frame is not a new message boundary.
+    Unavailable,
 }
 
 /// Client side of the one-submission stream state machine.
@@ -125,6 +128,7 @@ where
         if self.state != State::Connected {
             return Err(FramingError::Sequence);
         }
+        self.state = State::Unavailable;
         let frame = read_frame(&mut self.stream, MAX_CHALLENGE_FRAME, self.config.deadline).await?;
         let challenge = decode_challenge(&frame).map_err(|_| FramingError::Codec)?;
         self.challenge = Some(challenge.clone());
@@ -146,14 +150,16 @@ where
         {
             return Err(FramingError::Binding);
         }
+        let encoded = encode_request(&request);
+        check_outbound(&encoded, MAX_SUBMISSION_FRAME)?;
+        self.state = State::Unavailable;
         write_frame(
             &mut self.stream,
-            &encode_request(&request),
+            &encoded,
             MAX_SUBMISSION_FRAME,
             self.config.deadline,
         )
         .await?;
-        self.state = State::Submitted;
         let frame = read_frame(&mut self.stream, MAX_RESPONSE_FRAME, self.config.deadline).await?;
         let response = decode_response(&frame).map_err(|_| FramingError::Codec)?;
         self.state = State::Completed;
@@ -176,9 +182,12 @@ where
         if self.state != State::Connected {
             return Err(FramingError::Sequence);
         }
+        let encoded = encode_challenge(&challenge);
+        check_outbound(&encoded, MAX_CHALLENGE_FRAME)?;
+        self.state = State::Unavailable;
         write_frame(
             &mut self.stream,
-            &encode_challenge(&challenge),
+            &encoded,
             MAX_CHALLENGE_FRAME,
             self.config.deadline,
         )
@@ -198,6 +207,7 @@ where
         if self.challenge.as_ref() != Some(challenge) {
             return Err(FramingError::Binding);
         }
+        self.state = State::Unavailable;
         let frame =
             read_frame(&mut self.stream, MAX_SUBMISSION_FRAME, self.config.deadline).await?;
         let submission = decode_request(&frame, challenge).map_err(|_| FramingError::Codec)?;
@@ -209,17 +219,30 @@ where
         if self.state != State::Submitted {
             return Err(FramingError::Sequence);
         }
+        let encoded = encode_response(&response);
+        check_outbound(&encoded, MAX_RESPONSE_FRAME)?;
+        self.state = State::Unavailable;
         write_frame(
             &mut self.stream,
-            &encode_response(&response),
+            &encoded,
             MAX_RESPONSE_FRAME,
             self.config.deadline,
         )
         .await?;
-        self.stream.shutdown().await.map_err(|_| FramingError::Io)?;
+        timeout(self.config.deadline, self.stream.shutdown())
+            .await
+            .map_err(|_| FramingError::Timeout)?
+            .map_err(|_| FramingError::Io)?;
         self.state = State::Completed;
         Ok(())
     }
+}
+
+fn check_outbound(payload: &[u8], maximum: usize) -> Result<(), FramingError> {
+    if payload.len() > maximum || u32::try_from(payload.len()).is_err() {
+        return Err(FramingError::Limit);
+    }
+    Ok(())
 }
 
 async fn write_frame<S: AsyncWrite + Unpin>(
@@ -308,6 +331,9 @@ impl fmt::Display for FramingError {
 }
 
 impl std::error::Error for FramingError {}
+
+#[cfg(test)]
+mod interruption_tests;
 
 #[cfg(test)]
 mod tests {

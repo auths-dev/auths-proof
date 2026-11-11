@@ -209,8 +209,8 @@ fn a_joined_process_sees_every_change_committed_through_the_other() {
     );
     assert!(joined.status.success(), "{}", stderr(&joined));
 
-    let _first_gateway = serve(&first, &root.join("first.sock"));
-    let _second_gateway = serve(&second, &root.join("second.sock"));
+    let _first_gateway = serve(&first, &first.join("app.sock"));
+    let _second_gateway = serve(&second, &second.join("app.sock"));
     for state in [&first, &second] {
         let current = status(state);
         assert_eq!(current["state"], "active");
@@ -593,8 +593,8 @@ fn postgres_production_processes_share_the_connection() {
     );
     assert!(joined.status.success(), "{}", stderr(&joined));
 
-    let _first_gateway = serve(&first, &root.join("first.sock"));
-    let _second_gateway = serve(&second, &root.join("second.sock"));
+    let _first_gateway = serve(&first, &first.join("app.sock"));
+    let _second_gateway = serve(&second, &second.join("app.sock"));
     assert_eq!(status(&second)["credential_held"], true);
     let disabled = admin(&first, "disable", None);
     assert_eq!(disabled["code"], "gateway.admin.disabled", "{disabled}");

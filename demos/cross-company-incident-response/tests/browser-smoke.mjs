@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { chromium } from "../../../bindings/typescript/node_modules/playwright/index.mjs";
+import { viewerScopeContract } from "./viewer-scope-contract.mjs";
+
+await viewerScopeContract();
 
 const base = process.env.AUTHS_INCIDENT_CONTROL_ROOM ?? "http://localhost:7100";
 const browser = await chromium.launch({ headless: true });
@@ -44,6 +47,13 @@ try {
     await page.getByRole("button", { name: label }).click();
     await page.locator("#attack-output .blocked").waitFor({ timeout: 15_000 });
     assert.match(await page.locator("#attack-output").innerText(), /BLOCKED/);
+    if (label === "Withdraw approval mid-plan") {
+      const evidence = await page.locator("#attack-output").innerText();
+      assert.match(evidence, /approval\.incomplete/);
+      assert.match(evidence, /"firstDecision": "authorized"/);
+      assert.match(evidence, /"status": "declined"/);
+      assert.match(evidence, /"providerCalls": 0/);
+    }
   }
 } finally {
   await browser.close();
