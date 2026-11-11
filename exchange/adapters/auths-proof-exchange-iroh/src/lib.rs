@@ -31,6 +31,7 @@ enum ChannelState {
     Challenged,
     Submitted,
     Completed,
+    Unavailable,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -159,6 +160,7 @@ impl ClientProofChannel for IrohClientChannel {
         if self.state != ChannelState::Connected {
             return Err(IrohTransportError::sequence());
         }
+        self.state = ChannelState::Unavailable;
         let frame = self
             .channel
             .receive()
@@ -188,6 +190,7 @@ impl ClientProofChannel for IrohClientChannel {
         }
         let encoded = encode_request(&request);
         check_frame(&encoded, MAX_REQUEST_FRAME)?;
+        self.state = ChannelState::Unavailable;
         self.channel
             .send(&encoded)
             .await
@@ -195,7 +198,6 @@ impl ClientProofChannel for IrohClientChannel {
         self.channel
             .finish_send()
             .map_err(|error| IrohTransportError::iroh("finish request", error))?;
-        self.state = ChannelState::Submitted;
         let frame = self
             .channel
             .receive()
@@ -223,6 +225,7 @@ impl ServerProofChannel for IrohServerChannel {
         }
         let encoded = encode_challenge(&challenge);
         check_frame(&encoded, MAX_CHALLENGE_FRAME)?;
+        self.state = ChannelState::Unavailable;
         self.channel
             .send(&encoded)
             .await
@@ -242,6 +245,7 @@ impl ServerProofChannel for IrohServerChannel {
         if self.challenge.as_ref() != Some(challenge) {
             return Err(IrohTransportError::binding());
         }
+        self.state = ChannelState::Unavailable;
         let frame = self
             .channel
             .receive()
@@ -260,6 +264,7 @@ impl ServerProofChannel for IrohServerChannel {
         }
         let encoded = encode_response(&response);
         check_frame(&encoded, MAX_RESPONSE_FRAME)?;
+        self.state = ChannelState::Unavailable;
         self.channel
             .send(&encoded)
             .await

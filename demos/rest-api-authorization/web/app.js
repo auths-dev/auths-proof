@@ -2,7 +2,8 @@ const state = {
   experiment: "exact-create",
   transport: "https",
   session: null,
-  busy: false,
+  generation: 0,
+  operation: null,
   readSource: null,
   boundedSource: null,
 };
@@ -19,32 +20,50 @@ async function jsonFetch(url, options = {}) {
 }
 
 async function prepare() {
-  state.busy = true;
+  const operation = {
+    generation: ++state.generation,
+    kind: "preparing",
+    experiment: state.experiment,
+    transport: state.transport,
+  };
+  state.operation = operation;
+  state.session = null;
   $("execute").disabled = true;
   setVerdict("LOADING", "loading", "Issuing a short-lived proof and presenter-bound request.");
   resetResult();
   try {
-    const input = { experiment: state.experiment };
-    if (state.experiment === "exact-read") input.source_session_id = state.readSource;
-    if (state.experiment === "bounded-create" && state.boundedSource) {
+    const input = { experiment: operation.experiment };
+    if (operation.experiment === "exact-read") input.source_session_id = state.readSource;
+    if (operation.experiment === "bounded-create" && state.boundedSource) {
       input.source_session_id = state.boundedSource;
     }
-    state.session = await jsonFetch("/api/v1/sessions", {
+    const session = await jsonFetch("/api/v1/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
     });
+    if (!current(operation)) return;
+    state.session = session;
     renderSession();
     $("service-state").textContent = "ready";
     $("service-indicator").classList.add("ready");
     setVerdict("READY", "ready", "The proof and exact request are ready. Call the protected API to see the native verdict.");
     $("execute").disabled = false;
   } catch (error) {
+    if (!current(operation)) return;
     setVerdict("UNAVAILABLE", "denied", error.message);
     $("service-state").textContent = "unavailable";
   } finally {
-    state.busy = false;
+    if (current(operation)) {
+      state.operation = null;
+      $("execute").disabled = !state.session;
+    }
   }
+}
+
+// Invalidating a view never claims that an already sent effect was cancelled.
+function current(operation) {
+  return state.operation === operation && state.generation === operation.generation;
 }
 
 function renderSession() {
@@ -77,23 +96,34 @@ function renderSession() {
 }
 
 async function execute() {
-  if (!state.session || state.busy) return;
-  state.busy = true;
+  if (!state.session || state.operation) return;
+  const operation = {
+    generation: ++state.generation,
+    kind: "executing",
+    session: state.session,
+    experiment: state.experiment,
+    transport: state.transport,
+  };
+  state.operation = operation;
   $("execute").disabled = true;
   setVerdict("CHECKING", "loading", "The native service is verifying the exact proof, presentation, action, policy, and configuration.");
   try {
-    const outcome = state.transport === "https" ? await executeHttps() : await executeIroh();
-    renderOutcome(outcome);
+    const outcome = operation.transport === "https"
+      ? await executeHttps(operation.session) : await executeIroh(operation.session);
+    if (!current(operation)) return;
+    renderOutcome(outcome, operation);
   } catch (error) {
+    if (!current(operation)) return;
     setVerdict("ERROR", "denied", error.message);
   } finally {
-    state.busy = false;
-    $("execute").disabled = false;
+    if (current(operation)) {
+      state.operation = null;
+      $("execute").disabled = false;
+    }
   }
 }
 
-async function executeHttps() {
-  const session = state.session;
+async function executeHttps(session) {
   const action = session.action;
   const headers = {
     "content-type": "application/json",
@@ -111,15 +141,16 @@ async function executeHttps() {
   return jsonFetch(`/v1/records/${encodeURIComponent(action.action.record_id)}`, { headers });
 }
 
-async function executeIroh() {
-  return jsonFetch(`/api/v1/sessions/${state.session.session_id}/execute-iroh`, {
+async function executeIroh(session) {
+  return jsonFetch(`/api/v1/sessions/${session.session_id}/execute-iroh`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}",
   });
 }
 
-function renderOutcome(outcome) {
+function renderOutcome(outcome, operation) {
+  const session = operation.session;
   const receipt = outcome.receipt;
   const decision = receipt.decision.decision;
   const authorized = decision.class === "authorized";
@@ -142,25 +173,25 @@ function renderOutcome(outcome) {
       ? "COMMITTED"
       : "UNCHANGED";
   $("observation-status").textContent = receipt.observation ? "RECORDED" : "NONE";
-  renderBusinessResponse(outcome, authorized);
+  renderBusinessResponse(outcome, authorized, session);
   $("receipt-json").textContent = JSON.stringify(receipt, null, 2);
   const link = $("receipt-link");
   link.href = `/receipts/${receipt.decision.receipt_id}`;
   link.classList.remove("disabled");
   link.removeAttribute("aria-disabled");
-  if (authorized && state.session.operation_id === "records.create.v1") {
-    state.readSource = state.session.session_id;
+  if (authorized && session.operation_id === "records.create.v1") {
+    state.readSource = session.session_id;
     const readButton = document.querySelector('[data-experiment="exact-read"]');
     readButton.disabled = false;
     readButton.title = "";
-    if (state.experiment === "bounded-create") {
-      state.boundedSource = state.session.session_id;
+    if (operation.experiment === "bounded-create") {
+      state.boundedSource = session.session_id;
       $("next-action").disabled = false;
     }
   }
 }
 
-function renderBusinessResponse(outcome, authorized) {
+function renderBusinessResponse(outcome, authorized, session) {
   const card = $("api-response");
   if (!authorized) {
     card.dataset.state = "empty";
@@ -168,14 +199,14 @@ function renderBusinessResponse(outcome, authorized) {
     $("business-response").textContent = JSON.stringify({ response: null }, null, 2);
     return;
   }
-  const action = state.session.action.action;
+  const action = session.action.action;
   const response = outcome.response || {
     record_id: action.record_id,
     customer: action.customer,
     version: 1,
   };
   card.dataset.state = "returned";
-  $("response-detail").textContent = state.session.operation_id === "records.read.v1"
+  $("response-detail").textContent = session.operation_id === "records.read.v1"
     ? "The authorized fields were read from the protected store and returned to the caller."
     : "The fictional customer was written to the protected store.";
   $("business-response").textContent = JSON.stringify({ response }, null, 2);
@@ -222,7 +253,15 @@ experiments.forEach((button) => button.addEventListener("click", () => {
 transports.forEach((button) => button.addEventListener("click", () => {
   transports.forEach((item) => item.classList.toggle("active", item === button));
   state.transport = button.dataset.transport;
-  if (state.session) renderSession();
+  ++state.generation;
+  state.operation = null;
+  resetResult();
+  if (state.session) {
+    renderSession();
+    $("execute").disabled = false;
+  } else {
+    prepare();
+  }
 }));
 
 $("execute").addEventListener("click", execute);

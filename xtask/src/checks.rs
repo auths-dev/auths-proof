@@ -27,6 +27,7 @@ pub(crate) fn ci_preflight() -> Result<(), String> {
         "--workspace",
         "--all-targets",
         "--all-features",
+        "--keep-going",
         "--",
         "-D",
         "warnings",

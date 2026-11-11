@@ -608,3 +608,241 @@ fn a_client_reports_the_length_and_the_connect_error() {
         "{stderr}"
     );
 }
+
+#[test]
+fn competing_stale_recoveries_have_one_serving_owner_and_restart_after_process_loss() {
+    let (_directory, root) = private_root();
+    let state = root.join("state");
+    install(&root, &state);
+    let app = root.join("app.sock");
+    let admin = state.join("admin.sock");
+    // Both processes start against genuinely dead socket inodes.
+    drop(UnixListener::bind(&app).expect("stale app"));
+    drop(UnixListener::bind(&admin).expect("stale admin"));
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let threads = (0..2)
+        .map(|_| {
+            let barrier = std::sync::Arc::clone(&barrier);
+            let state = state.clone();
+            let app = app.clone();
+            thread::spawn(move || {
+                barrier.wait();
+                serve(&state, &app, &[])
+            })
+        })
+        .collect::<Vec<_>>();
+    barrier.wait();
+    let mut winner = None;
+    let mut refused = 0;
+    for thread in threads {
+        match thread.join().expect("start joined") {
+            Served::Started(running) => {
+                assert!(
+                    winner.replace(running).is_none(),
+                    "only one serving generation"
+                );
+            }
+            Served::Exited { status, stderr } => {
+                assert_eq!(status.code(), Some(1));
+                assert!(stderr.starts_with("gateway.serve.busy "), "{stderr}");
+                refused += 1;
+            }
+        }
+    }
+    assert_eq!(refused, 1);
+    assert!(UnixStream::connect(&app).is_ok());
+    assert!(UnixStream::connect(&admin).is_ok());
+    drop(winner); // SIGKILL releases claims without running owned cleanup.
+    let restarted = serve(&state, &app, &[]).started();
+    assert!(UnixStream::connect(&app).is_ok());
+    assert!(UnixStream::connect(&admin).is_ok());
+    drop(restarted);
+}
+
+#[test]
+fn a_shared_endpoint_is_busy_across_installation_directories() {
+    let (_directory, root) = private_root();
+    let first = root.join("first");
+    let second = root.join("second");
+    install(&root, &first);
+    install(&root, &second);
+    let app = root.join("shared.sock");
+    let running = serve(&first, &app, &[]).started();
+    // The protected parent is the endpoint allocation unit, including leaf
+    // aliases on case-insensitive filesystems and distinct leaves everywhere.
+    for socket in [&app, &root.join("SHARED.sock"), &root.join("other.sock")] {
+        let stderr = serve(&second, socket, &[]).refused();
+        assert!(stderr.starts_with("gateway.serve.busy "), "{stderr}");
+        assert!(!second.join("admin.sock").exists());
+    }
+    assert!(UnixStream::connect(&app).is_ok());
+    assert!(UnixStream::connect(first.join("admin.sock")).is_ok());
+    // Serving locks do not consume the administrative operation lock.
+    assert!(revoke(&first, &[]).status.success());
+    drop(running);
+}
+
+#[cfg(feature = "testkit-harness")]
+fn traced_serve(state: &Path, app: &Path) -> (Running, mpsc::Receiver<String>) {
+    let mut child = Command::new(BIN)
+        .arg("serve")
+        .arg("--state-dir")
+        .arg(state)
+        .arg("--app-socket")
+        .arg(app)
+        .env("AUTHS_TEST_ADMIN_TRACE", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("traced serve");
+    let stdout = child.stdout.take().expect("stdout");
+    let stderr = child.stderr.take().expect("stderr");
+    let (ready_sender, ready_receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut line = String::new();
+        BufReader::new(stdout)
+            .read_line(&mut line)
+            .expect("readiness");
+        let _ = ready_sender.send(line);
+    });
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        for line in BufReader::new(stderr).lines() {
+            if sender.send(line.expect("trace line")).is_err() {
+                break;
+            }
+        }
+    });
+    let running = Running(child);
+    assert!(
+        ready_receiver
+            .recv_timeout(DEADLINE)
+            .expect("bounded readiness")
+            .starts_with("app socket ready")
+    );
+    (running, receiver)
+}
+
+#[cfg(feature = "testkit-harness")]
+fn wait_boundary(trace: &mpsc::Receiver<String>, boundary: &str) {
+    let deadline = Instant::now() + DEADLINE;
+    loop {
+        let line = trace
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .expect("bounded serving boundary");
+        if line.starts_with("auths-test-admin-boundary:") && line.ends_with(boundary) {
+            return;
+        }
+    }
+}
+
+#[cfg(feature = "testkit-harness")]
+#[test]
+fn replacement_start_is_busy_until_admitted_session_drain_and_cleanup_finish() {
+    let (_directory, root) = private_root();
+    let state = root.join("state");
+    install(&root, &state);
+    let app = root.join("app.sock");
+    let (mut running, trace) = traced_serve(&state, &app);
+    let pending = UnixStream::connect(&app).expect("admitted connection");
+    wait_boundary(&trace, "serve.session-admitted");
+    assert!(
+        Command::new("kill")
+            .arg("-TERM")
+            .arg(running.0.id().to_string())
+            .status()
+            .expect("SIGTERM")
+            .success()
+    );
+    wait_boundary(&trace, "serve.draining");
+    assert!(running.0.try_wait().expect("still draining").is_none());
+    assert!(
+        UnixStream::connect(&app).is_err(),
+        "listener is closed before drain"
+    );
+    let stderr = serve(&state, &app, &[]).refused();
+    assert!(stderr.starts_with("gateway.serve.busy "), "{stderr}");
+    // The failed replacement has neither rebound nor removed the old paths.
+    assert!(exists(&app));
+    assert!(exists(&state.join("admin.sock")));
+    drop(pending);
+    let deadline = Instant::now() + DEADLINE;
+    loop {
+        if let Some(status) = running.0.try_wait().expect("drain") {
+            assert!(status.success());
+            break;
+        }
+        assert!(Instant::now() < deadline, "drain remained pending");
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!exists(&app));
+    assert!(!exists(&state.join("admin.sock")));
+    let successor = serve(&state, &app, &[]).started();
+    drop(running);
+    assert!(UnixStream::connect(&app).is_ok());
+    assert!(UnixStream::connect(state.join("admin.sock")).is_ok());
+    drop(successor);
+}
+
+#[test]
+fn a_second_bind_failure_cleans_only_its_socket_then_releases_serving_claims() {
+    let (_directory, root) = private_root();
+    let state = root.join("state");
+    install(&root, &state);
+    let app = root.join("occupied.sock");
+    fs::write(&app, b"foreign input").expect("occupied endpoint");
+    let stderr = serve(&state, &app, &[]).refused();
+    assert!(
+        stderr.starts_with("gateway.serve.app-bind-failed "),
+        "{stderr}"
+    );
+    assert!(!exists(&state.join("admin.sock")));
+    assert_eq!(
+        fs::read(&app).expect("foreign input remains"),
+        b"foreign input"
+    );
+    fs::remove_file(&app).expect("remove test input");
+    let successor = serve(&state, &app, &[]).started();
+    assert!(UnixStream::connect(&app).is_ok());
+    assert!(UnixStream::connect(state.join("admin.sock")).is_ok());
+    drop(successor);
+}
+
+#[test]
+fn absent_application_socket_requires_a_protected_canonical_parent() {
+    let (_directory, root) = private_root();
+    let state = root.join("state");
+    install(&root, &state);
+    let shared = root.join("shared");
+    directory(&shared, 0o770);
+    let app = shared.join("absent.sock");
+    let stderr = serve(&state, &app, &[]).refused();
+    assert!(
+        stderr.starts_with("gateway.serve.app-bind-failed "),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("parent directory must be canonical"),
+        "{stderr}"
+    );
+    assert!(!exists(&app));
+    assert!(!exists(&state.join("admin.sock")));
+    assert!(!shared.join(".auths-serving.lock").exists());
+
+    let real = root.join("real");
+    directory(&real, 0o700);
+    let alias = root.join("alias");
+    std::os::unix::fs::symlink(&real, &alias).expect("parent alias");
+    let stderr = serve(&state, &alias.join("absent.sock"), &[]).refused();
+    assert!(
+        stderr.starts_with("gateway.serve.app-bind-failed "),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("parent directory must be canonical"),
+        "{stderr}"
+    );
+    assert!(!exists(&real.join("absent.sock")));
+    assert!(!real.join(".auths-serving.lock").exists());
+    assert!(!exists(&state.join("admin.sock")));
+}

@@ -33,6 +33,7 @@ PYTHONPATH="$repo_root/bindings/python/python:$demo_dir/agent-service" \
   uv run --with-requirements "$demo_dir/agent-service/requirements.txt" \
   pytest -q "$demo_dir/agent-service/tests"
 python3 "$demo_dir/tests/integration.py"
+node --test "$demo_dir/northstar-service/tests/state-ownership.mjs"
 node "$demo_dir/tests/browser-smoke.mjs"
 cargo test -p auths-cross-company-incident-edgeshield-demo
 echo "auths-incident-demo local validation passed"

@@ -40,6 +40,7 @@ enum ClientState {
     Connected,
     Challenged,
     Completed,
+    Unavailable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,6 +49,7 @@ enum ServerState {
     Challenged,
     Submitted,
     Completed,
+    Unavailable,
 }
 
 #[must_use]
@@ -87,6 +89,7 @@ impl ClientProofChannel for MemoryClientChannel {
         if self.state != ClientState::Connected {
             return Err(MemoryTransportError::InvalidSequence);
         }
+        self.state = ClientState::Unavailable;
         match self.from_server.recv().await {
             Some(ServerToClient::Challenge(challenge)) => {
                 self.state = ClientState::Challenged;
@@ -112,6 +115,9 @@ impl ClientProofChannel for MemoryClientChannel {
         {
             return Err(MemoryTransportError::BindingMismatch);
         }
+        // Delivery can precede cancellation while awaiting the response. A
+        // successor call must never resend or consume this attempt's reply.
+        self.state = ClientState::Unavailable;
         self.to_server
             .send(ClientToServer::Submission(request))
             .await
@@ -139,6 +145,7 @@ impl ServerProofChannel for MemoryServerChannel {
         if self.state != ServerState::Connected {
             return Err(MemoryTransportError::InvalidSequence);
         }
+        self.state = ServerState::Unavailable;
         self.to_client
             .send(ServerToClient::Challenge(challenge.clone()))
             .await
@@ -158,6 +165,7 @@ impl ServerProofChannel for MemoryServerChannel {
         if self.challenge.as_ref() != Some(challenge) {
             return Err(MemoryTransportError::BindingMismatch);
         }
+        self.state = ServerState::Unavailable;
         match self.from_client.recv().await {
             Some(ClientToServer::Submission(request)) => {
                 if !request.matches_challenge(challenge) {
@@ -174,6 +182,7 @@ impl ServerProofChannel for MemoryServerChannel {
         if self.state != ServerState::Submitted {
             return Err(MemoryTransportError::InvalidSequence);
         }
+        self.state = ServerState::Unavailable;
         self.to_client
             .send(ServerToClient::Response(response))
             .await
@@ -201,3 +210,112 @@ impl fmt::Display for MemoryTransportError {
 }
 
 impl std::error::Error for MemoryTransportError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auths_proof_exchange_model::{
+        AUTHS_PROTOCOL_V1, ChallengeNonce, ExchangeAudience, ExchangeProfileId, ProfileBinding,
+    };
+    use std::{
+        future::Future as _,
+        task::{Context, Waker},
+    };
+
+    fn challenge() -> ActionChallenge {
+        ActionChallenge::new(
+            ChallengeNonce::new([7; 32]),
+            ExchangeAudience::parse("mcp://reports").unwrap(),
+            100,
+            1024,
+            4096,
+            ProfileBinding::new(
+                AUTHS_PROTOCOL_V1,
+                ExchangeProfileId::parse("auths.mcp").unwrap(),
+                1,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn cancellation_after_delivery_does_not_reassign_the_first_reply() {
+        let (mut client, mut server) = channel_pair(
+            PeerObservation::Unauthenticated,
+            PeerObservation::Unauthenticated,
+        );
+        let expected = challenge();
+        server.send_challenge(expected.clone()).await.unwrap();
+        client.receive_challenge().await.unwrap();
+        let request =
+            ActionSubmission::new(b"first".to_vec(), b"proof".to_vec(), &expected).unwrap();
+        let mut operation = Box::pin(client.submit_action(request.clone()));
+        assert!(
+            operation
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()))
+                .is_pending()
+        );
+        drop(operation);
+        assert_eq!(server.receive_action(&expected).await.unwrap(), request);
+        let other =
+            ActionSubmission::new(b"second".to_vec(), b"proof".to_vec(), &expected).unwrap();
+        assert_eq!(
+            client.submit_action(other).await,
+            Err(MemoryTransportError::InvalidSequence)
+        );
+        assert!(
+            server.from_client.try_recv().is_err(),
+            "cancelled waiter cannot cause another delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_server_receive_is_terminal_but_preflight_binding_rejection_is_not() {
+        let (mut client, mut server) = channel_pair(
+            PeerObservation::Unauthenticated,
+            PeerObservation::Unauthenticated,
+        );
+        let expected = challenge();
+        server.send_challenge(expected.clone()).await.unwrap();
+        client.receive_challenge().await.unwrap();
+        let different = ActionChallenge::new(
+            ChallengeNonce::new([8; 32]),
+            expected.audience().clone(),
+            expected.expires_at(),
+            expected.max_body_bytes(),
+            expected.max_proof_bytes(),
+            ProfileBinding::new(
+                expected.auths_protocol(),
+                expected.profile_id().clone(),
+                expected.profile_version(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let mismatched =
+            ActionSubmission::new(b"body".to_vec(), b"proof".to_vec(), &different).unwrap();
+        assert_eq!(
+            client.submit_action(mismatched).await,
+            Err(MemoryTransportError::BindingMismatch)
+        );
+        assert_eq!(
+            server.receive_action(&different).await,
+            Err(MemoryTransportError::BindingMismatch)
+        );
+        let mut operation = Box::pin(server.receive_action(&expected));
+        assert!(
+            operation
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()))
+                .is_pending()
+        );
+        drop(operation);
+        assert_eq!(
+            server.receive_action(&expected).await,
+            Err(MemoryTransportError::InvalidSequence)
+        );
+        assert_eq!(client.state, ClientState::Challenged);
+    }
+}

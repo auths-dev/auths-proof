@@ -1278,7 +1278,10 @@ dependencies = [
  "auths-proof-exchange-codec",
  "auths-proof-exchange-model",
  "auths-proof-exchange-port",
+ "rcgen",
  "reqwest",
+ "rustls",
+ "tokio",
 ]
 
 [[package]]

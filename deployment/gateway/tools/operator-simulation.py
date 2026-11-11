@@ -100,7 +100,16 @@ class Operator:
         started = time.monotonic()
         record = {"step": "start-" + state.name, "command": "serve", "passed": False}
         self.steps.append(record)
-        app = self.sockets / (state.name + ".sock")
+        # Serving ownership covers the endpoint parent, including leaf aliases.
+        # Simulated hosts therefore need separate protected socket directories;
+        # app group traversal stays available without exposing their state.
+        endpoint_directory = self.sockets / state.name
+        endpoint_directory.mkdir(mode=0o750, exist_ok=True)
+        require(not endpoint_directory.is_symlink() and endpoint_directory.is_dir(),
+                "simulation.socket-directory")
+        os.chown(endpoint_directory, self.uid, self.gid)
+        os.chmod(endpoint_directory, 0o750)
+        app = endpoint_directory / "app.sock"
         log = tempfile.TemporaryFile()
         process = subprocess.Popen(
             [str(self.binary), "serve", "--state-dir", str(state), "--app-socket", str(app)],

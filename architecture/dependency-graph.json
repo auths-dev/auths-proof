@@ -8800,6 +8800,18 @@
     {
       "source": "auths-proof-exchange-https",
       "source_layer": "exchange",
+      "target": "rcgen",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-exchange-https",
+      "source_layer": "exchange",
       "target": "reqwest",
       "target_layer": null,
       "scope": "external",
@@ -8812,6 +8824,43 @@
         "form",
         "query",
         "rustls"
+      ]
+    },
+    {
+      "source": "auths-proof-exchange-https",
+      "source_layer": "exchange",
+      "target": "rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring",
+        "std",
+        "tls12"
+      ]
+    },
+    {
+      "source": "auths-proof-exchange-https",
+      "source_layer": "exchange",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
       ]
     },
     {

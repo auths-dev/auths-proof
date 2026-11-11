@@ -40,6 +40,24 @@ installed candidate under the same native revision protocol.
 
 ## Diagnose and stop
 
+Give every serving daemon its own canonical socket parent directories. An app
+parent may be mode 0750 with the application's socket group, owned by the gateway
+UID and closed to group/other writes; the admin parent remains owner-only. The
+single-daemon systemd reference uses `/run/auths-app/gateway.sock` on each host.
+For two daemons on one host, use separate protected parents such as
+`/run/auths-app/first/app.sock` and `/run/auths-app/second/app.sock`, plus separate
+installation/admin directories. Merely naming two sockets in the same parent
+is unsupported. `gateway.serve.busy` means another serving generation owns the
+installation or an endpoint parent, including while it drains. Keep the existing
+`serving.lock` and `.auths-serving.lock` inodes; administrative operations use
+separate locks and remain available while serving.
+
+SIGTERM stops admission, then waits up to 25 seconds for admitted work. Successful
+drainage cleans only owned socket inodes before releasing claims. An overdue
+drain reports `gateway.serve.shutdown-incomplete` and terminates with failure
+while claims remain held, leaving dead sockets for the next claimed startup to
+recover. Do not remove locks or sockets to bypass a live or draining owner.
+
 For a loadable installation whose isolation probes complete,
 `doctor --state-dir ... --app-socket ... --app-uid ... --app-gid ...` prints
 all nine required typed checks and the optional observer state. If installation

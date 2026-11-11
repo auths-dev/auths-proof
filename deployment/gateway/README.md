@@ -20,7 +20,14 @@ Create group `auths-app-socket` (GID 62000), user `auths-gateway` (UID 62001),
 and application user (UID 62002). The gateway's primary group is
 `auths-app-socket`. Create `/var/lib/auths/gateway`, owned by UID 62001, mode
 0700, and `/run/auths-app`, owned by UID 62001 and GID 62000, mode 0750.
-Recreate the latter with a systemd tmpfiles rule at each boot. The application's
+Recreate the latter with a systemd tmpfiles rule at each boot. This socket
+parent belongs to one serving daemon. For several daemons on one host, allocate
+separate canonical endpoint directories, for example `/run/auths-app/first` and
+`/run/auths-app/second`, each owned by UID 62001 and GID 62000 with mode 0750.
+Give each unit and its doctor probe the corresponding `app.sock` path and allow
+that unit to write its own endpoint directory. Distinct socket filenames under
+one parent do not provide separate serving ownership. Keep each admin socket
+in its own installation directory at mode 0700. The application's
 only group access is the 0660 app socket; it cannot reach the gateway state,
 admin socket, workload token, operator identity or PostgreSQL client identity.
 Keep operator credentials in `/run/auths-identity/operator` and runtime
@@ -103,8 +110,13 @@ provider bodies or account/resource names. Alert on failed doctor checks,
 qualification expiry/revocation-list next_update within 24 hours, untrusted
 clock, unknown/attempting backlog, missing slot sweep, incomplete shutdown,
 and credential deletion failure. Preserve the last report and stable codes.
-A SIGTERM stops listeners, waits up to 25 seconds for admitted sessions, removes
-socket paths, and reports incomplete drainage rather than success on timeout.
+A SIGTERM stops listeners and waits up to 25 seconds for admitted sessions.
+Successful drainage removes only the socket inodes this process bound, then
+releases its serving claims. On timeout it reports `gateway.serve.shutdown-incomplete`
+and exits unsuccessfully while claims and socket guards remain held; the OS
+releases the claims at process termination. The successor recovers those dead
+socket paths under its new claim. Do not delete serving lock files or socket
+paths to force a concurrent start.
 
 ## Evidence and human trial
 

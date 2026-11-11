@@ -125,6 +125,9 @@ impl ReceivedBytes {
 }
 
 /// Bounded duplex channel carrying only opaque byte frames.
+///
+/// Once a frame operation starts, failure or cancellation makes the channel
+/// unavailable. Partially transferred bytes cannot be retried as a new frame.
 pub struct IrohChannel {
     _connection: Connection,
     peer_endpoint_id: [u8; 32],
@@ -133,7 +136,14 @@ pub struct IrohChannel {
     config: IrohConfig,
     path: PathObservation,
     peer_observation: BytePeerObservation,
-    send_finished: bool,
+    state: ChannelState,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ChannelState {
+    Open,
+    SendFinished,
+    Unavailable,
 }
 
 impl IrohChannel {
@@ -173,7 +183,7 @@ impl IrohChannel {
             config,
             path,
             peer_observation,
-            send_finished: false,
+            state: ChannelState::Open,
         })
     }
 
@@ -205,7 +215,7 @@ impl IrohChannel {
             config,
             path: PathObservation::MixedOrUnknown,
             peer_observation,
-            send_finished: false,
+            state: ChannelState::Open,
         })
     }
 
@@ -229,10 +239,15 @@ impl IrohChannel {
     /// attempted after [`Self::finish_send`]. Payload semantics are never
     /// inspected.
     pub async fn send(&mut self, payload: &[u8]) -> Result<(), IrohError> {
-        if self.send_finished {
+        if self.state != ChannelState::Open {
             return Err(IrohError::Sequence);
         }
+        if payload.is_empty() || payload.len() > self.config.max_frame_bytes() {
+            return Err(IrohError::Limit);
+        }
+        self.state = ChannelState::Unavailable;
         write_frame(&mut self.send, payload, &self.config).await?;
+        self.state = ChannelState::Open;
         Ok(())
     }
 
@@ -242,7 +257,13 @@ impl IrohChannel {
     ///
     /// Returns a typed framing, timeout, transport, or bounds error.
     pub async fn receive(&mut self) -> Result<ReceivedBytes, IrohError> {
+        if self.state == ChannelState::Unavailable {
+            return Err(IrohError::Sequence);
+        }
+        let previous = self.state;
+        self.state = ChannelState::Unavailable;
         let payload = read_frame(&mut self.recv, &self.config).await?;
+        self.state = previous;
         Ok(ReceivedBytes {
             peer_endpoint_id: self.peer_endpoint_id,
             payload,
@@ -256,11 +277,13 @@ impl IrohChannel {
     /// Returns [`IrohError::Sequence`] if the sending side is already closed,
     /// or a typed transport error.
     pub fn finish_send(&mut self) -> Result<(), IrohError> {
-        if self.send_finished {
+        if self.state != ChannelState::Open {
             return Err(IrohError::Sequence);
         }
-        self.send_finished = true;
-        self.send.finish().map_err(|_| IrohError::Connection)
+        self.state = ChannelState::Unavailable;
+        self.send.finish().map_err(|_| IrohError::Connection)?;
+        self.state = ChannelState::SendFinished;
+        Ok(())
     }
 
     /// Closes the sending side and waits for peer acknowledgement.
@@ -273,11 +296,16 @@ impl IrohChannel {
     /// Returns a typed sequence, timeout, or transport error.
     pub async fn finish_send_and_wait(&mut self) -> Result<(), IrohError> {
         self.finish_send()?;
-        timeout(self.config.io_timeout(), self.send.stopped())
+        self.state = ChannelState::Unavailable;
+        let stopped = timeout(self.config.io_timeout(), self.send.stopped())
             .await
             .map_err(|_| IrohError::Timeout)?
-            .map(|_| ())
-            .map_err(|_| IrohError::Connection)
+            .map_err(|_| IrohError::Connection)?;
+        if stopped.is_some() {
+            return Err(IrohError::Connection);
+        }
+        self.state = ChannelState::SendFinished;
+        Ok(())
     }
 }
 
@@ -391,6 +419,9 @@ impl fmt::Display for IrohError {
 }
 
 impl std::error::Error for IrohError {}
+
+#[cfg(test)]
+mod interruption_tests;
 
 #[cfg(test)]
 mod tests {

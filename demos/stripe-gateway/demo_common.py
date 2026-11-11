@@ -4,8 +4,50 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import selectors
+import time
 
 MAX_FILE = 4 * 1024 * 1024
+
+
+def application_socket_paths(home):
+    """One protected socket parent per independently serving gateway."""
+    root = Path(home) / 'sockets'
+    return tuple(root / ('gateway' + str(host)) / 'app.sock' for host in range(3))
+
+
+def create_socket_directories(home, application_gid):
+    """Gateway UID owns each parent; the application group may traverse only."""
+    root = Path(home) / 'sockets'
+    paths = application_socket_paths(home)
+    for directory in (root, *(path.parent for path in paths)):
+        directory.mkdir(mode=0o750)
+        os.chown(directory, os.getuid(), application_gid)
+        os.chmod(directory, 0o750)
+    return paths
+
+
+def wait_gateway_ready(process, log, *, timeout=20):
+    """Wait for this process's bounded native readiness event, not a pathname."""
+    require(process.stdout is not None, 'demo.gateway-start-refused')
+    deadline = time.monotonic() + timeout
+    output = bytearray()
+    with selectors.DefaultSelector() as selector:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while len(output) <= 65536:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0 and selector.select(remaining), 'demo.gateway-start-timeout')
+            chunk = os.read(process.stdout.fileno(), min(4096, 65537 - len(output)))
+            require(bool(chunk), 'demo.gateway-start-refused')
+            log.write(chunk)
+            log.flush()
+            output.extend(chunk)
+            if b'\n' in output:
+                line = output.split(b'\n', 1)[0]
+                require(len(output) <= 65536 and line.startswith(b'app socket ready')
+                        and process.poll() is None, 'demo.gateway-start-refused')
+                return
+    raise Refusal('demo.gateway-start-refused')
 
 
 class Refusal(ValueError):

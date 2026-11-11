@@ -850,6 +850,15 @@ jobs:
           python -m pip install maturin==1.9.6
           npm ci --prefix bindings/typescript
       - run: cargo xtask ci compliance
+      - name: Verify interrupted demo state and viewer publication
+        timeout-minutes: 3
+        run: |
+          node bindings/typescript/node_modules/typescript/bin/tsc -p demos/cross-company-incident-response/northstar-service/tsconfig.json
+          node --test demos/cross-company-incident-response/northstar-service/tests/state-ownership.mjs
+          node bindings/typescript/node_modules/typescript/bin/tsc -p demos/cross-company-incident-response/control-room/tsconfig.json
+          node demos/cross-company-incident-response/control-room/build.mjs
+          git diff --exit-code -- demos/cross-company-incident-response/control-room/public/app.js
+          node --input-type=module -e 'import { viewerScopeContract } from "./demos/cross-company-incident-response/tests/viewer-scope-contract.mjs"; await viewerScopeContract();'
       - name: Preserve compliance evidence
         if: always() && hashFiles('target/compliance/**') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

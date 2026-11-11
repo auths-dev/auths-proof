@@ -25,6 +25,7 @@ enum State {
     Connected,
     Challenged,
     Completed,
+    Unavailable,
 }
 
 /// HTTPS client using deterministic messages without treating TLS identity as
@@ -81,6 +82,7 @@ impl ClientProofChannel for HttpsClientChannel {
         if self.state != State::Connected {
             return Err(HttpsTransportError::Sequence);
         }
+        self.state = State::Unavailable;
         let response = self
             .client
             .get(format!("{}/auths/v1/challenge", self.base_url))
@@ -111,6 +113,9 @@ impl ClientProofChannel for HttpsClientChannel {
         {
             return Err(HttpsTransportError::Binding);
         }
+        // Retain the admitted attempt even if its response is lost or its
+        // waiter is dropped. A new channel is required after uncertainty.
+        self.state = State::Unavailable;
         let response = self
             .client
             .post(format!("{}/auths/v1/submission", self.base_url))
@@ -221,3 +226,98 @@ impl fmt::Display for HttpsTransportError {
 }
 
 impl std::error::Error for HttpsTransportError {}
+
+#[cfg(test)]
+mod delivery_tests;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auths_proof_exchange_model::{
+        AUTHS_PROTOCOL_V1, ChallengeNonce, ExchangeAudience, ExchangeProfileId, ProfileBinding,
+    };
+    use std::{
+        future::Future as _,
+        task::{Context, Poll, Waker},
+    };
+
+    fn challenge() -> ActionChallenge {
+        ActionChallenge::new(
+            ChallengeNonce::new([7; 32]),
+            ExchangeAudience::parse("mcp://reports").unwrap(),
+            100,
+            1024,
+            4096,
+            ProfileBinding::new(
+                AUTHS_PROTOCOL_V1,
+                ExchangeProfileId::parse("auths.mcp").unwrap(),
+                1,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn cancelled_http_attempt_cannot_start_another_submission() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let transport = Client::builder()
+            .no_proxy()
+            .resolve("held.invalid", address)
+            .build()
+            .unwrap();
+        let mut channel = HttpsClientChannel::new(
+            transport,
+            format!("https://held.invalid:{}", address.port()),
+            PeerObservation::ServerAuthenticated,
+        )
+        .unwrap();
+        let expected = challenge();
+        channel.challenge = Some(expected.clone());
+        channel.state = State::Challenged;
+        let request =
+            ActionSubmission::new(b"body".to_vec(), b"proof".to_vec(), &expected).unwrap();
+        let mut operation = Box::pin(channel.submit_action(request.clone()));
+        assert!(
+            operation
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()))
+                .is_pending()
+        );
+        drop(operation);
+        // No TLS peer is serving this listener. A retry must reject locally,
+        // rather than begin another HTTP request or wait for the lost reply.
+        let mut retry = Box::pin(channel.submit_action(request));
+        assert!(matches!(
+            retry.as_mut().poll(&mut Context::from_waker(Waker::noop())),
+            Poll::Ready(Err(HttpsTransportError::Sequence))
+        ));
+    }
+
+    #[tokio::test]
+    async fn failed_challenge_acquisition_is_not_a_fresh_channel() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let transport = Client::builder()
+            .no_proxy()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let mut channel = HttpsClientChannel::new(
+            transport,
+            format!("https://{address}"),
+            PeerObservation::ServerAuthenticated,
+        )
+        .unwrap();
+        assert_eq!(
+            channel.receive_challenge().await,
+            Err(HttpsTransportError::Network)
+        );
+        assert_eq!(
+            channel.receive_challenge().await,
+            Err(HttpsTransportError::Sequence)
+        );
+    }
+}

@@ -138,6 +138,8 @@ def main():
                 process.kill()
                 process.wait(timeout=5)
                 operator.processes.remove((process, log, host))
+                if process.stdout is not None:
+                    process.stdout.close()
                 log.close()
                 steps.append({'command': 'SIGKILL owned gateway0 PID; wait',
                               'elapsed_seconds': time.monotonic() - started})
@@ -147,7 +149,7 @@ def main():
             started = time.monotonic()
             operator.start_gateway(0)
             steps.append({'command': 'serve --state-dir /run/demo/gateway0 '
-                                     '--app-socket /run/demo/sockets/app0.sock --loopback-provider <owned-port>',
+                                     '--app-socket /run/demo/sockets/gateway0/app.sock --loopback-provider <owned-port>',
                           'elapsed_seconds': time.monotonic() - started})
             replay = campaign.frame(frame(label))['response']
             assert replay['outcome'] == 'unknown', 'crash strengthened unrecorded provider result'

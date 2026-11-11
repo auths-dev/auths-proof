@@ -11,7 +11,7 @@
 | fail before provider effect | Rust lifecycle transition | released; retry may be safe |
 | observe a definite effect | Rust lifecycle transition and native receipt | committed; never retry blindly |
 | lose response after effect | real Northstar effect plus lost response | `outcome-unknown`; retry blocked; explicit reconciliation required |
-| withdraw approval mid-plan | bounded plan approval session | completed approval retained; no second member command |
+| withdraw approval mid-plan | native exact-action remote approval and signed decline | first proof remains authorized; `approval.incomplete` prevents assembling the second; browser makes no provider call |
 | read receipts without authentication | unauthenticated or invalid bearer request | verified opaque commitments only; disclosure is not loaded or decrypted |
 | use operator access to recover exact material | Northstar commander OIDC request | profile-owned summary only; no command, result, receipt bytes, or key material |
 | move disclosure ciphertext across receipts or tenants | AES-GCM reveal with mismatched authenticated context | decryption fails before native inspection |
