@@ -105,9 +105,21 @@ gateway client; its closed experiment replays the same original packet.
 
 Operator-only diagnosis uses the shipped general CLI:
 
+Each gateway owns a separate protected parent:
+`/run/demo/sockets/gateway0/app.sock` through `gateway2/app.sock`. The
+gateway UID owns each directory with mode `0750`; application group `62005`
+can traverse it and access the `0660` socket, but cannot replace serving locks.
+Only the native gateway recovers or removes socket paths. The operator waits
+for that child process's bounded `app socket ready` event and retains it in the
+private gateway log; an existing socket pathname never indicates startup success.
+The operator review endpoint stays `/run/demo/sockets/review.sock` and is
+configured independently with `--review-socket`. Changing an application
+`--socket` never changes the review endpoint. The operator passes all endpoints
+explicitly to its application processes.
+
 ```sh
 docker exec auths-stripe-gateway-demo /opt/demo/bin/auths-gateway-simulation \
-  doctor --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/app0.sock \
+  doctor --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/gateway0/app.sock \
   --app-uid 62004 --app-gid 62005
 docker exec auths-stripe-gateway-demo /opt/demo/bin/auths-gateway-simulation \
   support-bundle --state-dir /run/demo/gateway0

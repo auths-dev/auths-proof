@@ -348,7 +348,7 @@ impl GitProofSigner for CustodyKeySigner {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
-    use std::io::{BufRead as _, Read as _, Write as _};
+    use std::io::{BufRead as _, Read as _};
     use std::os::unix::fs::PermissionsExt as _;
     use std::process::{Child, Command, Stdio};
     use std::sync::{Arc, Condvar, Mutex, mpsc};

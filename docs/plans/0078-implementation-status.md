@@ -68,3 +68,38 @@ semantic/source identities, proof-coverage measurements where source coordinates
 change, gateway closure/CLI/interface fixtures, and the shipped browser mirror.
 Only maintained constructors may update canonical artifacts. Full hosted
 verification remains pending until the PR attestation records its final result.
+
+## Collected first-cohort repair
+
+The initial published head `7f2c6bba` passed both SDK package workflows, all 26
+Python jobs, Git signing on Linux/macOS and both live signing checks, TLS
+PostgreSQL qualification, gateway isolation, SDK recipes, recipe qualification
+and the Google demo. Repository preflight stopped on the serving function's
+lint length limit; dependent wrapper failures were not separate findings.
+The remaining fast proof feedback job was cancelled once the failed revision
+could no longer qualify.
+
+The source-free operator simulation and Stripe/Airtable installed/assessment
+jobs exposed old multi-daemon launchers sharing one socket parent. Their repair
+uses protected per-host parents and passes operator review sockets explicitly,
+independently of application endpoint paths. Current assessment consumers and
+runbooks follow that topology; historical assessment evidence is unchanged.
+
+The collected repair additionally fixes a redundant test import and makes the
+framing fixture visible to its sibling regression module. Preflight now asks
+Cargo to keep checking independent targets after a failure, preserving its
+failure status while collecting a more complete diagnostic batch.
+
+Bounded repair verification passed workspace/all-target/all-feature Clippy,
+the gateway binary's 16 tests and socket-path suite's 18 tests, nine demo-layout
+Python units, five held-request Northstar tests, five REST browser tests, and
+the viewer contract including actual public-SDK/WASM withdrawal evidence with
+network/provider calls forbidden. The source-free Linux root/UID simulations
+still require their hosted container jobs; these macOS checks are not substitutes.
+Final completed-head verification remains required.
+
+The touched demo launchers additionally delegate all socket recovery/cleanup to
+the native owner and wait for a bounded child readiness event rather than a
+pathname. Their final 15 Python units cover ready/refused/partial-line children
+and preserve existing live and stale socket inodes; retained stdout handles are
+closed during restart and cleanup.

@@ -3609,14 +3609,14 @@ mod unix {
         }
     }
 
-    async fn serve(
-        state_dir: PathBuf,
-        app_socket: PathBuf,
-        admin_socket: AdminSocket,
+    /// Load the installed engine off the executor, then apply the optional
+    /// development transport before the serving owner binds any resources.
+    async fn prepare_serving_engine(
+        state_dir: &Path,
         app_capacity: usize,
         loopback_provider: Option<u16>,
-    ) -> Result<(), Failure> {
-        let loading = state_dir.clone();
+    ) -> Result<Arc<GatewayEngine>, Failure> {
+        let loading = state_dir.to_owned();
         let engine = tokio::task::spawn_blocking(move || load_for_serve(&loading, app_capacity))
             .await
             .map_err(|_| "gateway.serve.load-failed")??;
@@ -3632,7 +3632,17 @@ mod unix {
         };
         #[cfg(not(feature = "loopback-provider"))]
         let _ = loopback_provider;
-        let engine = Arc::new(engine);
+        Ok(Arc::new(engine))
+    }
+
+    async fn serve(
+        state_dir: PathBuf,
+        app_socket: PathBuf,
+        admin_socket: AdminSocket,
+        app_capacity: usize,
+        loopback_provider: Option<u16>,
+    ) -> Result<(), Failure> {
+        let engine = prepare_serving_engine(&state_dir, app_capacity, loopback_provider).await?;
         // Both paths are checked before either socket is bound.
         if !app_socket.is_absolute() {
             return Err("gateway.serve.invalid-app-socket".into());

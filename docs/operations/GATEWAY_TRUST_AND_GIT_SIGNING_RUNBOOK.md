@@ -256,6 +256,14 @@ held which key, is operator evidence and is not produced by this code.
   `gateway.serve.accept-failed` and retried; it does not stop `serve`.
 - **Socket paths.** A Unix socket path must fit in the platform's `sun_path`
   with its terminating NUL: at most 103 bytes on macOS and 107 on Linux.
+  Every serving daemon exclusively owns its endpoint parent directories, even
+  when another daemon would choose different socket filenames. On one host,
+  allocate separate parents such as `/run/auths-app/first/app.sock` and
+  `/run/auths-app/second/app.sock`; a shared lifecycle store does not share socket
+  ownership. App parents must already be canonical, gateway-owned and closed to
+  group/other writes; mode 0750 permits the application's socket group to traverse
+  them. A competing start returns `gateway.serve.busy` while the current daemon
+  serves or drains. Do not delete its stable serving lock inodes.
   The admin socket defaults to `<state-dir>/admin.sock`, 11 bytes longer than
   the state directory, so a state directory longer than 92 bytes on macOS or
   96 on Linux needs `serve --admin-socket <path>`. The admin socket's parent

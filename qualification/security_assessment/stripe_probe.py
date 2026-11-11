@@ -140,7 +140,7 @@ class Campaign:
     def frame(self, value, host=0, length=None):
         raw = value if isinstance(value, bytes) else canonical(value)
         request = {'kind': 'frame', 'payload': b64(raw),
-                   'socket': '/run/demo/sockets/app' + str(host) + '.sock'}
+                   'socket': str(self.operator.app_sockets[host])}
         if length is not None:
             request['length'] = length
         return self.invoke(request)
@@ -394,7 +394,7 @@ def main():
     except Exception as failure:
         if args.suite == 'reference':
             doctor = subprocess.run([str(operator.binary), 'doctor', '--state-dir', '/run/demo/gateway0',
-                                     '--app-socket', '/run/demo/sockets/app0.sock',
+                                     '--app-socket', str(operator.app_sockets[0]),
                                      '--app-uid', str(APP_UID), '--app-gid', str(APP_GID)],
                                     capture_output=True, env=ENV, timeout=30)
             readiness = json.loads(doctor.stdout) if doctor.stdout else {}

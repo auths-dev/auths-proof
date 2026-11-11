@@ -202,7 +202,7 @@ def test_application_isolation_and_native_audit(operator):
             user=APP_UID, group=APP_GID, extra_groups=[], env=ENVIRONMENT)
         require(probe.returncode == 0, 'demo.selftest-application-secret-isolation')
     doctor = child([operator.binary, 'doctor', '--state-dir', HOME / 'gateway0',
-                    '--app-socket', HOME / 'sockets/app0.sock', '--app-uid', APP_UID, '--app-gid', APP_GID], check=False)
+                    '--app-socket', operator.app_sockets[0], '--app-uid', APP_UID, '--app-gid', APP_GID], check=False)
     doctor_value = decode(doctor.stdout)
     require(doctor_value.get('schema') == 'auths.gateway-readiness/1'
             and doctor_value.get('ready') is False and doctor.returncode != 0,
@@ -305,7 +305,7 @@ print(json.dumps(results))
 """
     before = operator.witnesses()
     result = subprocess.run(['/opt/consumer/bin/python', '-c', script,
-        str(HOME / 'sockets/review.sock')], user=APP_UID, group=APP_GID, extra_groups=[],
+        str(operator.review_socket)], user=APP_UID, group=APP_GID, extra_groups=[],
         env=ENVIRONMENT, capture_output=True, timeout=20)
     require(result.returncode == 0, 'demo.selftest-review-channel-unavailable')
     refusals = decode(result.stdout)
@@ -315,8 +315,33 @@ print(json.dumps(results))
             'returned_proof_or_approval': False}
 
 
+def test_application_socket_topology(operator):
+    """The app can traverse three separate gateway-owned serving parents."""
+    from operate import APP_UID, APP_GID, ENVIRONMENT
+    paths = operator.app_sockets
+    require(len(paths) == 3 and len({path.parent for path in paths}) == 3,
+            'demo.selftest-gateway-socket-parents-shared')
+    require(operator.review_socket.parent not in {path.parent for path in paths},
+            'demo.selftest-review-endpoint-aliases-gateway-parent')
+    for path in paths:
+        info = path.parent.stat()
+        require(info.st_uid == 0 and info.st_gid == APP_GID and info.st_mode & 0o777 == 0o750,
+                'demo.selftest-gateway-socket-parent-permissions')
+        require(path.is_socket(), 'demo.selftest-gateway-socket-unavailable')
+    probe = subprocess.run(['/opt/consumer/bin/python', '-c',
+        'import os,sys; from pathlib import Path; '
+        'assert all(os.access(Path(p).parent, os.X_OK) and '
+        'not os.access(Path(p).parent, os.W_OK) and os.access(p, os.W_OK) for p in sys.argv[1:])',
+        *map(str, paths)], user=APP_UID, group=APP_GID, extra_groups=[],
+        env=ENVIRONMENT, capture_output=True, timeout=10)
+    require(probe.returncode == 0, 'demo.selftest-gateway-socket-traversal')
+    return {'independent_gateway_parents': 3, 'gateway_uid': 0,
+            'application_group_traverse_only': True, 'operator_review_endpoint_separate': True}
+
+
 def run(operator):
     from operate import HOME
+    topology = test_application_socket_topology(operator)
     consent = test_exact_operator_consent_binding(operator)
     reviewer = test_private_reviewer_refuses_unlisted_inputs(operator)
     cases = test_native_refusals_replay_race_and_loss(operator)
@@ -324,7 +349,8 @@ def run(operator):
     report = {'schema': 'auths.stripe-gateway-demo-evidence/1',
               'mode': 'simulation', 'production_qualification': False,
               'independent_human_trial': False, 'source_commit': decode(read(Path(__file__).parent / 'manifest.json'))['source_commit'],
-              'operator_consent': consent, 'operator_review_channel': reviewer, 'cases': cases, **verified,
+              'socket_topology': topology, 'operator_consent': consent,
+              'operator_review_channel': reviewer, 'cases': cases, **verified,
               'excluded': ['live Stripe writes', 'production AWS custody and PostgreSQL',
                            'protected full-corpus qualification', 'provider key rotation',
                            'independent security review', 'GitHub release installation']}

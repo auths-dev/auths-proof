@@ -140,13 +140,26 @@ An IPC failure is unconfirmed, never permission to send another PATCH.
 Operator-only recovery uses a separately authorized native read and exact approval;
 diagnostics remain available through the shipped CLI:
 
+Each gateway owns a separate protected parent:
+`/run/demo/sockets/gateway0/app.sock` through `gateway2/app.sock`. The
+gateway UID owns each directory with mode `0750`; application group `62005`
+can traverse it and access the `0660` socket, but cannot replace serving locks.
+Only the native gateway recovers or removes socket paths. The operator waits
+for that child process's bounded `app socket ready` event and retains it in the
+private gateway log; an existing socket pathname never indicates startup success.
+Operator endpoints remain `/run/demo/sockets/review.sock` for recovery/content
+review and `/run/demo/sockets/owner-review.sock` for mutation consent. They are
+configured independently with `--review-socket` and `--owner-review-socket`;
+changing an application `--socket` never relocates either operator endpoint.
+The operator passes every endpoint explicitly to its application processes.
+
 ```sh
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
   recover --state-dir /run/demo/gateway0 --source-operation lost-response \
   --proof /private/read-proof.cbor --action /private/read-action.cbor \
   --approval /private/read-approval.json
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
-  doctor --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/app0.sock \
+  doctor --state-dir /run/demo/gateway0 --app-socket /run/demo/sockets/gateway0/app.sock \
   --app-uid 62004 --app-gid 62005
 docker exec auths-airtable-gateway-demo /opt/demo/bin/auths-gateway-simulation \
   support-bundle --state-dir /run/demo/gateway0

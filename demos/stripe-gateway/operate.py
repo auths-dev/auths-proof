@@ -25,7 +25,8 @@ from auths.self_hosted import (ExactMcpTool, StringField, IntegerField, Optional
                               AssuranceRequirement, Permission, Profile, TrustAnchor,
                               TrustedContextRequest, author_root_grant, compile_trusted_context,
                               load_signer_file)
-from demo_common import Refusal, b64, canonical, decode, digest, read, require, unb64, write
+from demo_common import (Refusal, b64, canonical, create_socket_directories, decode,
+                         digest, read, require, unb64, wait_gateway_ready, write)
 from app import Application, LABELS, approval_target
 
 HERE = Path(__file__).resolve().parent
@@ -294,37 +295,36 @@ class Operator:
         self.mode, self.processes, self.double, self.resources = mode, [], None, None
         self.binary = HERE / 'bin' / ('auths-gateway-simulation' if mode == 'simulation' else 'auths-gateway')
         self.keys, self.sockets = {}, HOME / 'sockets'
-        self.sockets.mkdir(mode=0o750)
-        os.chown(self.sockets, 0, APP_GID)
+        self.app_sockets = create_socket_directories(HOME, APP_GID)
+        self.review_socket = self.sockets / 'review.sock'
         self.port = None
         self.effect_reviewer = development_ed25519_identity_key()
 
     def start_gateway(self, host):
-        socket_path = self.sockets / ('app' + str(host) + '.sock')
-        socket_path.unlink(missing_ok=True)
+        socket_path = self.app_sockets[host]
         state = HOME / ('gateway' + str(host))
-        (state / 'admin.sock').unlink(missing_ok=True)
         args = [self.binary, 'serve', '--state-dir', state, '--app-socket', socket_path]
         if self.port is not None:
             args.extend(['--loopback-provider', self.port])
         log = open(HOME / 'private' / ('gateway-' + str(host) + '.log'), 'ab')
-        process = subprocess.Popen(list(map(str, args)), env=ENVIRONMENT, stdout=log, stderr=log)
+        try:
+            process = subprocess.Popen(list(map(str, args)), env=ENVIRONMENT,
+                                       stdout=subprocess.PIPE, stderr=log)
+        except BaseException:
+            log.close()
+            raise
         self.processes.append((process, log, host))
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            require(process.poll() is None, 'demo.gateway-start-refused')
-            if socket_path.exists():
-                os.chown(socket_path, 0, APP_GID)
-                os.chmod(socket_path, 0o660)
-                return
-            time.sleep(0.05)
-        raise Refusal('demo.gateway-start-timeout')
+        wait_gateway_ready(process, log)
+        os.chown(socket_path, 0, APP_GID)
+        os.chmod(socket_path, 0o660)
 
     def restart(self, host):
         for process, log, number in list(self.processes):
             if number == host:
                 process.terminate()
                 process.wait(timeout=10)
+                if process.stdout is not None:
+                    process.stdout.close()
                 log.close()
                 self.processes.remove((process, log, number))
         self.start_gateway(host)
@@ -461,8 +461,8 @@ class Operator:
 
     def prepare_exact_approvals(self, plan):
         """Preapprove finite scripted mutations; refusals use an explicitly substituted approval."""
-        application = Application(HOME / 'app', [self.sockets / ('app' + str(host) + '.sock')
-                                                for host in range(3)])
+        application = Application(HOME / 'app', self.app_sockets,
+                                  review_socket=self.review_socket)
         values, reviews = {}, {}
         for label in LABELS:
             proof, action, _ = asyncio.run(application.packet(label))
@@ -535,7 +535,7 @@ class Operator:
                 require(len(raw) <= 4 * 1024 * 1024, 'demo.review-response-bound')
                 self.request.sendall(struct.pack('>I', len(raw)) + raw)
 
-        path = self.sockets / 'review.sock'
+        path = self.review_socket
         server = socketserver.UnixStreamServer(str(path), Handler)
         os.chown(path, 0, APP_GID)
         os.chmod(path, 0o660)
@@ -543,8 +543,15 @@ class Operator:
         thread.start()
         self.review_server, self.review_thread = server, thread
 
+    def application_command(self, *arguments):
+        command = ['/opt/consumer/bin/python', str(HERE / 'app.py'),
+                   '--application', str(HOME / 'app'), '--review-socket', str(self.review_socket)]
+        for socket_path in self.app_sockets:
+            command.extend(['--socket', str(socket_path)])
+        return [*command, *arguments]
+
     def application(self, *arguments):
-        return subprocess.run(['/opt/consumer/bin/python', str(HERE / 'app.py'), *arguments],
+        return subprocess.run(self.application_command(*arguments),
             env=ENVIRONMENT, capture_output=True, user=APP_UID, group=APP_GID, extra_groups=[], timeout=90)
 
     def export_audit(self, destination):
@@ -577,6 +584,8 @@ class Operator:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
+            if process.stdout is not None:
+                process.stdout.close()
             log.close()
         self.processes.clear()
         if self.double:
@@ -608,8 +617,7 @@ def main():
             from selftest import run
             run(operator)
         else:
-            process = subprocess.Popen(['/opt/consumer/bin/python', str(HERE / 'app.py'),
-                       'serve', '--port', str(args.port)], env=ENVIRONMENT,
+            process = subprocess.Popen(operator.application_command('serve', '--port', str(args.port)), env=ENVIRONMENT,
                        user=APP_UID, group=APP_GID, extra_groups=[])
             operator.processes.append((process, open(os.devnull, 'wb'), -1))
             require(process.wait() == 0, 'demo.application-exited')

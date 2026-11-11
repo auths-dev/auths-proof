@@ -64,6 +64,12 @@ destructor from deleting a successor. Neither mechanism replaces native fences.
 | Drain deadline expires with work still admitted | Report shutdown incomplete and terminate the process while claims remain held; OS releases them only as the process terminates. Do not drop ownership and continue returning through a live runtime. |
 | Foreign/replaced pathname during cleanup | Preserve replacement; do not claim ownership from pathname existence. |
 
+Launchers must leave stale-socket recovery and cleanup to the native owner. They
+wait for a bounded readiness event from their own child process, not pathname
+existence, and must not unlink application/admin sockets before starting it.
+Partial or absent readiness lines do not establish readiness; retain the child
+and its output handles until the launcher terminates or joins it.
+
 ## 3. SQLite reservation worker ownership (Q)
 
 `SQLiteAtomicReservationStore` currently uses `_closed` while `to_thread`

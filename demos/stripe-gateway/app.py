@@ -21,7 +21,8 @@ from auths.gateway import (GatewayClient, GatewayEndpoint, GatewayProtocolError,
                            GatewaySignedObservation)
 from auths.self_hosted import load_signer_file
 
-from demo_common import Refusal, b64, canonical, decode, read, require, unb64, write
+from demo_common import (Refusal, application_socket_paths, b64, canonical, decode,
+                         read, require, unb64, write)
 from generated import CONTRACT, CreateRefund
 
 HERE = Path(__file__).resolve().parent
@@ -39,12 +40,13 @@ def approval_target(_label, arguments):
 
 
 class Application:
-    def __init__(self, directory, sockets):
+    def __init__(self, directory, sockets, *, review_socket):
         self.directory = Path(directory)
         self.plan = decode(read(self.directory / 'application.json'))
         require(self.plan['schema'] == 'auths.stripe-gateway-demo/1', 'demo.invalid-plan')
         require(set(self.plan['cases']) == set(LABELS), 'demo.invalid-cases')
         self.sockets = [Path(path) for path in sockets]
+        self.review_socket = Path(review_socket)
         self.clients = [GatewayClient(GatewayEndpoint(path)) for path in self.sockets]
         require(len(self.clients) == 3, 'demo.race-and-fresh-context-gateways-required')
         self.signer = load_signer_file(self.directory / 'actor.json').signer
@@ -183,7 +185,7 @@ class Application:
         def request_review():
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
                 channel.settimeout(660 if self.plan['mode'] == 'live' else 90)
-                channel.connect(str(self.sockets[0].parent / 'review.sock'))
+                channel.connect(str(self.review_socket))
                 payload = canonical({'source': source})
                 channel.sendall(struct.pack('>I', len(payload)) + payload)
                 def receive(length):
@@ -349,12 +351,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--application', type=Path, default=Path('/run/demo/app'))
     parser.add_argument('--socket', action='append', default=[])
+    parser.add_argument('--review-socket', type=Path, default=Path('/run/demo/sockets/review.sock'))
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('command', choices=['serve', 'status', 'submit', 'export'])
     parser.add_argument('--experiment', choices=EXPERIMENTS, default='exact')
     args = parser.parse_args()
-    application = Application(args.application, args.socket or ['/run/demo/sockets/app0.sock',
-                              '/run/demo/sockets/app1.sock', '/run/demo/sockets/app2.sock'])
+    application = Application(args.application, args.socket or application_socket_paths('/run/demo'),
+                              review_socket=args.review_socket)
     if args.command == 'serve':
         serve(application, args.port)
     elif args.command == 'status':

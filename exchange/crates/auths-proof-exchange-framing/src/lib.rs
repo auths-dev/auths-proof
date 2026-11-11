@@ -342,7 +342,7 @@ mod tests {
         AUTHS_PROTOCOL_V1, ChallengeNonce, ExchangeAudience, ExchangeMetrics, ExchangeOutcome,
         ExchangeProfileId, ProfileBinding,
     };
-    fn challenge() -> ActionChallenge {
+    pub(super) fn challenge() -> ActionChallenge {
         ActionChallenge::new(
             ChallengeNonce::new([7; 32]),
             ExchangeAudience::parse("mcp://reports").unwrap(),

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { localWithdrawalContract } from "./local-withdrawal-contract.mjs";
 
 const turn = () => new Promise(setImmediate);
 
@@ -97,4 +98,5 @@ export async function viewerScopeContract() {
       }
     }
   }
+  await localWithdrawalContract();
 }
