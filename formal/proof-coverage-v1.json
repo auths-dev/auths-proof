@@ -16,9 +16,9 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5",
-  "inputs_sha256": "62c8f2e91adfefe18f986b3b04806296e88b00ec1a22e41d9811e876f561e393",
+  "inputs_sha256": "7c1f7febff8132a8e6f1fe28740d24189ae1e3cb26ad71a5a4813628edd12623",
   "inputs": {
-    "Cargo.toml": "sha256:0281b5555088aeac166ffc1dccfff237e565bc14dedcde3527b3cad0cdb695eb",
+    "Cargo.toml": "sha256:2c7b8d5dcae4c3998990ffac5828818fec6345c1574e0c9b6b3b394b1d2f0d05",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
     "core/crates/auths-algebra-kernel/src/generated.rs": "sha256:ae4bcbef42a408c7ffa0c6a74a42f7de177a6f14479e51d205acf830bda05960",
     "core/crates/auths-algebra-kernel/src/lib.rs": "sha256:6654667eeb9b353d6648954c9fd2e8838462a82ce6b2803eb49e1366892c68c6",
