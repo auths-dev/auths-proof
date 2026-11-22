@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 445,
+  "freezeVersion": 446,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -947,7 +947,7 @@
     },
     {
       "id": "auths.product.vocabulary",
-      "version": 31,
+      "version": 32,
       "classification": "frozen-meaning",
       "categories": [
         "customer-vocabulary",
@@ -965,7 +965,7 @@
         "product/sdk/auths-sdk/Cargo.toml",
         "xtask/src/sdk_vocabulary.rs"
       ],
-      "sha256": "f6ba2787a365a12c877e59de7da47ebbb3479efd77046b9eeb10de2e2fcb7e2e"
+      "sha256": "1fa460bb5aa4c2a0e8a6dbb360b51e30de10bda91c7385ccc13dc7cf58b362ef"
     },
     {
       "id": "auths.release.benchmark-contract",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 445,
+      "version": 446,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1104,7 +1104,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "6c54830daa19f0115771333d2d44587237774863f9c181fb0d8c07c5329cc3c4"
+      "sha256": "00ef8d27350fb4cb08d9d6f0e112ae24a2728e8170664aaab192105a602f3c0e"
     }
   ]
 }

@@ -300,6 +300,16 @@ previous Epic 1 binding-semantics work is separately committed as `bda2b07`.
 
 ## 8. Run log
 
+- 2026-11-22: [AP-SPEC-079](specs/0079-packaged-operator-and-developer-rehearsal.md)
+  exercises merged `41e2d949` using the
+  [packaged Stripe demo](https://github.com/auths-dev/auths-proof/actions/runs/42982847363).
+  Separate fresh agents installed the packages, rehearsed unknown recovery and
+  revocation, and checked the shipped native conformance cases. The startup
+  instructions and npm submission example needed correction. A manual
+  restart retained history but lost app socket access. The supported simulation
+  restart restores access and preserves Unknown without provider traffic.
+  The field lab owns the cross-repository observations and coverage record.
+
 Unattended runs append to `docs/program-log/<date>-<label>.md`, one entry
 per epic transition and per blocker, each with a commit hash or CI run URL.
 The morning report is the last section of that file, in the §6 shape, plus
