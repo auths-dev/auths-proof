@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "1c1b1df527358b0f36447dc90466341a1442936b372a19a0f3aa0e3dbb7eba29",
+  "digest": "8c524cfe1961c691e82b2bb9ec7a15cdc5729676c5246832a975e89e6f55b03f",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,12 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "7157ff778d20e606d0553ac8fd1d89cf9c2643abe4a12e879656008534763021",
+      "sha256": "64b39e138f90afe599f13f3b6d11751f51e26a3ae5f227e4b104f77ea19a561b",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "f372f4257f5687249c22073205f1f5cd84f4854155d1293aa75670b4dcd71cd2"
+      "sha256": "2c7b8d5dcae4c3998990ffac5828818fec6345c1574e0c9b6b3b394b1d2f0d05"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",

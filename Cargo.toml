@@ -254,7 +254,7 @@ hmac = "0.12.1"
 hcl-rs = "0.19.8"
 hyper = { version = "1.11.0", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1.20", default-features = false, features = ["service", "tokio"] }
-url = "2.5.8"
+url = "2.5.9"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
 libc = "0.2.189"
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "form", "query", "rustls"] }
@@ -262,12 +262,10 @@ postgres = { version = "0.19.12", default-features = false }
 r2d2 = "0.8.10"
 r2d2_postgres = "0.18.2"
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
-rustix = { version = "1.1.4", default-features = false, features = ["fs", "net", "process"] }
+rustix = { version = "1.1.6", default-features = false, features = ["fs", "net", "process"] }
 seccompiler = "0.5.0"
 zeroize = { version = "1.9.0", features = ["derive"] }
 zip = { version = "8.2.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
-# The MCP profile converts official model values; it does not run rmcp services.
-rmcp = { version = "3.9.0", default-features = false }
 serde_json_canonicalizer = "0.3.2"
 tempfile = "3.27.0"
 tar = { version = "0.4.44", default-features = false }

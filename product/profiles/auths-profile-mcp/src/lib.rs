@@ -18,7 +18,6 @@ use auths_profile_api::{
     ActionProfile, ProfileBudgetExpression, ProfileContractError, ReviewDisplay,
 };
 use auths_verifier::VerifiedAction;
-use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
@@ -73,30 +72,6 @@ impl McpToolCall {
         };
         call.validate()?;
         Ok(call)
-    }
-
-    /// Maps an immediate official `rmcp` tool call.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ProfileError::UnsupportedMcpExtension`] for metadata or
-    /// continuation state, including empty extension payloads. This converter
-    /// supports immediate calls only, with no continuation or task authority.
-    pub fn from_rmcp(
-        service: impl Into<String>,
-        request: CallToolRequestParams,
-    ) -> Result<Self, ProfileError> {
-        if request.meta.is_some()
-            || request.input_responses.is_some()
-            || request.request_state.is_some()
-        {
-            return Err(ProfileError::UnsupportedMcpExtension);
-        }
-        Self::new(
-            service,
-            request.name.into_owned(),
-            request.arguments.unwrap_or_default(),
-        )
     }
 
     /// Parses the unique canonical JSON representation.
@@ -519,8 +494,6 @@ pub enum ProfileError {
     Canonicalization,
     /// Profile identifier or version is unsupported.
     UnsupportedProfile,
-    /// MCP metadata/task extensions are outside V1.
-    UnsupportedMcpExtension,
     /// Service identifier is invalid.
     InvalidService,
     /// Tool name is invalid.
@@ -537,9 +510,7 @@ impl From<ProfileError> for ProfileContractError {
             ProfileError::InvalidLength => Self::LimitExceeded,
             ProfileError::MalformedJson | ProfileError::Canonicalization => Self::Malformed,
             ProfileError::NonCanonical => Self::NonCanonical,
-            ProfileError::UnsupportedProfile | ProfileError::UnsupportedMcpExtension => {
-                Self::UnsupportedProfile
-            }
+            ProfileError::UnsupportedProfile => Self::UnsupportedProfile,
             ProfileError::InvalidService
             | ProfileError::InvalidToolName
             | ProfileError::InvalidPermission
@@ -556,9 +527,6 @@ impl fmt::Display for ProfileError {
             Self::NonCanonical => "MCP call is not RFC 8785 canonical JSON",
             Self::Canonicalization => "failed to canonicalize MCP call",
             Self::UnsupportedProfile => "unsupported MCP action profile",
-            Self::UnsupportedMcpExtension => {
-                "MCP metadata and continuation requests are not supported"
-            }
             Self::InvalidService => "invalid MCP service identifier",
             Self::InvalidToolName => "invalid MCP tool name",
             Self::InvalidPermission => "invalid MCP Auths permission mapping",
@@ -574,12 +542,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rmcp_call_maps_to_exact_permission_and_canonical_body() {
-        let request = CallToolRequestParams::new("read_report").with_arguments(Map::from_iter([(
-            "name".into(),
-            Value::String("q3".into()),
-        )]));
-        let call = McpToolCall::from_rmcp("reports", request).unwrap();
+    fn immediate_call_maps_to_exact_permission_and_canonical_body() {
+        let call = McpToolCall::new(
+            "reports",
+            "read_report",
+            Map::from_iter([("name".into(), Value::String("q3".into()))]),
+        )
+        .unwrap();
         assert_eq!(
             call.permission().unwrap().resource().as_str(),
             "mcp://reports/tools/read_report"
@@ -590,7 +559,7 @@ mod tests {
     }
 
     #[test]
-    fn rmcp_continuation_and_metadata_presence_cannot_become_an_immediate_call() {
+    fn canonical_call_rejects_mcp_continuation_and_metadata_fields() {
         for extension in [
             serde_json::json!({"_meta": {}}),
             serde_json::json!({"_meta": {"io.modelcontextprotocol/tasks": {"ttl": 30000}}}),
@@ -601,13 +570,15 @@ mod tests {
             serde_json::json!({"inputResponses": {}, "requestState": "opaque-state"}),
         ] {
             let mut request = extension.as_object().unwrap().clone();
+            request.insert("profile".to_owned(), Value::String(PROFILE_ID.to_owned()));
+            request.insert("profile_version".to_owned(), Value::from(PROFILE_VERSION));
+            request.insert("service".to_owned(), Value::String("reports".to_owned()));
             request.insert("name".to_owned(), Value::String("read_report".to_owned()));
             request.insert("arguments".to_owned(), serde_json::json!({"name": "q3"}));
-            let request: CallToolRequestParams =
-                serde_json::from_value(Value::Object(request)).unwrap();
+            let encoded = serde_json_canonicalizer::to_vec(&request).unwrap();
             assert_eq!(
-                McpToolCall::from_rmcp("reports", request),
-                Err(ProfileError::UnsupportedMcpExtension)
+                McpToolCall::from_canonical_bytes(&encoded),
+                Err(ProfileError::MalformedJson)
             );
         }
     }
