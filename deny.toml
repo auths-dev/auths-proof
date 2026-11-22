@@ -7,7 +7,10 @@ yanked = "deny"
 # netlink-packet-core 0.8.1. There is no fixed upstream release; this is an
 # unmaintained notice, not a vulnerability. Keep it explicit and remove it
 # when iroh's dependency graph replaces `paste`.
-ignore = ["RUSTSEC-2024-0436"]
+ignore = [
+    "RUSTSEC-2024-0436",
+    { id = "RUSTSEC-2026-0543", reason = "Unmaintained notice for chrono via Iroh's Windows route discovery. Remove when netwatch drops WMI or turns off its chrono feature (n0-computer/net-tools#226)." },
+]
 
 [licenses]
 confidence-threshold = 0.8
@@ -28,6 +31,13 @@ allow = [
 ]
 
 [bans]
+# Restrict the chrono maintenance exception to the existing Windows
+# route discovery chain. A new consumer of any link fails the audit.
+deny = [
+    { crate = "chrono", wrappers = ["wmi"] },
+    { crate = "wmi", wrappers = ["netwatch"] },
+    { crate = "netwatch", wrappers = ["iroh"] },
+]
 multiple-versions = "warn"
 wildcards = "deny"
 # Public crates may use path-only dev-dependencies on private workspace

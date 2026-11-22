@@ -8312,18 +8312,6 @@
     {
       "source": "auths-profile-mcp",
       "source_layer": "product",
-      "target": "rmcp",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-profile-mcp",
-      "source_layer": "product",
       "target": "serde",
       "target_layer": null,
       "scope": "external",

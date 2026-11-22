@@ -594,6 +594,35 @@ class Operator:
             self.resources.cleanup(JOURNAL)
 
 
+def serve_application(operator, port):
+    restart_requested = False
+
+    def request_restart(*_):
+        nonlocal restart_requested
+        restart_requested = True
+
+    if operator.mode == 'simulation':
+        signal.signal(signal.SIGHUP, request_restart)
+    process = subprocess.Popen(operator.application_command('serve', '--port', str(port)),
+                               env=ENVIRONMENT, user=APP_UID, group=APP_GID, extra_groups=[])
+    operator.processes.append((process, open(os.devnull, 'wb'), -1))
+    if operator.mode != 'simulation':
+        require(process.wait() == 0, 'demo.application-exited')
+        return
+
+    while True:
+        if restart_requested:
+            restart_requested = False
+            operator.restart(0)
+            print('demo.gateway-restarted:gateway0', flush=True)
+        try:
+            result = process.wait(timeout=0.25)
+        except subprocess.TimeoutExpired:
+            continue
+        require(result == 0, 'demo.application-exited')
+        return
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--live', action='store_true', help='Use the real provider with operator-only stdin credentials')
@@ -617,10 +646,7 @@ def main():
             from selftest import run
             run(operator)
         else:
-            process = subprocess.Popen(operator.application_command('serve', '--port', str(args.port)), env=ENVIRONMENT,
-                       user=APP_UID, group=APP_GID, extra_groups=[])
-            operator.processes.append((process, open(os.devnull, 'wb'), -1))
-            require(process.wait() == 0, 'demo.application-exited')
+            serve_application(operator, args.port)
     except Refusal as error:
         print(str(error), file=sys.stderr)
         raise SystemExit(1) from None

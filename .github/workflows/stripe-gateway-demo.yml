@@ -139,6 +139,7 @@ jobs:
           sudo mkdir -p /evidence
           sudo chmod 777 /evidence
           python3 package/stripe-gateway-demo/tests/browser.py
+          python3 package/stripe-gateway-demo/tests/restart.py stripe-workbench
           cp /evidence/*.png evidence/
       - name: Stop the packaged operator
         if: always()

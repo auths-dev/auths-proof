@@ -2,7 +2,7 @@
 
 Auths lets an application request a protected provider write without holding
 the provider credential. The application authors a proof for one exact action
-and submits the proof and the action to an operator-run Auths gateway. The
+and submits the proof, action, and native exact-effect approval to an operator-run Auths gateway. The
 gateway holds the provider credential, verifies the proof against its
 installed trust, performs the write, and returns a closed result.
 
@@ -17,14 +17,14 @@ The package includes its WASM implementation. Consumers do not need Rust.
 ## Submit one exact write through the gateway
 
 The gateway is the single provider-write path. The application never sends a
-URL, method, header, body, or token to it: only proof bytes and the exact
-action bytes that proof authorizes.
+URL, method, header, body, or token to it. Send the canonical proof, exact
+action and native exact-effect approval bytes from the reviewed operation.
 
 ```ts
 import { GatewayClient, GatewayEndpoint } from "@auths-dev/sdk/gateway";
 
 const gateway = new GatewayClient(new GatewayEndpoint("/run/auths/gateway.sock"));
-const result = await gateway.submit({ proof, action });
+const result = await gateway.submit({ proof, action, approval });
 switch (result.outcome) {
   case "denied":
   case "indeterminate":
@@ -59,21 +59,25 @@ They expose a native record-scoped hiding commitment and receipt time; raw
 response digests and echo tokens stay in the protected journal. Older evidence
 shapes are rejected. Bindings validate the shape and never compute the commitment.
 
-The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
-runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway
-submission, and an offline audit.
+The [packaged Stripe gateway demo](https://github.com/auths-dev/auths-proof/tree/main/demos/stripe-gateway)
+shows an exact-effect approval alongside the 2-of-3 approval quorum, gateway
+submission, and offline audit. Its source-free archive includes the installed
+SDK and the compiled TypeScript submit client. Use the archive's README for
+instructions that match the packaged version.
 
 Keep the exact `code` on a `not-entered` result. Qualification refusals and
 `gateway.connection.restore-rollback` mean this submission stopped before
 provider entry; they do not establish the outcome of any earlier attempt.
 An `unknown` result means the write may have happened. Retain its operation
-identifier and ask the operator to reconcile it with `reobserve`; do not
-resubmit it as a new operation. Signed observations require a separately
+identifier and escalate to the operator. The operator can use separately
+authorized evidence through `recover` when the source has a recovery locator.
+Keep an unresolved operation charged and avoid a new mutation submission.
+Signed observations require a separately
 configured observer. An absent observer does not establish a signed outcome.
 
 The operator's `doctor` report lists each required production check and
 returns nonzero if any check fails. Use the
-[production operations runbook](../../docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md)
+[production operations runbook](https://github.com/auths-dev/auths-proof/blob/main/docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md)
 for diagnosis, emergency stop, rotation and recovery.
 
 ## Author the proof
@@ -81,13 +85,13 @@ for diagnosis, emergency stop, rotation and recovery.
 `@auths-dev/sdk/self-hosted` generates an exact MCP-shaped tool from a
 `profile.toml`, and `@auths-dev/sdk/identity` authors identities. To require
 approvals from any K of N named approvers before an agent's exact action is
-submitted, see [approval quorum](../../docs/product/APPROVAL_QUORUM.md). The
+submitted, see [approval quorum](https://github.com/auths-dev/auths-proof/blob/main/docs/product/APPROVAL_QUORUM.md). The
 installed `auths` command runs `auths generate` for exact-tool code and
 `auths approve` for approval requests.
 
 For an application-owned provider adapter that is not an Auths-qualified
 vertical, see the
-[self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
+[self-hosted exact-operation quickstart](https://github.com/auths-dev/auths-proof/blob/main/docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
 An application holding its own provider token can bypass `runOnce`, so that
 path is not credential-isolated; the gateway path is.
 

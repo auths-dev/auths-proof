@@ -86,7 +86,23 @@ demonstrate normal cleanup or delete a live journal before confirming retirement
 
 ## CLI and operator diagnosis
 
-The CLI uses the same installed SDK submission code as the workbench:
+Wait for the workbench to respond before invoking the CLI. The operator
+prepares the exact approvals and sets application file ownership during
+startup, after Docker first reports the container running. With the port
+published as above, check readiness with
+`curl --fail --silent --output /dev/null http://127.0.0.1:8080/api/status`.
+For a simulation started with `--network none` and no published port, check
+the same endpoint over loopback inside the container:
+
+```sh
+docker exec auths-stripe-gateway-demo /opt/consumer/bin/python -c \
+  'from urllib.request import urlopen; urlopen("http://127.0.0.1:8080/api/status", timeout=2).close()'
+```
+
+If startup is still in progress, wait and check again. If readiness never
+arrives, inspect the container logs. Leave application file permissions under
+the operator's control. The CLI uses the same installed SDK submission code
+as the workbench:
 
 ```sh
 docker exec --user 62004:62005 auths-stripe-gateway-demo \
@@ -131,9 +147,50 @@ because the UI says success. Read-back echo attribution assumes other writers
 did not copy the action echo; this is not proof of settlement or exclusive causation.
 
 `doctor` intentionally reports **not production ready** for this development
-installation: file custody, software observer, local clock and missing protected
-qualification do not satisfy production policy. Store, recipe, generation,
-transport and operator/application isolation checks must still pass.
+installation. Expect development trust, file custody, software observer, local
+clock and missing protected qualification to fail their production checks.
+Store, recipe, generation and operator/application isolation should pass. The
+transport check constructs the pinned production client and requires DNS for
+`api.stripe.com`, even though simulation requests use loopback. With
+`--network none` and no local resolution fixture, expect
+`gateway.readiness.transport-unavailable`.
+
+## Rehearse restart, recovery and revocation
+
+Use a disposable simulation container started with `--init`. With the
+workbench ready, submit `exact`, then request `recover-exact` in the workbench
+or with the CLI's `submit --experiment recover-exact`. The latter is a
+separately approved read of the known refund. Submit `lost-response` once
+to exercise an applied refund whose response is dropped.
+
+Restart the first gateway while retaining the same provider double, shared
+store and application session:
+
+```sh
+docker kill --signal=HUP auths-stripe-gateway-demo
+docker logs auths-stripe-gateway-demo
+```
+
+The simulation operator drains and replaces `gateway0`, restores its app
+socket group, and logs a new `demo.gateway-restarted:gateway0` line when the
+replacement is ready. Wait for that line before proceeding. Look up the
+retained outcome in the audit or repeat the same packaged `lost-response`
+experiment to retrieve its recorded `unknown` result. That replay uses the
+original operation ID and enters no provider transport. Keep the unresolved
+refund charged and escalate through the operator. The known refund's
+read-back cannot settle this other operation.
+
+Revoke the disposable connection when finished. This is permanent for this
+session and all three gateway processes share the connection state:
+
+```sh
+docker exec auths-stripe-gateway-demo /opt/demo/bin/auths-gateway-simulation \
+  revoke --state-dir /run/demo/gateway0 --store-only
+docker exec auths-stripe-gateway-demo /opt/demo/bin/auths-gateway-simulation \
+  status --state-dir /run/demo/gateway1
+```
+
+Expect `revoked` on the peer. Stop the container to retire the simulation.
 
 ## Explicit live launch from an existing private `.env`
 
@@ -218,7 +275,7 @@ current signed qualification require the existing main-only
 not disable that gate or provision shared environment credentials. The Stripe
 family's current report contributes only one of the two required live providers.
 Human review and actual GitHub-release installation are separate acceptance gates.
-See [AP-SPEC-067](../../docs/specs/0067-stripe-general-gateway-demo.md).
+See [AP-SPEC-067](https://github.com/auths-dev/auths-proof/blob/main/docs/specs/0067-stripe-general-gateway-demo.md).
 
 The application export contains public history, not a completed private audit. In
 a trusted operator shell, while the gateway is running, complete it with native

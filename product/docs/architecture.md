@@ -1,7 +1,7 @@
 # Architecture
 
 ```text
-official rmcp CallToolRequestParams
+validated service, tool name and arguments
                 |
                 v
      canonical MCP call profile
@@ -22,6 +22,9 @@ official rmcp CallToolRequestParams
 
 `auths-profile-mcp` maps MCP semantics to exact signed bytes and an
 Auths permission. It does not verify proofs or depend on networking.
+An MCP transport adapter owns request-envelope validation before passing an
+immediate call's service, tool name and object arguments to `McpToolCall::new`.
+The canonical action has a closed schema without metadata or continuation fields.
 
 `auths-runtime` owns application challenge consumption, Auths trust
 composition, transport policy, permission cross-checking, and the
